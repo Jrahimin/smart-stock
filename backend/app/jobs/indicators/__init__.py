@@ -1,0 +1,2 @@
+"""Indicator computation job scaffolding."""
+

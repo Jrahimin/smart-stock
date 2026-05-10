@@ -1,0 +1,14 @@
+fastapi
+uvicorn[standard]
+sqlalchemy[asyncio]
+asyncpg
+alembic
+pydantic
+pydantic-settings
+python-dotenv
+greenlet
+beautifulsoup4
+lxml
+
+# zoneinfo lookups (Asia/Dhaka scheduler/CLI); required on Windows when OS has no IANA data
+tzdata

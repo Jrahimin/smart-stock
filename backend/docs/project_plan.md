@@ -1,0 +1,355 @@
+# Project Plan – Stock Intelligence System
+
+---
+
+# 🧠 Core Principles
+
+* Build for **decision making**, not just data storage
+* Follow strict dependency:
+  **Stock → Market Data → Indicators → Signals → Insights**
+* Keep execution simple, consistent, and incremental
+* Avoid jumping to advanced features early
+
+---
+
+# 🚀 FEATURE ROADMAP
+
+| Feature            | Description                     | Progress         | Current |
+| ------------------ | ------------------------------- | ---------------- | ------- |
+| Stock Module       | Master stock data               | B ✅ / M ⏳ / A ⏳  |         |
+| Market Data        | Price ingestion + storage       | B ✅ / M ✅ / A ⏳ |         |
+| Indicators         | Technical indicators            | B 🔵 / M ⏳ / A ⏳  | 🔵      |
+| Signals Engine     | Buy/sell logic                  | B ⏳ / M ⏳ / A ⏳  |         |
+| Market Scanner     | Opportunity detection (core UX) | B ⏳ / M ⏳ / A ⏳  |         |
+| Fundamentals       | Financial + dividend data       | B ⏳ / M ⏳ / A ⏳  |         |
+| Smart Insights     | Explain stock condition         | B ⏳ / M ⏳ / A ⏳  |         |
+| Market Dashboard   | Market overview                 | B ⏳ / M ⏳ / A ⏳  |         |
+| Watchlist & Alerts | Personalized tracking           | B ⏳ / M ⏳ / A ⏳  |         |
+| Backtesting        | Strategy evaluation             | B ⏳ / M ⏳ / A ⏳  |         |
+| AI Analysis        | LLM-powered insights            | B ⏳ / M ⏳ / A ⏳  |         |
+
+---
+
+## Progress Rules
+
+* Features evolve: **Basic → Moderate → Advanced**
+* Do not start Moderate before Basic is complete
+* Only ONE feature can be 🔵 CURRENT
+* Prefer completing Basic across core features first
+
+---
+
+# 🧩 TASK BREAKDOWN
+
+---
+
+## 🧱 0. Stock Module (FOUNDATION)
+
+### 🔹 Basic (Completed)
+
+* [x] Stock schema design
+* [x] Unique constraint (exchange + symbol)
+* [x] Repository + service layer
+* [x] Create/list/get APIs
+* [x] Pagination
+* [x] API documentation
+
+---
+
+### 🔹 Moderate
+
+* [ ] Search (symbol/name)
+* [ ] Filtering (exchange, sector)
+* [ ] Active/inactive toggle
+
+---
+
+### 🔹 Advanced
+
+* [ ] External sync (auto stock list)
+* [ ] Metadata enrichment
+
+---
+
+## 📊 1. Market Data (CURRENT)
+
+### 🔹 Basic (Must Complete)
+
+* [x] Identify sources (AmarStock / StockNow)
+* [x] Build scraper (daily prices)
+* [x] Normalize OHLCV data
+* [x] Store in DB (daily_prices)
+* [x] Deduplicate (stock_id + trade_date)
+* [x] Implement GET prices API
+* [x] Add pagination
+
+---
+
+### 🔹 Moderate
+
+* [x] Data quality handling (flags)
+* [x] Handle missing/inconsistent data
+* [x] Compute derived fields:
+
+  * price_change
+  * percentage change
+  * turnover
+* [x] Validate data (high >= low)
+* [x] Scheduled ingestion job
+
+---
+
+### 🔹 Advanced
+
+* [ ] Bulk insert optimization
+* [ ] Retry + logging
+* [ ] Data anomaly detection
+
+---
+
+## 📈 2. Indicators
+
+### 🔹 Basic
+
+* [ ] SMA
+* [ ] EMA
+* [ ] RSI
+
+---
+
+### 🔹 Moderate
+
+* [ ] MACD
+* [ ] Bollinger Bands
+
+---
+
+### 🔹 Advanced
+
+* [ ] Composite indicators
+* [ ] Volatility metrics
+* [ ] Feature engineering layer
+
+---
+
+## 📊 3. Signals Engine
+
+### 🔹 Basic
+
+* [ ] RSI signals
+* [ ] MA crossover signals
+
+---
+
+### 🔹 Moderate
+
+* [ ] Multi-factor signals
+* [ ] Confidence scoring
+
+---
+
+### 🔹 Advanced
+
+* [ ] Strategy abstraction
+* [ ] Signal performance tracking
+
+---
+
+## 🔍 4. Market Scanner (CORE PRODUCT FEATURE)
+
+### 🔹 Basic
+
+* [ ] Top gainers/losers
+* [ ] Volume spike detection
+* [ ] Breakout detection
+
+---
+
+### 🔹 Moderate
+
+* [ ] RSI oversold stocks
+* [ ] Trend continuation detection
+* [ ] Momentum ranking
+
+---
+
+### 🔹 Advanced
+
+* [ ] Accumulation detection
+* [ ] Smart money flow signals
+
+---
+
+## 💰 5. Fundamentals
+
+### 🔹 Basic
+
+* [ ] Financial reports storage
+* [ ] Dividend data storage
+
+---
+
+### 🔹 Moderate
+
+* [ ] P/E, dividend yield
+* [ ] EPS growth trends
+
+---
+
+### 🔹 Advanced
+
+* [ ] Fundamental scoring
+* [ ] Undervalued stock detection
+
+---
+
+## 🧠 6. Smart Insights
+
+### 🔹 Basic
+
+* [ ] Rule-based summaries
+
+---
+
+### 🔹 Moderate
+
+* [ ] Combine price + fundamentals
+
+---
+
+### 🔹 Advanced
+
+* [ ] AI-generated insights
+* [ ] Risk explanations
+
+---
+
+## 📊 7. Market Dashboard
+
+### 🔹 Basic
+
+* [ ] Market summary (index, adv/decl)
+
+---
+
+### 🔹 Moderate
+
+* [ ] Sector performance
+
+---
+
+### 🔹 Advanced
+
+* [ ] Market sentiment index
+
+---
+
+## 🔔 8. Watchlist & Alerts
+
+### 🔹 Basic
+
+* [ ] Watchlist CRUD
+
+---
+
+### 🔹 Moderate
+
+* [ ] Signal-based alerts
+
+---
+
+### 🔹 Advanced
+
+* [ ] Smart alerts (multi-condition)
+
+---
+
+## 🧪 9. Backtesting
+
+### 🔹 Basic
+
+* [ ] Replay signals on historical data
+
+---
+
+### 🔹 Moderate
+
+* [ ] Performance metrics (return, win rate)
+
+---
+
+### 🔹 Advanced
+
+* [ ] Strategy optimization
+
+---
+
+## 🤖 10. AI Analysis
+
+### 🔹 Basic
+
+* [ ] Stock summary
+
+---
+
+### 🔹 Moderate
+
+* [ ] Explain signals
+* [ ] Risk insights
+
+---
+
+### 🔹 Advanced
+
+* [ ] Conversational assistant
+* [ ] Personalized recommendations
+
+---
+
+# 🧠 EXECUTION STRATEGY
+
+### Phase 1 (Minimum usable system)
+
+* Stock ✅
+* Market Data (Basic)
+* Indicators (Basic)
+* Signals (Basic)
+* Scanner (Basic)
+
+---
+
+### Phase 2 (Trader-useful system)
+
+* Fundamentals
+* Multi-factor signals
+* Watchlist & alerts
+* Dashboard
+
+---
+
+### Phase 3 (Advanced system)
+
+* Backtesting
+* AI insights
+* Smart analytics
+
+---
+
+# 🔥 FINAL RULE
+
+This is not a data project.
+
+This is a **trading decision system**.
+
+Every feature must answer:
+👉 "What should the trader do next?"
+
+---
+
+# 📝 STATUS UPDATE RULE
+
+After completing tasks:
+
+* update checkboxes
+* update feature progress (B/M/A)
+* move 🔵 CURRENT to next feature

@@ -1,0 +1,41 @@
+from fastapi import Depends
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.base_repository import BaseRepository
+from app.core.database_session import get_db_session
+from app.core.enums import ExchangeCode
+from app.core.pagination import ListQueryParams
+from app.models import Stock
+
+
+class StocksRepository(BaseRepository[Stock]):
+    model = Stock
+
+    def __init__(self, session: AsyncSession) -> None:
+        super().__init__(session)
+
+    async def list_stocks(
+        self,
+        *,
+        exchange: ExchangeCode | None,
+        params: ListQueryParams,
+    ) -> list[Stock]:
+        return await self.list_filtered(
+            params=params,
+            exact_filters={"exchange": exchange},
+            search_columns=(Stock.symbol, Stock.name),
+            order_by=(Stock.exchange, Stock.symbol, Stock.id),
+        )
+
+    async def get_by_exchange_symbol(self, *, exchange: ExchangeCode, symbol: str) -> Stock | None:
+        statement = select(Stock).where(
+            Stock.exchange == exchange,
+            func.upper(Stock.symbol) == symbol.upper(),
+        )
+        return await self.session.scalar(statement)
+
+
+def get_stocks_repository(session: AsyncSession = Depends(get_db_session)) -> StocksRepository:
+    return StocksRepository(session)
+
