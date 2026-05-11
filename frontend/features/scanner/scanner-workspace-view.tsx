@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import { SearchableSymbolFilter } from "@/components/filters/searchable-symbol-filter";
 import { FloatingRefreshButton } from "@/components/ui/floating-refresh-button";
 import { MarketActivityLoader } from "@/components/ui/market-activity-loader";
+import { SignalBadge } from "@/components/ui/signal-badge";
 import { useMarketUniverse } from "@/features/market-dashboard/hooks/use-market-universe";
 import { formatCompactNumber, formatNumber, formatPercent } from "@/lib/formatters/financial-formatters";
 
@@ -70,13 +71,26 @@ export function ScannerWorkspaceView() {
               {category.items.length ? (
                 category.items.map((stock) => (
                   <Link className="scanner-result-card" href={`/stocks/${stock.stock.exchange}/${stock.stock.symbol}`} key={stock.stock.id}>
-                    <strong>{stock.stock.symbol}</strong>
+                    <div className="scanner-card-topline">
+                      <strong>{stock.stock.symbol}</strong>
+                      <SignalBadge signal={stock.signal.signal} />
+                    </div>
                     <span>{formatNumber(stock.latestPrice)} / {formatPercent(stock.priceChangePercent)}</span>
-                    <small>RSI {formatNumber(stock.rsi)} / Vol {formatCompactNumber(stock.volume)}</small>
+                    <div className="mini-momentum-bar" aria-label="Momentum strength">
+                      <span style={{ width: `${Math.min(100, Math.abs(stock.priceChangePercent ?? 0) * 12)}%` }} />
+                    </div>
+                    <small className="scanner-context-row">
+                      <span>RSI {formatNumber(stock.rsi)}</span>
+                      <span>Vol {formatCompactNumber(stock.volume)}</span>
+                      <span className={`trend-icon trend-icon-${stock.trend.toLowerCase()}`} aria-label={stock.trend} title={stock.trend} />
+                    </small>
                   </Link>
                 ))
               ) : (
-                <div className="empty-state">No candidates in this scan.</div>
+                <div className="empty-state empty-state-premium">
+                  <strong>No names match this scan yet</strong>
+                  <span>This means the current universe has no high-conviction candidates for this condition, not that market data is missing.</span>
+                </div>
               )}
             </div>
           </section>

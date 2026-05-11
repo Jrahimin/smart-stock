@@ -1,6 +1,7 @@
 "use client";
 
 import { Search } from "lucide-react";
+import Image from "next/image";
 
 import { DataQualityBadge } from "@/components/ui/data-quality-badge";
 import type { MarketDashboardModel } from "@/features/market-dashboard/types/market-dashboard-types";
@@ -17,6 +18,14 @@ export function MarketTopbar({ model }: MarketTopbarProps) {
   return (
     <header className="market-topbar">
       <div className="market-tape">
+        <Image
+          alt="Stock Intelligence"
+          className="market-topbar-logo"
+          height={40}
+          priority
+          src="/stock-icon-wide.png"
+          width={160}
+        />
         <strong className="market-tape-index">{model.exchange}X</strong>
         <span className={`market-tape-pill market-tape-mood-${moodTone}`}>Mood: {model.marketMood}</span>
         <span className="market-tape-pill">

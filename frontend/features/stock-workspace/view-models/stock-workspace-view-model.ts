@@ -23,7 +23,12 @@ export type StockWorkspaceModel = {
     confidence: string;
   };
   technicalSummary: Array<{ label: string; value: string; helper: string }>;
-  insights: Array<{ title: string; description: string; tone: "positive" | "negative" | "neutral" | "warning" }>;
+  insights: Array<{
+    title: string;
+    description: string;
+    tone: "positive" | "negative" | "neutral" | "warning";
+    category: "warning" | "opportunity" | "momentum" | "accumulation" | "volatility" | "risk";
+  }>;
   fundamentals: Array<{ label: string; value: string; helper: string }>;
 };
 
@@ -34,6 +39,7 @@ function buildInsights(intelligence: StockIntelligenceModel | null): StockWorksp
         title: "Awaiting price history",
         description: "This stock needs OHLCV rows before technical insight can be generated.",
         tone: "warning",
+        category: "warning",
       },
     ];
   }
@@ -48,6 +54,8 @@ function buildInsights(intelligence: StockIntelligenceModel | null): StockWorksp
           : intelligence.signal.signal === "SELL"
             ? "negative"
             : "neutral",
+      category:
+        intelligence.signal.signal === "BUY" ? "opportunity" : intelligence.signal.signal === "SELL" ? "risk" : "momentum",
     },
   ];
 
@@ -56,6 +64,7 @@ function buildInsights(intelligence: StockIntelligenceModel | null): StockWorksp
       title: "Elevated volatility detected",
       description: "Recent daily movement is wide; use smaller position sizing and stronger confirmation.",
       tone: "warning",
+      category: "volatility",
     });
   }
 
@@ -64,6 +73,7 @@ function buildInsights(intelligence: StockIntelligenceModel | null): StockWorksp
       title: "Volume accumulation visible",
       description: "Latest volume is materially above the recent average, so price movement deserves attention.",
       tone: "positive",
+      category: "accumulation",
     });
   }
 
@@ -72,6 +82,7 @@ function buildInsights(intelligence: StockIntelligenceModel | null): StockWorksp
       title: "RSI recovery watch",
       description: "RSI is near an oversold zone; watch for stabilization before treating it as a rebound.",
       tone: "warning",
+      category: "momentum",
     });
   }
 

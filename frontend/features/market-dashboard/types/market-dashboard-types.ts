@@ -36,14 +36,17 @@ export type HeatmapTileModel = {
   href: string;
   latestPrice: string;
   turnover: string;
+  liquidityScore: number;
 };
 
 export type SignalFeedItemModel = {
   symbol: string;
   signal: SignalType;
   confidence: string;
+  confidenceValue: number;
   reason: string;
   risk: string;
+  priority: "high" | "medium" | "low";
   href: string;
   supportingContext: string[];
   generatedAt: string;

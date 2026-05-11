@@ -35,10 +35,12 @@ export function MarketDashboardView() {
         </div>
         <div className="dashboard-secondary-column">
           <SmartSignalFeed signals={model.signals} />
-          <MarketMoversPanel movers={model.movers.turnoverLeaders} title="Turnover leaders" />
           <MarketTimeline items={model.timeline} />
         </div>
-        <InsightSidebar insights={model.insights} />
+        <div className="dashboard-tertiary-column">
+          <InsightSidebar insights={model.insights} />
+          <MarketMoversPanel movers={model.movers.turnoverLeaders} title="Liquidity watch" eyebrow="Turnover Leaders" />
+        </div>
       </div>
       <FloatingRefreshButton onRefresh={refetch} />
     </div>

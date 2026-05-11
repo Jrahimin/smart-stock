@@ -12,7 +12,8 @@ export function StockInsightSidebar({ model }: StockInsightSidebarProps) {
         <h2>Behavior explanation</h2>
       </div>
       {model.insights.map((insight) => (
-        <article className={`insight-block insight-block-${insight.tone}`} key={insight.title}>
+        <article className={`insight-block insight-block-${insight.tone} insight-category-${insight.category}`} key={insight.title}>
+          <span className="insight-category-label">{insight.category}</span>
           <strong>{insight.title}</strong>
           <p>{insight.description}</p>
           <span>DETERMINISTIC</span>

@@ -62,22 +62,26 @@ function toBreadthModel(summary: BackendDailyMarketSummaryDto | null, universe: 
 }
 
 function buildHeatmapTiles(universe: StockIntelligenceModel[]) {
+  const maxTurnover = Math.max(...universe.map((stock) => stock.turnover ?? 0), 1);
+
   return [...universe]
     .sort((a, b) => (b.marketCap ?? b.turnover ?? 0) - (a.marketCap ?? a.turnover ?? 0))
-    .slice(0, 64)
+    .slice(0, 48)
     .map((stock) => {
       const change = stock.priceChangePercent ?? 0;
+      const sizeSource = stock.marketCap ?? stock.turnover ?? 1;
       return {
         stockId: stock.stock.id,
         symbol: stock.stock.symbol,
         label: stock.stock.symbol,
         sector: stock.sector,
         value: formatPercent(change),
-        weight: Math.max(1, Math.log10((stock.marketCap ?? stock.turnover ?? 1) + 10)),
+        weight: Math.max(1, Math.min(8, Math.log10(sizeSource + 10) / 1.8)),
         tone: change > 0 ? ("positive" as const) : change < 0 ? ("negative" as const) : ("neutral" as const),
         href: `/stocks/${stock.stock.exchange}/${stock.stock.symbol}`,
         latestPrice: formatNumber(stock.latestPrice),
         turnover: formatCompactNumber(stock.turnover),
+        liquidityScore: Math.round(((stock.turnover ?? 0) / maxTurnover) * 100),
       };
     });
 }
@@ -87,8 +91,10 @@ function toSignalFeedItem(stock: StockIntelligenceModel): SignalFeedItemModel {
     symbol: stock.stock.symbol,
     signal: stock.signal.signal,
     confidence: `${stock.signal.confidence}%`,
+    confidenceValue: stock.signal.confidence,
     reason: stock.signal.reason,
     risk: stock.signal.risk,
+    priority: stock.signal.confidence >= 70 ? "high" : stock.signal.confidence >= 58 ? "medium" : "low",
     href: `/stocks/${stock.stock.exchange}/${stock.stock.symbol}`,
     supportingContext: stock.signal.supportingContext,
     generatedAt: stock.signal.generatedAt,

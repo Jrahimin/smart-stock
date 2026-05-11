@@ -51,13 +51,28 @@ export function SignalCenterView() {
       {isLoading ? <MarketActivityLoader /> : null}
       <div className="signal-center-list">
         {signals.map((signal) => (
-          <Link className="signal-center-item" href={`/stocks/${signal.exchange}/${signal.symbol}`} key={signal.stockId}>
-            <div>
-              <strong>{signal.symbol}</strong>
-              <span>{signal.name}</span>
+          <Link
+            className={`signal-center-item signal-center-item-${signal.signal.toLowerCase()} priority-${getSignalPriority(signal.confidence)}`}
+            href={`/stocks/${signal.exchange}/${signal.symbol}`}
+            key={signal.stockId}
+          >
+            <div className="signal-center-topline">
+              <div>
+                <strong>{signal.symbol}</strong>
+                <span>{signal.name}</span>
+              </div>
+              <SignalBadge signal={signal.signal} />
             </div>
-            <SignalBadge signal={signal.signal} />
             <p>{signal.reason}</p>
+            <div className="signal-visual-row">
+              <div className="signal-confidence-meter" aria-label={`${signal.confidence}% confidence`}>
+                <span style={{ width: `${signal.confidence}%` }} />
+              </div>
+              <span className={`risk-pill risk-pill-${signal.risk.toLowerCase()}`}>{signal.risk} risk</span>
+              <span className={`momentum-marker momentum-marker-${signal.signal.toLowerCase()}`}>
+                {signal.signal === "BUY" ? "Momentum expanding" : signal.signal === "SELL" ? "Pressure rising" : "Wait for trigger"}
+              </span>
+            </div>
             <div className="signal-evidence-row">
               <span>{signal.confidence}% confidence</span>
               <span>Risk {signal.risk}</span>
@@ -70,4 +85,16 @@ export function SignalCenterView() {
       <FloatingRefreshButton onRefresh={refetch} />
     </section>
   );
+}
+
+function getSignalPriority(confidence: number) {
+  if (confidence >= 70) {
+    return "high";
+  }
+
+  if (confidence >= 58) {
+    return "medium";
+  }
+
+  return "low";
 }

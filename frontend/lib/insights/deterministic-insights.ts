@@ -34,6 +34,16 @@ export function buildMarketInsights(input: MarketInsightInput): InsightBlockMode
             : input.marketMood === "Weak recovery" || input.marketMood === "Cautious"
               ? "warning"
               : "neutral",
+      category:
+        input.marketMood === "Accumulation"
+          ? "accumulation"
+          : input.marketMood === "High volatility"
+            ? "volatility"
+            : input.marketMood === "Bullish"
+              ? "opportunity"
+              : input.marketMood === "Bearish"
+                ? "risk"
+                : "momentum",
       source: "DETERMINISTIC",
     });
   }
@@ -44,6 +54,7 @@ export function buildMarketInsights(input: MarketInsightInput): InsightBlockMode
       title: "Signal layer ready",
       description: `${input.signalCount} highlighted signals can be explained with structured confidence and risk metadata.`,
       tone: "info",
+      category: "opportunity",
       source: "DETERMINISTIC",
     });
   }
@@ -53,6 +64,7 @@ export function buildMarketInsights(input: MarketInsightInput): InsightBlockMode
     title: "Turnover context",
     description: `Latest turnover is ${input.turnoverLabel}. Treat missing values as a data availability issue, not a zero-activity market.`,
     tone: input.turnoverLabel === "N/A" ? "warning" : "neutral",
+    category: input.turnoverLabel === "N/A" ? "quality" : "valuation",
     source: "DETERMINISTIC",
   });
 
@@ -62,6 +74,7 @@ export function buildMarketInsights(input: MarketInsightInput): InsightBlockMode
       title: "Data quality caution",
       description: "Some market fields are partial or validation-only, so the UI should avoid false precision.",
       tone: "warning",
+      category: "quality",
       source: "DETERMINISTIC",
     });
   }

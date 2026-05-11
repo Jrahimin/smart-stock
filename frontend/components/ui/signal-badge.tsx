@@ -5,5 +5,10 @@ type SignalBadgeProps = {
 };
 
 export function SignalBadge({ signal }: SignalBadgeProps) {
-  return <span className={`signal-badge signal-badge-${signal.toLowerCase()}`}>{signal}</span>;
+  return (
+    <span className={`signal-badge signal-badge-${signal.toLowerCase()}`}>
+      <i aria-hidden="true" />
+      {signal}
+    </span>
+  );
 }

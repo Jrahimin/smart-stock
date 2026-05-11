@@ -19,6 +19,7 @@ import { formatCompactNumber, formatNumber, formatPercent } from "@/lib/formatte
 import type { StockIntelligenceModel } from "@/lib/market/market-intelligence-types";
 
 const columnHelper = createColumnHelper<StockIntelligenceModel>();
+const NUMERIC_EXPLORER_COLUMNS = new Set(["latestPrice", "change", "turnover", "volume", "rsi", "confidence"]);
 
 export function StockExplorerView() {
   const { universe, isLoading, isError, stocks, refetch } = useMarketUniverse({ stockLimit: 500, priceWindowLimit: 30 });
@@ -83,7 +84,15 @@ export function StockExplorerView() {
         header: "Symbol",
         cell: (info) => (
           <Link href={`/stocks/${info.row.original.stock.exchange}/${info.row.original.stock.symbol}`}>
-            <strong>{info.getValue()}</strong>
+            <strong>
+              <span className={`signal-dot signal-dot-${info.row.original.signal.signal.toLowerCase()}`} />
+              {info.getValue()}
+              <span
+                className={`trend-icon trend-icon-${info.row.original.trend.toLowerCase()}`}
+                aria-label={formatTrend(info.row.original.trend)}
+                title={formatTrend(info.row.original.trend)}
+              />
+            </strong>
             <span>{info.row.original.stock.name}</span>
           </Link>
         ),
@@ -95,7 +104,14 @@ export function StockExplorerView() {
       columnHelper.accessor("priceChangePercent", {
         id: "change",
         header: "% Change",
-        cell: (info) => <span className={(info.getValue() ?? 0) >= 0 ? "text-positive" : "text-negative"}>{formatPercent(info.getValue())}</span>,
+        cell: (info) => (
+          <div className="explorer-change-cell">
+            <span className={(info.getValue() ?? 0) >= 0 ? "text-positive" : "text-negative"}>{formatPercent(info.getValue())}</span>
+            <div className="mini-momentum-bar" aria-label="Price momentum">
+              <span style={{ width: `${Math.min(100, Math.abs(info.getValue() ?? 0) * 12)}%` }} />
+            </div>
+          </div>
+        ),
       }),
       columnHelper.accessor("turnover", {
         header: "Turnover",
@@ -103,27 +119,57 @@ export function StockExplorerView() {
       }),
       columnHelper.accessor("volume", {
         header: "Volume",
-        cell: (info) => formatCompactNumber(info.getValue()),
+        cell: (info) => (
+          <div className="volume-intensity-cell">
+            <span>{formatCompactNumber(info.getValue())}</span>
+            <div className="volume-intensity-bar">
+              <span style={{ width: `${getVolumeIntensity(info.row.original)}%` }} />
+            </div>
+          </div>
+        ),
       }),
       columnHelper.accessor("rsi", {
         header: "RSI",
-        cell: (info) => formatNumber(info.getValue()),
-      }),
-      columnHelper.accessor("trend", {
-        header: "Trend",
+        cell: (info) => (
+          <div className="rsi-cell">
+            <span>{formatNumber(info.getValue())}</span>
+            <div className="rsi-meter">
+              <span style={{ width: `${Math.max(0, Math.min(100, info.getValue() ?? 0))}%` }} />
+            </div>
+          </div>
+        ),
       }),
       columnHelper.accessor((row) => row.signal.signal, {
         id: "signal",
         header: "Signal",
+        cell: (info) => (
+          <span className={`signal-chip signal-chip-${info.getValue().toLowerCase()}`}>
+            <span className={`signal-dot signal-dot-${info.getValue().toLowerCase()}`} />
+            {info.getValue()}
+          </span>
+        ),
       }),
       columnHelper.accessor((row) => row.signal.confidence, {
         id: "confidence",
         header: "Conf.",
-        cell: (info) => `${info.getValue()}%`,
+        cell: (info) => (
+          <div className="confidence-cell">
+            <span>{info.getValue()}%</span>
+            <div className="signal-confidence-meter">
+              <span style={{ width: `${info.getValue()}%` }} />
+            </div>
+          </div>
+        ),
+      }),
+      columnHelper.accessor((row) => row.stock.sector || "N/A", {
+        id: "sector",
+        header: "Sector",
+        cell: (info) => <span className="stock-sector-value">{info.getValue()}</span>,
       }),
       columnHelper.accessor((row) => row.stock.category ?? "N/A", {
         id: "category",
         header: "Cat.",
+        cell: (info) => <span className="stock-category-value">{info.getValue()}</span>,
       }),
     ],
     [],
@@ -173,7 +219,11 @@ export function StockExplorerView() {
             {table.getHeaderGroups().map((headerGroup) => (
               <tr key={headerGroup.id}>
                 {headerGroup.headers.map((header) => (
-                  <th key={header.id} onClick={header.column.getToggleSortingHandler()}>
+                  <th
+                    className={getExplorerCellClassName(header.column.id)}
+                    key={header.id}
+                    onClick={header.column.getToggleSortingHandler()}
+                  >
                     {flexRender(header.column.columnDef.header, header.getContext())}
                   </th>
                 ))}
@@ -194,8 +244,8 @@ export function StockExplorerView() {
                     width: "100%",
                   }}
                 >
-                  {row.getVisibleCells().map((cell, cellIndex) => (
-                    <td className={cellIndex === 0 ? "stock-symbol-cell" : "stock-numeric-cell"} key={cell.id}>
+                  {row.getVisibleCells().map((cell) => (
+                    <td className={getExplorerCellClassName(cell.column.id)} key={cell.id}>
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </td>
                   ))}
@@ -213,4 +263,40 @@ export function StockExplorerView() {
       <FloatingRefreshButton onRefresh={refetch} />
     </section>
   );
+}
+
+function formatTrend(trend: StockIntelligenceModel["trend"]) {
+  return trend.replace("_", " ");
+}
+
+function getExplorerCellClassName(columnId: string) {
+  if (columnId === "symbol") {
+    return "stock-symbol-cell";
+  }
+
+  if (columnId === "sector") {
+    return "stock-sector-cell";
+  }
+
+  if (columnId === "signal") {
+    return "stock-signal-cell";
+  }
+
+  if (columnId === "category") {
+    return "stock-category-cell";
+  }
+
+  if (NUMERIC_EXPLORER_COLUMNS.has(columnId)) {
+    return "stock-numeric-cell";
+  }
+
+  return "stock-meta-cell";
+}
+
+function getVolumeIntensity(stock: StockIntelligenceModel) {
+  if (!stock.averageVolume || stock.averageVolume <= 0) {
+    return 18;
+  }
+
+  return Math.min(100, Math.round((stock.volume / stock.averageVolume) * 55));
 }

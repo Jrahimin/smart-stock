@@ -12,7 +12,8 @@ export function InsightSidebar({ insights }: InsightSidebarProps) {
         <h2>Deterministic intelligence</h2>
       </div>
       {insights.map((insight) => (
-        <article className={`insight-block insight-block-${insight.tone}`} key={insight.id}>
+        <article className={`insight-block insight-block-${insight.tone} insight-category-${insight.category}`} key={insight.id}>
+          <span className="insight-category-label">{insight.category}</span>
           <strong>{insight.title}</strong>
           <p>{insight.description}</p>
           <span>{insight.source}</span>

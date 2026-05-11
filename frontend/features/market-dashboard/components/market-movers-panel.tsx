@@ -5,13 +5,14 @@ import type { MarketMoverModel } from "@/features/market-dashboard/types/market-
 type MarketMoversPanelProps = {
   title: string;
   movers: MarketMoverModel[];
+  eyebrow?: string;
 };
 
-export function MarketMoversPanel({ title, movers }: MarketMoversPanelProps) {
+export function MarketMoversPanel({ title, movers, eyebrow = "Market Movers" }: MarketMoversPanelProps) {
   return (
     <section className="workspace-card">
       <div className="section-heading">
-        <p className="eyebrow">Market Movers</p>
+        <p className="eyebrow">{eyebrow}</p>
         <h2>{title}</h2>
       </div>
       <div className="mover-list">

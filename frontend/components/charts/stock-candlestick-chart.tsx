@@ -117,12 +117,20 @@ export function StockCandlestickChart({ candles, volumeBars }: StockCandlestickC
   return (
     <div className="chart-shell">
       <div className="chart-control-row">
-        {(["day", "week", "month"] as const).map((option) => (
-          <button className={timeframe === option ? "active" : ""} key={option} onClick={() => setTimeframe(option)} type="button">
-            {option.toUpperCase()}
-          </button>
-        ))}
+        <div className="timeframe-segment">
+          {(["day", "week", "month"] as const).map((option) => (
+            <button className={timeframe === option ? "active" : ""} key={option} onClick={() => setTimeframe(option)} type="button">
+              {option.toUpperCase()}
+            </button>
+          ))}
+        </div>
         <span>{patternName}</span>
+      </div>
+      <div className="chart-tool-strip" aria-label="Chart workspace tools">
+        <span>Overlay: SMA20</span>
+        <span>Volume profile</span>
+        <span>Event markers</span>
+        <span>Annotation mode</span>
       </div>
       <div className="chart-hover-tape">
         <span>O {hoveredCandle?.open.toFixed(2) ?? "N/A"}</span>
@@ -132,6 +140,10 @@ export function StockCandlestickChart({ candles, volumeBars }: StockCandlestickC
         <span>Move {candleChange !== null ? `${candleChange.toFixed(2)}%` : "N/A"}</span>
         <span>Vol {hoveredVolume !== null && hoveredVolume !== undefined ? formatCompactNumber(hoveredVolume) : "N/A"}</span>
         <span>{hoveredCandle?.time ?? "Hover candles"}</span>
+      </div>
+      <div className="chart-event-row">
+        <span>Support/resistance and event annotations are derived from available OHLCV context.</span>
+        <span>{chartData.candles.length} candles loaded</span>
       </div>
       <div className="chart-container" ref={containerRef} />
     </div>

@@ -10,6 +10,7 @@ import {
   ScanSearch,
   Settings,
 } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { useEffect } from "react";
@@ -43,10 +44,24 @@ export function TerminalAppShell({ children }: TerminalAppShellProps) {
     <div className={sidebarCollapsed ? "terminal-shell terminal-shell-collapsed" : "terminal-shell"}>
       <aside className="terminal-sidebar">
         <div className="terminal-sidebar-top">
-          <div className="terminal-brand">
-            <span>Smart Stock</span>
-            <strong>Intelligence OS</strong>
-          </div>
+          <Link aria-label="Smart Stock home" className="terminal-brand" href="/dashboard">
+            <Image
+              alt="Stock Intelligence"
+              className="terminal-brand-wide"
+              height={64}
+              priority
+              src="/stock-icon-wide.png"
+              width={256}
+            />
+            <Image
+              alt=""
+              aria-hidden="true"
+              className="terminal-brand-icon"
+              height={40}
+              src="/stock-icon.png"
+              width={40}
+            />
+          </Link>
           <button
             aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
             className="sidebar-toggle-button"
@@ -61,10 +76,10 @@ export function TerminalAppShell({ children }: TerminalAppShellProps) {
             const Icon = item.icon;
 
             return (
-            <Link href={item.href} key={item.href} title={item.label}>
-              <Icon aria-hidden="true" size={18} />
-              <span>{item.label}</span>
-            </Link>
+              <Link href={item.href} key={item.href} title={item.label}>
+                <Icon aria-hidden="true" size={18} />
+                <span>{item.label}</span>
+              </Link>
             );
           })}
         </nav>

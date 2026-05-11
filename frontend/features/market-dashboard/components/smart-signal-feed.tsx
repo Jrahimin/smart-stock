@@ -17,16 +17,26 @@ export function SmartSignalFeed({ signals }: SmartSignalFeedProps) {
       <div className="signal-feed">
         {signals.length ? (
           signals.map((signal) => (
-            <Link className="signal-feed-item" href={signal.href} key={`${signal.symbol}-${signal.signal}`}>
-              <div>
-                <strong>{signal.symbol}</strong>
-                <span>{signal.confidence} confidence</span>
+            <Link
+              className={`signal-feed-item signal-feed-item-${signal.signal.toLowerCase()} priority-${signal.priority}`}
+              href={signal.href}
+              key={`${signal.symbol}-${signal.signal}`}
+            >
+              <div className="signal-feed-topline">
+                <div>
+                  <strong>{signal.symbol}</strong>
+                  <span>{signal.generatedAt}</span>
+                </div>
+                <SignalBadge signal={signal.signal} />
               </div>
-              <SignalBadge signal={signal.signal} />
               <p>{signal.reason}</p>
-              <small>
-                Risk: {signal.risk} / {signal.generatedAt}
-              </small>
+              <div className="signal-visual-row">
+                <div className="signal-confidence-meter" aria-label={`${signal.confidence} confidence`}>
+                  <span style={{ width: `${signal.confidenceValue}%` }} />
+                </div>
+                <span className={`risk-pill risk-pill-${signal.risk.toLowerCase()}`}>{signal.risk} risk</span>
+              </div>
+              <small>{signal.confidence} confidence / {signal.supportingContext[0] ?? "Awaiting stronger context"}</small>
             </Link>
           ))
         ) : (
