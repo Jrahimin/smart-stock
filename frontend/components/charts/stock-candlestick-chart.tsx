@@ -1,24 +1,43 @@
 "use client";
 
-import { CandlestickSeries, createChart, HistogramSeries } from "lightweight-charts";
+import { CandlestickSeries, createChart, createSeriesMarkers, HistogramSeries, LineSeries, LineStyle } from "lightweight-charts";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { ChartCandleModel, VolumeBarModel } from "@/lib/market/market-intelligence-types";
 import { formatCompactNumber } from "@/lib/formatters/financial-formatters";
+import { buildChartEventMarkers, buildSmaLine, classifyCandlePattern } from "@/lib/market/chart-intelligence";
 import { useWorkspaceStore } from "@/stores/use-workspace-store";
 
 type StockCandlestickChartProps = {
   candles: ChartCandleModel[];
+  ema20?: number | null;
+  overlaysEnabled?: boolean;
+  resistance?: number | null;
+  sma20?: number | null;
+  support?: number | null;
   volumeBars: VolumeBarModel[];
 };
 
-export function StockCandlestickChart({ candles, volumeBars }: StockCandlestickChartProps) {
+export function StockCandlestickChart({
+  candles,
+  ema20,
+  overlaysEnabled = false,
+  resistance,
+  sma20,
+  support,
+  volumeBars,
+}: StockCandlestickChartProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const theme = useWorkspaceStore((state) => state.theme);
   const [timeframe, setTimeframe] = useState<"day" | "week" | "month">("day");
   const chartData = useMemo(() => aggregateChartData(candles, volumeBars, timeframe), [candles, timeframe, volumeBars]);
   const [hoveredCandle, setHoveredCandle] = useState<ChartCandleModel | null>(chartData.candles.at(-1) ?? null);
-  const patternName = useMemo(() => detectPattern(chartData.candles), [chartData.candles]);
+  const pattern = useMemo(() => classifyCandlePattern(chartData.candles), [chartData.candles]);
+  const smaLine = useMemo(() => buildSmaLine(chartData.candles, 20), [chartData.candles]);
+  const eventMarkers = useMemo(
+    () => buildChartEventMarkers(chartData.candles, chartData.volumeBars, support ?? null, resistance ?? null),
+    [chartData.candles, chartData.volumeBars, resistance, support],
+  );
 
   useEffect(() => {
     setHoveredCandle(chartData.candles.at(-1) ?? null);
@@ -62,6 +81,55 @@ export function StockCandlestickChart({ candles, volumeBars }: StockCandlestickC
     });
     candleSeries.setData(chartData.candles);
 
+    if (overlaysEnabled) {
+      if (support !== null && support !== undefined) {
+        candleSeries.createPriceLine({
+          axisLabelVisible: true,
+          color: "#4bd6a4",
+          lineStyle: LineStyle.Dashed,
+          lineWidth: 1,
+          price: support,
+          title: "Support",
+        });
+      }
+
+      if (resistance !== null && resistance !== undefined) {
+        candleSeries.createPriceLine({
+          axisLabelVisible: true,
+          color: "#ff7777",
+          lineStyle: LineStyle.Dashed,
+          lineWidth: 1,
+          price: resistance,
+          title: "Resistance",
+        });
+      }
+
+      if (ema20 !== null && ema20 !== undefined) {
+        candleSeries.createPriceLine({
+          axisLabelVisible: true,
+          color: "#7bb7ff",
+          lineStyle: LineStyle.Dotted,
+          lineWidth: 1,
+          price: ema20,
+          title: "EMA20",
+        });
+      }
+
+      if (smaLine.length) {
+        const smaSeries = chart.addSeries(LineSeries, {
+          color: "#9d8cff",
+          lastValueVisible: false,
+          lineWidth: 1,
+          priceLineVisible: false,
+        });
+        smaSeries.setData(smaLine);
+      }
+
+      if (eventMarkers.length) {
+        createSeriesMarkers(candleSeries, eventMarkers);
+      }
+    }
+
     const volumeSeries = chart.addSeries(HistogramSeries, {
       color: "#7bb7ff",
       priceFormat: { type: "volume" },
@@ -104,7 +172,7 @@ export function StockCandlestickChart({ candles, volumeBars }: StockCandlestickC
       resizeObserver.disconnect();
       chart.remove();
     };
-  }, [chartData.candles, chartData.volumeBars, theme]);
+  }, [chartData.candles, chartData.volumeBars, ema20, eventMarkers, overlaysEnabled, resistance, smaLine, support, theme]);
 
   if (candles.length === 0) {
     return <div className="empty-state chart-empty-state">No OHLCV rows are available for this stock yet.</div>;
@@ -124,13 +192,18 @@ export function StockCandlestickChart({ candles, volumeBars }: StockCandlestickC
             </button>
           ))}
         </div>
-        <span>{patternName}</span>
+        <span className={`pattern-badge pattern-badge-${pattern.tone}`} title={pattern.description}>
+          Pattern: {pattern.label}
+        </span>
       </div>
       <div className="chart-tool-strip" aria-label="Chart workspace tools">
-        <span>Overlay: SMA20</span>
-        <span>Volume profile</span>
-        <span>Event markers</span>
-        <span>Annotation mode</span>
+        <span className={overlaysEnabled && smaLine.length ? "active" : undefined}>SMA20 {sma20?.toFixed(2) ?? "N/A"}</span>
+        <span className={overlaysEnabled && support !== null && support !== undefined ? "active" : undefined}>Support {support?.toFixed(2) ?? "N/A"}</span>
+        <span className={overlaysEnabled && resistance !== null && resistance !== undefined ? "active" : undefined}>
+          Resistance {resistance?.toFixed(2) ?? "N/A"}
+        </span>
+        <span className={overlaysEnabled && ema20 !== null && ema20 !== undefined ? "active" : undefined}>EMA20 {ema20?.toFixed(2) ?? "N/A"}</span>
+        <span className={overlaysEnabled && eventMarkers.length ? "active" : undefined}>{eventMarkers.length} event markers</span>
       </div>
       <div className="chart-hover-tape">
         <span>O {hoveredCandle?.open.toFixed(2) ?? "N/A"}</span>
@@ -142,7 +215,11 @@ export function StockCandlestickChart({ candles, volumeBars }: StockCandlestickC
         <span>{hoveredCandle?.time ?? "Hover candles"}</span>
       </div>
       <div className="chart-event-row">
-        <span>Support/resistance and event annotations are derived from available OHLCV context.</span>
+        <span>
+          {overlaysEnabled
+            ? "Support/resistance and event annotations are derived from available OHLCV context."
+            : "Advanced overlays are feature-flagged; candle and volume context remains available."}
+        </span>
         <span>{chartData.candles.length} candles loaded</span>
       </div>
       <div className="chart-container" ref={containerRef} />
@@ -202,40 +279,4 @@ function getWeekKey(date: Date) {
 
 function getMonthKey(time: string) {
   return `${time.slice(0, 7)}-01`;
-}
-
-function detectPattern(candles: ChartCandleModel[]) {
-  const latest = candles.at(-1);
-  const previous = candles.at(-2);
-
-  if (!latest) {
-    return "Pattern: awaiting candles";
-  }
-
-  const body = Math.abs(latest.close - latest.open);
-  const range = latest.high - latest.low;
-  const upperWick = latest.high - Math.max(latest.open, latest.close);
-  const lowerWick = Math.min(latest.open, latest.close) - latest.low;
-
-  if (range > 0 && body / range < 0.18) {
-    return "Pattern: Doji / indecision";
-  }
-
-  if (lowerWick > body * 2 && upperWick < body) {
-    return "Pattern: Hammer-like support test";
-  }
-
-  if (upperWick > body * 2 && lowerWick < body) {
-    return "Pattern: Shooting-star rejection";
-  }
-
-  if (previous && latest.close > latest.open && previous.close < previous.open && latest.close > previous.open && latest.open < previous.close) {
-    return "Pattern: Bullish engulfing";
-  }
-
-  if (previous && latest.close < latest.open && previous.close > previous.open && latest.open > previous.close && latest.close < previous.open) {
-    return "Pattern: Bearish engulfing";
-  }
-
-  return latest.close >= latest.open ? "Pattern: Bullish candle" : "Pattern: Bearish candle";
 }

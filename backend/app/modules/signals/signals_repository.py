@@ -2,7 +2,7 @@ from datetime import date
 from uuid import UUID
 
 from fastapi import Depends
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.base_repository import BaseRepository
@@ -21,6 +21,35 @@ class SignalsRepository(BaseRepository[TradingSignal]):
             select(TradingSignal)
             .where(TradingSignal.stock_id == stock_id)
             .order_by(TradingSignal.trade_date.desc(), TradingSignal.strategy_name, TradingSignal.id.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        result = await self.session.scalars(statement)
+        return list(result.all())
+
+    async def list_latest_active_signals(self, *, limit: int, offset: int) -> list[TradingSignal]:
+        ranked_signals = (
+            select(
+                TradingSignal.id.label("signal_id"),
+                func.row_number()
+                .over(
+                    partition_by=TradingSignal.stock_id,
+                    order_by=(
+                        TradingSignal.trade_date.desc(),
+                        TradingSignal.strategy_name.asc(),
+                        TradingSignal.id.desc(),
+                    ),
+                )
+                .label("rank"),
+            )
+            .where(TradingSignal.is_active.is_(True))
+            .subquery()
+        )
+        statement = (
+            select(TradingSignal)
+            .join(ranked_signals, ranked_signals.c.signal_id == TradingSignal.id)
+            .where(ranked_signals.c.rank == 1)
+            .order_by(TradingSignal.trade_date.desc(), TradingSignal.stock_id, TradingSignal.strategy_name, TradingSignal.id.desc())
             .limit(limit)
             .offset(offset)
         )

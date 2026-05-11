@@ -33,6 +33,15 @@ export type VolumeBarModel = {
   tone: "positive" | "negative" | "neutral";
 };
 
+export type SignalScoreContext = {
+  momentum: number | null;
+  trend: number | null;
+  volume: number | null;
+  risk: number | null;
+};
+
+export type SignalSource = "derived" | "backend";
+
 export type DerivedSignalModel = {
   stockId: string;
   symbol: string;
@@ -44,6 +53,25 @@ export type DerivedSignalModel = {
   reason: string;
   supportingContext: string[];
   generatedAt: string;
+  asOfTradeDate?: string;
+  computedAt?: string;
+  momentumPhase?: string;
+  scores?: SignalScoreContext;
+  source?: SignalSource;
+  triggerReason?: string;
+  volumeBehavior?: string;
+};
+
+export type PersistedSignalContext = {
+  asOfTradeDate: string;
+  computedAt: string;
+  confidence: number;
+  isStale: boolean;
+  reason: string;
+  scores: SignalScoreContext;
+  signal: SignalType;
+  source: "backend";
+  strategyName: string;
 };
 
 export type StockIntelligenceModel = {
@@ -72,6 +100,7 @@ export type StockIntelligenceModel = {
   week52High: number | null;
   trend: TrendDirection;
   signal: DerivedSignalModel;
+  persistedSignal?: PersistedSignalContext | null;
 };
 
 export type MarketBreadthStats = {

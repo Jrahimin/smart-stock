@@ -9,6 +9,7 @@ import { MarketActivityLoader } from "@/components/ui/market-activity-loader";
 import { SignalBadge } from "@/components/ui/signal-badge";
 import { useMarketUniverse } from "@/features/market-dashboard/hooks/use-market-universe";
 import { formatCompactNumber, formatNumber, formatPercent } from "@/lib/formatters/financial-formatters";
+import { frontendConfig } from "@/lib/frontend-config";
 
 export function ScannerWorkspaceView() {
   const { universe, isLoading, isError, refetch } = useMarketUniverse({ stockLimit: 500, priceWindowLimit: 30 });
@@ -17,28 +18,59 @@ export function ScannerWorkspaceView() {
     () => universe.filter((stock) => !symbolFilter || stock.stock.symbol.includes(symbolFilter)),
     [symbolFilter, universe],
   );
-  const categories = [
-    {
-      title: "RSI Oversold",
-      description: "Potential rebound candidates below RSI 35.",
-      items: filteredUniverse.filter((stock) => stock.rsi !== null && stock.rsi < 35).slice(0, 6),
-    },
-    {
-      title: "Momentum Continuation",
-      description: "Positive change with uptrend confirmation.",
-      items: filteredUniverse.filter((stock) => stock.trend === "UPTREND" && (stock.priceChangePercent ?? 0) > 0).slice(0, 6),
-    },
-    {
-      title: "Unusual Volume",
-      description: "Latest volume materially above 20-session average.",
-      items: filteredUniverse.filter((stock) => stock.averageVolume !== null && stock.volume > stock.averageVolume * 1.5).slice(0, 6),
-    },
-    {
-      title: "Breakdown Risk",
-      description: "Negative momentum with elevated risk context.",
-      items: filteredUniverse.filter((stock) => stock.signal.signal === "SELL" || stock.signal.risk === "HIGH").slice(0, 6),
-    },
-  ];
+  const categories = useMemo(() => {
+    if (frontendConfig.features.advancedScanners) {
+      return [
+        {
+          title: "Volume-confirmed Breakouts",
+          description: "Positive price action with materially expanded volume.",
+          items: filteredUniverse
+            .filter((stock) => (stock.priceChangePercent ?? 0) > 0 && stock.averageVolume !== null && stock.volume > stock.averageVolume * 1.8)
+            .sort((a, b) => b.signal.confidence - a.signal.confidence)
+            .slice(0, 6),
+        },
+        {
+          title: "Support-rebound Candidates",
+          description: "Names trading near recent support with oversold or improving momentum context.",
+          items: filteredUniverse
+            .filter((stock) => stock.support !== null && stock.latestPrice !== null && stock.latestPrice <= stock.support * 1.04 && (stock.rsi ?? 50) < 45)
+            .sort((a, b) => (a.latestPrice ?? Infinity) - (b.latestPrice ?? Infinity))
+            .slice(0, 6),
+        },
+        {
+          title: "Risk / Compression Watchlist",
+          description: "High-risk or low-volatility names that need confirmation before action.",
+          items: filteredUniverse
+            .filter((stock) => stock.signal.risk === "HIGH" || (stock.volatility !== null && stock.volatility < 1.1))
+            .sort((a, b) => b.signal.confidence - a.signal.confidence)
+            .slice(0, 6),
+        },
+      ];
+    }
+
+    return [
+      {
+        title: "RSI Oversold",
+        description: "Potential rebound candidates below RSI 35.",
+        items: filteredUniverse.filter((stock) => stock.rsi !== null && stock.rsi < 35).slice(0, 6),
+      },
+      {
+        title: "Momentum Continuation",
+        description: "Positive change with uptrend confirmation.",
+        items: filteredUniverse.filter((stock) => stock.trend === "UPTREND" && (stock.priceChangePercent ?? 0) > 0).slice(0, 6),
+      },
+      {
+        title: "Unusual Volume",
+        description: "Latest volume materially above 20-session average.",
+        items: filteredUniverse.filter((stock) => stock.averageVolume !== null && stock.volume > stock.averageVolume * 1.5).slice(0, 6),
+      },
+      {
+        title: "Breakdown Risk",
+        description: "Negative momentum with elevated risk context.",
+        items: filteredUniverse.filter((stock) => stock.signal.signal === "SELL" || stock.signal.risk === "HIGH").slice(0, 6),
+      },
+    ];
+  }, [filteredUniverse]);
 
   return (
     <section className="scanner-workspace-view">

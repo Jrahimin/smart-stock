@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { useEffect } from "react";
 
@@ -32,6 +33,7 @@ type TerminalAppShellProps = {
 };
 
 export function TerminalAppShell({ children }: TerminalAppShellProps) {
+  const pathname = usePathname();
   const sidebarCollapsed = useWorkspaceStore((state) => state.sidebarCollapsed);
   const toggleSidebar = useWorkspaceStore((state) => state.toggleSidebar);
   const theme = useWorkspaceStore((state) => state.theme);
@@ -74,9 +76,16 @@ export function TerminalAppShell({ children }: TerminalAppShellProps) {
         <nav aria-label="Primary navigation">
           {navigationItems.map((item) => {
             const Icon = item.icon;
+            const isActive = isNavigationItemActive(pathname, item.href);
 
             return (
-              <Link href={item.href} key={item.href} title={item.label}>
+              <Link
+                aria-current={isActive ? "page" : undefined}
+                className={isActive ? "active" : undefined}
+                href={item.href}
+                key={item.href}
+                title={item.label}
+              >
                 <Icon aria-hidden="true" size={18} />
                 <span>{item.label}</span>
               </Link>
@@ -88,4 +97,12 @@ export function TerminalAppShell({ children }: TerminalAppShellProps) {
       <GlobalCommandPalette />
     </div>
   );
+}
+
+function isNavigationItemActive(pathname: string, href: string) {
+  if (href === "/stocks") {
+    return pathname === href || pathname.startsWith(`${href}/`);
+  }
+
+  return pathname === href;
 }

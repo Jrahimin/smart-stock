@@ -25,7 +25,11 @@ export function StockExplorerView() {
   const { universe, isLoading, isError, stocks, refetch } = useMarketUniverse({ stockLimit: 500, priceWindowLimit: 30 });
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search);
+  const [dataQualityFilter, setDataQualityFilter] = useState("ALL");
+  const [riskFilter, setRiskFilter] = useState("ALL");
   const [signalFilter, setSignalFilter] = useState("ALL");
+  const [sourceFilter, setSourceFilter] = useState("ALL");
+  const [volumeFilter, setVolumeFilter] = useState("ALL");
   const [sorting, setSorting] = useState<SortingState>([{ id: "change", desc: true }]);
   const [visibleCount, setVisibleCount] = useState(120);
   const [isPaging, setIsPaging] = useState(false);
@@ -39,17 +43,22 @@ export function StockExplorerView() {
         !query ||
         stock.stock.symbol.toLowerCase().includes(query) ||
         stock.stock.name.toLowerCase().includes(query) ||
+        (stock.stock.category ?? "").toLowerCase().includes(query) ||
         stock.sector.toLowerCase().includes(query);
       const matchesSignal = signalFilter === "ALL" || stock.signal.signal === signalFilter;
-      return matchesSearch && matchesSignal;
+      const matchesRisk = riskFilter === "ALL" || stock.signal.risk === riskFilter;
+      const matchesDataQuality = dataQualityFilter === "ALL" || stock.dataQuality === dataQualityFilter;
+      const matchesVolume = volumeFilter === "ALL" || getVolumeBehaviorId(stock) === volumeFilter;
+      const matchesSource = sourceFilter === "ALL" || (stock.signal.source ?? "derived").toUpperCase() === sourceFilter;
+      return matchesSearch && matchesSignal && matchesRisk && matchesDataQuality && matchesVolume && matchesSource;
     });
-  }, [deferredSearch, signalFilter, universe]);
+  }, [dataQualityFilter, deferredSearch, riskFilter, signalFilter, sourceFilter, universe, volumeFilter]);
   const visibleUniverse = useMemo(() => filteredUniverse.slice(0, visibleCount), [filteredUniverse, visibleCount]);
 
   useEffect(() => {
     setVisibleCount(120);
     tableContainerRef.current?.scrollTo({ top: 0 });
-  }, [deferredSearch, signalFilter]);
+  }, [dataQualityFilter, deferredSearch, riskFilter, signalFilter, sourceFilter, volumeFilter]);
 
   useEffect(() => {
     return () => {
@@ -209,6 +218,29 @@ export function StockExplorerView() {
             <option value="HOLD">HOLD</option>
             <option value="SELL">SELL</option>
           </select>
+          <select value={riskFilter} onChange={(event) => setRiskFilter(event.target.value)}>
+            <option value="ALL">All risk</option>
+            <option value="LOW">Low risk</option>
+            <option value="MEDIUM">Medium risk</option>
+            <option value="HIGH">High risk</option>
+          </select>
+          <select value={dataQualityFilter} onChange={(event) => setDataQualityFilter(event.target.value)}>
+            <option value="ALL">All quality</option>
+            <option value="OK">OK</option>
+            <option value="PARTIAL">Partial</option>
+            <option value="SUSPICIOUS">Source check</option>
+          </select>
+          <select value={volumeFilter} onChange={(event) => setVolumeFilter(event.target.value)}>
+            <option value="ALL">All volume</option>
+            <option value="EXPANSION">Volume expansion</option>
+            <option value="NORMAL">Normal volume</option>
+            <option value="THIN">Thin volume</option>
+          </select>
+          <select value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)}>
+            <option value="ALL">All sources</option>
+            <option value="DERIVED">Derived</option>
+            <option value="BACKEND">Persisted</option>
+          </select>
         </div>
       </div>
       {isError ? <div className="data-warning">Could not load stock explorer data.</div> : null}
@@ -299,4 +331,21 @@ function getVolumeIntensity(stock: StockIntelligenceModel) {
   }
 
   return Math.min(100, Math.round((stock.volume / stock.averageVolume) * 55));
+}
+
+function getVolumeBehaviorId(stock: StockIntelligenceModel) {
+  if (!stock.averageVolume || stock.averageVolume <= 0) {
+    return "NORMAL";
+  }
+
+  const ratio = stock.volume / stock.averageVolume;
+  if (ratio >= 1.8) {
+    return "EXPANSION";
+  }
+
+  if (ratio <= 0.55) {
+    return "THIN";
+  }
+
+  return "NORMAL";
 }

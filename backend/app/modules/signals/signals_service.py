@@ -17,6 +17,9 @@ class SignalsService:
     async def list_signals(self, *, stock_id: UUID, limit: int, offset: int):
         return await self.repository.list_signals(stock_id=stock_id, limit=limit, offset=offset)
 
+    async def list_latest_active_signals(self, *, limit: int, offset: int):
+        return await self.repository.list_latest_active_signals(limit=limit, offset=offset)
+
     async def find_signal(self, signal_data: TradingSignalCreate) -> TradingSignal | None:
         return await self.repository.get_signal(
             stock_id=signal_data.stock_id,

@@ -13,6 +13,19 @@ from app.modules.signals.signals_service import SignalsService, get_signals_serv
 router = APIRouter(tags=["signals"])
 
 
+@router.get("/signals/latest", response_model=ApiResponse[list[TradingSignalRead]])
+async def list_latest_signals(
+    pagination: Annotated[PaginationParams, Depends(get_pagination_params)],
+    service: Annotated[SignalsService, Depends(get_signals_service)],
+) -> ApiResponse[list[TradingSignalRead]]:
+    signals = await service.list_latest_active_signals(
+        limit=pagination.limit,
+        offset=pagination.offset,
+    )
+    signal_items = [TradingSignalRead.model_validate(signal) for signal in signals]
+    return success_response(data=signal_items, message="Latest active signals retrieved")
+
+
 @router.get("/stocks/{stock_id}/signals", response_model=ApiResponse[list[TradingSignalRead]])
 async def list_signals(
     stock_id: UUID,

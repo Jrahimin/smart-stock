@@ -3,15 +3,17 @@
 import { useRef, useState } from "react";
 
 type FloatingRefreshButtonProps = {
+  disabled?: boolean;
+  disabledReason?: string;
   onRefresh: () => Promise<void> | void;
 };
 
-export function FloatingRefreshButton({ onRefresh }: FloatingRefreshButtonProps) {
+export function FloatingRefreshButton({ disabled = false, disabledReason, onRefresh }: FloatingRefreshButtonProps) {
   const [status, setStatus] = useState<"idle" | "refreshing" | "updated">("idle");
   const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   async function handleRefresh() {
-    if (status === "refreshing") {
+    if (disabled || status === "refreshing") {
       return;
     }
 
@@ -29,13 +31,13 @@ export function FloatingRefreshButton({ onRefresh }: FloatingRefreshButtonProps)
     <button
       aria-label="Refresh data. Daily synced market data is cached for 2 hours."
       className={`floating-refresh-button floating-refresh-button-${status}`}
-      disabled={status === "refreshing"}
+      disabled={disabled || status === "refreshing"}
       onClick={() => void handleRefresh()}
-      title="Daily synced market data is cached for 2 hours. Refresh after a manual sync or data correction."
+      title={disabledReason ?? "Daily synced market data is cached for 2 hours. Refresh after a manual sync or data correction."}
       type="button"
     >
       <span aria-hidden="true" />
-      {status === "refreshing" ? "Refreshing" : status === "updated" ? "Updated" : "Refresh Data"}
+      {disabled ? "Refresh Paused" : status === "refreshing" ? "Refreshing" : status === "updated" ? "Updated" : "Refresh Data"}
     </button>
   );
 }

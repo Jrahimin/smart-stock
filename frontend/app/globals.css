@@ -173,10 +173,19 @@ button {
 }
 
 .terminal-sidebar nav a:hover,
+.terminal-sidebar nav a.active,
 .sidebar-toggle-button:hover {
   background: var(--sidebar-hover);
   border-color: var(--border);
   color: var(--foreground);
+}
+
+.terminal-sidebar nav a.active {
+  box-shadow: inset 3px 0 0 var(--primary), inset 0 1px 0 rgb(255 255 255 / 5%);
+}
+
+.terminal-sidebar nav a.active svg {
+  color: var(--primary);
 }
 
 .sidebar-toggle-button {
@@ -253,6 +262,11 @@ button {
 
 .market-tape-pill b {
   color: var(--foreground);
+}
+
+.market-tape-pill-warning {
+  border-color: rgb(240 195 106 / 28%);
+  color: var(--warning);
 }
 
 .market-tape-mood-bullish,
@@ -1919,6 +1933,11 @@ button {
   color: var(--positive);
 }
 
+.chart-tool-strip span.active {
+  border-color: color-mix(in srgb, var(--primary) 36%, var(--border));
+  color: var(--foreground);
+}
+
 .chart-event-row {
   justify-content: space-between;
 }
@@ -1959,9 +1978,41 @@ button {
   color: var(--background);
 }
 
-.chart-control-row span {
+.chart-control-row > span:not(.pattern-badge) {
   color: var(--muted);
   margin-left: auto;
+}
+
+.pattern-badge {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 850;
+  margin-left: auto;
+  padding: 6px 9px;
+}
+
+.pattern-badge-positive {
+  background: rgb(75 214 164 / 10%);
+  border-color: rgb(75 214 164 / 24%);
+  color: var(--positive);
+}
+
+.pattern-badge-negative {
+  background: rgb(255 119 119 / 10%);
+  border-color: rgb(255 119 119 / 24%);
+  color: var(--negative);
+}
+
+.pattern-badge-warning {
+  background: rgb(240 195 106 / 10%);
+  border-color: rgb(240 195 106 / 24%);
+  color: var(--warning);
+}
+
+.pattern-badge-neutral {
+  background: var(--soft-surface);
+  color: var(--muted);
 }
 
 .chart-empty-state {

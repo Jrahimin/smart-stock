@@ -825,3 +825,55 @@ Run API-only AmarStock stock details ingestion for eligible active stocks. The w
 
 **Description**
 Return one stock details sync job with status, attempts, error, source URL, and parser/API diagnostics stored in metadata.
+
+---
+
+## Signals
+
+### GET /api/v1/signals/latest
+
+**Description**
+Return the latest active trading signal per stock. This endpoint supports dashboard,
+scanner, signal center, and stock explorer enrichment without issuing one
+`/stocks/{stock_id}/signals` request per instrument.
+
+**Query Params**
+
+* limit: number, default 50, min 1, max 500
+* offset: number, default 0, min 0
+
+**Response**
+
+```json
+{
+  "success": true,
+  "message": "Latest active signals retrieved",
+  "data": [
+    {
+      "stock_id": "8f8e3b52-2a27-4df8-8e76-c9eb6f61c123",
+      "trade_date": "2026-05-10",
+      "signal_type": "BUY",
+      "confidence": "0.7200",
+      "momentum_score": "0.6800",
+      "trend_score": "0.7000",
+      "volume_score": "0.8200",
+      "risk_score": "0.2500",
+      "reason": "Volume confirms positive trend continuation.",
+      "strategy_name": "deterministic-v1",
+      "components": {},
+      "metadata": {},
+      "is_active": true,
+      "id": "30e7d280-0b42-44c2-8f42-a8c9b0ff5c91",
+      "created_at": "2026-05-10T15:00:00Z",
+      "updated_at": "2026-05-10T15:00:00Z"
+    }
+  ]
+}
+```
+
+**Notes**
+
+* Only active signal rows are considered.
+* At most one signal is returned per stock.
+* Ordering is stable by newest trade date, stock id, strategy name, and signal id.
+* Frontend consumers must treat this data as optional enrichment and fall back to deterministic OHLCV-derived signals when rows are missing or stale.

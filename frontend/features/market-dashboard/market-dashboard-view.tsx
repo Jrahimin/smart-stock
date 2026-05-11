@@ -42,7 +42,11 @@ export function MarketDashboardView() {
           <MarketMoversPanel movers={model.movers.turnoverLeaders} title="Liquidity watch" eyebrow="Turnover Leaders" />
         </div>
       </div>
-      <FloatingRefreshButton onRefresh={refetch} />
+      <FloatingRefreshButton
+        disabled={model.session.disablesFreshDataActions}
+        disabledReason={model.session.description}
+        onRefresh={refetch}
+      />
     </div>
   );
 }

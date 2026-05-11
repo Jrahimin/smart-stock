@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { listMarketSummaries } from "@/lib/api/market-data-api";
@@ -21,6 +22,18 @@ export function useMarketDashboard() {
     marketUniverse.stocks,
     marketUniverse.universe,
   );
+
+  useEffect(() => {
+    if (!model.session.shouldPoll || model.session.pollingIntervalMs === false) {
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      void Promise.all([marketSummariesQuery.refetch(), marketUniverse.refetch()]);
+    }, model.session.pollingIntervalMs);
+
+    return () => window.clearInterval(timer);
+  }, [marketSummariesQuery, marketUniverse, model.session.pollingIntervalMs, model.session.shouldPoll]);
 
   return {
     model,

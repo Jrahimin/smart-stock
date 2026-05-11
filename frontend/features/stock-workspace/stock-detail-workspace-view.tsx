@@ -7,6 +7,7 @@ import { StockInsightSidebar } from "@/features/stock-workspace/components/stock
 import { StockWorkspaceHeader } from "@/features/stock-workspace/components/stock-workspace-header";
 import { TechnicalSummaryPanel } from "@/features/stock-workspace/components/technical-summary-panel";
 import { useStockWorkspace } from "@/features/stock-workspace/hooks/use-stock-workspace";
+import { frontendConfig } from "@/lib/frontend-config";
 
 type StockDetailWorkspaceViewProps = {
   exchange: ExchangeCode;
@@ -30,7 +31,15 @@ export function StockDetailWorkspaceView({ exchange, symbol }: StockDetailWorksp
               <h2>Candlestick and volume context</h2>
               <span>Zoom and pan are provided by TradingView Lightweight Charts.</span>
             </div>
-            <StockCandlestickChart candles={intelligence?.candles ?? []} volumeBars={intelligence?.volumeBars ?? []} />
+            <StockCandlestickChart
+              candles={intelligence?.candles ?? []}
+              ema20={intelligence?.ema20}
+              overlaysEnabled={frontendConfig.features.advancedChartOverlays}
+              resistance={intelligence?.resistance}
+              sma20={intelligence?.sma20}
+              support={intelligence?.support}
+              volumeBars={intelligence?.volumeBars ?? []}
+            />
           </section>
           <TechnicalSummaryPanel model={model} />
           <FundamentalsPanel model={model} />

@@ -1,11 +1,13 @@
-import type { BackendDailyPriceDto, BackendStockDto, SignalType } from "@/lib/api/backend-api-types";
+import type { BackendDailyPriceDto, BackendStockDto, BackendTradingSignalDto, SignalType } from "@/lib/api/backend-api-types";
 import { toNumber } from "@/lib/formatters/financial-formatters";
 import type {
   ChartCandleModel,
   DerivedSignalModel,
   MarketBreadthStats,
   MarketCondition,
+  PersistedSignalContext,
   RiskLevel,
+  SignalScoreContext,
   StockIntelligenceModel,
   TrendDirection,
   VolumeBarModel,
@@ -140,6 +142,43 @@ function inferRisk(volatility: number | null, dataQuality: string, volume: numbe
   return "LOW";
 }
 
+function inferMomentumPhase(trend: TrendDirection, rsi: number | null, changePercent: number | null) {
+  if (trend === "UPTREND" && (changePercent ?? 0) > 0 && (rsi ?? 50) < 72) {
+    return "Momentum expansion";
+  }
+
+  if (trend === "DOWNTREND" && (changePercent ?? 0) < 0) {
+    return "Distribution pressure";
+  }
+
+  if (rsi !== null && rsi < 35) {
+    return "Oversold recovery watch";
+  }
+
+  if (rsi !== null && rsi > 72) {
+    return "Extended momentum";
+  }
+
+  return "Confirmation pending";
+}
+
+function inferVolumeBehavior(volume: number, averageVolume: number | null) {
+  if (!averageVolume || averageVolume <= 0) {
+    return "Volume baseline unavailable";
+  }
+
+  const ratio = volume / averageVolume;
+  if (ratio >= 1.8) {
+    return "Volume expansion";
+  }
+
+  if (ratio <= 0.55) {
+    return "Thin participation";
+  }
+
+  return "Normal participation";
+}
+
 function generateSignal(input: {
   stock: BackendStockDto;
   latestPrice: number | null;
@@ -211,6 +250,86 @@ function generateSignal(input: {
     reason,
     supportingContext,
     generatedAt: input.latestTradeDate ?? "Awaiting price data",
+    asOfTradeDate: input.latestTradeDate ?? undefined,
+    momentumPhase: inferMomentumPhase(input.trend, input.rsi, input.priceChangePercent),
+    source: "derived",
+    triggerReason: reason,
+    volumeBehavior: inferVolumeBehavior(input.volume, input.averageVolume),
+  };
+}
+
+function normalizeSignalScore(value: string | number | null): number | null {
+  const normalizedValue = toNumber(value);
+  if (normalizedValue === null) {
+    return null;
+  }
+
+  const score = normalizedValue <= 1 ? normalizedValue * 100 : normalizedValue;
+  return Math.max(0, Math.min(100, Math.round(score)));
+}
+
+function buildSignalScores(signal: BackendTradingSignalDto): SignalScoreContext {
+  return {
+    momentum: normalizeSignalScore(signal.momentum_score),
+    trend: normalizeSignalScore(signal.trend_score),
+    volume: normalizeSignalScore(signal.volume_score),
+    risk: normalizeSignalScore(signal.risk_score),
+  };
+}
+
+function buildPersistedSignalContext(signal: BackendTradingSignalDto, latestTradeDate: string | null): PersistedSignalContext {
+  return {
+    asOfTradeDate: signal.trade_date,
+    computedAt: signal.updated_at,
+    confidence: normalizeSignalScore(signal.confidence) ?? 0,
+    isStale: latestTradeDate !== null && signal.trade_date !== latestTradeDate,
+    reason: signal.reason,
+    scores: buildSignalScores(signal),
+    signal: signal.signal_type,
+    source: "backend",
+    strategyName: signal.strategy_name,
+  };
+}
+
+export function applyPersistedSignalEnrichment(
+  intelligence: StockIntelligenceModel,
+  persistedSignal: BackendTradingSignalDto | null | undefined,
+): StockIntelligenceModel {
+  if (!persistedSignal) {
+    return {
+      ...intelligence,
+      persistedSignal: null,
+    };
+  }
+
+  const persistedContext = buildPersistedSignalContext(persistedSignal, intelligence.latestTradeDate);
+  if (persistedContext.isStale) {
+    return {
+      ...intelligence,
+      persistedSignal: persistedContext,
+    };
+  }
+
+  return {
+    ...intelligence,
+    persistedSignal: persistedContext,
+    signal: {
+      ...intelligence.signal,
+      signal: persistedContext.signal,
+      confidence: persistedContext.confidence,
+      reason: persistedContext.reason,
+      supportingContext: [
+        `Strategy ${persistedContext.strategyName}`,
+        `As of ${persistedContext.asOfTradeDate}`,
+        ...intelligence.signal.supportingContext,
+      ],
+      generatedAt: persistedContext.asOfTradeDate,
+      asOfTradeDate: persistedContext.asOfTradeDate,
+      computedAt: persistedContext.computedAt,
+      scores: persistedContext.scores,
+      source: "backend",
+      triggerReason: persistedContext.reason,
+    },
   };
 }
 
