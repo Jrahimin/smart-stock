@@ -1,45 +1,56 @@
 "use client";
 
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 
-import type { BackendDailyPriceDto, BackendStockDto } from "@/lib/api/backend-api-types";
-import { listDailyPrices } from "@/lib/api/market-data-api";
+import { listMarketPriceWindows } from "@/lib/api/market-data-api";
+import { clearBackendApiCache } from "@/lib/api/backend-api-client";
 import { listStocks } from "@/lib/api/stocks-api";
+import { frontendConfig } from "@/lib/frontend-config";
 import { buildStockIntelligence } from "@/lib/market/market-intelligence";
-import type { StockIntelligenceModel } from "@/lib/market/market-intelligence-types";
 
-const MARKET_UNIVERSE_LIMIT = 160;
+const DEFAULT_MARKET_UNIVERSE_LIMIT = 80;
+const DEFAULT_PRICE_WINDOW_LIMIT = 30;
+type UseMarketUniverseOptions = {
+  stockLimit?: number;
+  priceWindowLimit?: number;
+};
 
-export function useMarketUniverse() {
+export function useMarketUniverse(options: UseMarketUniverseOptions = {}) {
+  const stockLimit = options.stockLimit ?? DEFAULT_MARKET_UNIVERSE_LIMIT;
+  const priceWindowLimit = options.priceWindowLimit ?? DEFAULT_PRICE_WINDOW_LIMIT;
+  const cacheMs = frontendConfig.cacheHours * 60 * 60 * 1000;
   const stocksQuery = useQuery({
-    queryKey: ["stocks", "market-universe", "DSE", MARKET_UNIVERSE_LIMIT],
-    queryFn: () => listStocks({ exchange: "DSE", is_active: true, limit: MARKET_UNIVERSE_LIMIT }),
+    queryKey: ["stocks", "market-universe-count", "DSE"],
+    queryFn: () => listStocks({ exchange: "DSE", is_active: true, limit: 500 }),
+    staleTime: cacheMs,
+  });
+  const priceWindowsQuery = useQuery({
+    queryKey: ["market-price-windows", "DSE", stockLimit, priceWindowLimit],
+    queryFn: () => listMarketPriceWindows({ exchange: "DSE", limit: stockLimit, price_window_limit: priceWindowLimit }),
+    staleTime: cacheMs,
   });
 
-  const stocks = stocksQuery.data ?? [];
-  const priceQueries = useQueries({
-    queries: stocks.map((stock: BackendStockDto) => ({
-      queryKey: ["daily-prices", "latest-window", stock.id],
-      queryFn: () => listDailyPrices(stock.id, { limit: 260 }),
-      enabled: stocksQuery.isSuccess,
-      staleTime: 1000 * 60 * 10,
-    })),
-  });
+  const priceWindows = priceWindowsQuery.data ?? [];
+  const stocks = stocksQuery.data ?? priceWindows.map((item) => item.stock);
 
-  const priceMap = new Map<string, BackendDailyPriceDto[]>();
-  priceQueries.forEach((query, index) => {
-    priceMap.set(stocks[index]?.id ?? "", query.data ?? []);
-  });
-
-  const universe = stocks
-    .map((stock) => buildStockIntelligence(stock, priceMap.get(stock.id) ?? []))
-    .filter((stock): stock is StockIntelligenceModel => stock !== null);
+  const universe = useMemo(
+    () =>
+      priceWindows
+        .map((item) => buildStockIntelligence(item.stock, item.prices))
+        .filter((stock) => stock !== null),
+    [priceWindows],
+  );
 
   return {
     stocks,
     universe,
-    isLoading: stocksQuery.isLoading || priceQueries.some((query) => query.isLoading),
-    isError: stocksQuery.isError || priceQueries.some((query) => query.isError),
-    loadedPriceCount: priceQueries.filter((query) => query.isSuccess).length,
+    isLoading: stocksQuery.isLoading || priceWindowsQuery.isLoading,
+    isError: stocksQuery.isError || priceWindowsQuery.isError,
+    loadedPriceCount: priceWindows.length,
+    refetch: async () => {
+      await clearBackendApiCache();
+      await Promise.all([stocksQuery.refetch(), priceWindowsQuery.refetch()]);
+    },
   };
 }

@@ -6,6 +6,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.core.enums import DataQualityFlag, ExchangeCode
+from app.modules.stocks.stocks_schemas import StockRead
 
 
 class DailyPriceBase(BaseModel):
@@ -96,6 +97,16 @@ class DailyMarketSummaryRead(DailyMarketSummaryBase):
     id: UUID
     created_at: datetime
     updated_at: datetime
+
+
+class LatestMarketPriceRead(BaseModel):
+    stock: StockRead
+    price: DailyPriceRead
+
+
+class MarketPriceWindowRead(BaseModel):
+    stock: StockRead
+    prices: list[DailyPriceRead]
 
 
 class DailyPriceIngestionResult(BaseModel):

@@ -58,6 +58,92 @@ class MarketDataRepository(BaseRepository[DailyPrice]):
         result = await self.session.scalars(statement)
         return list(result.all())
 
+    async def list_latest_daily_prices(
+        self,
+        *,
+        exchange: ExchangeCode | None,
+        limit: int,
+        offset: int,
+    ) -> list[tuple[Stock, DailyPrice]]:
+        latest_price_dates = (
+            select(
+                DailyPrice.stock_id.label("stock_id"),
+                func.max(DailyPrice.trade_date).label("latest_trade_date"),
+            )
+            .group_by(DailyPrice.stock_id)
+            .subquery()
+        )
+        statement = (
+            select(Stock, DailyPrice)
+            .join(latest_price_dates, latest_price_dates.c.stock_id == Stock.id)
+            .join(
+                DailyPrice,
+                (DailyPrice.stock_id == latest_price_dates.c.stock_id)
+                & (DailyPrice.trade_date == latest_price_dates.c.latest_trade_date),
+            )
+            .where(Stock.is_active.is_(True))
+            .order_by(Stock.exchange, Stock.symbol, Stock.id)
+            .limit(limit)
+            .offset(offset)
+        )
+        if exchange is not None:
+            statement = statement.where(Stock.exchange == exchange)
+
+        result = await self.session.execute(statement)
+        return [(stock, price) for stock, price in result.all()]
+
+    async def list_market_price_windows(
+        self,
+        *,
+        exchange: ExchangeCode | None,
+        limit: int,
+        offset: int,
+        price_window_limit: int,
+    ) -> list[tuple[Stock, DailyPrice]]:
+        limited_stocks = (
+            select(Stock.id)
+            .where(Stock.is_active.is_(True))
+            .order_by(Stock.exchange, Stock.symbol, Stock.id)
+            .limit(limit)
+            .offset(offset)
+            .subquery()
+        )
+        if exchange is not None:
+            limited_stocks = (
+                select(Stock.id)
+                .where(Stock.is_active.is_(True), Stock.exchange == exchange)
+                .order_by(Stock.exchange, Stock.symbol, Stock.id)
+                .limit(limit)
+                .offset(offset)
+                .subquery()
+            )
+
+        ranked_prices = (
+            select(
+                DailyPrice.id.label("price_id"),
+                DailyPrice.stock_id.label("stock_id"),
+                func.row_number()
+                .over(
+                    partition_by=DailyPrice.stock_id,
+                    order_by=(DailyPrice.trade_date.desc(), DailyPrice.id.desc()),
+                )
+                .label("row_number"),
+            )
+            .join(limited_stocks, limited_stocks.c.id == DailyPrice.stock_id)
+            .subquery()
+        )
+        statement = (
+            select(Stock, DailyPrice)
+            .join(limited_stocks, limited_stocks.c.id == Stock.id)
+            .join(ranked_prices, ranked_prices.c.stock_id == Stock.id)
+            .join(DailyPrice, DailyPrice.id == ranked_prices.c.price_id)
+            .where(ranked_prices.c.row_number <= price_window_limit)
+            .order_by(Stock.exchange, Stock.symbol, Stock.id, DailyPrice.trade_date.desc(), DailyPrice.id.desc())
+        )
+
+        result = await self.session.execute(statement)
+        return [(stock, price) for stock, price in result.all()]
+
     async def get_daily_price_by_stock_date(
         self,
         *,

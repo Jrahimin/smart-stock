@@ -114,6 +114,18 @@ function toMover(stock: StockIntelligenceModel): MarketMoverModel {
   };
 }
 
+function getDerivedTurnover(universe: StockIntelligenceModel[]) {
+  const values = universe
+    .map((stock) => stock.turnover)
+    .filter((turnover): turnover is number => turnover !== null);
+
+  if (!values.length) {
+    return null;
+  }
+
+  return values.reduce((sum, turnover) => sum + turnover, 0);
+}
+
 function buildTimeline(universe: StockIntelligenceModel[], latestSummary: BackendDailyMarketSummaryDto | null) {
   const items = [];
   const suspiciousCount = universe.filter((stock) => stock.dataQuality === "SUSPICIOUS").length;
@@ -157,9 +169,12 @@ export function buildMarketDashboardModel(
     latestTradeDate: latestSummary?.trade_date ?? universe[0]?.latestTradeDate,
     dataQualityFlag: latestSummary?.data_quality_flag,
   });
-  const turnoverLabel = formatCompactNumber(latestSummary?.total_turnover);
+  const derivedTurnover = getDerivedTurnover(universe);
+  const turnoverValue = latestSummary?.total_turnover ?? derivedTurnover;
+  const turnoverLabel = formatCompactNumber(turnoverValue);
   const indexChangePercent = latestSummary?.index_change_percent ?? null;
   const indexChangePercentNumber = toNumber(indexChangePercent);
+  const hasRealIndexSummary = latestSummary !== null && latestSummary.index_name !== "SOURCE_VALIDATION" && latestSummary.index_close !== null;
 
   return {
     exchange: latestSummary?.exchange ?? "DSE",
@@ -171,13 +186,13 @@ export function buildMarketDashboardModel(
       {
         label: "Market Mood",
         value: marketMood,
-        helper: universe.length ? `${breadth.advancing} advancers vs ${breadth.declining} decliners` : "Awaiting latest price coverage",
+        helper: universe.length ? `${breadth.advancing} advancing, ${breadth.declining} declining` : "Awaiting latest price coverage",
         tone: getMoodTone(marketMood),
       },
       {
         label: latestSummary?.index_name === "SOURCE_VALIDATION" ? "DSEX" : (latestSummary?.index_name ?? "DSEX"),
-        value: formatNumber(latestSummary?.index_close),
-        helper: formatPercent(indexChangePercent),
+        value: hasRealIndexSummary ? formatNumber(latestSummary.index_close) : "Index pending",
+        helper: hasRealIndexSummary ? formatPercent(indexChangePercent) : "Backend has validation rows, not DSEX index rows yet",
         tone:
           indexChangePercentNumber !== null && indexChangePercentNumber > 0
             ? "positive"
@@ -188,13 +203,13 @@ export function buildMarketDashboardModel(
       {
         label: "Turnover",
         value: turnoverLabel,
-        helper: latestSummary?.total_turnover ? "Latest exchange turnover" : "Derived per-stock turnover coverage",
-        tone: latestSummary?.total_turnover || universe.some((stock) => stock.turnover !== null) ? "info" : "warning",
+        helper: latestSummary?.total_turnover ? "Latest exchange turnover" : "Derived from loaded stock turnover",
+        tone: turnoverValue !== null ? "info" : "warning",
       },
       {
         label: "Listed Stocks",
         value: formatNumber(stocks.length || 0, { maximumFractionDigits: 0 }),
-        helper: "Active DSE/CSE coverage from stock master",
+        helper: `${universe.length} price-backed names loaded for analytics`,
         tone: "neutral",
       },
     ],

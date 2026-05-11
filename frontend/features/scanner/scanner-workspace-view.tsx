@@ -1,32 +1,41 @@
 "use client";
 
 import Link from "next/link";
+import { useMemo, useState } from "react";
 
+import { SearchableSymbolFilter } from "@/components/filters/searchable-symbol-filter";
+import { FloatingRefreshButton } from "@/components/ui/floating-refresh-button";
+import { MarketActivityLoader } from "@/components/ui/market-activity-loader";
 import { useMarketUniverse } from "@/features/market-dashboard/hooks/use-market-universe";
 import { formatCompactNumber, formatNumber, formatPercent } from "@/lib/formatters/financial-formatters";
 
 export function ScannerWorkspaceView() {
-  const { universe, isLoading, isError } = useMarketUniverse();
+  const { universe, isLoading, isError, refetch } = useMarketUniverse({ stockLimit: 500, priceWindowLimit: 30 });
+  const [symbolFilter, setSymbolFilter] = useState("");
+  const filteredUniverse = useMemo(
+    () => universe.filter((stock) => !symbolFilter || stock.stock.symbol.includes(symbolFilter)),
+    [symbolFilter, universe],
+  );
   const categories = [
     {
       title: "RSI Oversold",
       description: "Potential rebound candidates below RSI 35.",
-      items: universe.filter((stock) => stock.rsi !== null && stock.rsi < 35).slice(0, 6),
+      items: filteredUniverse.filter((stock) => stock.rsi !== null && stock.rsi < 35).slice(0, 6),
     },
     {
       title: "Momentum Continuation",
       description: "Positive change with uptrend confirmation.",
-      items: universe.filter((stock) => stock.trend === "UPTREND" && (stock.priceChangePercent ?? 0) > 0).slice(0, 6),
+      items: filteredUniverse.filter((stock) => stock.trend === "UPTREND" && (stock.priceChangePercent ?? 0) > 0).slice(0, 6),
     },
     {
       title: "Unusual Volume",
       description: "Latest volume materially above 20-session average.",
-      items: universe.filter((stock) => stock.averageVolume !== null && stock.volume > stock.averageVolume * 1.5).slice(0, 6),
+      items: filteredUniverse.filter((stock) => stock.averageVolume !== null && stock.volume > stock.averageVolume * 1.5).slice(0, 6),
     },
     {
       title: "Breakdown Risk",
       description: "Negative momentum with elevated risk context.",
-      items: universe.filter((stock) => stock.signal.signal === "SELL" || stock.signal.risk === "HIGH").slice(0, 6),
+      items: filteredUniverse.filter((stock) => stock.signal.signal === "SELL" || stock.signal.risk === "HIGH").slice(0, 6),
     },
   ];
 
@@ -38,9 +47,17 @@ export function ScannerWorkspaceView() {
           <h1>Daily opportunity detection</h1>
           <span>Rule-based scans from latest available OHLCV rows</span>
         </div>
+        <div className="explorer-controls">
+          <SearchableSymbolFilter
+            id="scanner-symbol-filter"
+            options={universe.map((stock) => ({ id: stock.stock.id, symbol: stock.stock.symbol, name: stock.stock.name }))}
+            value={symbolFilter}
+            onChange={setSymbolFilter}
+          />
+        </div>
       </div>
       {isError ? <div className="data-warning">Could not load scanner data.</div> : null}
-      {isLoading ? <div className="data-warning">Scanning market universe...</div> : null}
+      {isLoading ? <MarketActivityLoader /> : null}
       <div className="scanner-category-grid">
         {categories.map((category) => (
           <section className="workspace-card" key={category.title}>
@@ -65,6 +82,7 @@ export function ScannerWorkspaceView() {
           </section>
         ))}
       </div>
+      <FloatingRefreshButton onRefresh={refetch} />
     </section>
   );
 }

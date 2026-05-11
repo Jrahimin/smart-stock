@@ -16,6 +16,7 @@ export function FundamentalsPanel({ model }: FundamentalsPanelProps) {
           <article key={item.label}>
             <span>{item.label}</span>
             <strong>{item.value}</strong>
+            <small>{item.helper}</small>
           </article>
         ))}
       </div>

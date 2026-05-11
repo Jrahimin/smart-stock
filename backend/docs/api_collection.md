@@ -341,6 +341,153 @@ None
 
 ## Market Data
 
+### GET /api/v1/market/latest-prices
+
+**Description**
+Return the latest available daily OHLCV row for each active stock, optionally filtered by exchange. This endpoint is intended for frontend dashboard, scanner, signal center, and stock explorer workflows so the UI does not need to fan out into one price request per stock.
+
+**Query Params**
+
+* limit: number, default 50, min 1, max 500
+* offset: number, default 0, min 0
+* exchange: optional enum, one of `DSE`, `CSE`
+
+**Response**
+
+```json
+{
+  "success": true,
+  "message": "Latest market prices retrieved",
+  "data": [
+    {
+      "stock": {
+        "symbol": "RENATA",
+        "name": "Renata PLC",
+        "exchange": "DSE",
+        "sector": "Pharmaceuticals",
+        "category": "A",
+        "isin": null,
+        "listing_date": "1979-01-01",
+        "lot_size": null,
+        "paid_up_capital": "1146.9600",
+        "market_cap": "14583.7620",
+        "is_active": true,
+        "should_fetch_details": false,
+        "id": "d469bea4-3089-47ef-9d1e-9a32c4409e96",
+        "created_at": "2026-05-03T11:50:53.916Z",
+        "updated_at": "2026-05-04T19:46:27.143Z"
+      },
+      "price": {
+        "stock_id": "d469bea4-3089-47ef-9d1e-9a32c4409e96",
+        "trade_date": "2026-05-10",
+        "open_price": "22.8000",
+        "high_price": "24.3000",
+        "low_price": "22.8000",
+        "close_price": "24.2000",
+        "adjusted_close_price": null,
+        "previous_close_price": "22.8000",
+        "price_change": "1.4000",
+        "price_change_percent": "6.1404",
+        "day_range": "1.5000",
+        "day_range_percent": "6.5789",
+        "vwap": "23.5400",
+        "volume": 368700,
+        "trade_count": 0,
+        "turnover": "8679180.0000",
+        "source": "AMARSTOCK_API",
+        "data_quality_flag": "OK",
+        "id": "30e7d280-0b42-44c2-8f42-a8c9b0ff5c91",
+        "created_at": "2026-05-10T15:00:00Z",
+        "updated_at": "2026-05-10T15:00:00Z"
+      }
+    }
+  ]
+}
+```
+
+**Notes**
+
+* Only active stocks with at least one `daily_prices` row are returned.
+* Results are ordered by exchange, symbol, and id for stable pagination.
+* Use `GET /api/v1/stocks/{stock_id}/prices` for full historical chart windows.
+
+---
+
+### GET /api/v1/market/price-windows
+
+**Description**
+Return each active stock with a recent daily OHLCV window, optionally filtered by exchange. This supports market-wide scanners, signals, and dashboard analytics that need RSI, moving averages, volume averages, and trend context without issuing one historical price request per stock.
+
+**Query Params**
+
+* limit: number, default 50, min 1, max 500
+* offset: number, default 0, min 0
+* exchange: optional enum, one of `DSE`, `CSE`
+* price_window_limit: number, default 60, min 1, max 260
+
+**Response**
+
+```json
+{
+  "success": true,
+  "message": "Market price windows retrieved",
+  "data": [
+    {
+      "stock": {
+        "symbol": "RENATA",
+        "name": "Renata PLC",
+        "exchange": "DSE",
+        "sector": "Pharmaceuticals",
+        "category": "A",
+        "isin": null,
+        "listing_date": "1979-01-01",
+        "lot_size": null,
+        "paid_up_capital": "1146.9600",
+        "market_cap": "14583.7620",
+        "is_active": true,
+        "should_fetch_details": false,
+        "id": "d469bea4-3089-47ef-9d1e-9a32c4409e96",
+        "created_at": "2026-05-03T11:50:53.916Z",
+        "updated_at": "2026-05-04T19:46:27.143Z"
+      },
+      "prices": [
+        {
+          "stock_id": "d469bea4-3089-47ef-9d1e-9a32c4409e96",
+          "trade_date": "2026-05-10",
+          "open_price": "22.8000",
+          "high_price": "24.3000",
+          "low_price": "22.8000",
+          "close_price": "24.2000",
+          "adjusted_close_price": null,
+          "previous_close_price": "22.8000",
+          "price_change": "1.4000",
+          "price_change_percent": "6.1404",
+          "day_range": "1.5000",
+          "day_range_percent": "6.5789",
+          "vwap": "23.5400",
+          "volume": 368700,
+          "trade_count": 0,
+          "turnover": "8679180.0000",
+          "source": "AMARSTOCK_API",
+          "data_quality_flag": "OK",
+          "id": "30e7d280-0b42-44c2-8f42-a8c9b0ff5c91",
+          "created_at": "2026-05-10T15:00:00Z",
+          "updated_at": "2026-05-10T15:00:00Z"
+        }
+      ]
+    }
+  ]
+}
+```
+
+**Notes**
+
+* Only active stocks with available `daily_prices` rows are returned.
+* Prices inside each stock window are newest first.
+* The frontend can sort ascending before chart or indicator derivation.
+
+---
+
 ### GET /api/v1/stocks/{stock_id}/prices
 
 **Description**

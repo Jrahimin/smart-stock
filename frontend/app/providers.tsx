@@ -3,6 +3,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { useState } from "react";
+import { frontendConfig } from "@/lib/frontend-config";
 
 export function AppProviders({ children }: Readonly<{ children: ReactNode }>) {
   const [queryClient] = useState(
@@ -10,9 +11,10 @@ export function AppProviders({ children }: Readonly<{ children: ReactNode }>) {
       new QueryClient({
         defaultOptions: {
           queries: {
+            gcTime: frontendConfig.cacheHours * 60 * 60 * 1000,
             refetchOnWindowFocus: false,
             retry: 1,
-            staleTime: 60_000,
+            staleTime: frontendConfig.cacheHours * 60 * 60 * 1000,
           },
         },
       }),

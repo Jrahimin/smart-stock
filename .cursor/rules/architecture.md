@@ -197,6 +197,58 @@ Feature-specific query params, such as `exchange`, `indicator_type`, or date ran
 
 ---
 
+## Frontend Workspace Architecture
+
+The frontend should be a persistent institutional market workspace for Bangladesh stock intelligence. It should help traders quickly answer what is happening in the market, which stocks deserve attention, what opportunities and risks exist, and why a signal was generated.
+
+### Feature Modules
+
+Use feature-based modules under `frontend/features/`:
+
+* `market-dashboard/` for market overview, breadth, heatmap, movers, smart signals, and timeline
+* `stock-workspace/` for stock lookup, chart workspace, technical summary, fundamentals, and insight sidebar
+* `scanner/` for opportunity scans and filterable candidate groups
+* `signals/` for explanation-first deterministic signal feeds
+* `watchlist/` for grouped local watchlists and future backend persistence
+
+Feature modules own their components, hooks, view models, services, and types. Shared UI belongs under `frontend/components/`; shared API, formatter, insight, command, and market logic belongs under `frontend/lib/`.
+
+### Data Flow And View Models
+
+Frontend data flow is:
+
+`App Router page -> Feature view -> Domain hook -> TanStack Query -> Typed API client -> FastAPI backend -> View-model builder -> UI/chart components`
+
+Rules:
+
+* App Router pages should compose feature views only.
+* Backend response envelopes must be unwrapped in the API layer.
+* Backend DTOs stay in `frontend/lib/api`; UI components receive view models, chart models, insight models, or table row models.
+* Components should not parse backend decimals, infer trading risk, inspect raw data quality, or call APIs directly.
+* Formatting belongs in `frontend/lib/formatters`; deterministic trading derivations belong in `frontend/lib/market` or `frontend/lib/insights`.
+
+### Market Session And Cache Policy
+
+The market session engine should model `PRE_OPEN`, `OPEN`, `POST_CLOSE`, `HOLIDAY`, `STALE`, `PARTIAL`, and `SYNCING` using Asia/Dhaka context, latest market dates, data quality, and future sync job state.
+
+The product currently uses daily synced data, not live streaming. Default market cache duration is configurable with `NEXT_PUBLIC_MARKET_CACHE_HOURS` and should default to 2 hours. Dashboard, stock list, scanner, and signal views should expose manual refresh controls that invalidate/refetch cached market data after a sync or correction.
+
+### Table And Performance Strategy
+
+Use TanStack Table for stock explorer, signal center, scanner results, and watchlists. Large tables should use sticky headers, aligned tabular financial numerals, clear row dividers, loading/empty/stale states, and virtualization where row count justifies it.
+
+Do not build market-wide pages by issuing one request per stock. Use aggregate backend endpoints such as `GET /api/v1/market/latest-prices` for dashboard/explorer/scanner/signal workflows. Use per-stock historical price endpoints only for detail chart windows.
+
+### Visualization Strategy
+
+Use TradingView Lightweight Charts for stock detail workspaces. Chart components should transform price DTOs into chart-safe models before render, sync theme with design tokens, handle missing/stale/partial data explicitly, and add overlays incrementally: candles and volume first, then timeframe aggregation, SMA/EMA, RSI/MACD panels, signal markers, event overlays, and auditable pattern labels.
+
+### Insights And AI Evolution
+
+Initial insights should be deterministic, auditable, and based on market data, indicators, signals, valuation, ownership, and data quality. Future AI should explain, summarize, and prioritize deterministic evidence rather than becoming the only source of truth. Hybrid and AI-generated insights should map into the same insight model contracts with provenance, confidence, and source context.
+
+---
+
 ## Forbidden (Frontend)
 
 * Business logic inside UI components ❌

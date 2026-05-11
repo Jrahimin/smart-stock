@@ -8,6 +8,10 @@
   --subtle: #151821;
   --panel: #11141c;
   --panel-strong: #181c27;
+  --sidebar: #080910;
+  --sidebar-hover: rgb(255 255 255 / 6%);
+  --hero-gradient: radial-gradient(circle at top left, rgb(157 140 255 / 18%), transparent 36%), linear-gradient(135deg, #141722, #0d0f16);
+  --soft-surface: rgb(255 255 255 / 3%);
   --border: #272c3a;
   --primary: #9d8cff;
   --positive: #4bd6a4;
@@ -15,6 +19,27 @@
   --warning: #f0c36a;
   --info: #7bb7ff;
   --neutral: #aeb5c5;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --background: #f4f1ec;
+  --foreground: #161b25;
+  --muted: #647084;
+  --subtle: #ebe6df;
+  --panel: #fbfaf7;
+  --panel-strong: #f2eee8;
+  --sidebar: #fbfaf7;
+  --sidebar-hover: rgb(79 70 229 / 8%);
+  --hero-gradient: radial-gradient(circle at top left, rgb(79 70 229 / 12%), transparent 34%), linear-gradient(135deg, #fbfaf7, #eee8df);
+  --soft-surface: rgb(22 27 37 / 3%);
+  --border: #ded6ca;
+  --primary: #4f46e5;
+  --positive: #087f5b;
+  --negative: #b4232c;
+  --warning: #a16207;
+  --info: #1d5fd0;
+  --neutral: #647084;
 }
 
 * {
@@ -25,6 +50,7 @@ body {
   margin: 0;
   background: var(--background);
   color: var(--foreground);
+  font-size: 13px;
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
@@ -50,11 +76,11 @@ button {
 }
 
 .terminal-shell-collapsed {
-  grid-template-columns: 88px minmax(0, 1fr);
+  grid-template-columns: 76px minmax(0, 1fr);
 }
 
 .terminal-sidebar {
-  background: #080910;
+  background: var(--sidebar);
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
@@ -63,12 +89,27 @@ button {
 }
 
 .terminal-shell-collapsed .terminal-sidebar {
-  padding: 20px 12px;
+  align-items: center;
+  padding: 18px 10px;
+}
+
+.terminal-sidebar-top {
+  align-items: flex-start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
 }
 
 .terminal-brand {
   display: grid;
   gap: 6px;
+  min-width: 0;
+}
+
+.terminal-shell-collapsed .terminal-brand span,
+.terminal-shell-collapsed .terminal-brand strong,
+.terminal-shell-collapsed .terminal-sidebar nav a span {
+  display: none;
 }
 
 .terminal-brand span,
@@ -82,7 +123,7 @@ button {
 }
 
 .terminal-brand strong {
-  font-size: 1.1rem;
+  font-size: 0.98rem;
   letter-spacing: -0.02em;
 }
 
@@ -91,59 +132,107 @@ button {
   gap: 8px;
 }
 
-.terminal-sidebar nav a,
-.ghost-button {
+.terminal-sidebar nav a {
+  align-items: center;
   border: 1px solid transparent;
   border-radius: 12px;
   color: var(--muted);
+  display: flex;
+  gap: 10px;
   padding: 10px 12px;
 }
 
+.terminal-shell-collapsed .terminal-sidebar nav a {
+  justify-content: center;
+  padding: 12px;
+  width: 44px;
+}
+
 .terminal-sidebar nav a:hover,
-.ghost-button:hover {
-  background: rgb(255 255 255 / 6%);
+.sidebar-toggle-button:hover {
+  background: var(--sidebar-hover);
   border-color: var(--border);
   color: var(--foreground);
 }
 
-.ghost-button {
+.sidebar-toggle-button {
   background: transparent;
-  margin-top: auto;
-  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--muted);
+  display: inline-grid;
+  height: 36px;
+  min-width: 36px;
+  place-items: center;
 }
 
 .terminal-main {
   min-width: 0;
-  padding: 18px;
+  padding: 12px;
 }
 
 .market-dashboard-view {
   display: grid;
-  gap: 16px;
+  gap: 9px;
 }
 
 .market-topbar {
   align-items: center;
-  background: rgb(17 20 28 / 78%);
+  background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 18px;
+  border-radius: 16px;
   display: flex;
   gap: 16px;
   justify-content: space-between;
-  padding: 12px 14px;
+  padding: 7px 10px;
 }
 
 .market-tape {
   align-items: center;
-  color: var(--muted);
   display: flex;
   flex-wrap: wrap;
-  gap: 14px;
-  font-size: 0.86rem;
+  gap: 8px;
+  font-size: 0.72rem;
+  font-weight: 700;
 }
 
-.market-tape strong {
+.market-tape-index {
   color: var(--foreground);
+  font-size: 0.78rem;
+  letter-spacing: -0.02em;
+}
+
+.market-tape-pill {
+  background: var(--soft-surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--foreground);
+  padding: 4px 8px;
+}
+
+.market-tape-pill b {
+  color: var(--foreground);
+}
+
+.market-tape-mood-bullish,
+.market-tape-mood-accumulation {
+  background: rgb(75 214 164 / 16%);
+  border-color: rgb(75 214 164 / 28%);
+  color: var(--positive);
+}
+
+.market-tape-mood-bearish {
+  background: rgb(255 119 119 / 16%);
+  border-color: rgb(255 119 119 / 28%);
+  color: var(--negative);
+}
+
+.market-tape-mood-high-volatility,
+.market-tape-mood-cautious,
+.market-tape-mood-weak-recovery {
+  background: rgb(240 195 106 / 16%);
+  border-color: rgb(240 195 106 / 30%);
+  color: var(--warning);
 }
 
 .command-trigger {
@@ -154,8 +243,8 @@ button {
   color: var(--muted);
   display: inline-flex;
   gap: 8px;
-  min-width: 280px;
-  padding: 9px 12px;
+  min-width: 220px;
+  padding: 6px 9px;
 }
 
 .command-trigger kbd {
@@ -167,22 +256,20 @@ button {
 }
 
 .hero-intelligence {
-  background:
-    radial-gradient(circle at top left, rgb(157 140 255 / 18%), transparent 36%),
-    linear-gradient(135deg, #141722, #0d0f16);
+  background: var(--hero-gradient);
   border: 1px solid var(--border);
-  border-radius: 24px;
+  border-radius: 18px;
   display: grid;
-  gap: 24px;
-  grid-template-columns: 1.1fr 2fr;
-  padding: 24px;
+  gap: 12px;
+  grid-template-columns: minmax(220px, 0.72fr) minmax(0, 2.28fr);
+  padding: 12px 14px;
 }
 
 .hero-copy h1 {
-  font-size: clamp(2rem, 5vw, 4.5rem);
-  letter-spacing: -0.07em;
-  line-height: 0.95;
-  margin: 12px 0;
+  font-size: clamp(1.35rem, 2.45vw, 2.2rem);
+  letter-spacing: -0.05em;
+  line-height: 1;
+  margin: 5px 0;
 }
 
 .hero-copy span,
@@ -193,7 +280,7 @@ button {
 .hero-metrics {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px;
+  gap: 8px;
 }
 
 .metric-card,
@@ -203,17 +290,17 @@ button {
 .placeholder-panel {
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 20px;
-  padding: 18px;
+  border-radius: 14px;
+  padding: 11px;
 }
 
 .metric-card {
   display: grid;
-  gap: 10px;
+  gap: 5px;
 }
 
 .metric-card strong {
-  font-size: 1.75rem;
+  font-size: 1rem;
   letter-spacing: -0.04em;
 }
 
@@ -223,7 +310,7 @@ button {
 .timeline-item p,
 .placeholder-panel p {
   color: var(--muted);
-  line-height: 1.55;
+  line-height: 1.42;
   margin: 0;
 }
 
@@ -245,37 +332,44 @@ button {
 
 .dashboard-workspace-grid {
   display: grid;
-  gap: 16px;
+  gap: 9px;
   grid-template-columns: minmax(0, 1.4fr) minmax(320px, 0.8fr) 340px;
 }
 
 .dashboard-primary-column,
 .dashboard-secondary-column,
-.insight-sidebar,
 .signal-feed,
 .timeline-list {
   display: grid;
-  gap: 16px;
+  gap: 9px;
+}
+
+.insight-sidebar {
+  align-content: start;
+  align-self: start;
+  display: grid;
+  gap: 9px;
 }
 
 .section-heading {
   display: grid;
-  gap: 6px;
-  margin-bottom: 16px;
+  gap: 3px;
+  margin-bottom: 8px;
 }
 
 .section-heading h2,
 .placeholder-panel h1 {
+  font-size: 0.92rem;
   letter-spacing: -0.04em;
   margin: 0;
 }
 
 .breadth-track {
-  background: #090a0f;
+  background: var(--subtle);
   border: 1px solid var(--border);
   border-radius: 999px;
   display: flex;
-  height: 14px;
+  height: 8px;
   overflow: hidden;
 }
 
@@ -298,24 +392,24 @@ button {
 .breadth-stats {
   color: var(--muted);
   display: flex;
-  gap: 14px;
-  margin-top: 12px;
+  gap: 10px;
+  margin-top: 7px;
 }
 
 .heatmap-grid {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  min-height: 310px;
+  min-height: 250px;
 }
 
 .heatmap-tile {
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: 12px;
   display: grid;
-  min-height: 120px;
-  min-width: 150px;
-  padding: 14px;
+  min-height: 96px;
+  min-width: 128px;
+  padding: 10px;
 }
 
 .heatmap-tile-positive {
@@ -333,15 +427,15 @@ button {
 .signal-feed-item,
 .timeline-item,
 .insight-block {
-  background: rgb(255 255 255 / 3%);
+  background: var(--soft-surface);
   border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 14px;
+  border-radius: 12px;
+  padding: 9px;
 }
 
 .signal-feed-item {
   display: grid;
-  gap: 10px;
+  gap: 6px;
 }
 
 .signal-feed-item > div,
@@ -465,7 +559,7 @@ button {
 
 .command-results a:hover,
 .command-results button:hover {
-  background: rgb(255 255 255 / 6%);
+  background: var(--sidebar-hover);
 }
 
 .command-results span {
@@ -492,7 +586,7 @@ button {
 .movers-grid,
 .scanner-category-grid {
   display: grid;
-  gap: 16px;
+  gap: 12px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
@@ -500,18 +594,18 @@ button {
 .scanner-result-list,
 .signal-center-list {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .mover-row,
 .scanner-result-card,
 .signal-center-item {
-  background: rgb(255 255 255 / 3%);
+  background: var(--soft-surface);
   border: 1px solid var(--border);
   border-radius: 14px;
   display: grid;
-  gap: 8px;
-  padding: 12px;
+  gap: 6px;
+  padding: 10px;
 }
 
 .mover-row {
@@ -548,7 +642,7 @@ button {
 .scanner-workspace-view,
 .stock-workspace-view {
   display: grid;
-  gap: 16px;
+  gap: 10px;
 }
 
 .explorer-header,
@@ -556,19 +650,19 @@ button {
   align-items: center;
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 22px;
+  border-radius: 18px;
   display: flex;
-  gap: 20px;
+  gap: 14px;
   justify-content: space-between;
-  padding: 20px;
+  padding: 12px 14px;
 }
 
 .explorer-header h1,
 .stock-workspace-header h1 {
-  font-size: clamp(2rem, 4vw, 4rem);
-  letter-spacing: -0.07em;
-  line-height: 0.95;
-  margin: 8px 0;
+  font-size: clamp(1.55rem, 2.55vw, 2.4rem);
+  letter-spacing: -0.055em;
+  line-height: 0.98;
+  margin: 4px 0;
 }
 
 .explorer-header span,
@@ -583,13 +677,145 @@ button {
 
 .explorer-controls input,
 .explorer-controls select,
-.signal-center-view select {
+.explorer-controls button,
+.signal-center-view select,
+.scanner-workspace-view select,
+.searchable-symbol-filter input,
+.searchable-symbol-filter button,
+.secondary-action-button {
   background: var(--subtle);
   border: 1px solid var(--border);
   border-radius: 12px;
   color: var(--foreground);
-  min-height: 40px;
-  padding: 0 12px;
+  min-height: 36px;
+  padding: 0 11px;
+}
+
+.secondary-action-button {
+  font-weight: 700;
+}
+
+.floating-refresh-button {
+  background: var(--primary);
+  border: 1px solid rgb(255 255 255 / 18%);
+  border-radius: 999px;
+  bottom: 22px;
+  box-shadow: 0 18px 40px rgb(0 0 0 / 24%);
+  color: white;
+  font-weight: 900;
+  font-size: 0.88rem;
+  letter-spacing: -0.01em;
+  min-height: 46px;
+  min-width: 124px;
+  padding: 0 18px;
+  position: fixed;
+  right: 24px;
+  z-index: 30;
+}
+
+.floating-refresh-button span {
+  border: 2px solid rgb(255 255 255 / 40%);
+  border-top-color: white;
+  border-radius: 999px;
+  display: none;
+  height: 14px;
+  margin-right: 7px;
+  width: 14px;
+}
+
+.floating-refresh-button-refreshing {
+  background: color-mix(in srgb, var(--primary) 88%, black);
+}
+
+.floating-refresh-button-refreshing span {
+  animation: refresh-spin 0.8s linear infinite;
+  display: inline-block;
+}
+
+.floating-refresh-button-updated {
+  background: var(--positive);
+  color: #06140f;
+}
+
+.floating-refresh-button:hover {
+  background: color-mix(in srgb, var(--primary) 82%, black);
+  transform: translateY(-1px);
+}
+
+.floating-refresh-button-updated:hover {
+  background: color-mix(in srgb, var(--positive) 82%, black);
+}
+
+@keyframes refresh-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.searchable-symbol-filter {
+  align-items: center;
+  display: inline-flex;
+  gap: 8px;
+  position: relative;
+}
+
+.searchable-symbol-filter label {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.searchable-symbol-filter input {
+  min-width: 220px;
+}
+
+.searchable-symbol-filter > button {
+  font-weight: 800;
+  padding: 0 10px;
+}
+
+.symbol-filter-menu {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: 0 24px 55px rgb(0 0 0 / 20%);
+  display: grid;
+  gap: 4px;
+  left: 0;
+  max-height: 360px;
+  min-width: 320px;
+  overflow: auto;
+  padding: 8px;
+  position: absolute;
+  top: calc(100% + 8px);
+  z-index: 25;
+}
+
+.symbol-filter-menu button {
+  background: transparent;
+  border: 0;
+  border-radius: 12px;
+  color: var(--foreground);
+  display: grid;
+  gap: 3px;
+  min-height: auto;
+  padding: 10px 12px;
+  text-align: left;
+}
+
+.symbol-filter-menu button:hover {
+  background: var(--sidebar-hover);
+}
+
+.symbol-filter-menu span,
+.symbol-filter-empty {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.symbol-filter-empty {
+  padding: 12px;
 }
 
 .stock-table-shell {
@@ -598,11 +824,23 @@ button {
   border-radius: 20px;
   max-height: 68vh;
   overflow: auto;
+  position: relative;
 }
 
 .stock-explorer-table {
-  border-collapse: collapse;
   min-width: 1040px;
+  width: 100%;
+}
+
+.stock-explorer-table thead,
+.stock-explorer-table tbody,
+.stock-explorer-table tr {
+  display: block;
+}
+
+.stock-explorer-table tr {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.6fr) minmax(90px, 0.7fr) minmax(110px, 0.8fr) minmax(120px, 0.9fr) minmax(110px, 0.9fr) minmax(90px, 0.65fr) minmax(120px, 0.9fr) minmax(100px, 0.7fr) minmax(90px, 0.65fr) minmax(80px, 0.55fr);
   width: 100%;
 }
 
@@ -610,7 +848,7 @@ button {
   background: var(--panel-strong);
   color: var(--muted);
   cursor: pointer;
-  font-size: 0.76rem;
+  font-size: 0.68rem;
   letter-spacing: 0.06em;
   position: sticky;
   text-align: left;
@@ -622,7 +860,37 @@ button {
 .stock-explorer-table th,
 .stock-explorer-table td {
   border-bottom: 1px solid var(--border);
-  padding: 12px 14px;
+  padding: 10px 12px;
+}
+
+.stock-explorer-table td {
+  min-height: 52px;
+}
+
+.stock-explorer-table tbody tr:nth-child(even) td {
+  background: var(--soft-surface);
+}
+
+.stock-explorer-table tbody tr:hover td {
+  background: var(--sidebar-hover);
+  box-shadow: inset 0 1px 0 var(--border), inset 0 -1px 0 var(--border);
+}
+
+.stock-numeric-cell,
+.stock-explorer-table th:not(:first-child) {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.stock-symbol-cell {
+  min-width: 0;
+}
+
+.stock-symbol-cell strong,
+.stock-symbol-cell span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .stock-explorer-table td:first-child a {
@@ -632,54 +900,236 @@ button {
 
 .stock-explorer-table td:first-child span {
   color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.stock-scroll-loader {
+  background: linear-gradient(180deg, transparent, var(--panel) 24%);
+  bottom: 0;
+  color: var(--muted);
   font-size: 0.82rem;
+  font-weight: 700;
+  left: 0;
+  padding: 22px 14px 12px;
+  position: sticky;
+  right: 0;
+  text-align: center;
+}
+
+.market-activity-loader {
+  align-items: center;
+  backdrop-filter: blur(8px);
+  background: color-mix(in srgb, var(--background) 62%, transparent);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  overflow: hidden;
+  position: fixed;
+  z-index: 20;
+}
+
+.market-activity-loader::before {
+  background: radial-gradient(circle, rgb(75 214 164 / 14%), transparent 58%);
+  content: "";
+  filter: blur(22px);
+  height: 180px;
+  position: absolute;
+  width: 300px;
+}
+
+.market-activity-loader::after {
+  animation: loader-sheen 2.2s ease-in-out infinite;
+  background: linear-gradient(90deg, transparent, rgb(75 214 164 / 10%), transparent);
+  content: "";
+  height: 100%;
+  position: absolute;
+  top: 0;
+  transform: translateX(-120%);
+  width: 42%;
+}
+
+.market-activity-loader > * {
+  position: relative;
+  z-index: 1;
+}
+
+.market-pulse-line {
+  align-items: center;
+  backdrop-filter: blur(18px);
+  background:
+    radial-gradient(circle at center, rgb(75 214 164 / 16%), transparent 60%),
+    color-mix(in srgb, var(--panel) 68%, transparent);
+  border: 1px solid color-mix(in srgb, var(--positive) 28%, var(--border));
+  border-radius: 999px;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 8%), 0 22px 60px rgb(0 0 0 / 18%);
+  display: flex;
+  height: 74px;
+  justify-content: center;
+  min-width: 190px;
+  overflow: hidden;
+  position: relative;
+}
+
+.market-pulse-line::before {
+  background: linear-gradient(90deg, transparent, rgb(75 214 164 / 22%), transparent);
+  content: "";
+  height: 1px;
+  inset-inline: 18px;
+  position: absolute;
+}
+
+.market-pulse-line i,
+.market-pulse-line span,
+.market-pulse-line b {
+  animation: pulse-spark 1.45s ease-in-out infinite;
+  background: var(--positive);
+  box-shadow: 0 0 22px rgb(75 214 164 / 78%);
+  display: block;
+  height: 2px;
+  position: absolute;
+  transform-origin: center;
+}
+
+.market-pulse-line i {
+  left: 34px;
+  width: 42px;
+}
+
+.market-pulse-line span {
+  animation-delay: 0.1s;
+  clip-path: polygon(0 45%, 28% 45%, 44% 0, 58% 100%, 72% 45%, 100% 45%, 100% 58%, 68% 58%, 54% 100%, 40% 0, 25% 58%, 0 58%);
+  height: 34px;
+  left: 74px;
+  width: 52px;
+}
+
+.market-pulse-line b {
+  animation-delay: 0.2s;
+  right: 34px;
+  width: 30px;
+}
+
+@keyframes pulse-spark {
+  0%,
+  100% {
+    opacity: 0.42;
+    transform: scaleX(0.72);
+  }
+  45% {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}
+
+@keyframes loader-sheen {
+  100% {
+    transform: translateX(260%);
+  }
 }
 
 .stock-header-metrics,
 .technical-summary-grid,
 .fundamentals-grid {
   display: grid;
-  gap: 12px;
+  gap: 6px;
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .stock-header-metrics > div,
 .technical-summary-card,
 .fundamentals-grid article {
-  background: rgb(255 255 255 / 3%);
+  background: var(--soft-surface);
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: 12px;
   display: grid;
-  gap: 6px;
-  padding: 12px;
+  gap: 3px;
+  padding: 7px 8px;
 }
 
 .stock-header-metrics span,
 .technical-summary-card span,
 .fundamentals-grid span {
   color: var(--muted);
-  font-size: 0.78rem;
+  font-size: 0.68rem;
   text-transform: uppercase;
+}
+
+.stock-header-metrics strong {
+  font-size: 0.9rem;
+}
+
+.stock-header-metrics small {
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+
+.fundamentals-grid small {
+  color: var(--muted);
+  line-height: 1.45;
 }
 
 .stock-workspace-grid {
   display: grid;
-  gap: 16px;
-  grid-template-columns: minmax(0, 1fr) 360px;
+  align-items: start;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) 310px;
 }
 
 .stock-chart-column {
   display: grid;
-  gap: 16px;
+  gap: 8px;
 }
 
 .chart-workspace-card {
-  min-height: 560px;
+  min-height: 390px;
 }
 
 .chart-container {
-  min-height: 440px;
+  min-height: 300px;
   width: 100%;
+}
+
+.chart-shell {
+  display: grid;
+  gap: 6px;
+}
+
+.chart-hover-tape {
+  background: var(--soft-surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 6px 8px;
+}
+
+.chart-control-row {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chart-control-row button {
+  background: var(--subtle);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  font-weight: 800;
+  min-height: 28px;
+  padding: 0 10px;
+}
+
+.chart-control-row button.active {
+  background: var(--foreground);
+  color: var(--background);
+}
+
+.chart-control-row span {
+  color: var(--muted);
+  margin-left: auto;
 }
 
 .chart-empty-state {
@@ -696,6 +1146,37 @@ button {
   flex-wrap: wrap;
   gap: 12px;
   grid-column: 1 / -1;
+}
+
+.settings-view {
+  display: grid;
+  gap: 16px;
+}
+
+.settings-panel {
+  max-width: 720px;
+}
+
+.segmented-control {
+  background: var(--subtle);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  display: inline-flex;
+  gap: 6px;
+  padding: 6px;
+}
+
+.segmented-control button {
+  background: transparent;
+  border: 0;
+  border-radius: 10px;
+  color: var(--muted);
+  padding: 10px 14px;
+}
+
+.segmented-control button.active {
+  background: var(--panel);
+  color: var(--foreground);
 }
 
 @media (max-width: 1200px) {

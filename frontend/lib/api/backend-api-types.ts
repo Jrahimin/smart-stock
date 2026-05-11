@@ -54,6 +54,16 @@ export type BackendDailyPriceDto = {
   updated_at: string;
 };
 
+export type BackendLatestMarketPriceDto = {
+  stock: BackendStockDto;
+  price: BackendDailyPriceDto;
+};
+
+export type BackendMarketPriceWindowDto = {
+  stock: BackendStockDto;
+  prices: BackendDailyPriceDto[];
+};
+
 export type BackendDailyMarketSummaryDto = {
   exchange: ExchangeCode;
   trade_date: string;

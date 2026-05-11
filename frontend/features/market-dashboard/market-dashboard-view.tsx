@@ -9,9 +9,10 @@ import { MarketTimeline } from "@/features/market-dashboard/components/market-ti
 import { MarketTopbar } from "@/features/market-dashboard/components/market-topbar";
 import { SmartSignalFeed } from "@/features/market-dashboard/components/smart-signal-feed";
 import { useMarketDashboard } from "@/features/market-dashboard/hooks/use-market-dashboard";
+import { FloatingRefreshButton } from "@/components/ui/floating-refresh-button";
 
 export function MarketDashboardView() {
-  const { model, isError, isLoading } = useMarketDashboard();
+  const { model, isError, isLoading, refetch } = useMarketDashboard();
 
   return (
     <div className="market-dashboard-view">
@@ -39,6 +40,7 @@ export function MarketDashboardView() {
         </div>
         <InsightSidebar insights={model.insights} />
       </div>
+      <FloatingRefreshButton onRefresh={refetch} />
     </div>
   );
 }

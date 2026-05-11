@@ -13,7 +13,7 @@ export function MarketBreadthPanel({ breadth }: MarketBreadthPanelProps) {
     <section className="workspace-card">
       <div className="section-heading">
         <p className="eyebrow">Market Breadth</p>
-        <h2>Advancing vs declining pressure</h2>
+        <h2>Advancing, declining, unchanged</h2>
       </div>
       <div className="breadth-track" aria-label="Market breadth distribution">
         <span className="breadth-advance" style={{ width: `${advancingWidth}%` }} />
@@ -21,9 +21,9 @@ export function MarketBreadthPanel({ breadth }: MarketBreadthPanelProps) {
         <span className="breadth-neutral" style={{ width: `${unchangedWidth}%` }} />
       </div>
       <div className="breadth-stats">
-        <span>Adv {breadth.advancing}</span>
-        <span>Dec {breadth.declining}</span>
-        <span>Unch {breadth.unchanged}</span>
+        <span>Advancing: {breadth.advancing}</span>
+        <span>Declining: {breadth.declining}</span>
+        <span>Unchanged: {breadth.unchanged}</span>
       </div>
     </section>
   );

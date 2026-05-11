@@ -41,4 +41,12 @@ export const coreCommandItems: CommandItem[] = [
     href: "/watchlist",
     keywords: ["alerts", "heatmap"],
   },
+  {
+    id: "go-settings",
+    label: "Open Settings",
+    description: "Change workspace theme and preferences.",
+    category: "NAVIGATION",
+    href: "/settings",
+    keywords: ["theme", "dark", "light"],
+  },
 ];

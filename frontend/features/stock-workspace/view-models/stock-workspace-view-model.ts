@@ -24,7 +24,7 @@ export type StockWorkspaceModel = {
   };
   technicalSummary: Array<{ label: string; value: string; helper: string }>;
   insights: Array<{ title: string; description: string; tone: "positive" | "negative" | "neutral" | "warning" }>;
-  fundamentals: Array<{ label: string; value: string }>;
+  fundamentals: Array<{ label: string; value: string; helper: string }>;
 };
 
 function buildInsights(intelligence: StockIntelligenceModel | null): StockWorkspaceModel["insights"] {
@@ -129,10 +129,26 @@ export function buildStockWorkspaceModel(stock: BackendStockDto | null, prices: 
     ],
     insights: buildInsights(intelligence),
     fundamentals: [
-      { label: "Market Cap", value: formatCompactNumber(stock?.market_cap) },
-      { label: "Paid-up Capital", value: formatBdt(stock?.paid_up_capital) },
-      { label: "Category", value: stock?.category ?? "N/A" },
-      { label: "Listing Date", value: stock?.listing_date ?? "N/A" },
+      {
+        label: "Market Cap",
+        value: formatCompactNumber(stock?.market_cap),
+        helper: stock?.market_cap ? "From stock master / detail sync." : "Missing until stock details sync provides capitalization.",
+      },
+      {
+        label: "Paid-up Capital",
+        value: formatBdt(stock?.paid_up_capital),
+        helper: stock?.paid_up_capital ? "Available from stock profile." : "Not available in current stock row.",
+      },
+      {
+        label: "Category",
+        value: stock?.category ?? "N/A",
+        helper: stock?.category ? "DSE category classification." : "Category not available.",
+      },
+      {
+        label: "Listing Date",
+        value: stock?.listing_date ?? "N/A",
+        helper: stock?.listing_date ? "Listing date from stock master." : "Listing date missing from source data.",
+      },
     ],
   };
 }

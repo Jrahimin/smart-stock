@@ -17,7 +17,10 @@ from app.modules.market_data.market_data_schemas import (
     DailyPriceCreate,
     DailyPriceIngestionResult,
     DailyPriceRead,
+    LatestMarketPriceRead,
+    MarketPriceWindowRead,
 )
+from app.modules.stocks.stocks_schemas import StockRead
 from app.modules.market_data.market_data_service import MarketDataService, get_market_data_service
 
 router = APIRouter(tags=["market data"])
@@ -48,6 +51,53 @@ async def list_daily_prices(
     )
     price_items = [DailyPriceRead.model_validate(price) for price in prices]
     return success_response(data=price_items, message="Daily prices retrieved")
+
+
+@router.get("/market/latest-prices", response_model=ApiResponse[list[LatestMarketPriceRead]])
+async def list_latest_market_prices(
+    pagination: Annotated[PaginationParams, Depends(get_pagination_params)],
+    service: Annotated[MarketDataService, Depends(get_market_data_service)],
+    exchange: ExchangeCode | None = None,
+) -> ApiResponse[list[LatestMarketPriceRead]]:
+    latest_prices = await service.list_latest_daily_prices(
+        exchange=exchange,
+        limit=pagination.limit,
+        offset=pagination.offset,
+    )
+    items = [
+        LatestMarketPriceRead(
+            stock=StockRead.model_validate(stock),
+            price=DailyPriceRead.model_validate(price),
+        )
+        for stock, price in latest_prices
+    ]
+    return success_response(data=items, message="Latest market prices retrieved")
+
+
+@router.get("/market/price-windows", response_model=ApiResponse[list[MarketPriceWindowRead]])
+async def list_market_price_windows(
+    pagination: Annotated[PaginationParams, Depends(get_pagination_params)],
+    service: Annotated[MarketDataService, Depends(get_market_data_service)],
+    exchange: ExchangeCode | None = None,
+    price_window_limit: Annotated[int, Query(ge=1, le=260)] = 60,
+) -> ApiResponse[list[MarketPriceWindowRead]]:
+    rows = await service.list_market_price_windows(
+        exchange=exchange,
+        limit=pagination.limit,
+        offset=pagination.offset,
+        price_window_limit=price_window_limit,
+    )
+    stock_windows: dict[str, MarketPriceWindowRead] = {}
+    for stock, price in rows:
+        stock_id = str(stock.id)
+        if stock_id not in stock_windows:
+            stock_windows[stock_id] = MarketPriceWindowRead(
+                stock=StockRead.model_validate(stock),
+                prices=[],
+            )
+        stock_windows[stock_id].prices.append(DailyPriceRead.model_validate(price))
+
+    return success_response(data=list(stock_windows.values()), message="Market price windows retrieved")
 
 
 @router.post("/stocks/{stock_id}/prices", response_model=ApiResponse[DailyPriceRead])

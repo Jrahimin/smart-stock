@@ -11,7 +11,7 @@ from app.core.enums import DataQualityFlag, ExchangeCode
 from app.core.exception_handlers import NotFoundError
 from app.core.security_config import UserContext
 from app.jobs.ingestion.ingestion_source_base import IngestedDailyPrice, MarketDataSource
-from app.models import DailyMarketSummary, DailyPrice
+from app.models import DailyMarketSummary, DailyPrice, Stock
 from app.modules.market_data.market_data_repository import MarketDataRepository, get_market_data_repository
 from app.modules.market_data.market_data_schemas import (
     DailyMarketSummaryCreate,
@@ -50,6 +50,34 @@ class MarketDataService:
             source=source,
             limit=limit,
             offset=offset,
+        )
+
+    async def list_latest_daily_prices(
+        self,
+        *,
+        exchange: ExchangeCode | None,
+        limit: int,
+        offset: int,
+    ) -> list[tuple[Stock, DailyPrice]]:
+        return await self.repository.list_latest_daily_prices(
+            exchange=exchange,
+            limit=limit,
+            offset=offset,
+        )
+
+    async def list_market_price_windows(
+        self,
+        *,
+        exchange: ExchangeCode | None,
+        limit: int,
+        offset: int,
+        price_window_limit: int,
+    ) -> list[tuple[Stock, DailyPrice]]:
+        return await self.repository.list_market_price_windows(
+            exchange=exchange,
+            limit=limit,
+            offset=offset,
+            price_window_limit=price_window_limit,
         )
 
     async def find_daily_price(self, price_data: DailyPriceCreate) -> DailyPrice | None:

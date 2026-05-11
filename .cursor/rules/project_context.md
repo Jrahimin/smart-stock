@@ -324,6 +324,9 @@ Current frontend product flow:
 * Stock Detail Workspace uses exchange/symbol lookup, historical OHLCV, candlestick charting, technical summary, deterministic insights, and available stock fundamentals.
 * Signal Center and Scanner reuse deterministic signal and stock intelligence models instead of static placeholders.
 * Until a backend market-wide latest-prices endpoint exists, the frontend uses per-stock price requests for Trader-usable V1 and should keep this logic isolated in feature hooks/view models.
+* Dashboard listed-stock count should represent active stock-master coverage; price-backed analytics can use a smaller capped universe for performance.
+* DSEX and total exchange turnover depend on real `daily_market_summaries` index rows. `SOURCE_VALIDATION` rows are data-quality records and should not be presented as DSEX index values.
+* Settings route: `frontend/app/settings/page.tsx`; theme preference is stored in `frontend/stores/use-workspace-store.ts`.
 
 ## Current Backend Patterns
 

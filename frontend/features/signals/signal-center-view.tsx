@@ -3,20 +3,25 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
+import { SearchableSymbolFilter } from "@/components/filters/searchable-symbol-filter";
+import { FloatingRefreshButton } from "@/components/ui/floating-refresh-button";
+import { MarketActivityLoader } from "@/components/ui/market-activity-loader";
 import { SignalBadge } from "@/components/ui/signal-badge";
 import { useMarketUniverse } from "@/features/market-dashboard/hooks/use-market-universe";
 
 export function SignalCenterView() {
-  const { universe, isLoading, isError } = useMarketUniverse();
+  const { universe, isLoading, isError, refetch } = useMarketUniverse({ stockLimit: 500, priceWindowLimit: 30 });
   const [filter, setFilter] = useState("ALL");
+  const [symbolFilter, setSymbolFilter] = useState("");
 
   const signals = useMemo(
     () =>
       universe
         .map((stock) => stock.signal)
         .filter((signal) => filter === "ALL" || signal.signal === filter)
+        .filter((signal) => !symbolFilter || signal.symbol.includes(symbolFilter))
         .sort((a, b) => b.confidence - a.confidence),
-    [filter, universe],
+    [filter, symbolFilter, universe],
   );
 
   return (
@@ -27,15 +32,23 @@ export function SignalCenterView() {
           <h1>Explanation-first signal intelligence</h1>
           <span>{signals.length} deterministic signals from loaded market data</span>
         </div>
-        <select value={filter} onChange={(event) => setFilter(event.target.value)}>
-          <option value="ALL">All signals</option>
-          <option value="BUY">BUY</option>
-          <option value="HOLD">HOLD</option>
-          <option value="SELL">SELL</option>
-        </select>
+        <div className="explorer-controls">
+          <SearchableSymbolFilter
+            id="signal-symbol-filter"
+            options={universe.map((stock) => ({ id: stock.stock.id, symbol: stock.stock.symbol, name: stock.stock.name }))}
+            value={symbolFilter}
+            onChange={setSymbolFilter}
+          />
+          <select value={filter} onChange={(event) => setFilter(event.target.value)}>
+            <option value="ALL">All signals</option>
+            <option value="BUY">BUY</option>
+            <option value="HOLD">HOLD</option>
+            <option value="SELL">SELL</option>
+          </select>
+        </div>
       </div>
       {isError ? <div className="data-warning">Could not load signal data.</div> : null}
-      {isLoading ? <div className="data-warning">Generating deterministic signals from latest prices...</div> : null}
+      {isLoading ? <MarketActivityLoader /> : null}
       <div className="signal-center-list">
         {signals.map((signal) => (
           <Link className="signal-center-item" href={`/stocks/${signal.exchange}/${signal.symbol}`} key={signal.stockId}>
@@ -54,6 +67,7 @@ export function SignalCenterView() {
           </Link>
         ))}
       </div>
+      <FloatingRefreshButton onRefresh={refetch} />
     </section>
   );
 }

@@ -12,14 +12,18 @@ type MarketTopbarProps = {
 
 export function MarketTopbar({ model }: MarketTopbarProps) {
   const openCommand = useCommandStore((state) => state.open);
+  const moodTone = model.marketMood.toLowerCase().replace(/\s+/g, "-");
 
   return (
     <header className="market-topbar">
       <div className="market-tape">
-        <strong>{model.exchange}X</strong>
-        <span>Mood: {model.marketMood}</span>
-        <span>Breadth: {model.breadth.advancing}/{model.breadth.declining}/{model.breadth.unchanged}</span>
-        <span>Session: {model.session.label}</span>
+        <strong className="market-tape-index">{model.exchange}X</strong>
+        <span className={`market-tape-pill market-tape-mood-${moodTone}`}>Mood: {model.marketMood}</span>
+        <span className="market-tape-pill">
+          Breadth: <b>{model.breadth.advancing}</b> advancing / <b>{model.breadth.declining}</b> declining /{" "}
+          <b>{model.breadth.unchanged}</b> unchanged
+        </span>
+        <span className="market-tape-pill">Session: {model.session.label}</span>
         <DataQualityBadge quality={model.dataQuality} />
       </div>
       <button className="command-trigger" onClick={openCommand} type="button">
