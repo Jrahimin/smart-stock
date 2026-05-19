@@ -17,6 +17,7 @@ from app.core.enums import (
     ReportPeriodType,
     ReportStatus,
     StockDetailsSyncJobStatus,
+    StockDetailsSyncScope,
     StockDetailsSyncTriggerType,
 )
 from app.core.exception_handlers import NotFoundError
@@ -24,6 +25,11 @@ from app.core.security_config import UserContext
 from app.jobs.ingestion.amarstock_api_stock_details_source import (
     AMARSTOCK_SOURCE,
     AmarStockApiStockDetailsSource,
+)
+from app.jobs.ingestion.amarstock_latest_price_api_source import (
+    AmarStockLatestPriceApiSource,
+    AmarStockLatestPriceRow,
+    latest_price_snapshot_date,
 )
 from app.jobs.ingestion.stock_details_api_source_base import ApiStockDetailsPayload
 from app.models import FinancialMetricDefinition, FinancialReport, Stock, StockDetailsSyncJob
@@ -35,6 +41,8 @@ from app.modules.stock_details.stock_details_schemas import (
     StockDetailsSyncRequest,
     StockDetailsSyncResult,
 )
+
+AMARSTOCK_LATEST_PRICE_SOURCE = AmarStockLatestPriceApiSource.source_name
 
 CONTROLLED_METRIC_DEFINITIONS: dict[str, tuple[str, MetricValueType, str | None, str | None]] = {
     "EPS": ("Earnings Per Share", MetricValueType.PER_SHARE, "income-statement", None),
@@ -100,11 +108,24 @@ class StockDetailsService:
                 exchange=request.exchange,
                 requested_count=requested_count,
                 skipped_count=skipped_count,
+                scope=request.scope,
             )
 
         resolved_source = source or self._default_source()
         jobs = await self._create_jobs(selected_stocks, resolved_source, request.trigger_type)
         await self.repository.commit()
+
+        latest_by_symbol: dict[str, AmarStockLatestPriceRow] = {}
+        if self.settings.amarstock_latest_price_stock_details_enabled:
+            try:
+                lp_source = AmarStockLatestPriceApiSource.from_settings(self.settings)
+                latest_by_symbol = await lp_source.fetch_by_scrip()
+            except Exception as exc:
+                logger.warning(
+                    "AmarStock LatestPrice bulk fetch failed; continuing per-stock snapshot sync: %s",
+                    exc,
+                    exc_info=True,
+                )
 
         fetched_results = await self._fetch_batch(jobs, resolved_source, request)
 
@@ -117,6 +138,9 @@ class StockDetailsService:
         valuation_count = 0
         shareholding_count = 0
         event_count = 0
+        latest_price_profile_fill_count = 0
+        latest_price_shareholding_count = 0
+        latest_price_valuation_count = 0
 
         for fetched in fetched_results:
             if fetched.error is not None or fetched.payload is None:
@@ -133,22 +157,30 @@ class StockDetailsService:
                 )
                 continue
 
-            counts = await self._persist_payload(fetched.stock, fetched.payload)
+            counts = await self._persist_payload(
+                fetched.stock,
+                fetched.payload,
+                scope=request.scope,
+                lp_row=latest_by_symbol.get(fetched.stock.symbol.upper()),
+            )
             stock_profile_count += counts["stock_profile_count"]
             daily_price_count += counts["daily_price_count"]
             metric_count += counts["metric_count"]
             valuation_count += counts["valuation_count"]
             shareholding_count += counts["shareholding_count"]
             event_count += counts["event_count"]
+            latest_price_profile_fill_count += counts["latest_price_profile_fill"]
+            latest_price_shareholding_count += counts["latest_price_shareholding"]
+            latest_price_valuation_count += counts["latest_price_valuation"]
 
             useful_count = sum(counts.values())
-            if useful_count == 0:
+            if useful_count == 0 and request.scope != StockDetailsSyncScope.STOCKS:
                 failed_count += 1
                 await self._finish_job(
                     fetched.job,
                     status=StockDetailsSyncJobStatus.FAILED,
                     error_message="No mapped stock details were persisted",
-                    metadata=self._job_metadata(fetched.payload, counts),
+                    metadata=self._job_metadata(fetched.payload, counts, request.scope),
                     attempt_count=fetched.attempt_count,
                 )
                 continue
@@ -162,13 +194,14 @@ class StockDetailsService:
             await self._finish_job(
                 fetched.job,
                 status=status,
-                metadata=self._job_metadata(fetched.payload, counts),
+                metadata=self._job_metadata(fetched.payload, counts, request.scope),
                 attempt_count=fetched.attempt_count,
             )
 
         await self.repository.commit()
         return StockDetailsSyncResult(
             exchange=request.exchange,
+            scope=request.scope,
             source=resolved_source.source_name,
             requested_count=requested_count,
             selected_count=len(selected_stocks),
@@ -182,6 +215,9 @@ class StockDetailsService:
             valuation_count=valuation_count,
             shareholding_count=shareholding_count,
             event_count=event_count,
+            latest_price_profile_fill_count=latest_price_profile_fill_count,
+            latest_price_shareholding_count=latest_price_shareholding_count,
+            latest_price_valuation_count=latest_price_valuation_count,
         )
 
     async def get_stock_details_sync_job(self, job_id: UUID) -> StockDetailsSyncJob:
@@ -191,14 +227,25 @@ class StockDetailsService:
         return job
 
     async def _select_stocks(self, request: StockDetailsSyncRequest) -> tuple[list[Stock], int]:
+        stocks_scope = request.scope == StockDetailsSyncScope.STOCKS
         if request.symbols:
             stocks_by_symbol = await self.repository.get_stocks_by_symbols(
                 exchange=request.exchange,
                 symbols=set(request.symbols),
             )
             candidates = [stocks_by_symbol[symbol] for symbol in request.symbols if symbol in stocks_by_symbol]
-            selected = await self._eligible_explicit_stocks(candidates, force=request.force)
+            selected = await self._eligible_explicit_stocks(
+                candidates, force=request.force or stocks_scope
+            )
             return selected, len(request.symbols) - len(selected)
+
+        if stocks_scope:
+            selected = await self.repository.list_eligible_stocks(
+                exchange=request.exchange,
+                limit=request.limit,
+                offset=request.offset,
+            )
+            return selected, 0
 
         selected = await self.repository.list_due_stocks(
             exchange=request.exchange,
@@ -290,13 +337,60 @@ class StockDetailsService:
 
         return await asyncio.gather(*(fetch_one(stock, job) for stock, job in jobs))
 
-    async def _persist_payload(self, stock: Stock, payload: ApiStockDetailsPayload) -> dict[str, int]:
+    async def _persist_payload(
+        self,
+        stock: Stock,
+        payload: ApiStockDetailsPayload,
+        *,
+        scope: StockDetailsSyncScope,
+        lp_row: AmarStockLatestPriceRow | None = None,
+    ) -> dict[str, int]:
+        if scope == StockDetailsSyncScope.STOCKS:
+            stock_profile_count = await self._merge_stock_profile_from_snapshot_fill_empty(stock, payload)
+            daily_price_count = 0
+            metric_count = 0
+            valuation_count = 0
+            shareholding_count = 0
+            event_count = 0
+            latest_price_profile_fill = 0
+            latest_price_shareholding = 0
+            latest_price_valuation = 0
+            if lp_row is not None:
+                latest_price_profile_fill = await self._merge_latest_price_stock_profile_fill_empty(
+                    stock, lp_row
+                )
+            return {
+                "stock_profile_count": stock_profile_count,
+                "daily_price_count": daily_price_count,
+                "metric_count": metric_count,
+                "valuation_count": valuation_count,
+                "shareholding_count": shareholding_count,
+                "event_count": event_count,
+                "latest_price_profile_fill": latest_price_profile_fill,
+                "latest_price_shareholding": latest_price_shareholding,
+                "latest_price_valuation": latest_price_valuation,
+            }
+
         stock_profile_count = await self._persist_stock_profile(stock, payload)
         daily_price_count = await self._persist_daily_prices(stock, payload)
         metric_count = await self._persist_metrics(stock, payload)
         valuation_count = await self._persist_valuation(stock, payload)
         shareholding_count = await self._persist_shareholding(stock, payload)
         event_count = await self._persist_events(stock, payload)
+
+        latest_price_profile_fill = 0
+        latest_price_shareholding = 0
+        latest_price_valuation = 0
+        if lp_row is not None:
+            latest_price_profile_fill = await self._merge_latest_price_stock_profile_fill_empty(
+                stock, lp_row
+            )
+            snap_date = latest_price_snapshot_date(lp_row, fallback=payload.scrape_date)
+            latest_price_shareholding = await self._persist_latest_price_shareholding(
+                stock, lp_row, snap_date
+            )
+            latest_price_valuation = await self._persist_latest_price_valuation(stock, lp_row, snap_date)
+
         return {
             "stock_profile_count": stock_profile_count,
             "daily_price_count": daily_price_count,
@@ -304,7 +398,153 @@ class StockDetailsService:
             "valuation_count": valuation_count,
             "shareholding_count": shareholding_count,
             "event_count": event_count,
+            "latest_price_profile_fill": latest_price_profile_fill,
+            "latest_price_shareholding": latest_price_shareholding,
+            "latest_price_valuation": latest_price_valuation,
         }
+
+    @staticmethod
+    def _is_blank_text(value: object) -> bool:
+        if value is None:
+            return True
+        return not str(value).strip()
+
+    @staticmethod
+    def _stock_name_is_symbol_placeholder(stock: Stock) -> bool:
+        return stock.name.strip().upper() == stock.symbol.strip().upper()
+
+    async def _merge_latest_price_stock_profile_fill_empty(self, stock: Stock, lp: AmarStockLatestPriceRow) -> int:
+        updates: dict[str, object] = {}
+        if self._is_blank_text(stock.sector) and lp.business_segment:
+            updates["sector"] = lp.business_segment[:120]
+        if self._is_blank_text(stock.category) and lp.market_category:
+            updates["category"] = lp.market_category[:32]
+        if lp.full_name and self._stock_name_is_symbol_placeholder(stock):
+            updates["name"] = lp.full_name[:255]
+        if stock.paid_up_capital is None and lp.paid_up_cap is not None:
+            updates["paid_up_capital"] = lp.paid_up_cap
+        if stock.market_cap is None and lp.market_cap is not None:
+            updates["market_cap"] = lp.market_cap
+        if not updates:
+            return 0
+        await self.repository.update_stock_profile(stock, updates)
+        return 1
+
+    async def _merge_stock_profile_from_snapshot_fill_empty(
+        self, stock: Stock, payload: ApiStockDetailsPayload
+    ) -> int:
+        if payload.stock_profile is None:
+            return 0
+        profile = payload.stock_profile
+        updates: dict[str, object] = {}
+        if self._is_blank_text(stock.sector) and profile.sector is not None and not self._is_blank_text(
+            profile.sector
+        ):
+            updates["sector"] = str(profile.sector).strip()[:120]
+        if self._is_blank_text(stock.category) and profile.category is not None and not self._is_blank_text(
+            profile.category
+        ):
+            updates["category"] = str(profile.category).strip()[:32]
+        if profile.name and self._stock_name_is_symbol_placeholder(stock) and not self._is_blank_text(
+            profile.name
+        ):
+            updates["name"] = str(profile.name).strip()[:255]
+        if stock.listing_date is None and profile.listing_date is not None:
+            updates["listing_date"] = profile.listing_date
+        if stock.paid_up_capital is None and profile.paid_up_capital is not None:
+            updates["paid_up_capital"] = profile.paid_up_capital
+        if stock.market_cap is None and profile.market_cap is not None:
+            updates["market_cap"] = profile.market_cap
+        if not updates:
+            return 0
+        await self.repository.update_stock_profile(stock, updates)
+        return 1
+
+    async def _persist_latest_price_shareholding(
+        self,
+        stock: Stock,
+        lp: AmarStockLatestPriceRow,
+        snapshot_date: date,
+    ) -> int:
+        if (
+            lp.sponsor_director is None
+            and lp.government is None
+            and lp.institute is None
+            and lp.foreign is None
+            and lp.public_pct is None
+            and lp.free_float is None
+            and lp.total_securities is None
+        ):
+            return 0
+        circulating: int | None = None
+        if lp.total_securities is not None and lp.free_float is not None:
+            circulating = int(Decimal(lp.total_securities) * lp.free_float / Decimal("100"))
+
+        metadata = {
+            "api": "latest_price",
+            "VolChangePer": str(lp.vol_change_per) if lp.vol_change_per is not None else None,
+            "OpenChangePer": str(lp.open_change_per) if lp.open_change_per is not None else None,
+            "ChangePer": str(lp.change_per) if lp.change_per is not None else None,
+            "Trade": lp.trade,
+            "ValueTurnoverRaw": lp.value_turnover_millions_raw,
+        }
+
+        await self.repository.upsert_shareholding(
+            {
+                "stock_id": stock.id,
+                "snapshot_date": snapshot_date,
+                "sponsor_director_percent": lp.sponsor_director,
+                "government_percent": lp.government,
+                "institution_percent": lp.institute,
+                "foreign_percent": lp.foreign,
+                "public_percent": lp.public_pct,
+                "total_shares": lp.total_securities,
+                "circulating_shares": circulating,
+                "free_float_percent": lp.free_float,
+                "source": AMARSTOCK_LATEST_PRICE_SOURCE,
+                "data_quality_flag": DataQualityFlag.OK,
+                "metadata_json": metadata,
+            }
+        )
+        return 1
+
+    async def _persist_latest_price_valuation(
+        self,
+        stock: Stock,
+        lp: AmarStockLatestPriceRow,
+        snapshot_date: date,
+    ) -> int:
+        close_px = lp.close if lp.close is not None else lp.ltp
+        if close_px is None and lp.market_cap is None and lp.pe is None:
+            return 0
+        earnings_yield = self._ratio_percent(Decimal("1"), lp.pe)
+        metadata: dict[str, object] = {
+            "api": "latest_price",
+            "nav": str(lp.nav) if lp.nav is not None else None,
+            "reserve_surplus": str(lp.reserve_surplus) if lp.reserve_surplus is not None else None,
+            "eps": str(lp.eps) if lp.eps is not None else None,
+            "q1_eps": str(lp.q1_eps) if lp.q1_eps is not None else None,
+            "q2_eps": str(lp.q2_eps) if lp.q2_eps is not None else None,
+            "q3_eps": str(lp.q3_eps) if lp.q3_eps is not None else None,
+            "q4_eps": str(lp.q4_eps) if lp.q4_eps is not None else None,
+        }
+        await self.repository.upsert_valuation(
+            {
+                "stock_id": stock.id,
+                "valuation_date": snapshot_date,
+                "close_price": close_px,
+                "market_cap": lp.market_cap,
+                "pe_ratio": lp.pe,
+                "pb_ratio": None,
+                "dividend_yield": None,
+                "earnings_yield": earnings_yield,
+                "price_to_sales": None,
+                "source": AMARSTOCK_LATEST_PRICE_SOURCE,
+                "data_quality_flag": DataQualityFlag.OK,
+                "metadata_json": metadata,
+            }
+        )
+        return 1
 
     async def _persist_stock_profile(self, stock: Stock, payload: ApiStockDetailsPayload) -> int:
         if payload.stock_profile is None:
@@ -552,8 +792,14 @@ class StockDetailsService:
             return None
         return numerator / denominator * Decimal("100")
 
-    def _job_metadata(self, payload: ApiStockDetailsPayload, counts: dict[str, int]) -> dict[str, object]:
+    def _job_metadata(
+        self,
+        payload: ApiStockDetailsPayload,
+        counts: dict[str, int],
+        scope: StockDetailsSyncScope,
+    ) -> dict[str, object]:
         return {
+            "scope": scope.value,
             "symbol": payload.symbol,
             "urls": {
                 "snapshot": payload.snapshot_url,
@@ -631,9 +877,11 @@ class StockDetailsService:
         exchange: ExchangeCode,
         requested_count: int,
         skipped_count: int,
+        scope: StockDetailsSyncScope,
     ) -> StockDetailsSyncResult:
         return StockDetailsSyncResult(
             exchange=exchange,
+            scope=scope,
             source=AMARSTOCK_SOURCE,
             requested_count=requested_count,
             selected_count=0,
@@ -647,6 +895,9 @@ class StockDetailsService:
             valuation_count=0,
             shareholding_count=0,
             event_count=0,
+            latest_price_profile_fill_count=0,
+            latest_price_shareholding_count=0,
+            latest_price_valuation_count=0,
         )
 
 

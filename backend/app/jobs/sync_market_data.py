@@ -59,7 +59,8 @@ def main(argv: list[str] | None = None) -> None:
         )
         done_msg = (
             "Done: exchange=%s trade_date=%s source=%s fetched=%s upserted=%s "
-            "skipped_existing=%s skipped_unknown_symbol=%s suspicious=%s"
+            "skipped_existing=%s skipped_unknown_symbol=%s suspicious=%s "
+            "post_news=%s post_news_skipped=%s post_lp_trade_patch=%s post_lp_missing_rows=%s"
         )
         done_args = (
             result.exchange,
@@ -70,6 +71,10 @@ def main(argv: list[str] | None = None) -> None:
             result.skipped_existing_count,
             result.skipped_unknown_symbol_count,
             result.suspicious_count,
+            result.post_news_upserted,
+            result.post_news_skipped,
+            result.post_latest_price_trade_fields_patched,
+            result.post_latest_price_trade_rows_missing,
         )
         if result.fetched_count == 0:
             logger.error(

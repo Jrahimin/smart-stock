@@ -7,7 +7,9 @@ from uuid import UUID
 from fastapi import Depends
 
 from app.api.dependencies.auth_dependencies import get_current_user_context
+from app.core.core_config import get_settings
 from app.core.enums import DataQualityFlag, ExchangeCode
+from app.jobs.ingestion.amarstock_daily_enrichment import PostDailyAmarstockStats, run_post_daily_amarstock_enrichment
 from app.core.exception_handlers import NotFoundError
 from app.core.security_config import UserContext
 from app.jobs.ingestion.ingestion_source_base import IngestedDailyPrice, MarketDataSource
@@ -114,6 +116,7 @@ class MarketDataService:
                 trade_date,
                 source.source_name,
             )
+            post = await self._run_post_daily_amarstock_enrichment(exchange, trade_date)
             return DailyPriceIngestionResult(
                 exchange=exchange,
                 trade_date=trade_date,
@@ -123,6 +126,12 @@ class MarketDataService:
                 skipped_existing_count=0,
                 skipped_unknown_symbol_count=0,
                 suspicious_count=0,
+                post_news_upserted=post.news_upserted,
+                post_news_skipped=post.news_skipped,
+                post_latest_price_trade_fields_patched=post.price_trade_fields_patched,
+                post_latest_price_trade_rows_missing=post.price_trade_rows_missing,
+                post_news_error=post.news_error,
+                post_latest_price_patch_error=post.latest_price_patch_error,
             )
 
         suspicious_count = self._apply_close_price_validation(
@@ -158,9 +167,11 @@ class MarketDataService:
             )
 
         await self.repository.commit()
+        post = await self._run_post_daily_amarstock_enrichment(exchange, trade_date)
         logger.info(
             "Daily market ingestion completed: exchange=%s trade_date=%s source=%s total_rows=%s "
-            "success=%s failed_rows=%s suspicious_rows=%s",
+            "success=%s failed_rows=%s suspicious_rows=%s post_news=%s post_news_skipped=%s "
+            "post_lp_trade_patch=%s post_lp_missing_rows=%s",
             exchange,
             trade_date,
             source.source_name,
@@ -168,6 +179,10 @@ class MarketDataService:
             upserted_count,
             skipped_unknown_symbol_count,
             suspicious_count,
+            post.news_upserted,
+            post.news_skipped,
+            post.price_trade_fields_patched,
+            post.price_trade_rows_missing,
         )
         return DailyPriceIngestionResult(
             exchange=exchange,
@@ -178,7 +193,35 @@ class MarketDataService:
             skipped_existing_count=0,
             skipped_unknown_symbol_count=skipped_unknown_symbol_count,
             suspicious_count=suspicious_count,
+            post_news_upserted=post.news_upserted,
+            post_news_skipped=post.news_skipped,
+            post_latest_price_trade_fields_patched=post.price_trade_fields_patched,
+            post_latest_price_trade_rows_missing=post.price_trade_rows_missing,
+            post_news_error=post.news_error,
+            post_latest_price_patch_error=post.latest_price_patch_error,
         )
+
+    async def _run_post_daily_amarstock_enrichment(
+        self,
+        exchange: ExchangeCode,
+        trade_date: date,
+    ) -> PostDailyAmarstockStats:
+        try:
+            stats = await run_post_daily_amarstock_enrichment(
+                self.repository.session,
+                exchange=exchange,
+                trade_date=trade_date,
+                settings=get_settings(),
+            )
+            await self.repository.commit()
+            return stats
+        except Exception as exc:
+            await self.repository.rollback()
+            logger.warning("Post-daily AmarStock enrichment failed: %s", exc, exc_info=True)
+            return PostDailyAmarstockStats(
+                news_error=str(exc),
+                latest_price_patch_error=str(exc),
+            )
 
     async def _fetch_ingestion_prices(
         self,

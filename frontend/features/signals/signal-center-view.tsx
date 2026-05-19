@@ -83,7 +83,7 @@ export function SignalCenterView() {
             >
               <div className="signal-center-topline">
                 <div>
-                  <strong>{signal.symbol}</strong>
+                  <strong>{signal.symbol}</strong><br/>
                   <span>{signal.name}</span>
                 </div>
                 <SignalBadge signal={signal.signal} />

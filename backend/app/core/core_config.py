@@ -35,6 +35,13 @@ class Settings(BaseSettings):
     amarstock_snapshot_token: str = "1981d726120d"
     amarstock_historical_token: str = "5ee4d332a90e"
     amarstock_company_token: str = "2b5e8cfdd75f"
+    amarstock_latest_price_token: str = "dbfd2587c77f"
+    amarstock_news_path: str = "/info/News"
+    amarstock_bulk_api_max_retries: int = Field(default=3, ge=1)
+    amarstock_bulk_api_retry_delay_seconds: float = Field(default=1.0, ge=0)
+    amarstock_news_ingestion_enabled: bool = True
+    amarstock_daily_latest_price_patch_enabled: bool = True
+    amarstock_latest_price_stock_details_enabled: bool = True
 
     @property
     def cors_origins(self) -> list[str]:

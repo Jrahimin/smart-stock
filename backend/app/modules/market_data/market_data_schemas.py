@@ -118,4 +118,10 @@ class DailyPriceIngestionResult(BaseModel):
     skipped_existing_count: int
     skipped_unknown_symbol_count: int
     suspicious_count: int = 0
+    post_news_upserted: int = 0
+    post_news_skipped: int = 0
+    post_latest_price_trade_fields_patched: int = 0
+    post_latest_price_trade_rows_missing: int = 0
+    post_news_error: str | None = None
+    post_latest_price_patch_error: str | None = None
 

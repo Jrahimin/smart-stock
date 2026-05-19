@@ -12,6 +12,7 @@ Primary source candidates for Bangladesh daily prices are:
 * AmarStock latest-share-price HTML for daily scheduled sync.
 * StockNow as a lightweight validation source during the daily AmarStock sync.
 * AmarStock historical price API for stock-details backfill windows.
+* AmarStock **News** JSON (`/info/News`) and **bulk LatestPrice** JSON (`/LatestPrice/{token}`) as additive enrichment (see **AmarStock post-ingestion** below).
 
 The ingestion implementation uses replaceable source classes under `backend/app/jobs/ingestion/`. `DseMarketDataSource` reads the DSE day-end archive, while `AmarStockMarketDataSource` fetches live AmarStock HTML, parses the latest-price table with BeautifulSoup and `lxml`, and normalizes rows into `IngestedDailyPrice` values. `StockNowMarketDataSource` parses StockNow's rendered AG Grid snapshot for validation-only close-price checks. The service maps symbols to stock ids and persists valid AmarStock rows.
 
@@ -54,6 +55,28 @@ The service computes derived fields before persistence:
 
 `POST /api/v1/market-data/ingestion/daily-prices` runs the daily ingestion workflow for a trade date and returns counts for fetched, upserted, duplicate, unknown-symbol rows, and **`suspicious_count`** (close-price disagreements versus the validation source when validation runs). The scheduled `run_daily_market_sync()` job uses AmarStock with StockNow validation and runs daily at 2:30 PM Asia/Dhaka.
 
+The same response includes additive **`post_*`** fields: news upserts/skips, LatestPrice trade-stat patch counts, and optional error strings when a post-step fails after primary prices have already committed.
+
+## AmarStock post-ingestion (News + LatestPrice patch)
+
+After primary OHLCV rows are committed, `MarketDataService.ingest_daily_prices` runs `run_post_daily_amarstock_enrichment` (`backend/app/jobs/ingestion/amarstock_daily_enrichment.py`) in the same session with a **second commit**. Sub-steps **soft-fail** internally (logged); failure during that second commit rolls back only enrichment writes.
+
+**News** (`AmarStockNewsApiSource`, `source = AMARSTOCK_NEWS_API` on `market_events`):
+
+* `event_date` is the **trade_date** passed into daily ingestion (same calendar context as the price run).
+* Unknown symbols are skipped (`post_news_skipped`). `EXCH`-style rows use `stock_id = null`, `exchange = DSE`.
+* Idempotency uses `stock_id + event_date + title + source` (many items have no native announcement date).
+
+**LatestPrice trade stats** (optional, `AmarStockLatestPriceApiSource`):
+
+* One bulk JSON fetch; `MarketDataRepository.patch_daily_price_trade_stats` updates **only** `trade_count`, `turnover`, and optionally `data_quality_flag` (never OHLCV or `source`).
+* If no `daily_prices` row exists for `stock_id + trade_date`, the row is skipped (`post_latest_price_trade_rows_missing`).
+* When LatestPrice `Close`/`LTP` disagrees with persisted `close_price` by more than **0.5%**, the row is marked `SUSPICIOUS` without changing the stored close.
+
+**Settings** (see `backend/app/core/core_config.py`): `amarstock_news_ingestion_enabled`, `amarstock_daily_latest_price_patch_enabled`, `amarstock_news_path`, `amarstock_latest_price_token`, `amarstock_bulk_api_max_retries`, `amarstock_bulk_api_retry_delay_seconds`.
+
+**Turnover parsing** for LatestPrice `Value` matches HTML `VALUE`: unsuffixed numbers are treated as **millions** BDT; `K` / `M` suffixes scale accordingly (`backend/app/jobs/ingestion/amarstock_turnover.py`).
+
 ## CLI: `sync_market_data`
 
 `python -m app.jobs.sync_market_data` (run from `backend/` with the same virtualenv and `.env` as the API) performs the scheduled-equivalent ingestion without starting uvicorn:
@@ -64,8 +87,10 @@ The service computes derived fields before persistence:
 
 **Exit codes** (cron / CI friendly): `0` success; `2` invalid `--date`; `130` Ctrl+C; `1` uncaught exception (DB, network, etc.). An empty primary parse (`fetched_count == 0`) still exits `0` but is logged at **ERROR** so monitors and log sinks can alert without treating it as a crash.
 
-**Logging**: the final line includes `suspicious_count` when validation ran; with `--no-validation`, validation is skipped so `suspicious_count` is `0` by definition.
+**Logging**: the final line includes `suspicious_count` when validation ran; with `--no-validation`, validation is skipped so `suspicious_count` is `0` by definition. It also logs post-ingestion counters (`post_news_*`, `post_lp_*`) when AmarStock post-steps run.
 
 ## Future Notes
 
 Advanced ingestion work should add fallback source selection, broader cross-source validation, bulk upsert optimization, and anomaly detection without changing the basic service contract. Scraper source changes should stay inside ingestion source classes rather than leaking parsing logic into routers or repositories.
+
+Stock-details sync uses the same bulk LatestPrice feed for fill-empty profile fields and extra snapshots; see `backend/docs/stock_details.md` (**Bulk LatestPrice enrichment**).

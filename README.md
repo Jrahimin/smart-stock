@@ -49,18 +49,25 @@ cd backend
 python -m app.jobs.sync_market_data
 ```
 
-By default the trade date is **today’s calendar date in Asia/Dhaka** (aligned with the in-app scheduler). Use `--date YYYY-MM-DD` for a specific session, or `--no-validation` for AmarStock-only ingestion. Same virtualenv and `.env` as the API. Details: `backend/docs/market_data.md`.
+By default the trade date is **today’s calendar date in Asia/Dhaka** (aligned with the in-app scheduler). Use `--date YYYY-MM-DD` for a specific session, or `--no-validation` for AmarStock-only ingestion. The same CLI run also triggers **additive post-steps** when enabled in `Settings`: AmarStock **News** → `market_events`, and a **LatestPrice** bulk fetch to patch `trade_count` / `turnover` on existing `daily_prices` rows for that date (never replaces OHLCV). There is **no separate CLI** for those steps. Same virtualenv and `.env` as the API. Details: `backend/docs/market_data.md`.
 
 ## Stock details (manual run)
 
-To sync AmarStock API stock details, including recent historical prices, financial metrics, valuation, shareholding, news, and base `stocks` fields such as name/category/capitalization:
+To sync AmarStock API stock details, including recent historical prices, financial metrics, valuation, shareholding, news, and base `stocks` fields such as name/category/capitalization — plus **one bulk LatestPrice fetch per batch** (fill-empty profile fields and `AMARSTOCK_LATEST_PRICE_API` ownership/valuation snapshots when enabled):
 
 ```bash
 cd backend
 python -m app.jobs.sync_stock_details --symbols EBL --historical-window-days 180 --force
 ```
 
-`--force` skips cadence for explicit symbols only; it still requires `stocks.is_active = true` and `stocks.should_fetch_details = true`. Without `--symbols`, use `--limit` and `--offset` to process due eligible stocks in batches. Details: `backend/docs/stock_details.md`.
+To **only** backfill empty `stocks` columns (sector, category, caps, listing date, placeholder name) from the snapshot + LatestPrice profile merge, without writing `daily_prices` or other tables:
+
+```bash
+cd backend
+python -m app.jobs.sync_stock_details --symbols EBL --force --scope stocks
+```
+
+`--force` skips cadence for explicit symbols when `scope` is **`full`**; it still requires `stocks.is_active = true` and `stocks.should_fetch_details = true`. With **`--scope stocks`**, cadence is not used for selection (batch or explicit); you do not need `--force` just to bypass the 3‑month rule. Without `--symbols`, use `--limit` and `--offset` to page through eligible stocks. Details: `backend/docs/stock_details.md`.
 
 ## Development Areas
 

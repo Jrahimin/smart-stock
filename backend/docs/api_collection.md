@@ -622,7 +622,7 @@ None
 ### POST /api/v1/market-data/ingestion/daily-prices
 
 **Description**
-Run daily price ingestion for a trade date. The current source implementation fetches DSE day-end archive data, normalizes OHLCV rows, maps symbols to existing stock master records, skips duplicates, and stores valid rows.
+Run daily price ingestion for a trade date. The job implementation may use AmarStock HTML (scheduled sync) or another configured primary source. After primary OHLCV upsert, the same run optionally ingests AmarStock `/info/News` into `market_events` and may patch `trade_count` / `turnover` from the bulk LatestPrice JSON when enabled via settings (failures there do not roll back primary prices).
 
 **Path Params**
 
@@ -646,11 +646,18 @@ None
   "data": {
     "exchange": "DSE",
     "trade_date": "2026-04-30",
-    "source": "DSE",
+    "source": "AMARSTOCK",
     "fetched_count": 392,
     "created_count": 388,
-    "skipped_existing_count": 2,
-    "skipped_unknown_symbol_count": 2
+    "skipped_existing_count": 0,
+    "skipped_unknown_symbol_count": 2,
+    "suspicious_count": 0,
+    "post_news_upserted": 120,
+    "post_news_skipped": 3,
+    "post_latest_price_trade_fields_patched": 350,
+    "post_latest_price_trade_rows_missing": 10,
+    "post_news_error": null,
+    "post_latest_price_patch_error": null
   }
 }
 ```
@@ -658,6 +665,8 @@ None
 **Notes**
 
 * Requires authenticated user context.
+* `suspicious_count` reflects validation-source close mismatches when validation runs.
+* `post_*` fields summarize additive AmarStock News and LatestPrice trade-stat steps; error fields are set when the subsection fails after primary ingestion already committed.
 * Advanced retry, logging policy, and anomaly detection are intentionally not included yet.
 
 ---
@@ -779,7 +788,7 @@ None
 ### POST /api/v1/stock-details/sync
 
 **Description**
-Run API-only AmarStock stock details ingestion for eligible active stocks. The workflow uses snapshot, historical price, and company financial APIs, and tracks each selected stock in `stock_details_sync_jobs`.
+Run API-only AmarStock stock details ingestion for eligible active stocks. The workflow uses snapshot, historical price, and company financial APIs, tracks each selected stock in `stock_details_sync_jobs`, and when enabled performs one bulk LatestPrice fetch per batch. Request body **`scope`** defaults to `full` (persist prices, fundamentals, snapshots, events, and stock profile from snapshot). Use `stocks` to only fill empty columns on `stocks` from the snapshot mapper plus LatestPrice profile merge, skipping `daily_prices` and other tables; **`stocks` ignores the per-stock cadence cutoff** for who is selected (see `backend/docs/stock_details.md`).
 
 **Body**
 
@@ -791,7 +800,8 @@ Run API-only AmarStock stock details ingestion for eligible active stocks. The w
   "offset": 0,
   "historical_window_days": 180,
   "force": false,
-  "trigger_type": "MANUAL"
+  "trigger_type": "MANUAL",
+  "scope": "full"
 }
 ```
 
@@ -803,6 +813,7 @@ Run API-only AmarStock stock details ingestion for eligible active stocks. The w
   "message": "Stock details synced",
   "data": {
     "exchange": "DSE",
+    "scope": "full",
     "source": "AMARSTOCK_API",
     "requested_count": 1,
     "selected_count": 1,
@@ -810,11 +821,15 @@ Run API-only AmarStock stock details ingestion for eligible active stocks. The w
     "partial_count": 0,
     "failed_count": 0,
     "skipped_count": 0,
+    "stock_profile_count": 1,
     "daily_price_count": 90,
     "metric_count": 25,
     "valuation_count": 1,
     "shareholding_count": 1,
-    "event_count": 2
+    "event_count": 2,
+    "latest_price_profile_fill_count": 1,
+    "latest_price_shareholding_count": 1,
+    "latest_price_valuation_count": 1
   }
 }
 ```

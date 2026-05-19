@@ -2,7 +2,7 @@ import argparse
 import asyncio
 import logging
 
-from app.core.enums import ExchangeCode, StockDetailsSyncTriggerType
+from app.core.enums import ExchangeCode, StockDetailsSyncScope, StockDetailsSyncTriggerType
 from app.jobs.ingest_stock_details import ingest_stock_details
 
 logger = logging.getLogger(__name__)
@@ -25,6 +25,7 @@ async def _run(args: argparse.Namespace) -> int:
             historical_window_days=args.historical_window_days,
             force=args.force,
             trigger_type=StockDetailsSyncTriggerType.MANUAL,
+            scope=args.scope,
         )
     except KeyboardInterrupt:
         return 130
@@ -33,8 +34,9 @@ async def _run(args: argparse.Namespace) -> int:
         return 1
 
     logger.info(
-        "Stock details sync completed: selected=%s synced=%s partial=%s failed=%s skipped=%s "
+        "Stock details sync completed: scope=%s selected=%s synced=%s partial=%s failed=%s skipped=%s "
         "profiles=%s prices=%s metrics=%s valuations=%s shareholding=%s events=%s",
+        result.scope.value,
         result.selected_count,
         result.synced_count,
         result.partial_count,
@@ -54,7 +56,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Sync AmarStock API stock details.")
     parser.add_argument("--symbols", help="Comma-separated symbols, e.g. EBL,GP")
     parser.add_argument("--exchange", type=ExchangeCode, default=ExchangeCode.DSE)
-    parser.add_argument("--limit", type=int, default=20)
+    parser.add_argument("--limit", type=int, default=30)
     parser.add_argument("--offset", type=int, default=0)
     parser.add_argument(
         "--historical-window-days",
@@ -62,6 +64,15 @@ def main() -> None:
         help="Override the configured historical price backfill window for this run",
     )
     parser.add_argument("--force", action="store_true", help="Ignore cadence, but still require active/detail-enabled stocks")
+    parser.add_argument(
+        "--scope",
+        type=StockDetailsSyncScope,
+        choices=list(StockDetailsSyncScope),
+        default=StockDetailsSyncScope.FULL,
+        help="full: persist prices, fundamentals, snapshots, events (default). "
+        "stocks: only fill empty columns on stocks from snapshot + LatestPrice profile merge; skip other tables; "
+        "ignore cadence for stock selection (still requires active + should_fetch_details).",
+    )
     args = parser.parse_args()
     raise SystemExit(asyncio.run(_run(args)))
 

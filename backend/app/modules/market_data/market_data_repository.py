@@ -1,8 +1,9 @@
 from datetime import date
+from decimal import Decimal
 from uuid import UUID
 
 from fastapi import Depends
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -199,6 +200,34 @@ class MarketDataRepository(BaseRepository[DailyPrice]):
         if daily_price is None:
             raise RuntimeError("Daily price upsert did not return a row")
         return daily_price
+
+    async def patch_daily_price_trade_stats(
+        self,
+        *,
+        stock_id: UUID,
+        trade_date: date,
+        trade_count: int | None = None,
+        turnover: Decimal | None = None,
+        data_quality_flag: DataQualityFlag | None = None,
+    ) -> int:
+        """Update only turnover/trade_count/optional flag; leaves OHLCV and source unchanged."""
+        values: dict[str, object] = {}
+        if trade_count is not None:
+            values["trade_count"] = trade_count
+        if turnover is not None:
+            values["turnover"] = turnover
+        if data_quality_flag is not None:
+            values["data_quality_flag"] = data_quality_flag
+        if not values:
+            return 0
+        values["updated_at"] = func.now()
+        result = await self.session.execute(
+            update(DailyPrice)
+            .where(DailyPrice.stock_id == stock_id, DailyPrice.trade_date == trade_date)
+            .values(**values)
+        )
+        await self.session.flush()
+        return int(result.rowcount or 0)
 
     async def get_stocks_by_symbols(
         self,

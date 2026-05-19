@@ -34,6 +34,13 @@ class StockDetailsSyncTriggerType(StrEnum):
     SCHEDULED = "SCHEDULED"
 
 
+class StockDetailsSyncScope(StrEnum):
+    """What `StockDetailsService.sync_stock_details` persists after a successful API fetch."""
+
+    FULL = "full"
+    STOCKS = "stocks"
+
+
 class ReportPeriodType(StrEnum):
     QUARTERLY = "QUARTERLY"
     HALF_YEARLY = "HALF_YEARLY"

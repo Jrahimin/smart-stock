@@ -4,7 +4,12 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.core.enums import ExchangeCode, StockDetailsSyncJobStatus, StockDetailsSyncTriggerType
+from app.core.enums import (
+    ExchangeCode,
+    StockDetailsSyncJobStatus,
+    StockDetailsSyncScope,
+    StockDetailsSyncTriggerType,
+)
 
 
 class StockDetailsSyncRequest(BaseModel):
@@ -15,6 +20,7 @@ class StockDetailsSyncRequest(BaseModel):
     historical_window_days: int | None = Field(default=None, ge=1, le=3650)
     force: bool = False
     trigger_type: StockDetailsSyncTriggerType = StockDetailsSyncTriggerType.MANUAL
+    scope: StockDetailsSyncScope = StockDetailsSyncScope.FULL
 
     @field_validator("symbols", mode="before")
     @classmethod
@@ -30,6 +36,7 @@ class StockDetailsSyncRequest(BaseModel):
 
 class StockDetailsSyncResult(BaseModel):
     exchange: ExchangeCode
+    scope: StockDetailsSyncScope = StockDetailsSyncScope.FULL
     source: str
     requested_count: int
     selected_count: int
@@ -43,6 +50,9 @@ class StockDetailsSyncResult(BaseModel):
     valuation_count: int
     shareholding_count: int
     event_count: int
+    latest_price_profile_fill_count: int = 0
+    latest_price_shareholding_count: int = 0
+    latest_price_valuation_count: int = 0
 
 
 class StockDetailsSyncJobRead(BaseModel):

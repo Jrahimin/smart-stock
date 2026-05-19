@@ -224,7 +224,7 @@ Each active feature module keeps schemas, repository, service, and router files 
   * Repository: `backend/app/modules/stock_details/stock_details_repository.py`
   * Service: `backend/app/modules/stock_details/stock_details_service.py`
   * Routes: `backend/app/modules/stock_details/stock_details_router.py`
-  * Includes AmarStock API-based fundamentals, recent historical price backfill, valuation snapshots, shareholding snapshots, and stock-level events.
+  * Includes AmarStock API-based fundamentals, recent historical price backfill, valuation snapshots, shareholding snapshots, stock-level events, and optional bulk LatestPrice enrichment per batch. Sync `scope` (`full` default vs `stocks` for stocks-table-only fill-empty) is documented in `backend/docs/stock_details.md`.
 
 * Indicators:
   * Schemas: `backend/app/modules/indicators/indicators_schemas.py`
@@ -274,16 +274,18 @@ Market data ingestion context:
 * The daily AmarStock sync is scheduled for 2:30 PM Asia/Dhaka and fetches StockNow in parallel to compare only `close_price`.
 * If AmarStock and StockNow close prices differ by more than `0.50%`, an otherwise `OK` AmarStock row is marked `SUSPICIOUS` and `daily_market_summaries` gets a `SOURCE_VALIDATION` row with `has_suspicious_prices = true`.
 * Ingestion upserts `daily_prices` by `stock_id + trade_date` and skips database writes when a source parse returns no rows.
+* **Post-ingestion (additive)**: after primary prices commit, the same daily job optionally ingests AmarStock **News** JSON into `market_events` (`AMARSTOCK_NEWS_API`) and may **patch** existing `daily_prices` rows with LatestPrice bulk JSON for `trade_count` / `turnover` only (`run_post_daily_amarstock_enrichment` in `backend/app/jobs/ingestion/amarstock_daily_enrichment.py`). Failures there do not roll back committed OHLCV. Details: `backend/docs/market_data.md`.
 
 Stock details ingestion context:
 
 * Stock details ingestion is API-only and uses the samples in `backend/app/scraping_sources/amarstock_api_sample.md` as the mapping reference.
 * It uses all three AmarStock APIs together: snapshot (`/data/1981d726120d/{symbol}`), historical prices (`/data/5ee4d332a90e`), and company financials (`/company/2b5e8cfdd75f/?symbol={symbol}`).
+* **Bulk LatestPrice** (`/LatestPrice/{token}`): one JSON fetch per batch to fill empty stock profile fields from `BusinessSegment` / `MarketCategory` / caps / placeholder names, and (in default **`full`** sync scope) to upsert separate `AMARSTOCK_LATEST_PRICE_API` shareholding and valuation snapshots alongside `AMARSTOCK_API` snapshot rows. With **`stocks`** scope, the same bulk fetch runs but only the fill-empty stock profile merge is applied from it—no LatestPrice shareholding/valuation rows. Toggle: `amarstock_latest_price_stock_details_enabled` in `Settings`. Details: `backend/docs/stock_details.md`.
 * It never fetches rendered stock detail HTML and does not use BeautifulSoup, `lxml`, table parsing, or `data-key` attributes for this feature.
-* Eligibility is controlled by `stocks.is_active` and `stocks.should_fetch_details`; cadence is controlled by `stock_details_sync_frequency_months`.
+* Eligibility is controlled by `stocks.is_active` and `stocks.should_fetch_details`; cadence is controlled by `stock_details_sync_frequency_months` for default **`full`** batch selection. **`stocks`** scope skips that cadence filter so profile-only runs can page all eligible symbols.
 * `stock_details_sync_jobs` is execution tracking only. Diagnostics such as parsed counts and unmapped company rows live in job metadata.
 * Company API metrics use a controlled mapping from source label to `metric_code`; unknown labels are kept in diagnostics instead of creating uncontrolled metric definitions.
-* Manual stock-details runs can override `historical_window_days`; API historical prices are the primary `daily_prices` source for overlapping dates, while homepage latest-price ingestion is fallback.
+* Manual stock-details runs can override `historical_window_days`; API historical prices are the primary `daily_prices` source for overlapping dates, while homepage latest-price ingestion is fallback. CLI/API `scope` (`full` vs `stocks`) controls whether non-`stocks` tables are written; see `backend/docs/stock_details.md`.
 
 Stock master bootstrap (fresh DB or missing symbols):
 
@@ -347,6 +349,6 @@ Current frontend product flow:
 ---
 
 ## Required Action
-* After developing each feature, we should write a documentation describing the feature, business logics, insights, and good to know for devs for later iteration things within backend/docs. so each feature will have it's own md file with it's name and will be useful for future reference. 
+* After developing each feature, document it in `backend/docs/`: either a focused module doc (e.g. `market_data.md`, `stock_details.md`) or a dedicated topic file when the surface area is large enough to warrant its own guide. Capture business rules, operational commands, and iteration notes for future maintainers.
 
 This context should guide all design and implementation decisions.

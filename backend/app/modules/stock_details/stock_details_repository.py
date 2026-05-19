@@ -63,6 +63,29 @@ class StockDetailsRepository(BaseRepository[StockDetailsSyncJob]):
         result = await self.session.scalars(statement)
         return list(result.all())
 
+    async def list_eligible_stocks(
+        self,
+        *,
+        exchange: ExchangeCode,
+        limit: int | None,
+        offset: int,
+    ) -> list[Stock]:
+        """Active detail-enabled stocks, ordered for batch runs, without last-sync cadence."""
+        statement = (
+            select(Stock)
+            .where(
+                Stock.exchange == exchange,
+                Stock.is_active.is_(True),
+                Stock.should_fetch_details.is_(True),
+            )
+            .order_by(Stock.exchange, Stock.symbol, Stock.id)
+            .offset(offset)
+        )
+        if limit is not None:
+            statement = statement.limit(limit)
+        result = await self.session.scalars(statement)
+        return list(result.all())
+
     async def get_stocks_by_symbols(
         self,
         *,
