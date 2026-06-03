@@ -53,21 +53,23 @@ By default the trade date is **today’s calendar date in Asia/Dhaka** (aligned 
 
 ## Stock details (manual run)
 
-To sync AmarStock API stock details, including recent historical prices, financial metrics, valuation, shareholding, news, and base `stocks` fields such as name/category/capitalization — plus **one bulk LatestPrice fetch per batch** (fill-empty profile fields and `AMARSTOCK_LATEST_PRICE_API` ownership/valuation snapshots when enabled):
+To backfill **missing** recent historical prices after daily market sync (`sync_market_data`), or refresh fundamentals and snapshots from AmarStock APIs:
 
 ```bash
 cd backend
-python -m app.jobs.sync_stock_details --symbols EBL --historical-window-days 180 --force
+python -m app.jobs.sync_stock_details --symbols EBL --historical-window-days 180
 ```
+
+The CLI uses `trigger_type=MANUAL`, so the **3‑month cadence check is not applied** — you can re-run soon after a prior sync to fill gaps. For each date in the historical window, **`daily_prices` rows are inserted only when no row exists yet** for that stock and trade date; existing OHLCV from daily market sync is left unchanged. The job still updates other tables (metrics, valuation, shareholding, events, stock profile) per the usual `full` scope rules.
 
 To **only** backfill empty `stocks` columns (sector, category, caps, listing date, placeholder name) from the snapshot + LatestPrice profile merge, without writing `daily_prices` or other tables:
 
 ```bash
 cd backend
-python -m app.jobs.sync_stock_details --symbols EBL --force --scope stocks
+python -m app.jobs.sync_stock_details --symbols EBL --scope stocks
 ```
 
-`--force` skips cadence for explicit symbols when `scope` is **`full`**; it still requires `stocks.is_active = true` and `stocks.should_fetch_details = true`. With **`--scope stocks`**, cadence is not used for selection (batch or explicit); you do not need `--force` just to bypass the 3‑month rule. Without `--symbols`, use `--limit` and `--offset` to page through eligible stocks. Details: `backend/docs/stock_details.md`.
+All runs still require `stocks.is_active = true` and `stocks.should_fetch_details = true`. Use `--force` on scheduled or API-triggered runs when you need to bypass cadence without `trigger_type=MANUAL`. Without `--symbols`, use `--limit` and `--offset` to page through eligible stocks. Details: `backend/docs/stock_details.md`.
 
 ## Development Areas
 
