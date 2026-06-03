@@ -6,6 +6,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.core.enums import DataQualityFlag, ExchangeCode
+from app.modules.stock_details.stock_details_schemas import TraderDecisionSummaryRead
 from app.modules.stocks.stocks_schemas import StockRead
 
 
@@ -107,6 +108,7 @@ class LatestMarketPriceRead(BaseModel):
 class MarketPriceWindowRead(BaseModel):
     stock: StockRead
     prices: list[DailyPriceRead]
+    trader_decision: TraderDecisionSummaryRead | None = None
 
 
 class DailyPriceIngestionResult(BaseModel):

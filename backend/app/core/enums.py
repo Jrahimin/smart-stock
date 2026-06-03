@@ -116,3 +116,44 @@ class SignalType(StrEnum):
     SELL = "SELL"
     HOLD = "HOLD"
 
+
+class TraderRecommendation(StrEnum):
+    BUY = "BUY"
+    HOLD = "HOLD"
+    WAIT = "WAIT"
+    SELL = "SELL"
+
+
+class RiskLevelLabel(StrEnum):
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+    SPECULATIVE = "SPECULATIVE"
+
+
+class LiquidityLabel(StrEnum):
+    STRONG = "STRONG"
+    NORMAL = "NORMAL"
+    THIN = "THIN"
+    ILLIQUID = "ILLIQUID"
+
+
+class WarningSeverity(StrEnum):
+    INFO = "INFO"
+    WARNING = "WARNING"
+    CRITICAL = "CRITICAL"
+
+
+class PatternStatus(StrEnum):
+    FORMING = "Forming"
+    ACTIVE = "Active"
+    CONFIRMED = "Confirmed"
+    FAILED = "Failed"
+
+
+class TrendDirection(StrEnum):
+    UPTREND = "UPTREND"
+    DOWNTREND = "DOWNTREND"
+    SIDEWAYS = "SIDEWAYS"
+    UNKNOWN = "UNKNOWN"
+

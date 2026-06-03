@@ -10,9 +10,10 @@ import { SignalBadge } from "@/components/ui/signal-badge";
 import { useMarketUniverse } from "@/features/market-dashboard/hooks/use-market-universe";
 import { formatCompactNumber, formatNumber, formatPercent } from "@/lib/formatters/financial-formatters";
 import { frontendConfig } from "@/lib/frontend-config";
+import { isBreakdownRiskDecision, resolveTraderDecision } from "@/lib/market/trader-decision";
 
 export function ScannerWorkspaceView() {
-  const { universe, isLoading, isError, refetch } = useMarketUniverse({ stockLimit: 500, priceWindowLimit: 30 });
+  const { universe, isLoading, isError, refetch } = useMarketUniverse({ stockLimit: 500, priceWindowLimit: 90 });
   const [symbolFilter, setSymbolFilter] = useState("");
   const filteredUniverse = useMemo(
     () => universe.filter((stock) => !symbolFilter || stock.stock.symbol.includes(symbolFilter)),
@@ -26,7 +27,7 @@ export function ScannerWorkspaceView() {
           description: "Positive price action with materially expanded volume.",
           items: filteredUniverse
             .filter((stock) => (stock.priceChangePercent ?? 0) > 0 && stock.averageVolume !== null && stock.volume > stock.averageVolume * 1.8)
-            .sort((a, b) => b.signal.confidence - a.signal.confidence)
+            .sort((a, b) => resolveTraderDecision(b).confidence - resolveTraderDecision(a).confidence)
             .slice(0, 6),
         },
         {
@@ -41,8 +42,11 @@ export function ScannerWorkspaceView() {
           title: "Risk / Compression Watchlist",
           description: "High-risk or low-volatility names that need confirmation before action.",
           items: filteredUniverse
-            .filter((stock) => stock.signal.risk === "HIGH" || (stock.volatility !== null && stock.volatility < 1.1))
-            .sort((a, b) => b.signal.confidence - a.signal.confidence)
+            .filter((stock) => {
+              const decision = resolveTraderDecision(stock);
+              return decision.riskLabel === "HIGH" || decision.riskLabel === "SPECULATIVE" || (stock.volatility !== null && stock.volatility < 1.1);
+            })
+            .sort((a, b) => resolveTraderDecision(b).confidence - resolveTraderDecision(a).confidence)
             .slice(0, 6),
         },
       ];
@@ -66,8 +70,8 @@ export function ScannerWorkspaceView() {
       },
       {
         title: "Breakdown Risk",
-        description: "Negative momentum with elevated risk context.",
-        items: filteredUniverse.filter((stock) => stock.signal.signal === "SELL" || stock.signal.risk === "HIGH").slice(0, 6),
+        description: "Sell actions or elevated risk from the shared decision engine.",
+        items: filteredUniverse.filter((stock) => isBreakdownRiskDecision(stock)).slice(0, 6),
       },
     ];
   }, [filteredUniverse]);
@@ -78,7 +82,7 @@ export function ScannerWorkspaceView() {
         <div>
           <p className="eyebrow">Market Scanner</p>
           <h1>Daily opportunity detection</h1>
-          <span>Rule-based scans from latest available OHLCV rows</span>
+          <span>Rule-based scans from latest OHLCV with shared trader decision badges</span>
         </div>
         <div className="explorer-controls">
           <SearchableSymbolFilter
@@ -101,23 +105,29 @@ export function ScannerWorkspaceView() {
             </div>
             <div className="scanner-result-list">
               {category.items.length ? (
-                category.items.map((stock) => (
-                  <Link className="scanner-result-card" href={`/stocks/${stock.stock.exchange}/${stock.stock.symbol}`} key={stock.stock.id}>
-                    <div className="scanner-card-topline">
-                      <strong>{stock.stock.symbol}</strong>
-                      <SignalBadge signal={stock.signal.signal} />
-                    </div>
-                    <span>{formatNumber(stock.latestPrice)} / {formatPercent(stock.priceChangePercent)}</span>
-                    <div className="mini-momentum-bar" aria-label="Momentum strength">
-                      <span style={{ width: `${Math.min(100, Math.abs(stock.priceChangePercent ?? 0) * 12)}%` }} />
-                    </div>
-                    <small className="scanner-context-row">
-                      <span>RSI {formatNumber(stock.rsi)}</span>
-                      <span>Vol {formatCompactNumber(stock.volume)}</span>
-                      <span className={`trend-icon trend-icon-${stock.trend.toLowerCase()}`} aria-label={stock.trend} title={stock.trend} />
-                    </small>
-                  </Link>
-                ))
+                category.items.map((stock) => {
+                  const decision = resolveTraderDecision(stock);
+
+                  return (
+                    <Link className="scanner-result-card" href={`/stocks/${stock.stock.exchange}/${stock.stock.symbol}`} key={stock.stock.id}>
+                      <div className="scanner-card-topline">
+                        <strong>{stock.stock.symbol}</strong>
+                        <SignalBadge signal={decision.recommendation} />
+                      </div>
+                      <span>
+                        {formatNumber(stock.latestPrice)} / {formatPercent(stock.priceChangePercent)}
+                      </span>
+                      <div className="mini-momentum-bar" aria-label="Momentum strength">
+                        <span style={{ width: `${Math.min(100, Math.abs(stock.priceChangePercent ?? 0) * 12)}%` }} />
+                      </div>
+                      <small className="scanner-context-row">
+                        <span>RSI {formatNumber(stock.rsi)}</span>
+                        <span>Vol {formatCompactNumber(stock.volume)}</span>
+                        <span className={`trend-icon trend-icon-${stock.trend.toLowerCase()}`} aria-label={stock.trend} title={stock.trend} />
+                      </small>
+                    </Link>
+                  );
+                })
               ) : (
                 <div className="empty-state empty-state-premium">
                   <strong>No names match this scan yet</strong>

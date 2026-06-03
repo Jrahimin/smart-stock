@@ -4,9 +4,15 @@ from uuid import UUID
 from fastapi import APIRouter, Depends
 
 from app.api.dependencies.auth_dependencies import require_authenticated_user
+from app.core.enums import ExchangeCode
 from app.core.response_handler import ApiResponse, success_response
 from app.core.security_config import UserContext
+from app.modules.stock_details.stock_details_decision_service import (
+    StockDetailsDecisionService,
+    get_stock_details_decision_service,
+)
 from app.modules.stock_details.stock_details_schemas import (
+    StockDecisionSupportRead,
     StockDetailsSyncJobRead,
     StockDetailsSyncRequest,
     StockDetailsSyncResult,
@@ -17,6 +23,16 @@ from app.modules.stock_details.stock_details_service import (
 )
 
 router = APIRouter(prefix="/stock-details", tags=["stock details"])
+
+
+@router.get("/{exchange}/{symbol}/decision-support", response_model=ApiResponse[StockDecisionSupportRead])
+async def get_stock_decision_support(
+    exchange: ExchangeCode,
+    symbol: str,
+    service: Annotated[StockDetailsDecisionService, Depends(get_stock_details_decision_service)],
+) -> ApiResponse[StockDecisionSupportRead]:
+    result = await service.get_decision_support(exchange=exchange, symbol=symbol.upper())
+    return success_response(data=result, message="Stock decision support retrieved")
 
 
 @router.post("/sync", response_model=ApiResponse[StockDetailsSyncResult])

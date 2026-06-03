@@ -10,6 +10,10 @@ export type DataQualityFlag = "OK" | "PARTIAL" | "SUSPICIOUS";
 
 export type SignalType = "BUY" | "SELL" | "HOLD";
 
+export type TraderRecommendation = "BUY" | "HOLD" | "WAIT" | "SELL";
+
+export type WarningSeverity = "INFO" | "WARNING" | "CRITICAL";
+
 export type IndicatorType = "RSI" | "SMA" | "EMA";
 
 export type BackendStockDto = {
@@ -62,6 +66,15 @@ export type BackendLatestMarketPriceDto = {
 export type BackendMarketPriceWindowDto = {
   stock: BackendStockDto;
   prices: BackendDailyPriceDto[];
+  trader_decision: BackendTraderDecisionSummaryDto | null;
+};
+
+export type BackendTraderDecisionSummaryDto = {
+  recommendation: TraderRecommendation;
+  confidence: number;
+  reason: string;
+  opportunity_score: number;
+  risk_label: "LOW" | "MEDIUM" | "HIGH" | "SPECULATIVE";
 };
 
 export type BackendDailyMarketSummaryDto = {

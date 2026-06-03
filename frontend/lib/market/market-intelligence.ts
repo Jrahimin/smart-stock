@@ -179,6 +179,8 @@ function inferVolumeBehavior(volume: number, averageVolume: number | null) {
   return "Normal participation";
 }
 
+// Legacy client-side BUY/SELL/HOLD synthesis retained for backward-compatible
+// `stock.signal` metadata. UI action badges must use `resolveTraderDecision`.
 function generateSignal(input: {
   stock: BackendStockDto;
   latestPrice: number | null;

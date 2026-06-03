@@ -3,9 +3,12 @@
 import { CandlestickSeries, createChart, createSeriesMarkers, HistogramSeries, LineSeries, LineStyle } from "lightweight-charts";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { PatternDetailModal } from "@/features/stock-workspace/components/pattern-detail-modal";
+import type { PatternDetectionDto } from "@/lib/api/stock-decision-support-types";
 import type { ChartCandleModel, VolumeBarModel } from "@/lib/market/market-intelligence-types";
 import { formatCompactNumber } from "@/lib/formatters/financial-formatters";
-import { buildChartEventMarkers, buildSmaLine, classifyCandlePattern } from "@/lib/market/chart-intelligence";
+import { buildChartEventMarkers, buildSmaLine } from "@/lib/market/chart-intelligence";
+import { patternDirectionClass } from "@/features/stock-workspace/view-models/stock-decision-view-model";
 import { useWorkspaceStore } from "@/stores/use-workspace-store";
 
 type StockCandlestickChartProps = {
@@ -13,16 +16,24 @@ type StockCandlestickChartProps = {
   ema20?: number | null;
   overlaysEnabled?: boolean;
   resistance?: number | null;
+  riskLabel?: string;
   sma20?: number | null;
   support?: number | null;
   volumeBars: VolumeBarModel[];
+  patterns?: PatternDetectionDto[];
 };
+
+function patternStatusClass(status: string) {
+  return status === "Active" || status === "Confirmed" ? "pattern-chip-active" : "";
+}
 
 export function StockCandlestickChart({
   candles,
   ema20,
   overlaysEnabled = false,
+  patterns = [],
   resistance,
+  riskLabel = "Medium",
   sma20,
   support,
   volumeBars,
@@ -30,14 +41,16 @@ export function StockCandlestickChart({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const theme = useWorkspaceStore((state) => state.theme);
   const [timeframe, setTimeframe] = useState<"day" | "week" | "month">("day");
+  const [selectedPatternIndex, setSelectedPatternIndex] = useState<number | null>(null);
   const chartData = useMemo(() => aggregateChartData(candles, volumeBars, timeframe), [candles, timeframe, volumeBars]);
   const [hoveredCandle, setHoveredCandle] = useState<ChartCandleModel | null>(chartData.candles.at(-1) ?? null);
-  const pattern = useMemo(() => classifyCandlePattern(chartData.candles), [chartData.candles]);
   const smaLine = useMemo(() => buildSmaLine(chartData.candles, 20), [chartData.candles]);
   const eventMarkers = useMemo(
     () => buildChartEventMarkers(chartData.candles, chartData.volumeBars, support ?? null, resistance ?? null),
     [chartData.candles, chartData.volumeBars, resistance, support],
   );
+  const visiblePatterns = patterns.slice(0, 2);
+  const selectedPattern = selectedPatternIndex !== null ? visiblePatterns[selectedPatternIndex] ?? null : null;
 
   useEffect(() => {
     setHoveredCandle(chartData.candles.at(-1) ?? null);
@@ -54,7 +67,7 @@ export function StockCandlestickChart({
     const borderColor = styles.getPropertyValue("--border").trim() || "#272c3a";
 
     const chart = createChart(containerRef.current, {
-      height: 300,
+      height: 420,
       layout: {
         background: { color: panelColor },
         textColor: mutedColor,
@@ -183,7 +196,7 @@ export function StockCandlestickChart({
     hoveredCandle && hoveredCandle.open !== 0 ? ((hoveredCandle.close - hoveredCandle.open) / hoveredCandle.open) * 100 : null;
 
   return (
-    <div className="chart-shell">
+    <div className="chart-shell chart-shell-hero">
       <div className="chart-control-row">
         <div className="timeframe-segment">
           {(["day", "week", "month"] as const).map((option) => (
@@ -192,37 +205,39 @@ export function StockCandlestickChart({
             </button>
           ))}
         </div>
-        <span className={`pattern-badge pattern-badge-${pattern.tone}`} title={pattern.description}>
-          Pattern: {pattern.label}
-        </span>
+        <div className="chart-hover-tape chart-hover-tape-inline">
+          <span>O {hoveredCandle?.open.toFixed(2) ?? "—"}</span>
+          <span>C {hoveredCandle?.close.toFixed(2) ?? "—"}</span>
+          <span>{candleChange !== null ? `${candleChange.toFixed(2)}%` : "—"}</span>
+          <span>Vol {hoveredVolume !== null && hoveredVolume !== undefined ? formatCompactNumber(hoveredVolume) : "—"}</span>
+        </div>
       </div>
-      <div className="chart-tool-strip" aria-label="Chart workspace tools">
+      <div className="chart-tool-strip chart-tool-strip-extended" aria-label="Chart workspace tools">
         <span className={overlaysEnabled && smaLine.length ? "active" : undefined}>SMA20 {sma20?.toFixed(2) ?? "N/A"}</span>
+        <span className={overlaysEnabled && ema20 !== null && ema20 !== undefined ? "active" : undefined}>EMA20 {ema20?.toFixed(2) ?? "N/A"}</span>
         <span className={overlaysEnabled && support !== null && support !== undefined ? "active" : undefined}>Support {support?.toFixed(2) ?? "N/A"}</span>
         <span className={overlaysEnabled && resistance !== null && resistance !== undefined ? "active" : undefined}>
           Resistance {resistance?.toFixed(2) ?? "N/A"}
         </span>
-        <span className={overlaysEnabled && ema20 !== null && ema20 !== undefined ? "active" : undefined}>EMA20 {ema20?.toFixed(2) ?? "N/A"}</span>
-        <span className={overlaysEnabled && eventMarkers.length ? "active" : undefined}>{eventMarkers.length} event markers</span>
+        {visiblePatterns.map((pattern, index) => (
+          <button
+            className={`pattern-chip ${patternDirectionClass(pattern.direction)} ${index === 0 ? "pattern-chip-primary" : "pattern-chip-secondary"} ${patternStatusClass(pattern.status)}`}
+            key={`${pattern.name}-${pattern.status}`}
+            onClick={() => setSelectedPatternIndex(index)}
+            title={`${pattern.status} · Breakout ${pattern.breakout_level ?? "N/A"} · Confidence ${pattern.confidence}%`}
+            type="button"
+          >
+            {index === 0 ? "🟢" : "🟡"} {pattern.name} ({pattern.confidence}%)
+          </button>
+        ))}
       </div>
-      <div className="chart-hover-tape">
-        <span>O {hoveredCandle?.open.toFixed(2) ?? "N/A"}</span>
-        <span>H {hoveredCandle?.high.toFixed(2) ?? "N/A"}</span>
-        <span>L {hoveredCandle?.low.toFixed(2) ?? "N/A"}</span>
-        <span>C {hoveredCandle?.close.toFixed(2) ?? "N/A"}</span>
-        <span>Move {candleChange !== null ? `${candleChange.toFixed(2)}%` : "N/A"}</span>
-        <span>Vol {hoveredVolume !== null && hoveredVolume !== undefined ? formatCompactNumber(hoveredVolume) : "N/A"}</span>
-        <span>{hoveredCandle?.time ?? "Hover candles"}</span>
-      </div>
-      <div className="chart-event-row">
-        <span>
-          {overlaysEnabled
-            ? "Support/resistance and event annotations are derived from available OHLCV context."
-            : "Advanced overlays are feature-flagged; candle and volume context remains available."}
-        </span>
-        <span>{chartData.candles.length} candles loaded</span>
-      </div>
-      <div className="chart-container" ref={containerRef} />
+      <div className="chart-container chart-container-hero" ref={containerRef} />
+      <PatternDetailModal
+        isOpen={selectedPattern !== null}
+        onClose={() => setSelectedPatternIndex(null)}
+        pattern={selectedPattern}
+        riskLabel={riskLabel}
+      />
     </div>
   );
 }

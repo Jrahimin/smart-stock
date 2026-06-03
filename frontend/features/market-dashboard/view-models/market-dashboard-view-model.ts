@@ -3,15 +3,16 @@ import type {
   BackendStockDto,
   DataQualityFlag,
 } from "@/lib/api/backend-api-types";
-import {
-  formatCompactNumber,
-  formatNumber,
-  formatPercent,
-  toNumber,
-} from "@/lib/formatters/financial-formatters";
+import { formatCompactNumber, formatNumber, formatPercent, toNumber } from "@/lib/formatters/financial-formatters";
 import { buildMarketInsights } from "@/lib/insights/deterministic-insights";
 import { deriveMarketBreadth, deriveMarketCondition } from "@/lib/market/market-intelligence";
 import type { StockIntelligenceModel } from "@/lib/market/market-intelligence-types";
+import {
+  buildDecisionSupportingContext,
+  getDecisionPriority,
+  isActionableDecision,
+  resolveTraderDecision,
+} from "@/lib/market/trader-decision";
 import { getMarketSession } from "@/lib/market/market-session-engine";
 import type {
   BreadthModel,
@@ -87,17 +88,18 @@ function buildHeatmapTiles(universe: StockIntelligenceModel[]) {
 }
 
 function toSignalFeedItem(stock: StockIntelligenceModel): SignalFeedItemModel {
+  const decision = resolveTraderDecision(stock);
   return {
     symbol: stock.stock.symbol,
-    signal: stock.signal.signal,
-    confidence: `${stock.signal.confidence}%`,
-    confidenceValue: stock.signal.confidence,
-    reason: stock.signal.reason,
-    risk: stock.signal.risk,
-    priority: stock.signal.confidence >= 70 ? "high" : stock.signal.confidence >= 58 ? "medium" : "low",
+    signal: decision.recommendation,
+    confidence: `${decision.confidence}%`,
+    confidenceValue: decision.confidence,
+    reason: decision.reason,
+    risk: decision.riskLabel,
+    priority: getDecisionPriority(decision.confidence),
     href: `/stocks/${stock.stock.exchange}/${stock.stock.symbol}`,
-    supportingContext: stock.signal.supportingContext,
-    generatedAt: stock.signal.generatedAt,
+    supportingContext: buildDecisionSupportingContext(stock),
+    generatedAt: stock.latestTradeDate ?? "Awaiting price data",
   };
 }
 
@@ -135,7 +137,9 @@ function getDerivedTurnover(universe: StockIntelligenceModel[]) {
 function buildTimeline(universe: StockIntelligenceModel[], latestSummary: BackendDailyMarketSummaryDto | null) {
   const items = [];
   const suspiciousCount = universe.filter((stock) => stock.dataQuality === "SUSPICIOUS").length;
-  const highConfidenceSignal = [...universe].sort((a, b) => b.signal.confidence - a.signal.confidence)[0];
+  const highConfidenceDecision = [...universe].sort(
+    (a, b) => resolveTraderDecision(b).confidence - resolveTraderDecision(a).confidence,
+  )[0];
 
   if (latestSummary?.has_suspicious_prices || suspiciousCount > 0) {
     items.push({
@@ -145,18 +149,19 @@ function buildTimeline(universe: StockIntelligenceModel[], latestSummary: Backen
     });
   }
 
-  if (highConfidenceSignal) {
+  if (highConfidenceDecision) {
+    const decision = resolveTraderDecision(highConfidenceDecision);
     items.push({
-      time: highConfidenceSignal.latestTradeDate ?? "Latest",
-      title: `${highConfidenceSignal.stock.symbol} ${highConfidenceSignal.signal.signal}`,
-      description: highConfidenceSignal.signal.reason,
+      time: highConfidenceDecision.latestTradeDate ?? "Latest",
+      title: `${highConfidenceDecision.stock.symbol} ${decision.recommendation}`,
+      description: decision.reason,
     });
   }
 
   items.push({
     time: latestSummary?.trade_date ?? "Latest",
     title: "Market scan complete",
-    description: `${universe.length} active instruments were evaluated for price action, volume, risk, and deterministic signals.`,
+    description: `${universe.length} active instruments were evaluated with the shared trader decision engine.`,
   });
 
   return items;
@@ -222,15 +227,15 @@ export function buildMarketDashboardModel(
     breadth,
     heatmapTiles: buildHeatmapTiles(universe),
     signals: [...universe]
-      .filter((stock) => stock.signal.signal !== "HOLD" || stock.signal.confidence >= 55)
-      .sort((a, b) => b.signal.confidence - a.signal.confidence)
+      .filter((stock) => isActionableDecision(resolveTraderDecision(stock).recommendation) || resolveTraderDecision(stock).confidence >= 55)
+      .sort((a, b) => resolveTraderDecision(b).confidence - resolveTraderDecision(a).confidence)
       .slice(0, 8)
       .map(toSignalFeedItem),
     timeline: buildTimeline(universe, latestSummary),
     insights: buildMarketInsights({
       marketMood,
       hasPartialData: dataQuality !== "OK" || latestSummary?.index_name === "SOURCE_VALIDATION",
-      signalCount: universe.filter((stock) => stock.signal.signal !== "HOLD").length,
+      signalCount: universe.filter((stock) => isActionableDecision(resolveTraderDecision(stock).recommendation)).length,
       turnoverLabel,
     }),
     movers: {

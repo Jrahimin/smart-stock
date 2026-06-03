@@ -423,7 +423,7 @@ Return each active stock with a recent daily OHLCV window, optionally filtered b
 * limit: number, default 50, min 1, max 500
 * offset: number, default 0, min 0
 * exchange: optional enum, one of `DSE`, `CSE`
-* price_window_limit: number, default 60, min 1, max 260
+* price_window_limit: number, default 90, min 1, max 260
 
 **Response**
 
@@ -474,7 +474,14 @@ Return each active stock with a recent daily OHLCV window, optionally filtered b
           "created_at": "2026-05-10T15:00:00Z",
           "updated_at": "2026-05-10T15:00:00Z"
         }
-      ]
+      ],
+      "trader_decision": {
+        "recommendation": "BUY",
+        "confidence": 71,
+        "reason": "Uptrend with favorable opportunity and acceptable reward potential.",
+        "opportunity_score": 68,
+        "risk_label": "LOW"
+      }
     }
   ]
 }
@@ -484,6 +491,7 @@ Return each active stock with a recent daily OHLCV window, optionally filtered b
 
 * Only active stocks with available `daily_prices` rows are returned.
 * Prices inside each stock window are newest first.
+* `trader_decision` is computed live from the shared decision engine using the same lookback as stock workspace recommendations.
 * The frontend can sort ascending before chart or indicator derivation.
 
 ---
@@ -836,6 +844,123 @@ Run API-only AmarStock stock details ingestion for eligible active stocks. The w
 
 ---
 
+### GET /api/v1/stock-details/{exchange}/{symbol}/decision-support
+
+**Description**
+Return deterministic trader decision-support for one stock symbol. The response combines stored OHLCV, stock profile data, and optional ownership, valuation, and event snapshots into a single explainable contract suitable for the stock workspace UI.
+
+No AI/LLM is used. All scores, recommendations, warnings, pattern detections, and trade-plan levels are formula-based.
+
+**Path Params**
+
+* exchange: `DSE` or `CSE`
+* symbol: stock ticker, for example `ACMEPL`
+
+**Response**
+
+```json
+{
+  "success": true,
+  "message": "Stock decision support retrieved",
+  "data": {
+    "stock_id": "8f8e3b52-2a27-4df8-8e76-c9eb6f61c123",
+    "symbol": "ACMEPL",
+    "exchange": "DSE",
+    "decision": {
+      "recommendation": "WAIT",
+      "confidence": 68,
+      "reasoning": [
+        "Trend context: uptrend.",
+        "Opportunity score: 58/100.",
+        "Risk level: LOW (25/100)."
+      ]
+    },
+    "opportunity": {
+      "score": 58,
+      "components": [
+        {
+          "key": "trend",
+          "label": "Trend",
+          "score": 82,
+          "weight": 0.28,
+          "explanation": "Price is in an uptrend above moving averages."
+        }
+      ]
+    },
+    "risk": {
+      "score": 25,
+      "label": "LOW",
+      "components": []
+    },
+    "price_position": {
+      "current_price": 26.1,
+      "distance_to_support_percent": 15.5,
+      "distance_to_resistance_percent": 1.5,
+      "above_sma20_percent": 8.8,
+      "above_ema20_percent": 8.2
+    },
+    "trade_plan": {
+      "entry_zone_low": 25.84,
+      "entry_zone_high": 26.23,
+      "stop_loss": 22.41,
+      "target_low": 25.71,
+      "target_high": 26.5,
+      "risk_reward_ratio": 1.15,
+      "explanation": "Entry near current/support context with stop below support and target at resistance."
+    },
+    "liquidity": {
+      "label": "STRONG",
+      "average_volume": 4600000,
+      "latest_volume_ratio": 1.8,
+      "volume_consistency_score": 85,
+      "average_turnover": 120000000,
+      "explanation": "Volume and turnover support active participation."
+    },
+    "warnings": [
+      {
+        "code": "near_resistance",
+        "title": "Near resistance",
+        "message": "Price is close to recent resistance; upside may need a breakout.",
+        "severity": "WARNING"
+      }
+    ],
+    "data_freshness": {
+      "latest_trade_date": "2026-06-02",
+      "ohlcv_row_count": 112,
+      "is_stale": false,
+      "is_sparse": false,
+      "missing_fields": [],
+      "data_quality": "OK",
+      "source_summary": "Computed from stored daily_prices and stock master profile."
+    },
+    "support": 22.6,
+    "resistance": 26.5,
+    "trend": "UPTREND",
+    "patterns": [],
+    "primary_pattern": null,
+    "breakout": {
+      "probability": 43,
+      "factors": [],
+      "breakout_level": 26.5,
+      "confirmation_level": 26.77,
+      "projected_target": 27.83,
+      "explanation": "Breakout probability combines volume, trend, resistance proximity, and active pattern context."
+    },
+    "ownership": null,
+    "valuation": null,
+    "events": []
+  }
+}
+```
+
+**Notes**
+
+* Returns `404` when the stock is not found or when no OHLCV rows exist for deterministic evaluation.
+* Frontend consumers should treat this endpoint as optional enrichment. If it fails, the existing chart, technical summary, fundamentals, and insight sidebar should continue to render from stock lookup and daily prices.
+* Formula weights and thresholds are documented in `backend/docs/stock_decision_support.md`.
+
+---
+
 ### GET /api/v1/stock-details/sync-jobs/{job_id}
 
 **Description**
@@ -845,12 +970,57 @@ Return one stock details sync job with status, attempts, error, source URL, and 
 
 ## Signals
 
+### GET /api/v1/signals/decisions/latest
+
+**Description**
+Return the latest shared trader decision per active stock. This is the preferred list endpoint for signal center, scanner, and dashboard action feeds. It uses the same engine as `trader_decision` on price windows and the stock workspace decision rail.
+
+**Query Params**
+
+* limit: number, default 50, min 1, max 500
+* offset: number, default 0, min 0
+* exchange: optional enum, one of `DSE`, `CSE`
+* price_window_limit: number, default 90, min 1, max 260
+
+**Response**
+
+```json
+{
+  "success": true,
+  "message": "Latest trader decisions retrieved",
+  "data": [
+    {
+      "stock": {
+        "symbol": "RENATA",
+        "name": "Renata PLC",
+        "exchange": "DSE",
+        "id": "d469bea4-3089-47ef-9d1e-9a32c4409e96"
+      },
+      "decision": {
+        "recommendation": "BUY",
+        "confidence": 71,
+        "reason": "Uptrend with favorable opportunity and acceptable reward potential.",
+        "opportunity_score": 68,
+        "risk_label": "LOW"
+      },
+      "latest_trade_date": "2026-05-10"
+    }
+  ]
+}
+```
+
+**Notes**
+
+* Recommendations use `BUY`, `HOLD`, `WAIT`, or `SELL`.
+* Confidence is returned on a `0..100` integer scale.
+* See `backend/docs/signals.md` and `backend/docs/stock_decision_support.md`.
+
+---
+
 ### GET /api/v1/signals/latest
 
 **Description**
-Return the latest active trading signal per stock. This endpoint supports dashboard,
-scanner, signal center, and stock explorer enrichment without issuing one
-`/stocks/{stock_id}/signals` request per instrument.
+Return the latest active **legacy persisted** trading signal per stock from the `trading_signals` table. Terminal UI no longer uses this endpoint for action badges; prefer `GET /signals/decisions/latest` or `trader_decision` on price windows.
 
 **Query Params**
 
@@ -891,4 +1061,4 @@ scanner, signal center, and stock explorer enrichment without issuing one
 * Only active signal rows are considered.
 * At most one signal is returned per stock.
 * Ordering is stable by newest trade date, stock id, strategy name, and signal id.
-* Frontend consumers must treat this data as optional enrichment and fall back to deterministic OHLCV-derived signals when rows are missing or stale.
+* Frontend consumers must treat persisted rows as legacy strategy history, not as the primary action source.

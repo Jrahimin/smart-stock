@@ -9,24 +9,36 @@ import { MarketActivityLoader } from "@/components/ui/market-activity-loader";
 import { SignalBadge } from "@/components/ui/signal-badge";
 import { useMarketUniverse } from "@/features/market-dashboard/hooks/use-market-universe";
 import type { StockIntelligenceModel } from "@/lib/market/market-intelligence-types";
+import {
+  buildDecisionSupportingContext,
+  getDecisionMomentumHint,
+  getDecisionPriority,
+  getRiskAdjustedDecisionScore,
+  getVolumeConfirmationScore,
+  resolveTraderDecision,
+} from "@/lib/market/trader-decision";
 
 export function SignalCenterView() {
-  const { universe, isLoading, isError, refetch } = useMarketUniverse({ stockLimit: 500, priceWindowLimit: 30 });
+  const { universe, isLoading, isError, refetch } = useMarketUniverse({ stockLimit: 500, priceWindowLimit: 90 });
   const [filter, setFilter] = useState("ALL");
   const [riskFilter, setRiskFilter] = useState("ALL");
   const [sortMode, setSortMode] = useState("CONVICTION");
-  const [sourceFilter, setSourceFilter] = useState("ALL");
   const [symbolFilter, setSymbolFilter] = useState("");
 
   const signalRows = useMemo(
     () =>
       universe
-        .filter((stock) => filter === "ALL" || stock.signal.signal === filter)
-        .filter((stock) => riskFilter === "ALL" || stock.signal.risk === riskFilter)
-        .filter((stock) => sourceFilter === "ALL" || (stock.signal.source ?? "derived").toUpperCase() === sourceFilter)
-        .filter((stock) => !symbolFilter || stock.signal.symbol.includes(symbolFilter))
+        .filter((stock) => {
+          const decision = resolveTraderDecision(stock);
+          return filter === "ALL" || decision.recommendation === filter;
+        })
+        .filter((stock) => {
+          const decision = resolveTraderDecision(stock);
+          return riskFilter === "ALL" || decision.riskLabel === riskFilter;
+        })
+        .filter((stock) => !symbolFilter || stock.stock.symbol.includes(symbolFilter))
         .sort((a, b) => compareSignalRows(a, b, sortMode)),
-    [filter, riskFilter, sortMode, sourceFilter, symbolFilter, universe],
+    [filter, riskFilter, sortMode, symbolFilter, universe],
   );
 
   return (
@@ -34,8 +46,8 @@ export function SignalCenterView() {
       <div className="explorer-header">
         <div>
           <p className="eyebrow">Signal Center</p>
-          <h1>Explanation-first signal intelligence</h1>
-          <span>{signalRows.length} explanation-ready signals from loaded market data</span>
+          <h1>Explanation-first trader decisions</h1>
+          <span>{signalRows.length} decision-ready names from the shared deterministic engine</span>
         </div>
         <div className="explorer-controls">
           <SearchableSymbolFilter
@@ -45,8 +57,9 @@ export function SignalCenterView() {
             onChange={setSymbolFilter}
           />
           <select value={filter} onChange={(event) => setFilter(event.target.value)}>
-            <option value="ALL">All signals</option>
+            <option value="ALL">All actions</option>
             <option value="BUY">BUY</option>
+            <option value="WAIT">WAIT</option>
             <option value="HOLD">HOLD</option>
             <option value="SELL">SELL</option>
           </select>
@@ -55,11 +68,7 @@ export function SignalCenterView() {
             <option value="LOW">Low risk</option>
             <option value="MEDIUM">Medium risk</option>
             <option value="HIGH">High risk</option>
-          </select>
-          <select value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)}>
-            <option value="ALL">All sources</option>
-            <option value="DERIVED">Derived</option>
-            <option value="BACKEND">Persisted</option>
+            <option value="SPECULATIVE">Speculative</option>
           </select>
           <select value={sortMode} onChange={(event) => setSortMode(event.target.value)}>
             <option value="CONVICTION">Highest conviction</option>
@@ -73,38 +82,40 @@ export function SignalCenterView() {
       {isLoading ? <MarketActivityLoader /> : null}
       <div className="signal-center-list">
         {signalRows.map((stock) => {
-          const signal = stock.signal;
+          const decision = resolveTraderDecision(stock);
+          const supportingContext = buildDecisionSupportingContext(stock);
 
           return (
             <Link
-              className={`signal-center-item signal-center-item-${signal.signal.toLowerCase()} priority-${getSignalPriority(signal.confidence)}`}
-              href={`/stocks/${signal.exchange}/${signal.symbol}`}
-              key={signal.stockId}
+              className={`signal-center-item signal-center-item-${decision.recommendation.toLowerCase()} priority-${getDecisionPriority(decision.confidence)}`}
+              href={`/stocks/${stock.stock.exchange}/${stock.stock.symbol}`}
+              key={stock.stock.id}
             >
               <div className="signal-center-topline">
                 <div>
-                  <strong>{signal.symbol}</strong><br/>
-                  <span>{signal.name}</span>
+                  <strong>{stock.stock.symbol}</strong>
+                  <br />
+                  <span>{stock.stock.name}</span>
                 </div>
-                <SignalBadge signal={signal.signal} />
+                <SignalBadge signal={decision.recommendation} />
               </div>
-              <p>{signal.reason}</p>
+              <p>{decision.reason}</p>
               <div className="signal-visual-row">
-                <div className="signal-confidence-meter" aria-label={`${signal.confidence}% confidence`}>
-                  <span style={{ width: `${signal.confidence}%` }} />
+                <div className="signal-confidence-meter" aria-label={`${decision.confidence}% confidence`}>
+                  <span style={{ width: `${decision.confidence}%` }} />
                 </div>
-                <span className={`risk-pill risk-pill-${signal.risk.toLowerCase()}`}>{signal.risk} risk</span>
-                <span className={`momentum-marker momentum-marker-${signal.signal.toLowerCase()}`}>
-                  {signal.momentumPhase ?? (signal.signal === "BUY" ? "Momentum expanding" : signal.signal === "SELL" ? "Pressure rising" : "Wait for trigger")}
+                <span className={`risk-pill risk-pill-${decision.riskLabel.toLowerCase()}`}>{decision.riskLabel} risk</span>
+                <span className={`momentum-marker momentum-marker-${decision.recommendation.toLowerCase()}`}>
+                  {getDecisionMomentumHint(stock)}
                 </span>
               </div>
               <div className="signal-evidence-row">
-                <span>{signal.confidence}% confidence</span>
-                <span>Risk {signal.risk}</span>
-                <span>{signal.source === "backend" ? "Persisted" : "Derived"}</span>
-                <span>{signal.asOfTradeDate ?? signal.generatedAt}</span>
+                <span>{decision.confidence}% confidence</span>
+                <span>Risk {decision.riskLabel}</span>
+                <span>Decision engine</span>
+                <span>{stock.latestTradeDate ?? "Awaiting price data"}</span>
               </div>
-              <small>{signal.supportingContext.join(" / ") || signal.volumeBehavior || "Awaiting stronger technical context"}</small>
+              <small>{supportingContext.join(" / ") || "Awaiting stronger technical context"}</small>
             </Link>
           );
         })}
@@ -116,38 +127,16 @@ export function SignalCenterView() {
 
 function compareSignalRows(a: StockIntelligenceModel, b: StockIntelligenceModel, sortMode: string) {
   if (sortMode === "NEWEST") {
-    return (b.signal.asOfTradeDate ?? b.signal.generatedAt).localeCompare(a.signal.asOfTradeDate ?? a.signal.generatedAt);
+    return (b.latestTradeDate ?? "").localeCompare(a.latestTradeDate ?? "");
   }
 
   if (sortMode === "RISK_ADJUSTED") {
-    return getRiskAdjustedScore(b) - getRiskAdjustedScore(a);
+    return getRiskAdjustedDecisionScore(b) - getRiskAdjustedDecisionScore(a);
   }
 
   if (sortMode === "VOLUME_CONFIRMED") {
     return getVolumeConfirmationScore(b) - getVolumeConfirmationScore(a);
   }
 
-  return b.signal.confidence - a.signal.confidence;
-}
-
-function getRiskAdjustedScore(stock: StockIntelligenceModel) {
-  const riskPenalty = stock.signal.risk === "HIGH" ? 24 : stock.signal.risk === "MEDIUM" ? 10 : 0;
-  return stock.signal.confidence - riskPenalty;
-}
-
-function getVolumeConfirmationScore(stock: StockIntelligenceModel) {
-  const volumeRatio = stock.averageVolume && stock.averageVolume > 0 ? stock.volume / stock.averageVolume : 1;
-  return stock.signal.confidence + Math.min(30, volumeRatio * 10);
-}
-
-function getSignalPriority(confidence: number) {
-  if (confidence >= 70) {
-    return "high";
-  }
-
-  if (confidence >= 58) {
-    return "medium";
-  }
-
-  return "low";
+  return resolveTraderDecision(b).confidence - resolveTraderDecision(a).confidence;
 }

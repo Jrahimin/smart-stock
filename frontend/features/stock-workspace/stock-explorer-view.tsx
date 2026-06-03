@@ -17,18 +17,18 @@ import { MarketActivityLoader } from "@/components/ui/market-activity-loader";
 import { useMarketUniverse } from "@/features/market-dashboard/hooks/use-market-universe";
 import { formatCompactNumber, formatNumber, formatPercent } from "@/lib/formatters/financial-formatters";
 import type { StockIntelligenceModel } from "@/lib/market/market-intelligence-types";
+import { getVolumeBehaviorId, resolveTraderDecision } from "@/lib/market/trader-decision";
 
 const columnHelper = createColumnHelper<StockIntelligenceModel>();
 const NUMERIC_EXPLORER_COLUMNS = new Set(["latestPrice", "change", "turnover", "volume", "rsi", "confidence"]);
 
 export function StockExplorerView() {
-  const { universe, isLoading, isError, stocks, refetch } = useMarketUniverse({ stockLimit: 500, priceWindowLimit: 30 });
+  const { universe, isLoading, isError, stocks, refetch } = useMarketUniverse({ stockLimit: 500, priceWindowLimit: 90 });
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search);
   const [dataQualityFilter, setDataQualityFilter] = useState("ALL");
   const [riskFilter, setRiskFilter] = useState("ALL");
   const [signalFilter, setSignalFilter] = useState("ALL");
-  const [sourceFilter, setSourceFilter] = useState("ALL");
   const [volumeFilter, setVolumeFilter] = useState("ALL");
   const [sorting, setSorting] = useState<SortingState>([{ id: "change", desc: true }]);
   const [visibleCount, setVisibleCount] = useState(120);
@@ -45,20 +45,20 @@ export function StockExplorerView() {
         stock.stock.name.toLowerCase().includes(query) ||
         (stock.stock.category ?? "").toLowerCase().includes(query) ||
         stock.sector.toLowerCase().includes(query);
-      const matchesSignal = signalFilter === "ALL" || stock.signal.signal === signalFilter;
-      const matchesRisk = riskFilter === "ALL" || stock.signal.risk === riskFilter;
+      const decision = resolveTraderDecision(stock);
+      const matchesSignal = signalFilter === "ALL" || decision.recommendation === signalFilter;
+      const matchesRisk = riskFilter === "ALL" || decision.riskLabel === riskFilter;
       const matchesDataQuality = dataQualityFilter === "ALL" || stock.dataQuality === dataQualityFilter;
       const matchesVolume = volumeFilter === "ALL" || getVolumeBehaviorId(stock) === volumeFilter;
-      const matchesSource = sourceFilter === "ALL" || (stock.signal.source ?? "derived").toUpperCase() === sourceFilter;
-      return matchesSearch && matchesSignal && matchesRisk && matchesDataQuality && matchesVolume && matchesSource;
+      return matchesSearch && matchesSignal && matchesRisk && matchesDataQuality && matchesVolume;
     });
-  }, [dataQualityFilter, deferredSearch, riskFilter, signalFilter, sourceFilter, universe, volumeFilter]);
+  }, [dataQualityFilter, deferredSearch, riskFilter, signalFilter, universe, volumeFilter]);
   const visibleUniverse = useMemo(() => filteredUniverse.slice(0, visibleCount), [filteredUniverse, visibleCount]);
 
   useEffect(() => {
     setVisibleCount(120);
     tableContainerRef.current?.scrollTo({ top: 0 });
-  }, [dataQualityFilter, deferredSearch, riskFilter, signalFilter, sourceFilter, volumeFilter]);
+  }, [dataQualityFilter, deferredSearch, riskFilter, signalFilter, volumeFilter]);
 
   useEffect(() => {
     return () => {
@@ -94,7 +94,7 @@ export function StockExplorerView() {
         cell: (info) => (
           <Link href={`/stocks/${info.row.original.stock.exchange}/${info.row.original.stock.symbol}`}>
             <strong>
-              <span className={`signal-dot signal-dot-${info.row.original.signal.signal.toLowerCase()}`} />
+              <span className={`signal-dot signal-dot-${resolveTraderDecision(info.row.original).recommendation.toLowerCase()}`} />
               {info.getValue()}
               <span
                 className={`trend-icon trend-icon-${info.row.original.trend.toLowerCase()}`}
@@ -148,17 +148,20 @@ export function StockExplorerView() {
           </div>
         ),
       }),
-      columnHelper.accessor((row) => row.signal.signal, {
+      columnHelper.accessor((row) => resolveTraderDecision(row).recommendation, {
         id: "signal",
-        header: "Signal",
-        cell: (info) => (
-          <span className={`signal-chip signal-chip-${info.getValue().toLowerCase()}`}>
-            <span className={`signal-dot signal-dot-${info.getValue().toLowerCase()}`} />
-            {info.getValue()}
-          </span>
-        ),
+        header: "Action",
+        cell: (info) => {
+          const decision = resolveTraderDecision(info.row.original);
+          return (
+            <span className={`signal-chip signal-chip-${decision.recommendation.toLowerCase()}`} title={decision.reason}>
+              <span className={`signal-dot signal-dot-${decision.recommendation.toLowerCase()}`} />
+              {decision.recommendation}
+            </span>
+          );
+        },
       }),
-      columnHelper.accessor((row) => row.signal.confidence, {
+      columnHelper.accessor((row) => resolveTraderDecision(row).confidence, {
         id: "confidence",
         header: "Conf.",
         cell: (info) => (
@@ -213,8 +216,9 @@ export function StockExplorerView() {
         <div className="explorer-controls">
           <input placeholder="Search symbol, company, sector..." value={search} onChange={(event) => setSearch(event.target.value)} />
           <select value={signalFilter} onChange={(event) => setSignalFilter(event.target.value)}>
-            <option value="ALL">All signals</option>
+            <option value="ALL">All actions</option>
             <option value="BUY">BUY</option>
+            <option value="WAIT">WAIT</option>
             <option value="HOLD">HOLD</option>
             <option value="SELL">SELL</option>
           </select>
@@ -223,6 +227,7 @@ export function StockExplorerView() {
             <option value="LOW">Low risk</option>
             <option value="MEDIUM">Medium risk</option>
             <option value="HIGH">High risk</option>
+            <option value="SPECULATIVE">Speculative</option>
           </select>
           <select value={dataQualityFilter} onChange={(event) => setDataQualityFilter(event.target.value)}>
             <option value="ALL">All quality</option>
@@ -235,11 +240,6 @@ export function StockExplorerView() {
             <option value="EXPANSION">Volume expansion</option>
             <option value="NORMAL">Normal volume</option>
             <option value="THIN">Thin volume</option>
-          </select>
-          <select value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)}>
-            <option value="ALL">All sources</option>
-            <option value="DERIVED">Derived</option>
-            <option value="BACKEND">Persisted</option>
           </select>
         </div>
       </div>
@@ -331,21 +331,4 @@ function getVolumeIntensity(stock: StockIntelligenceModel) {
   }
 
   return Math.min(100, Math.round((stock.volume / stock.averageVolume) * 55));
-}
-
-function getVolumeBehaviorId(stock: StockIntelligenceModel) {
-  if (!stock.averageVolume || stock.averageVolume <= 0) {
-    return "NORMAL";
-  }
-
-  const ratio = stock.volume / stock.averageVolume;
-  if (ratio >= 1.8) {
-    return "EXPANSION";
-  }
-
-  if (ratio <= 0.55) {
-    return "THIN";
-  }
-
-  return "NORMAL";
 }

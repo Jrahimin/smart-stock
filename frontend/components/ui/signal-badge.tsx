@@ -1,7 +1,7 @@
-import type { SignalType } from "@/lib/api/backend-api-types";
+import type { SignalType, TraderRecommendation } from "@/lib/api/backend-api-types";
 
 type SignalBadgeProps = {
-  signal: SignalType;
+  signal: SignalType | TraderRecommendation;
 };
 
 export function SignalBadge({ signal }: SignalBadgeProps) {

@@ -4,7 +4,9 @@ import { useQuery } from "@tanstack/react-query";
 
 import type { ExchangeCode } from "@/lib/api/backend-api-types";
 import { listDailyPrices } from "@/lib/api/market-data-api";
+import { getStockDecisionSupport } from "@/lib/api/stock-details-api";
 import { getStockByLookup } from "@/lib/api/stocks-api";
+import { buildStockDecisionViewModel } from "@/features/stock-workspace/view-models/stock-decision-view-model";
 import { buildStockWorkspaceModel } from "@/features/stock-workspace/view-models/stock-workspace-view-model";
 
 export function useStockWorkspace(exchange: ExchangeCode, symbol: string) {
@@ -19,9 +21,23 @@ export function useStockWorkspace(exchange: ExchangeCode, symbol: string) {
     enabled: Boolean(stockQuery.data?.id),
   });
 
+  const decisionQuery = useQuery({
+    queryKey: ["stock-decision-support", exchange, symbol],
+    queryFn: () => getStockDecisionSupport(exchange, symbol),
+    enabled: Boolean(stockQuery.data?.id),
+    retry: false,
+  });
+
+  const model = buildStockWorkspaceModel(stockQuery.data ?? null, pricesQuery.data ?? []);
+  const decisionModel = buildStockDecisionViewModel(decisionQuery.data);
+
   return {
-    model: buildStockWorkspaceModel(stockQuery.data ?? null, pricesQuery.data ?? []),
+    model,
+    decisionModel,
+    decisionRaw: decisionQuery.data ?? null,
     isLoading: stockQuery.isLoading || pricesQuery.isLoading,
+    isDecisionLoading: decisionQuery.isLoading,
     isError: stockQuery.isError || pricesQuery.isError,
+    isDecisionError: decisionQuery.isError,
   };
 }
