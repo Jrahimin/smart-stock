@@ -134,6 +134,7 @@ class StockDetailsService:
         failed_count = 0
         stock_profile_count = 0
         daily_price_count = 0
+        daily_price_skipped_count = 0
         metric_count = 0
         valuation_count = 0
         shareholding_count = 0
@@ -165,6 +166,7 @@ class StockDetailsService:
             )
             stock_profile_count += counts["stock_profile_count"]
             daily_price_count += counts["daily_price_count"]
+            daily_price_skipped_count += counts["daily_price_skipped_count"]
             metric_count += counts["metric_count"]
             valuation_count += counts["valuation_count"]
             shareholding_count += counts["shareholding_count"]
@@ -211,6 +213,7 @@ class StockDetailsService:
             skipped_count=skipped_count,
             stock_profile_count=stock_profile_count,
             daily_price_count=daily_price_count,
+            daily_price_skipped_count=daily_price_skipped_count,
             metric_count=metric_count,
             valuation_count=valuation_count,
             shareholding_count=shareholding_count,
@@ -228,18 +231,17 @@ class StockDetailsService:
 
     async def _select_stocks(self, request: StockDetailsSyncRequest) -> tuple[list[Stock], int]:
         stocks_scope = request.scope == StockDetailsSyncScope.STOCKS
+        skip_cadence = self._skip_cadence(request)
         if request.symbols:
             stocks_by_symbol = await self.repository.get_stocks_by_symbols(
                 exchange=request.exchange,
                 symbols=set(request.symbols),
             )
             candidates = [stocks_by_symbol[symbol] for symbol in request.symbols if symbol in stocks_by_symbol]
-            selected = await self._eligible_explicit_stocks(
-                candidates, force=request.force or stocks_scope
-            )
+            selected = await self._eligible_explicit_stocks(candidates, skip_cadence=skip_cadence)
             return selected, len(request.symbols) - len(selected)
 
-        if stocks_scope:
+        if stocks_scope or skip_cadence:
             selected = await self.repository.list_eligible_stocks(
                 exchange=request.exchange,
                 limit=request.limit,
@@ -255,14 +257,14 @@ class StockDetailsService:
         )
         return selected, 0
 
-    async def _eligible_explicit_stocks(self, stocks: list[Stock], *, force: bool) -> list[Stock]:
+    async def _eligible_explicit_stocks(self, stocks: list[Stock], *, skip_cadence: bool) -> list[Stock]:
         selected: list[Stock] = []
         for stock in stocks:
             if not stock.is_active:
                 continue
             if not stock.should_fetch_details:
                 continue
-            if force:
+            if skip_cadence:
                 selected.append(stock)
                 continue
             latest_job = await self.repository.get_latest_completed_job(stock.id)
@@ -348,6 +350,7 @@ class StockDetailsService:
         if scope == StockDetailsSyncScope.STOCKS:
             stock_profile_count = await self._merge_stock_profile_from_snapshot_fill_empty(stock, payload)
             daily_price_count = 0
+            daily_price_skipped_count = 0
             metric_count = 0
             valuation_count = 0
             shareholding_count = 0
@@ -362,6 +365,7 @@ class StockDetailsService:
             return {
                 "stock_profile_count": stock_profile_count,
                 "daily_price_count": daily_price_count,
+                "daily_price_skipped_count": daily_price_skipped_count,
                 "metric_count": metric_count,
                 "valuation_count": valuation_count,
                 "shareholding_count": shareholding_count,
@@ -372,7 +376,7 @@ class StockDetailsService:
             }
 
         stock_profile_count = await self._persist_stock_profile(stock, payload)
-        daily_price_count = await self._persist_daily_prices(stock, payload)
+        daily_price_count, daily_price_skipped_count = await self._persist_daily_prices(stock, payload)
         metric_count = await self._persist_metrics(stock, payload)
         valuation_count = await self._persist_valuation(stock, payload)
         shareholding_count = await self._persist_shareholding(stock, payload)
@@ -394,6 +398,7 @@ class StockDetailsService:
         return {
             "stock_profile_count": stock_profile_count,
             "daily_price_count": daily_price_count,
+            "daily_price_skipped_count": daily_price_skipped_count,
             "metric_count": metric_count,
             "valuation_count": valuation_count,
             "shareholding_count": shareholding_count,
@@ -570,11 +575,12 @@ class StockDetailsService:
         await self.repository.update_stock_profile(stock, values)
         return 1
 
-    async def _persist_daily_prices(self, stock: Stock, payload: ApiStockDetailsPayload) -> int:
-        count = 0
+    async def _persist_daily_prices(self, stock: Stock, payload: ApiStockDetailsPayload) -> tuple[int, int]:
+        inserted = 0
+        skipped = 0
         for price in payload.daily_prices:
             turnover = price.close_price * Decimal(price.volume)
-            await self.repository.upsert_daily_price(
+            row = await self.repository.insert_daily_price_if_absent(
                 {
                     "stock_id": stock.id,
                     "trade_date": price.trade_date,
@@ -596,8 +602,11 @@ class StockDetailsService:
                     "data_quality_flag": price.data_quality_flag,
                 }
             )
-            count += 1
-        return count
+            if row is None:
+                skipped += 1
+            else:
+                inserted += 1
+        return inserted, skipped
 
     async def _persist_metrics(self, stock: Stock, payload: ApiStockDetailsPayload) -> int:
         metric_def_cache: dict[str, FinancialMetricDefinition] = {}
@@ -778,6 +787,13 @@ class StockDetailsService:
             retry_delay_seconds=self.settings.stock_details_sync_request_delay_min_seconds,
         )
 
+    def _skip_cadence(self, request: StockDetailsSyncRequest) -> bool:
+        return (
+            request.force
+            or request.scope == StockDetailsSyncScope.STOCKS
+            or request.trigger_type == StockDetailsSyncTriggerType.MANUAL
+        )
+
     def _sync_cutoff(self) -> datetime:
         now = datetime.now(UTC)
         month = now.month - self.settings.stock_details_sync_frequency_months
@@ -822,7 +838,8 @@ class StockDetailsService:
             "prices": {
                 "parsed_count": len(payload.daily_prices),
                 "persisted_count": counts["daily_price_count"],
-                "success": counts["daily_price_count"] > 0,
+                "skipped_existing_count": counts["daily_price_skipped_count"],
+                "success": counts["daily_price_count"] > 0 or counts["daily_price_skipped_count"] > 0,
             },
             "metrics": {
                 "parsed_count": len(payload.financial_metrics),
@@ -891,6 +908,7 @@ class StockDetailsService:
             skipped_count=skipped_count,
             stock_profile_count=0,
             daily_price_count=0,
+            daily_price_skipped_count=0,
             metric_count=0,
             valuation_count=0,
             shareholding_count=0,

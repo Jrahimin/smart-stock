@@ -128,8 +128,12 @@ class StockDetailsRepository(BaseRepository[StockDetailsSyncJob]):
         await self.session.flush()
         return stock
 
-    async def upsert_daily_price(self, values: dict[str, object]) -> DailyPrice:
-        return await self._upsert(DailyPrice, values, [DailyPrice.stock_id, DailyPrice.trade_date])
+    async def insert_daily_price_if_absent(self, values: dict[str, object]) -> DailyPrice | None:
+        statement = insert(DailyPrice).values(**values)
+        statement = statement.on_conflict_do_nothing(
+            index_elements=[DailyPrice.stock_id, DailyPrice.trade_date],
+        ).returning(DailyPrice)
+        return await self.session.scalar(statement)
 
     async def upsert_metric_definition(self, values: dict[str, object]) -> FinancialMetricDefinition:
         return await self._upsert(

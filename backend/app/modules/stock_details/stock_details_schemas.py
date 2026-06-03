@@ -46,6 +46,7 @@ class StockDetailsSyncResult(BaseModel):
     skipped_count: int
     stock_profile_count: int
     daily_price_count: int
+    daily_price_skipped_count: int = 0
     metric_count: int
     valuation_count: int
     shareholding_count: int

@@ -35,13 +35,19 @@ Cadence and politeness are configured in `Settings`:
 
 Each selected stock receives a `stock_details_sync_jobs` row. The job table stays execution-focused: status, timestamps, attempts, error, source URL, and compact diagnostics in metadata.
 
-Jobs are created only after final eligibility is resolved. For explicit symbols, `force=true` bypasses cadence only; it still requires `is_active=true` and `should_fetch_details=true`. **`scope=stocks` always skips cadence** for selection (batch and explicit symbols): every eligible stock may run regardless of the last successful/partial job date; `--force` is then only relevant for `full` scope unless you want the same flag for clarity.
+Jobs are created only after final eligibility is resolved. Cadence applies only to **scheduled** runs (`trigger_type=SCHEDULED`) and API calls that explicitly set a non-manual trigger without `force=true`. It still requires `is_active=true` and `should_fetch_details=true`.
+
+**Cadence bypass** (stock may run even if synced recently):
+
+* **`trigger_type=MANUAL`** — CLI (`python -m app.jobs.sync_stock_details`) and API bodies with `"trigger_type": "MANUAL"` (the API default).
+* **`force=true`** — for scheduled/API runs that need the same behavior without switching trigger type.
+* **`scope=stocks`** — always ignores cadence for selection (batch and explicit symbols).
 
 ## Sync scope (`full` vs `stocks`)
 
 The sync request (CLI and `POST /api/v1/stock-details/sync`) accepts `scope`:
 
-* **`full`** (default): after a successful AmarStock fetch, persists `daily_prices`, financial metrics/reports, valuation and shareholding snapshots, `market_events`, and `stocks` profile fields from the snapshot mapper (non-null snapshot values can replace existing DB values where the mapper sends them). When enabled, bulk LatestPrice still runs once per batch and applies profile fill-empty plus additive LatestPrice shareholding/valuation snapshots. **Cadence:** batch mode uses `list_due_stocks` with **`stock_details_sync_frequency_months`** against the latest SUCCEEDED/PARTIAL job per stock; explicit symbols use the same cutoff unless `force=true`.
+* **`full`** (default): after a successful AmarStock fetch, persists `daily_prices`, financial metrics/reports, valuation and shareholding snapshots, `market_events`, and `stocks` profile fields from the snapshot mapper (non-null snapshot values can replace existing DB values where the mapper sends them). When enabled, bulk LatestPrice still runs once per batch and applies profile fill-empty plus additive LatestPrice shareholding/valuation snapshots. **Cadence:** batch mode uses `list_due_stocks` with **`stock_details_sync_frequency_months`** against the latest SUCCEEDED/PARTIAL job per stock, unless cadence is bypassed (see **Sync Controls** above).
 * **`stocks`**: same job rows, fetch traffic (snapshot + historical + company APIs), and bulk LatestPrice fetch when enabled — but **only** updates the `stocks` row: snapshot profile fields are applied **fill-empty only** (blank/null DB columns get non-blank API values; existing text/caps/dates are not overwritten). LatestPrice is limited to the existing **fill-empty stock profile** merge only (no LatestPrice shareholding or valuation rows). Counts for prices, metrics, valuation, shareholding, and events stay zero. A job still **succeeds** when nothing needed filling (all profile fields already populated), unlike `full` where zero persisted rows is a failure. **Selection ignores the cadence cutoff** (no “due only after N months” filter); `limit`/`offset` apply to all active `should_fetch_details` stocks in symbol order.
 
 ## Mapping Rules
@@ -58,9 +64,9 @@ Snapshot API:
 Historical API:
 
 * `DateEpoch` is the source of truth for `daily_prices.trade_date`.
-* Rows are upserted by `stock_id + trade_date`.
-* The current default window is 90 calendar days.
-* Historical API rows have source priority over homepage/latest-price rows for the same stock/date. The daily homepage sync is treated as a fallback when API historical data already exists.
+* Rows use natural key `stock_id + trade_date`. **Insert-only for prices:** if a row already exists for that stock and date, the historical row is **skipped** (no overwrite). This lets manual runs backfill gaps left by `sync_market_data` without clobbering day-end OHLCV already stored.
+* The current default window is 90 calendar days (override with `historical_window_days`).
+* When a row is inserted from the historical API, its `source` is `AMARSTOCK_API`. Daily market sync (`AMARSTOCK` homepage) will not overwrite an existing `AMARSTOCK_API` row for the same stock/date; conversely, stock-details backfill never replaces rows that daily sync already wrote.
 
 Company API:
 
@@ -85,7 +91,7 @@ Daily market sync uses the same LatestPrice feed for optional `trade_count` / `t
 
 Persistence uses natural keys and upserts where the schema supports them:
 
-* `daily_prices`: `stock_id + trade_date`
+* `daily_prices`: `stock_id + trade_date` — **insert if absent** during stock-details sync (existing dates skipped)
 * `stocks`: selected profile fields on the existing stock row
 * `financial_metric_definitions`: `metric_code`
 * `financial_metric_values`: `financial_report_id + metric_definition_id + as_of_date`
@@ -101,6 +107,7 @@ Each job metadata payload includes:
 
 * Source URLs for snapshot, historical, and company APIs.
 * Parsed and persisted counts for stock profile, `prices`, `metrics`, `valuation`, `shareholding`, and `events`.
+* For prices: `skipped_existing_count` when historical rows were not inserted because the date already had a row.
 * Per-section success flags.
 * Unmapped company financial row count and a small sample.
 * Shareholding indexed history count.
@@ -130,16 +137,16 @@ Omit `scope` or set `"full"` for the default. Use `"stocks"` for stocks-table-on
 
 `GET /api/v1/stock-details/sync-jobs/{job_id}` returns job status and diagnostics.
 
-CLI:
+CLI (manual — no cadence check; fills missing `daily_prices` only):
 
 ```bash
-python -m app.jobs.sync_stock_details --symbols EBL --historical-window-days 180 --force
+python -m app.jobs.sync_stock_details --symbols EBL --historical-window-days 180
 ```
 
 Stocks-table-only (no `daily_prices` or other persistence; fill-empty profile columns from snapshot + LatestPrice profile merge when enabled):
 
 ```bash
-python -m app.jobs.sync_stock_details --symbols EBL --force --scope stocks
+python -m app.jobs.sync_stock_details --symbols EBL --scope stocks
 ```
 
 Run from `backend/` with the project virtualenv and database settings loaded.
@@ -147,7 +154,9 @@ Run from `backend/` with the project virtualenv and database settings loaded.
 Manual trigger parameters:
 
 * `symbols`: comma-separated explicit symbols.
-* `limit` and `offset`: batch selection for due stocks when `symbols` is omitted.
+* `limit` and `offset`: batch selection when `symbols` is omitted (manual/API runs select all eligible stocks; scheduled batch uses due-only unless cadence is bypassed).
 * `historical_window_days`: optional per-run historical price window override.
-* `force`: cadence override only; does not bypass active/detail eligibility.
+* `force`: bypass cadence on scheduled/API runs; not required for the CLI (always `MANUAL`).
 * `scope`: `full` (default) or `stocks` (see **Sync scope** above).
+
+**Typical gap-fill workflow:** run `python -m app.jobs.sync_market_data` for day-end prices, then `python -m app.jobs.sync_stock_details --symbols SYMBOL --historical-window-days N` to insert any missing dates in the lookback window without overwriting dates daily sync already stored.

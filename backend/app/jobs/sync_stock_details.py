@@ -35,7 +35,7 @@ async def _run(args: argparse.Namespace) -> int:
 
     logger.info(
         "Stock details sync completed: scope=%s selected=%s synced=%s partial=%s failed=%s skipped=%s "
-        "profiles=%s prices=%s metrics=%s valuations=%s shareholding=%s events=%s",
+        "profiles=%s prices=%s prices_skipped=%s metrics=%s valuations=%s shareholding=%s events=%s",
         result.scope.value,
         result.selected_count,
         result.synced_count,
@@ -44,6 +44,7 @@ async def _run(args: argparse.Namespace) -> int:
         result.skipped_count,
         result.stock_profile_count,
         result.daily_price_count,
+        result.daily_price_skipped_count,
         result.metric_count,
         result.valuation_count,
         result.shareholding_count,
@@ -63,7 +64,7 @@ def main() -> None:
         type=int,
         help="Override the configured historical price backfill window for this run",
     )
-    parser.add_argument("--force", action="store_true", help="Ignore cadence, but still require active/detail-enabled stocks")
+    parser.add_argument("--force", action="store_true", help="Ignore cadence for scheduled/API runs (manual CLI always skips cadence)")
     parser.add_argument(
         "--scope",
         type=StockDetailsSyncScope,
