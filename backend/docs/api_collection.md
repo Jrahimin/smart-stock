@@ -1062,3 +1062,197 @@ Return the latest active **legacy persisted** trading signal per stock from the 
 * At most one signal is returned per stock.
 * Ordering is stable by newest trade date, stock id, strategy name, and signal id.
 * Frontend consumers must treat persisted rows as legacy strategy history, not as the primary action source.
+
+---
+
+## Authentication
+
+Authentication routes live under `/api/v1/auth`. Middleware parses Bearer JWTs into `request.state.user`; only routes that depend on `get_current_user` require authentication.
+
+### POST /api/v1/auth/register
+
+**Description**
+Create an unverified password account and send an email verification link.
+
+**Body**
+
+```json
+{
+  "email": "trader@example.com",
+  "password": "strong-password",
+  "display_name": "Trader",
+  "mobile_number": "+15551234567",
+  "gender": "prefer_not_to_say",
+  "address": "123 Market Street",
+  "profile_pic_url": "https://example.com/avatar.png"
+}
+```
+
+Optional profile fields: `mobile_number`, `gender` (`male` | `female` | `other` | `prefer_not_to_say`), `address`, `profile_pic_url`.
+
+**Response**
+
+```json
+{
+  "success": true,
+  "message": "Registration created",
+  "data": {
+    "detail": "Registration created. Please verify your email before logging in."
+  }
+}
+```
+
+### POST /api/v1/auth/verify-email
+
+**Description**
+Consume an email verification token and set `email_verified_at`.
+
+**Body**
+
+```json
+{ "token": "verification-token" }
+```
+
+### POST /api/v1/auth/resend-verification
+
+**Description**
+Request another verification email. The response is generic to avoid account enumeration.
+
+**Body**
+
+```json
+{ "email": "trader@example.com" }
+```
+
+### POST /api/v1/auth/login
+
+**Description**
+Authenticate a verified password account.
+
+**Body**
+
+```json
+{
+  "email": "trader@example.com",
+  "password": "strong-password"
+}
+```
+
+**Response**
+
+```json
+{
+  "success": true,
+  "message": "Login successful",
+  "data": {
+    "access_token": "jwt",
+    "refresh_token": "opaque-refresh-token",
+    "token_type": "bearer",
+    "expires_in": 900
+  }
+}
+```
+
+### POST /api/v1/auth/refresh
+
+**Description**
+Rotate a refresh token and issue a new access token.
+
+**Body**
+
+```json
+{ "refresh_token": "opaque-refresh-token" }
+```
+
+### POST /api/v1/auth/logout
+
+**Description**
+Revoke the supplied refresh token. No access token is required.
+
+**Body**
+
+```json
+{ "refresh_token": "opaque-refresh-token" }
+```
+
+### GET /api/v1/auth/me
+
+**Description**
+Return the current authenticated user. Requires `Authorization: Bearer <access_token>`.
+
+**Response**
+
+```json
+{
+  "success": true,
+  "message": "Current user retrieved",
+  "data": {
+    "id": "4a2e2f2a-89b2-48d3-a7cf-87df113c41b6",
+    "email": "trader@example.com",
+    "display_name": "Trader",
+    "mobile_number": "+15551234567",
+    "gender": "prefer_not_to_say",
+    "address": "123 Market Street",
+    "profile_pic_url": "https://example.com/avatar.png",
+    "is_active": true,
+    "email_verified_at": "2026-06-04T12:00:00Z",
+    "created_at": "2026-06-04T12:00:00Z",
+    "updated_at": "2026-06-04T12:00:00Z"
+  }
+}
+```
+
+### PATCH /api/v1/auth/me
+
+**Description**
+Update optional profile fields for the authenticated user. Requires `Authorization: Bearer <access_token>`.
+
+**Body**
+
+```json
+{
+  "display_name": "Trader Pro",
+  "mobile_number": "+15551234567",
+  "gender": "other",
+  "address": "456 Exchange Avenue",
+  "profile_pic_url": "https://example.com/new-avatar.png"
+}
+```
+
+All fields are optional. Send only the fields you want to change.
+
+### PATCH /api/v1/auth/change-password
+
+**Description**
+Change the authenticated user's password and revoke existing refresh tokens.
+
+**Body**
+
+```json
+{
+  "current_password": "old-password",
+  "new_password": "new-strong-password"
+}
+```
+
+### POST /api/v1/auth/google
+
+**Description**
+Verify a Google ID token with `google-auth`, create or link the user, mark email verified, and return the standard token pair.
+
+**Body**
+
+```json
+{ "id_token": "google-id-token" }
+```
+
+### POST /api/v1/auth/facebook
+
+**Description**
+Optional provider endpoint. When Facebook app settings are configured, validates a Meta access token and returns the standard token pair.
+
+**Body**
+
+```json
+{ "access_token": "facebook-access-token" }
+```

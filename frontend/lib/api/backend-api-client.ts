@@ -14,6 +14,58 @@ type QueryValue = string | number | boolean | null | undefined;
 const API_CACHE_DATABASE = "smart-stock-api-cache";
 const API_CACHE_STORE = "responses";
 const API_CACHE_VERSION = 1;
+const REFRESH_TOKEN_STORAGE_KEY = "smart-stock-refresh-token";
+
+type TokenPair = {
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+  expires_in: number;
+};
+
+type BackendApiRequestOptions = {
+  method?: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
+  params?: Record<string, QueryValue>;
+  body?: unknown;
+  init?: RequestInit;
+  skipAuthRefresh?: boolean;
+};
+
+let accessToken: string | null = null;
+let refreshPromise: Promise<string | null> | null = null;
+let authFailureHandler: (() => void) | null = null;
+
+export function setBackendAccessToken(token: string | null) {
+  accessToken = token;
+}
+
+export function getBackendAccessToken() {
+  return accessToken;
+}
+
+export function setBackendAuthFailureHandler(handler: (() => void) | null) {
+  authFailureHandler = handler;
+}
+
+export function getStoredRefreshToken() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  return window.localStorage.getItem(REFRESH_TOKEN_STORAGE_KEY);
+}
+
+export function setStoredRefreshToken(token: string) {
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(REFRESH_TOKEN_STORAGE_KEY, token);
+  }
+}
+
+export function clearStoredAuthTokens() {
+  accessToken = null;
+  if (typeof window !== "undefined") {
+    window.localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
+  }
+}
 
 export function buildQueryString(params?: Record<string, QueryValue>) {
   if (!params) {
@@ -143,6 +195,112 @@ export async function clearBackendApiCache() {
   });
 }
 
+function resolveHeaders(initHeaders?: HeadersInit, hasBody = false) {
+  const headers = new Headers(initHeaders);
+  headers.set("Accept", "application/json");
+  if (hasBody && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+  if (accessToken) {
+    headers.set("Authorization", `Bearer ${accessToken}`);
+  }
+  return headers;
+}
+
+async function refreshAccessToken() {
+  const refreshToken = getStoredRefreshToken();
+  if (!refreshToken) {
+    return null;
+  }
+
+  if (!refreshPromise) {
+    refreshPromise = fetch(`${frontendConfig.apiBaseUrl}/auth/refresh`, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          clearStoredAuthTokens();
+          return null;
+        }
+        const envelope = (await response.json()) as ApiResponse<TokenPair>;
+        if (!envelope.success || !envelope.data) {
+          clearStoredAuthTokens();
+          return null;
+        }
+        setBackendAccessToken(envelope.data.access_token);
+        setStoredRefreshToken(envelope.data.refresh_token);
+        return envelope.data.access_token;
+      })
+      .catch(() => {
+        clearStoredAuthTokens();
+        return null;
+      })
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+
+  return refreshPromise;
+}
+
+async function fetchBackend(
+  url: string,
+  options: BackendApiRequestOptions,
+  hasRetried = false,
+): Promise<Response> {
+  const hasBody = options.body !== undefined;
+  const response = await fetch(url, {
+    ...options.init,
+    method: options.method ?? "GET",
+    headers: resolveHeaders(options.init?.headers, hasBody),
+    body: hasBody ? JSON.stringify(options.body) : undefined,
+  });
+
+  if (response.status !== 401 || options.skipAuthRefresh || hasRetried) {
+    return response;
+  }
+
+  const refreshedToken = await refreshAccessToken();
+  if (!refreshedToken) {
+    authFailureHandler?.();
+    return response;
+  }
+
+  return fetchBackend(url, options, true);
+}
+
+export async function backendApiRequest<T>(
+  path: string,
+  options: BackendApiRequestOptions = {},
+): Promise<T> {
+  const url = `${frontendConfig.apiBaseUrl}${path}${buildQueryString(options.params)}`;
+  const response = await fetchBackend(url, options);
+
+  if (!response.ok) {
+    throw new BackendApiError("Backend request failed", response.status);
+  }
+
+  const envelope = (await response.json()) as ApiResponse<T>;
+  if (!envelope.success) {
+    throw new BackendApiError(envelope.message || "Backend request failed", response.status);
+  }
+
+  return envelope.data;
+}
+
+export async function backendApiPost<T>(path: string, body?: unknown, init?: RequestInit): Promise<T> {
+  return backendApiRequest<T>(path, { method: "POST", body, init });
+}
+
+export async function backendApiPatch<T>(path: string, body?: unknown, init?: RequestInit): Promise<T> {
+  return backendApiRequest<T>(path, { method: "PATCH", body, init });
+}
+
 export async function backendApiGet<T>(
   path: string,
   params?: Record<string, QueryValue>,
@@ -155,13 +313,7 @@ export async function backendApiGet<T>(
     return cachedData;
   }
 
-  const response = await fetch(url, {
-    headers: {
-      Accept: "application/json",
-      ...init?.headers,
-    },
-    ...init,
-  });
+  const response = await fetchBackend(url, { method: "GET", init });
 
   if (!response.ok) {
     throw new BackendApiError("Backend request failed", response.status);

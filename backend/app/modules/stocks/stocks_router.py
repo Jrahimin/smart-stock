@@ -3,11 +3,9 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Path, Query
 
-from app.api.dependencies.auth_dependencies import require_authenticated_user
 from app.core.enums import ExchangeCode
 from app.core.pagination import ListQueryParams, get_list_query_params
 from app.core.response_handler import ApiResponse, success_response
-from app.core.security_config import UserContext
 from app.modules.stocks.stocks_schemas import StockCreate, StockRead
 from app.modules.stocks.stocks_service import StocksService, get_stocks_service
 
@@ -67,9 +65,7 @@ async def get_stock(
 async def create_stock(
     stock_data: StockCreate,
     service: Annotated[StocksService, Depends(get_stocks_service)],
-    user_context: Annotated[UserContext, Depends(require_authenticated_user)],
 ) -> ApiResponse[StockRead]:
-    _ = user_context
     stock, was_created = await service.create_stock_if_missing(stock_data)
     message = "Stock created" if was_created else "Stock already exists"
     return success_response(data=StockRead.model_validate(stock), message=message)
@@ -79,9 +75,7 @@ async def create_stock(
 async def toggle_stock_active_status(
     stock_id: UUID,
     service: Annotated[StocksService, Depends(get_stocks_service)],
-    user_context: Annotated[UserContext, Depends(require_authenticated_user)],
 ) -> ApiResponse[StockRead]:
-    _ = user_context
     stock = await service.toggle_stock_active_status(stock_id)
     message = "Stock activated" if stock.is_active else "Stock deactivated"
     return success_response(data=StockRead.model_validate(stock), message=message)
@@ -91,9 +85,7 @@ async def toggle_stock_active_status(
 async def toggle_stock_details_fetch_status(
     stock_id: UUID,
     service: Annotated[StocksService, Depends(get_stocks_service)],
-    user_context: Annotated[UserContext, Depends(require_authenticated_user)],
 ) -> ApiResponse[StockRead]:
-    _ = user_context
     stock = await service.toggle_stock_details_fetch_status(stock_id)
     message = "Stock details sync enabled" if stock.should_fetch_details else "Stock details sync disabled"
     return success_response(data=StockRead.model_validate(stock), message=message)

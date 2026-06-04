@@ -71,6 +71,12 @@ python -m app.jobs.sync_stock_details --symbols EBL --scope stocks
 
 All runs still require `stocks.is_active = true` and `stocks.should_fetch_details = true`. Use `--force` on scheduled or API-triggered runs when you need to bypass cadence without `trigger_type=MANUAL`. Without `--symbols`, use `--limit` and `--offset` to page through eligible stocks. Details: `backend/docs/stock_details.md`.
 
+## Authentication
+
+The backend includes a JWT authentication MVP with email verification, refresh tokens, password change, Google sign-in, and optional Facebook sign-in. Middleware parses optional Bearer tokens into `request.state.user`; protected routes use `get_current_user`.
+
+Set `JWT_SECRET_KEY`, SMTP settings, `FRONTEND_BASE_URL`, and `GOOGLE_CLIENT_ID` in `backend/.env`. Frontend Google sign-in uses `NEXT_PUBLIC_GOOGLE_CLIENT_ID`. Details: `backend/docs/authentication.md`.
+
 ## Development Areas
 
 - Market data management

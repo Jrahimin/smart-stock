@@ -27,7 +27,7 @@ export function EventTimelinePanel({ decision }: EventTimelinePanelProps) {
           {decision.events.map((event, index) => (
             <button
               className="event-timeline-node"
-              key={`${event.event_date}-${event.title}`}
+              key={`${event.event_date}-${event.event_type}-${event.title}-${index}`}
               onClick={() => setSelectedEventIndex(index)}
               title={event.title}
               type="button"

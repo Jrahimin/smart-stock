@@ -113,8 +113,8 @@ Feature-specific query params, such as `exchange`, `indicator_type`, or date ran
 * Use shared pagination/list-query dependencies from `core/pagination.py` for common `limit`, `offset`, `is_active`, and `search` parameters
 * Use stable ordering in repository list queries, including deterministic tie-breakers
 * Keep active/inactive flag updates centralized when they are simple boolean toggles; use feature services only for surrounding business decisions or not-found handling
-* Prepare authentication with centralized middleware and route dependencies, even if JWT validation is introduced later
-* Ensure `request.state.user` always exists, using placeholder user context until real auth is implemented
+* Keep authentication centralized: middleware may parse JWTs and populate `request.state.user`, but routers must not decode tokens directly
+* Ensure `request.state.user` always exists; missing or invalid credentials should become anonymous context and route dependencies should enforce authentication
 * Keep shared primitives intentional; prefer `core/enums.py`, `core/pagination.py`, and `core/constants/trading_constants.py` over generic dumping-ground folders
 * Put domain thresholds and trading constants in a central constants layer instead of scattering magic numbers
 * Keep functions small and focused
