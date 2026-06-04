@@ -248,7 +248,7 @@
 
 ### 🔹 Basic
 
-* [ ] Watchlist CRUD
+* [x] Watchlist CRUD
 
 ---
 

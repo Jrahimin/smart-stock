@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 
+import { WatchlistStarToggle } from "@/features/watchlist/components/watchlist-star-toggle";
 import type { HeatmapTileModel } from "@/features/market-dashboard/types/market-dashboard-types";
 
 type InstitutionalHeatmapProps = {
@@ -87,6 +88,9 @@ export function InstitutionalHeatmap({ tiles }: InstitutionalHeatmapProps) {
                         key={tile.stockId}
                         title={`${tile.symbol} ${group.sector} | Price ${tile.latestPrice} | Turnover ${tile.turnover}`}
                       >
+                        <span className="heatmap-tile-star">
+                          <WatchlistStarToggle stockId={tile.stockId} stopPropagation />
+                        </span>
                         <strong>{tile.label}</strong>
                         <span>{tile.value}</span>
                         <small>{mode === "liquidity" ? `Liquidity ${tile.liquidityScore}%` : tile.turnover}</small>

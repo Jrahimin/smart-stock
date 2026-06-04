@@ -1065,9 +1065,146 @@ Return the latest active **legacy persisted** trading signal per stock from the 
 
 ---
 
+## Watchlist
+
+All watchlist routes require authentication (`get_current_user`). One implicit watchlist per user; table `user_watchlist`.
+
+### GET /api/v1/watchlist/items
+
+**Description**
+List the authenticated user's watchlist rows with optional market enrichment.
+
+**Query Params**
+
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| `holding_only` | boolean | `false` | When `true`, only rows with `is_holding = true` |
+| `limit` | int | `50` | Page size (1–500) |
+| `offset` | int | `0` | Page offset |
+
+**Response**
+
+```json
+{
+  "success": true,
+  "message": "Watchlist items retrieved",
+  "data": [
+    {
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "user_id": "f1e2d3c4-b5a6-9780-1234-567890abcdef",
+      "stock_id": "30e7d280-0b42-44c2-8f42-a8c9b0ff5c91",
+      "stock_symbol": "GP",
+      "is_holding": true,
+      "buy_price": "250.0000",
+      "note": "Waiting for breakout.",
+      "created_at": "2026-01-18T10:00:00Z",
+      "updated_at": "2026-06-04T10:00:00Z",
+      "unrealized_gain_percent": "4.80",
+      "has_note": true,
+      "watching_days": 47,
+      "watching_label": "Watching for 47 days",
+      "current_price": "262.0000",
+      "trader_decision": {
+        "recommendation": "BUY",
+        "confidence": 72,
+        "reason": "Momentum and trend align with acceptable risk.",
+        "opportunity_score": 68,
+        "risk_label": "MEDIUM"
+      }
+    }
+  ]
+}
+```
+
+**Notes**
+
+* Ordering: `is_holding DESC`, then `created_at DESC`.
+* `unrealized_gain_percent` is computed server-side from latest close and `buy_price`.
+
+### GET /api/v1/watchlist/summary
+
+**Description**
+Return total watchlisted count and total holdings count.
+
+**Response**
+
+```json
+{
+  "success": true,
+  "message": "Watchlist summary retrieved",
+  "data": {
+    "total_watchlisted": 12,
+    "total_holdings": 3
+  }
+}
+```
+
+### POST /api/v1/watchlist/items
+
+**Description**
+Add a stock to the watchlist. Returns the existing row if already present.
+
+**Body**
+
+```json
+{
+  "stock_id": "30e7d280-0b42-44c2-8f42-a8c9b0ff5c91"
+}
+```
+
+### PATCH /api/v1/watchlist/items/{stock_id}
+
+**Description**
+Update holding flag, buy price, and/or personal note.
+
+**Body**
+
+```json
+{
+  "is_holding": true,
+  "buy_price": 250,
+  "note": "Accumulate below 245."
+}
+```
+
+### DELETE /api/v1/watchlist/items/{stock_id}
+
+**Description**
+Remove a stock from the watchlist.
+
+### POST /api/v1/watchlist/items/{stock_id}/toggle
+
+**Description**
+Primary star-toggle endpoint. Removes the row if it exists; otherwise adds it. No client-side state check required.
+
+**Response**
+
+```json
+{
+  "success": true,
+  "message": "Stock added to watchlist",
+  "data": {
+    "added": true,
+    "is_watchlisted": true,
+    "item": {
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "stock_id": "30e7d280-0b42-44c2-8f42-a8c9b0ff5c91",
+      "stock_symbol": "GP",
+      "is_holding": false,
+      "has_note": false,
+      "watching_label": "Added today"
+    }
+  }
+}
+```
+
+When removed, `item` is `null` and `added` is `false`.
+
+---
+
 ## Authentication
 
-Authentication routes live under `/api/v1/auth`. Middleware parses Bearer JWTs into `request.state.user`; only routes that depend on `get_current_user` require authentication.
+Authentication routes live under `/api/v1/auth`. Middleware parses Bearer JWTs into `request.state.user`; only routes that depend on `get_current_user` require authentication (including all `/api/v1/watchlist/*` routes).
 
 ### POST /api/v1/auth/register
 

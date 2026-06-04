@@ -14,6 +14,9 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 
 import { FloatingRefreshButton } from "@/components/ui/floating-refresh-button";
 import { MarketActivityLoader } from "@/components/ui/market-activity-loader";
+import { WatchlistStarToggle } from "@/features/watchlist/components/watchlist-star-toggle";
+import { useUserWatchlist } from "@/features/watchlist/hooks/use-user-watchlist";
+import type { WatchlistFilterMode } from "@/features/watchlist/types/watchlist-types";
 import { useMarketUniverse } from "@/features/market-dashboard/hooks/use-market-universe";
 import { formatCompactNumber, formatNumber, formatPercent } from "@/lib/formatters/financial-formatters";
 import type { StockIntelligenceModel } from "@/lib/market/market-intelligence-types";
@@ -24,7 +27,9 @@ const NUMERIC_EXPLORER_COLUMNS = new Set(["latestPrice", "change", "turnover", "
 
 export function StockExplorerView() {
   const { universe, isLoading, isError, stocks, refetch } = useMarketUniverse({ stockLimit: 500, priceWindowLimit: 90 });
+  const { watchedStockIds, holdingStockIds } = useUserWatchlist();
   const [search, setSearch] = useState("");
+  const [watchlistFilter, setWatchlistFilter] = useState<WatchlistFilterMode>("ALL");
   const deferredSearch = useDeferredValue(search);
   const [dataQualityFilter, setDataQualityFilter] = useState("ALL");
   const [riskFilter, setRiskFilter] = useState("ALL");
@@ -50,15 +55,23 @@ export function StockExplorerView() {
       const matchesRisk = riskFilter === "ALL" || decision.riskLabel === riskFilter;
       const matchesDataQuality = dataQualityFilter === "ALL" || stock.dataQuality === dataQualityFilter;
       const matchesVolume = volumeFilter === "ALL" || getVolumeBehaviorId(stock) === volumeFilter;
-      return matchesSearch && matchesSignal && matchesRisk && matchesDataQuality && matchesVolume;
+      const stockId = stock.stock.id;
+      const isWatched = watchedStockIds.has(stockId);
+      const isHolding = holdingStockIds.has(stockId);
+      const matchesWatchlist =
+        watchlistFilter === "ALL" ||
+        (watchlistFilter === "WATCHLISTED" && isWatched) ||
+        (watchlistFilter === "NOT_WATCHLISTED" && !isWatched) ||
+        (watchlistFilter === "HOLDINGS" && isHolding);
+      return matchesSearch && matchesSignal && matchesRisk && matchesDataQuality && matchesVolume && matchesWatchlist;
     });
-  }, [dataQualityFilter, deferredSearch, riskFilter, signalFilter, universe, volumeFilter]);
+  }, [dataQualityFilter, deferredSearch, holdingStockIds, riskFilter, signalFilter, universe, volumeFilter, watchlistFilter, watchedStockIds]);
   const visibleUniverse = useMemo(() => filteredUniverse.slice(0, visibleCount), [filteredUniverse, visibleCount]);
 
   useEffect(() => {
     setVisibleCount(120);
     tableContainerRef.current?.scrollTo({ top: 0 });
-  }, [dataQualityFilter, deferredSearch, riskFilter, signalFilter, volumeFilter]);
+  }, [dataQualityFilter, deferredSearch, riskFilter, signalFilter, volumeFilter, watchlistFilter]);
 
   useEffect(() => {
     return () => {
@@ -88,6 +101,11 @@ export function StockExplorerView() {
 
   const columns = useMemo(
     () => [
+      columnHelper.display({
+        id: "watchlist",
+        header: "",
+        cell: (info) => <WatchlistStarToggle stockId={info.row.original.stock.id} />,
+      }),
       columnHelper.accessor((row) => row.stock.symbol, {
         id: "symbol",
         header: "Symbol",
@@ -241,6 +259,21 @@ export function StockExplorerView() {
             <option value="NORMAL">Normal volume</option>
             <option value="THIN">Thin volume</option>
           </select>
+          <div className="explorer-controls-watchlist" role="group" aria-label="Watchlist filters">
+            <select value={watchlistFilter} onChange={(event) => setWatchlistFilter(event.target.value as WatchlistFilterMode)}>
+              <option value="ALL">All stocks</option>
+              <option value="WATCHLISTED">Watchlisted only</option>
+              <option value="NOT_WATCHLISTED">Not watchlisted</option>
+              <option value="HOLDINGS">Holdings only</option>
+            </select>
+            <button
+              className={`explorer-watchlist-quick ${watchlistFilter === "WATCHLISTED" ? "is-active" : ""}`}
+              onClick={() => setWatchlistFilter("WATCHLISTED")}
+              type="button"
+            >
+              My watchlist
+            </button>
+          </div>
         </div>
       </div>
       {isError ? <div className="data-warning">Could not load stock explorer data.</div> : null}
@@ -302,6 +335,10 @@ function formatTrend(trend: StockIntelligenceModel["trend"]) {
 }
 
 function getExplorerCellClassName(columnId: string) {
+  if (columnId === "watchlist") {
+    return "stock-watchlist-cell";
+  }
+
   if (columnId === "symbol") {
     return "stock-symbol-cell";
   }

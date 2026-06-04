@@ -53,6 +53,7 @@ export type SignalFeedItemModel = {
 };
 
 export type MarketMoverModel = {
+  stockId: string;
   symbol: string;
   name: string;
   latestPrice: string;

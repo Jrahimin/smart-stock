@@ -105,6 +105,7 @@ function toSignalFeedItem(stock: StockIntelligenceModel): SignalFeedItemModel {
 
 function toMover(stock: StockIntelligenceModel): MarketMoverModel {
   return {
+    stockId: stock.stock.id,
     symbol: stock.stock.symbol,
     name: stock.stock.name,
     latestPrice: formatNumber(stock.latestPrice),
