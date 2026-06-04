@@ -6,6 +6,14 @@ from uuid import UUID
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 from app.core.enums import SignalType
+from app.modules.stock_details.stock_details_schemas import TraderDecisionSummaryRead
+from app.modules.stocks.stocks_schemas import StockRead
+
+
+class StockTraderDecisionRead(BaseModel):
+    stock: StockRead
+    decision: TraderDecisionSummaryRead
+    latest_trade_date: date | None = None
 
 
 class TradingSignalBase(BaseModel):

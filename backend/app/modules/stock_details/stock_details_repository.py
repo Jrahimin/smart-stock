@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from uuid import UUID
 
 from fastapi import Depends
@@ -7,10 +7,13 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.base_repository import BaseRepository
+from app.core.constants.trading_constants import DECISION_OHLCV_WINDOW
 from app.core.database_session import get_db_session
-from app.core.enums import ExchangeCode, MarketEventType, StockDetailsSyncJobStatus
+from app.core.enums import ExchangeCode, IndicatorType, MarketEventType, StockDetailsSyncJobStatus
 from app.models import (
+    CorporateAction,
     DailyPrice,
+    DividendEvent,
     FinancialMetricDefinition,
     FinancialMetricValue,
     FinancialReport,
@@ -18,6 +21,8 @@ from app.models import (
     ShareholdingSnapshot,
     Stock,
     StockDetailsSyncJob,
+    TechnicalIndicator,
+    TradingSignal,
     ValuationSnapshot,
 )
 
@@ -27,6 +32,96 @@ class StockDetailsRepository(BaseRepository[StockDetailsSyncJob]):
 
     def __init__(self, session: AsyncSession) -> None:
         super().__init__(session)
+
+    async def get_stock_by_exchange_symbol(self, *, exchange: ExchangeCode, symbol: str) -> Stock | None:
+        statement = select(Stock).where(
+            Stock.exchange == exchange,
+            func.upper(Stock.symbol) == symbol.upper(),
+        )
+        return await self.session.scalar(statement)
+
+    async def list_daily_prices_window(self, *, stock_id: UUID, limit: int = DECISION_OHLCV_WINDOW) -> list[DailyPrice]:
+        statement = (
+            select(DailyPrice)
+            .where(DailyPrice.stock_id == stock_id)
+            .order_by(DailyPrice.trade_date.desc(), DailyPrice.id.desc())
+            .limit(limit)
+        )
+        result = await self.session.scalars(statement)
+        return list(reversed(result.all()))
+
+    async def get_latest_trading_signal(self, stock_id: UUID) -> TradingSignal | None:
+        statement = (
+            select(TradingSignal)
+            .where(TradingSignal.stock_id == stock_id, TradingSignal.is_active.is_(True))
+            .order_by(TradingSignal.trade_date.desc(), TradingSignal.updated_at.desc())
+            .limit(1)
+        )
+        return await self.session.scalar(statement)
+
+    async def get_latest_indicator(
+        self,
+        *,
+        stock_id: UUID,
+        indicator_type: IndicatorType,
+        period: int,
+    ) -> TechnicalIndicator | None:
+        statement = (
+            select(TechnicalIndicator)
+            .where(
+                TechnicalIndicator.stock_id == stock_id,
+                TechnicalIndicator.indicator_type == indicator_type,
+                TechnicalIndicator.period == period,
+            )
+            .order_by(TechnicalIndicator.trade_date.desc(), TechnicalIndicator.updated_at.desc())
+            .limit(1)
+        )
+        return await self.session.scalar(statement)
+
+    async def get_latest_shareholding_snapshot(self, stock_id: UUID) -> ShareholdingSnapshot | None:
+        statement = (
+            select(ShareholdingSnapshot)
+            .where(ShareholdingSnapshot.stock_id == stock_id)
+            .order_by(ShareholdingSnapshot.snapshot_date.desc(), ShareholdingSnapshot.updated_at.desc())
+            .limit(1)
+        )
+        return await self.session.scalar(statement)
+
+    async def get_latest_valuation_snapshot(self, stock_id: UUID) -> ValuationSnapshot | None:
+        statement = (
+            select(ValuationSnapshot)
+            .where(ValuationSnapshot.stock_id == stock_id)
+            .order_by(ValuationSnapshot.valuation_date.desc(), ValuationSnapshot.updated_at.desc())
+            .limit(1)
+        )
+        return await self.session.scalar(statement)
+
+    async def list_market_events(self, *, stock_id: UUID, limit: int = 20) -> list[MarketEvent]:
+        statement = (
+            select(MarketEvent)
+            .where(MarketEvent.stock_id == stock_id)
+            .order_by(MarketEvent.event_date.desc(), MarketEvent.updated_at.desc())
+            .limit(limit)
+        )
+        return list((await self.session.scalars(statement)).all())
+
+    async def list_dividend_events(self, *, stock_id: UUID, limit: int = 10) -> list[DividendEvent]:
+        statement = (
+            select(DividendEvent)
+            .where(DividendEvent.stock_id == stock_id)
+            .order_by(DividendEvent.declaration_date.desc(), DividendEvent.updated_at.desc())
+            .limit(limit)
+        )
+        return list((await self.session.scalars(statement)).all())
+
+    async def list_corporate_actions(self, *, stock_id: UUID, limit: int = 10) -> list[CorporateAction]:
+        statement = (
+            select(CorporateAction)
+            .where(CorporateAction.stock_id == stock_id)
+            .order_by(CorporateAction.announcement_date.desc(), CorporateAction.updated_at.desc())
+            .limit(limit)
+        )
+        return list((await self.session.scalars(statement)).all())
 
     async def list_due_stocks(
         self,

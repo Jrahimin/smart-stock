@@ -1,3 +1,7 @@
+"use client";
+
+import { useState } from "react";
+
 import type { StockWorkspaceModel } from "@/features/stock-workspace/view-models/stock-workspace-view-model";
 
 type FundamentalsPanelProps = {
@@ -5,21 +9,24 @@ type FundamentalsPanelProps = {
 };
 
 export function FundamentalsPanel({ model }: FundamentalsPanelProps) {
+  const [expanded, setExpanded] = useState(false);
+
   return (
-    <section className="workspace-card">
-      <div className="section-heading">
-        <p className="eyebrow">Fundamentals</p>
-        <h2>Available company context</h2>
-      </div>
-      <div className="fundamentals-grid">
-        {model.fundamentals.map((item) => (
-          <article key={item.label}>
-            <span>{item.label}</span>
-            <strong>{item.value}</strong>
-            <small>{item.helper}</small>
-          </article>
-        ))}
-      </div>
+    <section className="trader-workspace-strip fundamentals-strip">
+      <button className="collapsible-strip-toggle" onClick={() => setExpanded((value) => !value)} type="button">
+        <span>{expanded ? "▼" : "▶"} Fundamentals</span>
+        <small>Market cap, capital, category, listing</small>
+      </button>
+      {expanded ? (
+        <div className="fundamentals-grid fundamentals-compact">
+          {model.fundamentals.map((item) => (
+            <article className="technical-summary-card" key={item.label}>
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+            </article>
+          ))}
+        </div>
+      ) : null}
     </section>
   );
 }

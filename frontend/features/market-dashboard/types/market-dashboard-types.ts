@@ -1,4 +1,4 @@
-import type { DataQualityFlag, ExchangeCode, SignalType } from "@/lib/api/backend-api-types";
+import type { DataQualityFlag, ExchangeCode, TraderRecommendation } from "@/lib/api/backend-api-types";
 import type { InsightBlockModel } from "@/lib/insights/insight-types";
 import type { MarketSessionModel } from "@/lib/market/market-session-engine";
 
@@ -41,7 +41,7 @@ export type HeatmapTileModel = {
 
 export type SignalFeedItemModel = {
   symbol: string;
-  signal: SignalType;
+  signal: TraderRecommendation;
   confidence: string;
   confidenceValue: number;
   reason: string;

@@ -20,6 +20,7 @@ from app.modules.market_data.market_data_schemas import (
     LatestMarketPriceRead,
     MarketPriceWindowRead,
 )
+from app.modules.stock_details.decision.summary import compute_trader_decision_summary_for_stock
 from app.modules.stocks.stocks_schemas import StockRead
 from app.modules.market_data.market_data_service import MarketDataService, get_market_data_service
 
@@ -79,7 +80,7 @@ async def list_market_price_windows(
     pagination: Annotated[PaginationParams, Depends(get_pagination_params)],
     service: Annotated[MarketDataService, Depends(get_market_data_service)],
     exchange: ExchangeCode | None = None,
-    price_window_limit: Annotated[int, Query(ge=1, le=260)] = 60,
+    price_window_limit: Annotated[int, Query(ge=1, le=260)] = 90,
 ) -> ApiResponse[list[MarketPriceWindowRead]]:
     rows = await service.list_market_price_windows(
         exchange=exchange,
@@ -87,17 +88,27 @@ async def list_market_price_windows(
         offset=pagination.offset,
         price_window_limit=price_window_limit,
     )
-    stock_windows: dict[str, MarketPriceWindowRead] = {}
+    stock_windows: dict[str, dict[str, object]] = {}
     for stock, price in rows:
         stock_id = str(stock.id)
         if stock_id not in stock_windows:
-            stock_windows[stock_id] = MarketPriceWindowRead(
-                stock=StockRead.model_validate(stock),
-                prices=[],
-            )
-        stock_windows[stock_id].prices.append(DailyPriceRead.model_validate(price))
+            stock_windows[stock_id] = {"stock": stock, "prices": []}
+        stock_windows[stock_id]["prices"].append(price)
 
-    return success_response(data=list(stock_windows.values()), message="Market price windows retrieved")
+    items: list[MarketPriceWindowRead] = []
+    for entry in stock_windows.values():
+        stock = entry["stock"]
+        prices = entry["prices"]
+        decision = compute_trader_decision_summary_for_stock(stock, prices)
+        items.append(
+            MarketPriceWindowRead(
+                stock=StockRead.model_validate(stock),
+                prices=[DailyPriceRead.model_validate(price) for price in prices],
+                trader_decision=decision,
+            )
+        )
+
+    return success_response(data=items, message="Market price windows retrieved")
 
 
 @router.post("/stocks/{stock_id}/prices", response_model=ApiResponse[DailyPriceRead])

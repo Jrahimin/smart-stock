@@ -1,6 +1,7 @@
 import type {
   BackendDailyPriceDto,
   BackendStockDto,
+  BackendTraderDecisionSummaryDto,
   DataQualityFlag,
   ExchangeCode,
   SignalType,
@@ -101,6 +102,7 @@ export type StockIntelligenceModel = {
   trend: TrendDirection;
   signal: DerivedSignalModel;
   persistedSignal?: PersistedSignalContext | null;
+  traderDecision?: BackendTraderDecisionSummaryDto | null;
 };
 
 export type MarketBreadthStats = {
