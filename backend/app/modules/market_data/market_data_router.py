@@ -4,11 +4,9 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
 
-from app.api.dependencies.auth_dependencies import require_authenticated_user
 from app.core.enums import DataQualityFlag, ExchangeCode
 from app.core.pagination import PaginationParams, get_pagination_params
 from app.core.response_handler import ApiResponse, success_response
-from app.core.security_config import UserContext
 from app.jobs.ingestion.dse_market_data_source import DseMarketDataSource
 from app.jobs.ingestion.ingestion_source_base import MarketDataSource
 from app.modules.market_data.market_data_schemas import (
@@ -116,9 +114,7 @@ async def create_daily_price(
     stock_id: UUID,
     price_data: DailyPriceCreate,
     service: Annotated[MarketDataService, Depends(get_market_data_service)],
-    user_context: Annotated[UserContext, Depends(require_authenticated_user)],
 ) -> ApiResponse[DailyPriceRead]:
-    _ = user_context
     prepared_price_data = price_data.model_copy(update={"stock_id": stock_id})
     existing_price = await service.find_daily_price(prepared_price_data)
     if existing_price is not None:
@@ -135,11 +131,9 @@ async def create_daily_price(
 async def ingest_daily_prices(
     trade_date: date,
     service: Annotated[MarketDataService, Depends(get_market_data_service)],
-    user_context: Annotated[UserContext, Depends(require_authenticated_user)],
     source: Annotated[MarketDataSource, Depends(get_default_market_data_source)],
     exchange: ExchangeCode = ExchangeCode.DSE,
 ) -> ApiResponse[DailyPriceIngestionResult]:
-    _ = user_context
     result = await service.ingest_daily_prices(
         exchange=exchange,
         trade_date=trade_date,
@@ -167,9 +161,7 @@ async def list_daily_market_summaries(
 async def create_daily_market_summary(
     summary_data: DailyMarketSummaryCreate,
     service: Annotated[MarketDataService, Depends(get_market_data_service)],
-    user_context: Annotated[UserContext, Depends(require_authenticated_user)],
 ) -> ApiResponse[DailyMarketSummaryRead]:
-    _ = user_context
     existing_summary = await service.find_daily_market_summary(summary_data)
     if existing_summary is not None:
         return success_response(

@@ -9,6 +9,11 @@ python-dotenv
 greenlet
 beautifulsoup4
 lxml
+PyJWT
+argon2-cffi
+google-auth
+requests
+httpx
 
 # zoneinfo lookups (Asia/Dhaka scheduler/CLI); required on Windows when OS has no IANA data
 tzdata

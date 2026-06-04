@@ -1,8 +1,10 @@
 "use client";
 
+import { GoogleOAuthProvider } from "@react-oauth/google";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { useState } from "react";
+import { AuthProvider } from "@/features/auth/context/auth-context";
 import { frontendConfig } from "@/lib/frontend-config";
 
 export function AppProviders({ children }: Readonly<{ children: ReactNode }>) {
@@ -20,5 +22,15 @@ export function AppProviders({ children }: Readonly<{ children: ReactNode }>) {
       }),
   );
 
-  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+  const content = (
+    <AuthProvider>
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    </AuthProvider>
+  );
+
+  if (!frontendConfig.googleClientId) {
+    return content;
+  }
+
+  return <GoogleOAuthProvider clientId={frontendConfig.googleClientId}>{content}</GoogleOAuthProvider>;
 }

@@ -3,10 +3,8 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends
 
-from app.api.dependencies.auth_dependencies import require_authenticated_user
 from app.core.enums import ExchangeCode
 from app.core.response_handler import ApiResponse, success_response
-from app.core.security_config import UserContext
 from app.modules.stock_details.stock_details_decision_service import (
     StockDetailsDecisionService,
     get_stock_details_decision_service,
@@ -39,9 +37,7 @@ async def get_stock_decision_support(
 async def sync_stock_details(
     request: StockDetailsSyncRequest,
     service: Annotated[StockDetailsService, Depends(get_stock_details_service)],
-    user_context: Annotated[UserContext, Depends(require_authenticated_user)],
 ) -> ApiResponse[StockDetailsSyncResult]:
-    _ = user_context
     result = await service.sync_stock_details(request)
     return success_response(data=result, message="Stock details synced")
 

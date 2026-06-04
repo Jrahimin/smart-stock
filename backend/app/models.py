@@ -38,7 +38,91 @@ from app.core.enums import (
     SignalType,
     StockDetailsSyncJobStatus,
     StockDetailsSyncTriggerType,
+    UserGender,
 )
+
+
+class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "users"
+    __table_args__ = (
+        UniqueConstraint("email", name="uq_users_email"),
+        UniqueConstraint("mobile_number", name="uq_users_mobile_number"),
+        Index("ix_users_email", "email"),
+    )
+
+    email: Mapped[str] = mapped_column(String(320), nullable=False)
+    password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    display_name: Mapped[str] = mapped_column(String(160), nullable=False)
+    mobile_number: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    gender: Mapped[UserGender | None] = mapped_column(Enum(UserGender), nullable=True)
+    address: Mapped[str | None] = mapped_column(Text, nullable=True)
+    profile_pic_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    identities = relationship("UserIdentity", back_populates="user", cascade="all, delete-orphan")
+    refresh_tokens = relationship("RefreshToken", back_populates="user", cascade="all, delete-orphan")
+    email_verification_tokens = relationship(
+        "EmailVerificationToken",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+
+
+class UserIdentity(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "user_identities"
+    __table_args__ = (
+        UniqueConstraint("provider", "provider_subject_id", name="uq_user_identities_provider_subject"),
+        Index("ix_user_identities_user_provider", "user_id", "provider"),
+    )
+
+    user_id: Mapped[UUID] = mapped_column(
+        PostgresUUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    provider: Mapped[str] = mapped_column(String(32), nullable=False)
+    provider_subject_id: Mapped[str] = mapped_column(String(255), nullable=False)
+
+    user = relationship("User", back_populates="identities")
+
+
+class RefreshToken(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "refresh_tokens"
+    __table_args__ = (
+        UniqueConstraint("token_hash", name="uq_refresh_tokens_token_hash"),
+        Index("ix_refresh_tokens_user_expires", "user_id", "expires_at"),
+    )
+
+    user_id: Mapped[UUID] = mapped_column(
+        PostgresUUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    user = relationship("User", back_populates="refresh_tokens")
+
+
+class EmailVerificationToken(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "email_verification_tokens"
+    __table_args__ = (
+        UniqueConstraint("token_hash", name="uq_email_verification_tokens_token_hash"),
+        Index("ix_email_verification_tokens_user_expires", "user_id", "expires_at"),
+    )
+
+    user_id: Mapped[UUID] = mapped_column(
+        PostgresUUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    user = relationship("User", back_populates="email_verification_tokens")
 
 
 class Stock(UUIDPrimaryKeyMixin, TimestampMixin, Base):

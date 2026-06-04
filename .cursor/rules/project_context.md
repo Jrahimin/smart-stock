@@ -198,8 +198,10 @@ Root: `backend/app/`
 * Standard API responses: `backend/app/core/response_handler.py`
 * Exception classes and handlers: `backend/app/core/exception_handlers.py`
 * Auth user context: `backend/app/core/security_config.py`
-* Auth middleware: `backend/app/middlewares/auth_middleware.py`
-* Route auth dependencies: `backend/app/api/dependencies/auth_dependencies.py`
+* Auth middleware: `backend/app/middlewares/auth_middleware.py` parses optional JWTs into `request.state.user` and never blocks requests
+* Route auth dependencies: `backend/app/api/dependencies/auth_dependencies.py` exposes `get_current_user_context` and `get_current_user`
+* Auth module: `backend/app/modules/auth/` owns registration, email verification, login, refresh, logout, `/me`, password change, and OAuth provider login
+* Mail module: `backend/app/modules/mail/` sends account verification emails
 * Maintenance CLIs: `backend/app/scripts/` (invoke from **`backend/`** as `python -m app.scripts.<module>`; e.g. stock bootstrap `app.scripts.seed_stocks`)
 
 ## Backend Feature Modules
@@ -344,7 +346,7 @@ Current frontend product flow:
 * Avoid repository methods that only forward one-to-one to common CRUD helpers; services can call common repository primitives directly when clear.
 * Create routes should check natural unique keys first and return the existing record with a clear message if it already exists.
 * Repository list queries should use stable `order_by` clauses with deterministic tie-breakers.
-* `request.state.user` should always exist, even before JWT authentication is fully implemented.
+* `request.state.user` should always exist. Middleware turns missing or invalid credentials into anonymous context; protected routes use `get_current_user`.
 
 ---
 

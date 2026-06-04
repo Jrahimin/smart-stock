@@ -7,8 +7,11 @@ import {
   ChevronsRight,
   LayoutDashboard,
   LineChart,
+  LogIn,
+  LogOut,
   ScanSearch,
   Settings,
+  User,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -17,6 +20,7 @@ import type { ReactNode } from "react";
 import { useEffect } from "react";
 
 import { GlobalCommandPalette } from "@/components/command/global-command-palette";
+import { useAuth } from "@/features/auth/context/auth-context";
 import { useWorkspaceStore } from "@/stores/use-workspace-store";
 
 const navigationItems = [
@@ -34,6 +38,7 @@ type TerminalAppShellProps = {
 
 export function TerminalAppShell({ children }: TerminalAppShellProps) {
   const pathname = usePathname();
+  const { user, isAuthenticated, isLoading, logout } = useAuth();
   const sidebarCollapsed = useWorkspaceStore((state) => state.sidebarCollapsed);
   const toggleSidebar = useWorkspaceStore((state) => state.toggleSidebar);
   const theme = useWorkspaceStore((state) => state.theme);
@@ -92,6 +97,35 @@ export function TerminalAppShell({ children }: TerminalAppShellProps) {
             );
           })}
         </nav>
+        <div className="terminal-sidebar-footer">
+          {isLoading ? null : isAuthenticated && user ? (
+            <>
+              <div className="terminal-user-chip" title={user.email}>
+                {user.profile_pic_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img alt="" className="terminal-user-avatar" src={user.profile_pic_url} />
+                ) : (
+                  <User aria-hidden="true" size={18} />
+                )}
+                {!sidebarCollapsed ? <span className="terminal-user-name">{user.display_name}</span> : null}
+              </div>
+              <button
+                className="terminal-auth-button"
+                onClick={() => void logout()}
+                title="Sign out"
+                type="button"
+              >
+                <LogOut aria-hidden="true" size={18} />
+                {!sidebarCollapsed ? <span>Logout</span> : null}
+              </button>
+            </>
+          ) : (
+            <Link className="terminal-auth-button" href="/login" title="Sign in">
+              <LogIn aria-hidden="true" size={18} />
+              {!sidebarCollapsed ? <span>Login</span> : null}
+            </Link>
+          )}
+        </div>
       </aside>
       <main className="terminal-main">{children}</main>
       <GlobalCommandPalette />

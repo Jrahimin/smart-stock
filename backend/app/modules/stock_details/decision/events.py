@@ -77,4 +77,12 @@ def build_event_timeline(
             )
         )
     items.sort(key=lambda item: item.event_date, reverse=True)
-    return items[:limit]
+    deduped: list[EventTimelineItem] = []
+    seen: set[tuple[str, str, str, str]] = set()
+    for item in items:
+        identity = (item.event_date, item.event_type, item.title, item.category)
+        if identity in seen:
+            continue
+        seen.add(identity)
+        deduped.append(item)
+    return deduped[:limit]

@@ -39,6 +39,12 @@ class UnauthorizedError(AppError):
     message = "Authentication is required"
 
 
+class ConflictError(AppError):
+    status_code = status.HTTP_409_CONFLICT
+    error_code = "CONFLICT"
+    message = "Resource already exists"
+
+
 class ForbiddenError(AppError):
     status_code = status.HTTP_403_FORBIDDEN
     error_code = "FORBIDDEN"

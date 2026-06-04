@@ -3,11 +3,9 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
 
-from app.api.dependencies.auth_dependencies import require_authenticated_user
 from app.core.enums import ExchangeCode
 from app.core.pagination import PaginationParams, get_pagination_params
 from app.core.response_handler import ApiResponse, success_response
-from app.core.security_config import UserContext
 from app.modules.signals.signals_schemas import StockTraderDecisionRead, TradingSignalCreate, TradingSignalRead
 from app.modules.signals.signals_service import SignalsService, get_signals_service
 from app.modules.signals.trader_decisions_service import TraderDecisionsService, get_trader_decisions_service
@@ -76,9 +74,7 @@ async def create_signal(
     stock_id: UUID,
     signal_data: TradingSignalCreate,
     service: Annotated[SignalsService, Depends(get_signals_service)],
-    user_context: Annotated[UserContext, Depends(require_authenticated_user)],
 ) -> ApiResponse[TradingSignalRead]:
-    _ = user_context
     prepared_signal_data = signal_data.model_copy(update={"stock_id": stock_id})
     existing_signal = await service.find_signal(prepared_signal_data)
     if existing_signal is not None:

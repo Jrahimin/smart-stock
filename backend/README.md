@@ -74,5 +74,6 @@ alembic upgrade head
 - `core/database_session.py` provides the async session dependency.
 - `core/exception_handlers.py` centralizes exception formatting and logging.
 - `core/response_handler.py` centralizes the API response envelope.
-- `middlewares/auth_middleware.py` guarantees `request.state.user` exists before JWT auth is added.
+- `middlewares/auth_middleware.py` parses optional JWTs, guarantees `request.state.user` exists, and leaves enforcement to route dependencies.
+- `modules/auth/` implements registration, email verification, login, refresh, logout, `/me`, password change, and OAuth login. See `docs/authentication.md`.
 

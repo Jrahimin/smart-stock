@@ -3,31 +3,30 @@ from collections.abc import Awaitable, Callable
 from starlette.requests import Request
 from starlette.responses import Response
 
-from app.core.core_config import get_settings
-from app.core.security_config import ANONYMOUS_USER_CONTEXT, PLACEHOLDER_AUTHENTICATED_USER_CONTEXT
-
-PUBLIC_PATH_PREFIXES = (
-    "/docs",
-    "/redoc",
-    "/openapi.json",
-    "/api/v1/health",
-)
+from app.core.security.jwt_service import JwtValidationError, decode_access_token
+from app.core.security_config import ANONYMOUS_USER_CONTEXT, UserContext
 
 
 async def auth_middleware(
     request: Request,
     call_next: Callable[[Request], Awaitable[Response]],
 ) -> Response:
-    settings = get_settings()
     auth_header = request.headers.get("Authorization")
-    is_public_path = request.url.path.startswith(PUBLIC_PATH_PREFIXES)
 
-    # JWT validation will live here later. For now the middleware guarantees
-    # that downstream code can consistently read request.state.user.
-    if settings.auth_enabled and auth_header and not is_public_path:
-        request.state.user = PLACEHOLDER_AUTHENTICATED_USER_CONTEXT
-    else:
-        request.state.user = ANONYMOUS_USER_CONTEXT
+    request.state.user = ANONYMOUS_USER_CONTEXT
+    if auth_header and auth_header.lower().startswith("bearer "):
+        token = auth_header.split(" ", 1)[1].strip()
+        try:
+            payload = decode_access_token(token)
+            email = str(payload["email"])
+            request.state.user = UserContext(
+                user_id=str(payload["sub"]),
+                display_name=str(payload.get("display_name") or email),
+                email=email,
+                is_authenticated=True,
+            )
+        except JwtValidationError:
+            request.state.user = ANONYMOUS_USER_CONTEXT
 
     return await call_next(request)
 

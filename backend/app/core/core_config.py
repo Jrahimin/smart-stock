@@ -22,7 +22,20 @@ class Settings(BaseSettings):
     database_url: str = Field(default="postgresql://postgres:postgres@localhost:5432/smart_stock")
     alembic_database_url: str | None = None
     backend_cors_origins: str = "http://localhost:3000"
-    auth_enabled: bool = False
+    frontend_base_url: str = "http://localhost:3000"
+    jwt_secret_key: str = "change-me-in-local-development-only"
+    jwt_algorithm: str = "HS256"
+    jwt_access_token_expire_minutes: int = Field(default=15, ge=1)
+    jwt_refresh_token_expire_days: int = Field(default=30, ge=1)
+    email_verification_token_expire_hours: int = Field(default=24, ge=1)
+    google_client_id: str | None = None
+    facebook_app_id: str | None = None
+    facebook_app_secret: str | None = None
+    smtp_host: str | None = None
+    smtp_port: int = Field(default=587, ge=1)
+    smtp_user: str | None = None
+    smtp_password: str | None = None
+    mail_from: str = "noreply@smart-stock.local"
     daily_market_sync_scheduler_enabled: bool = True
     stock_details_sync_frequency_months: int = Field(default=3, ge=1)
     stock_details_sync_max_concurrency: int = Field(default=3, ge=1, le=5)
