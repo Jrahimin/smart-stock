@@ -1,4 +1,5 @@
 import type { TraderRecommendation } from "@/lib/api/backend-api-types";
+import type { SignalType } from "@/lib/api/backend-api-types";
 import type { StockIntelligenceModel } from "@/lib/market/market-intelligence-types";
 
 export type ResolvedTraderDecision = {
@@ -9,6 +10,27 @@ export type ResolvedTraderDecision = {
   opportunityScore: number | null;
   source: "decision-engine" | "unavailable";
 };
+
+export function resolveWatchlistAction(
+  intelligence: StockIntelligenceModel | null,
+  backendRecommendation?: TraderRecommendation | null,
+): TraderRecommendation {
+  if (intelligence) {
+    return resolveTraderDecision(intelligence).recommendation;
+  }
+
+  return backendRecommendation ?? "WAIT";
+}
+
+export function mapPersistedSignalToRecommendation(signal: SignalType): TraderRecommendation {
+  if (signal === "BUY") {
+    return "BUY";
+  }
+  if (signal === "SELL") {
+    return "SELL";
+  }
+  return "HOLD";
+}
 
 export function resolveTraderDecision(stock: StockIntelligenceModel): ResolvedTraderDecision {
   if (stock.traderDecision) {

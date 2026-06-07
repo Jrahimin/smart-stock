@@ -177,11 +177,30 @@ button {
 
 .terminal-user-chip {
   align-items: center;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  box-sizing: border-box;
   color: var(--foreground);
   display: flex;
   font-size: 0.86rem;
   gap: 10px;
+  height: 44px;
+  min-height: 44px;
   min-width: 0;
+  padding: 0 12px;
+  text-decoration: none;
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease;
+  width: 100%;
+}
+
+.terminal-user-chip:hover,
+.terminal-user-chip.is-active {
+  background: var(--sidebar-hover);
+  border-color: color-mix(in srgb, var(--primary) 28%, var(--border));
+  color: var(--foreground);
 }
 
 .terminal-user-name {
@@ -222,6 +241,29 @@ button {
   color: var(--foreground);
 }
 
+.terminal-login-button {
+  background: color-mix(in srgb, var(--primary) 14%, transparent);
+  border-color: color-mix(in srgb, var(--primary) 34%, var(--border));
+  color: var(--foreground);
+}
+
+.terminal-login-button:hover {
+  background: color-mix(in srgb, var(--primary) 22%, transparent);
+  border-color: color-mix(in srgb, var(--primary) 48%, var(--border));
+  color: var(--foreground);
+}
+
+.terminal-logout-button {
+  border-color: color-mix(in srgb, var(--negative) 42%, var(--border));
+  color: color-mix(in srgb, var(--negative) 88%, var(--foreground));
+}
+
+.terminal-logout-button:hover {
+  background: color-mix(in srgb, var(--negative) 12%, transparent);
+  border-color: color-mix(in srgb, var(--negative) 58%, var(--border));
+  color: var(--negative);
+}
+
 .terminal-shell-collapsed .terminal-auth-button {
   height: 44px;
   justify-content: center;
@@ -234,6 +276,8 @@ button {
 .terminal-shell-collapsed .terminal-user-chip {
   justify-content: center;
   min-height: 44px;
+  padding: 0;
+  width: 44px;
 }
 
 .terminal-shell-collapsed .terminal-user-name,
@@ -640,8 +684,10 @@ button {
   display: grid;
   gap: 10px;
   grid-template-columns: 1fr;
+  max-height: 72vh;
   min-height: 250px;
-  overflow: visible;
+  overflow-x: hidden;
+  overflow-y: auto;
   padding-right: 2px;
 }
 
@@ -660,16 +706,58 @@ button {
 .heatmap-sector-heading {
   align-items: center;
   display: flex;
+  gap: 10px;
   justify-content: space-between;
   margin-bottom: 7px;
+}
+
+.heatmap-sector-title {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
 }
 
 .heatmap-sector-heading strong {
   font-size: 0.82rem;
 }
 
-.heatmap-sector-heading span {
+.heatmap-sector-change {
+  align-items: center;
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  gap: 4px;
+  line-height: 1;
+  padding: 4px 8px;
+}
+
+.heatmap-sector-change-positive {
+  background: rgb(75 214 164 / 16%);
+  color: #4bd6a4;
+}
+
+.heatmap-sector-change-negative {
+  background: rgb(255 119 119 / 14%);
+  color: #ff7777;
+}
+
+.heatmap-sector-change-neutral {
+  background: rgb(174 181 197 / 12%);
   color: var(--muted);
+}
+
+.heatmap-sector-change-icon {
+  font-size: 0.68rem;
+  line-height: 1;
+}
+
+.heatmap-sector-heading > span:last-child {
+  color: var(--muted);
+  flex-shrink: 0;
   font-size: 0.72rem;
 }
 
@@ -3295,7 +3383,7 @@ button {
   border: 1px solid var(--border);
   border-radius: 24px;
   box-shadow: var(--card-shadow);
-  max-width: 440px;
+  max-width: 400px;
   padding: 32px;
   width: 100%;
 }
@@ -3314,6 +3402,10 @@ button {
   display: grid;
   gap: 16px;
   margin-top: 24px;
+}
+
+.auth-form-slim {
+  gap: 12px;
 }
 
 .auth-form label {
@@ -3339,8 +3431,11 @@ button {
 }
 
 .auth-primary-button {
-  background: var(--primary);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--primary) 92%, white), var(--primary));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 18%);
   color: white;
+  cursor: pointer;
+  font-weight: 700;
 }
 
 .auth-secondary-button {
@@ -3396,6 +3491,136 @@ button {
 .auth-social-button {
   display: flex;
   justify-content: center;
+}
+
+.profile-view {
+  display: grid;
+  gap: 12px;
+}
+
+.profile-grid {
+  align-items: start;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
+.profile-panel {
+  align-content: start;
+  display: grid;
+  gap: 16px;
+  height: auto;
+}
+
+.profile-panel-security {
+  align-self: start;
+}
+
+.profile-preview {
+  align-items: center;
+  background: color-mix(in srgb, var(--subtle) 72%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  display: flex;
+  gap: 14px;
+  padding: 14px;
+}
+
+.profile-preview strong {
+  display: block;
+  font-size: 1rem;
+}
+
+.profile-preview span {
+  color: var(--muted);
+  display: block;
+  font-size: 0.82rem;
+}
+
+.profile-preview-avatar,
+.profile-preview-fallback {
+  border-radius: 999px;
+  flex-shrink: 0;
+  height: 56px;
+  width: 56px;
+}
+
+.profile-preview-avatar {
+  object-fit: cover;
+}
+
+.profile-preview-fallback {
+  align-items: center;
+  background: color-mix(in srgb, var(--primary) 18%, var(--subtle));
+  color: var(--foreground);
+  display: flex;
+  font-size: 1.2rem;
+  font-weight: 700;
+  justify-content: center;
+}
+
+.profile-form {
+  align-content: start;
+  display: grid;
+  gap: 12px;
+}
+
+.profile-form-compact {
+  max-width: 100%;
+}
+
+.profile-form label {
+  align-content: start;
+  color: var(--muted);
+  display: grid;
+  font-size: 0.84rem;
+  gap: 6px;
+}
+
+.profile-form input,
+.profile-form select {
+  background: var(--subtle);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-sizing: border-box;
+  color: var(--foreground);
+  font: inherit;
+  height: 44px;
+  max-height: 44px;
+  min-height: 44px;
+  padding: 0 12px;
+  width: 100%;
+}
+
+.profile-submit-button {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--primary) 92%, white), var(--primary));
+  border: 0;
+  border-radius: 12px;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 18%);
+  color: white;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  height: 44px;
+  margin-top: 4px;
+  min-height: 44px;
+  padding: 0 14px;
+  width: 100%;
+}
+
+.profile-submit-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.profile-form input:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.profile-success {
+  color: var(--positive);
+  margin: 0;
 }
 
 @media (max-width: 1200px) {

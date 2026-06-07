@@ -1,6 +1,5 @@
 import Link from "next/link";
 
-import { WatchlistStarToggle } from "@/features/watchlist/components/watchlist-star-toggle";
 import type { MarketMoverModel } from "@/features/market-dashboard/types/market-dashboard-types";
 
 type MarketMoversPanelProps = {
@@ -21,7 +20,6 @@ export function MarketMoversPanel({ title, movers, eyebrow = "Market Movers" }: 
           movers.map((mover) => (
             <Link className="mover-row" href={mover.href} key={`${title}-${mover.symbol}`}>
               <div className="mover-row-leading">
-                <WatchlistStarToggle stockId={mover.stockId} stopPropagation />
                 <div>
                   <strong>{mover.symbol}</strong>
                   <span>{mover.name}</span>

@@ -31,11 +31,13 @@ export type HeatmapTileModel = {
   label: string;
   sector: string;
   value: string;
+  changePercent: number;
   weight: number;
   tone: "positive" | "negative" | "neutral";
   href: string;
   latestPrice: string;
   turnover: string;
+  turnoverValue: number;
   liquidityScore: number;
 };
 

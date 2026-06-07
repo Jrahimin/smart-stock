@@ -1,5 +1,4 @@
-import type { SignalType, TraderRecommendation } from "@/lib/api/backend-api-types";
-import type { BackendUserWatchlistDto } from "@/lib/api/backend-api-types";
+import type { BackendUserWatchlistDto, TraderRecommendation } from "@/lib/api/backend-api-types";
 import { formatNumber, formatPercent } from "@/lib/formatters/financial-formatters";
 import type {
   WatchlistPageFilters,
@@ -7,22 +6,12 @@ import type {
   WatchlistTrendKey,
 } from "@/features/watchlist/types/watchlist-types";
 import type { StockIntelligenceModel, TrendDirection } from "@/lib/market/market-intelligence-types";
-import { resolveTraderDecision } from "@/lib/market/trader-decision";
+import { mapPersistedSignalToRecommendation, resolveTraderDecision, resolveWatchlistAction } from "@/lib/market/trader-decision";
 
 /**
  * NEW = the trader decision changed during the latest trading session versus the
  * last persisted strategy signal (e.g. HOLD → BUY, WAIT → SELL).
  */
-export function mapPersistedSignalToRecommendation(signal: SignalType): TraderRecommendation {
-  if (signal === "BUY") {
-    return "BUY";
-  }
-  if (signal === "SELL") {
-    return "SELL";
-  }
-  return "HOLD";
-}
-
 function getPriorTradeDate(stock: StockIntelligenceModel): string | null {
   if (!stock.latestTradeDate) {
     return null;
@@ -121,8 +110,7 @@ export function buildWatchlistRowViewModel(
   intelligence: StockIntelligenceModel | null,
 ): WatchlistRowViewModel {
   const decision = intelligence ? resolveTraderDecision(intelligence) : null;
-  const actionLabel: TraderRecommendation =
-    decision?.recommendation ?? item.trader_decision?.recommendation ?? "WAIT";
+  const actionLabel = resolveWatchlistAction(intelligence, item.trader_decision?.recommendation);
   const previousActionLabel = intelligence ? getPreviousSessionRecommendation(intelligence) : null;
   const unrealized =
     item.unrealized_gain_percent !== null && item.unrealized_gain_percent !== undefined
