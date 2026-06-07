@@ -1,4 +1,5 @@
 import { SignalBadge } from "@/components/ui/signal-badge";
+import { WatchlistStarToggle } from "@/features/watchlist/components/watchlist-star-toggle";
 import type { StockDecisionViewModel } from "@/features/stock-workspace/view-models/stock-decision-view-model";
 import type { StockWorkspaceModel } from "@/features/stock-workspace/view-models/stock-workspace-view-model";
 import type { SignalType, TraderRecommendation } from "@/lib/api/backend-api-types";
@@ -6,14 +7,15 @@ import type { SignalType, TraderRecommendation } from "@/lib/api/backend-api-typ
 type StockWorkspaceHeaderProps = {
   model: StockWorkspaceModel;
   decision?: StockDecisionViewModel;
+  stockId?: string;
 };
 
-export function StockWorkspaceHeader({ model, decision }: StockWorkspaceHeaderProps) {
+export function StockWorkspaceHeader({ model, decision, stockId }: StockWorkspaceHeaderProps) {
   const action: SignalType | TraderRecommendation = decision?.available
     ? (decision.recommendation as TraderRecommendation)
     : (model.header.signal as SignalType);
   const confidence = decision?.available ? decision.confidenceLabel : model.header.confidence;
-  const actionLabel = decision?.available ? "Action" : "Signal";
+  const actionLabel = "Action";
 
   return (
     <section className="stock-workspace-header">
@@ -21,7 +23,10 @@ export function StockWorkspaceHeader({ model, decision }: StockWorkspaceHeaderPr
         <p className="eyebrow">
           {model.header.exchange} / {model.header.sector} / Category {model.header.category}
         </p>
-        <h1>{model.header.symbol}</h1>
+        <div className="stock-header-title-row">
+          <h1>{model.header.symbol}</h1>
+          {stockId ? <WatchlistStarToggle stockId={stockId} /> : null}
+        </div>
         <span>{model.header.name}</span>
       </div>
       <div className="stock-header-metrics">

@@ -301,6 +301,10 @@ export async function backendApiPatch<T>(path: string, body?: unknown, init?: Re
   return backendApiRequest<T>(path, { method: "PATCH", body, init });
 }
 
+export async function backendApiDelete<T>(path: string, init?: RequestInit): Promise<T> {
+  return backendApiRequest<T>(path, { method: "DELETE", init });
+}
+
 export async function backendApiGet<T>(
   path: string,
   params?: Record<string, QueryValue>,

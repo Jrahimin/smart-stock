@@ -7,10 +7,12 @@ from app.modules.market_data.market_data_router import router as market_data_rou
 from app.modules.signals.signals_router import router as signals_router
 from app.modules.stock_details.stock_details_router import router as stock_details_router
 from app.modules.stocks.stocks_router import router as stocks_router
+from app.modules.watchlists.watchlists_router import router as watchlists_router
 
 router = APIRouter()
 router.include_router(auth_router)
 router.include_router(stocks_router)
+router.include_router(watchlists_router)
 router.include_router(market_data_router)
 router.include_router(indicators_router)
 router.include_router(signals_router)

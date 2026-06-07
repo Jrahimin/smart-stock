@@ -100,7 +100,12 @@ export function TerminalAppShell({ children }: TerminalAppShellProps) {
         <div className="terminal-sidebar-footer">
           {isLoading ? null : isAuthenticated && user ? (
             <>
-              <div className="terminal-user-chip" title={user.email}>
+              <Link
+                aria-current={pathname === "/profile" ? "page" : undefined}
+                className={`terminal-user-chip ${pathname === "/profile" ? "is-active" : ""}`}
+                href="/profile"
+                title="Open profile"
+              >
                 {user.profile_pic_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img alt="" className="terminal-user-avatar" src={user.profile_pic_url} />
@@ -108,9 +113,9 @@ export function TerminalAppShell({ children }: TerminalAppShellProps) {
                   <User aria-hidden="true" size={18} />
                 )}
                 {!sidebarCollapsed ? <span className="terminal-user-name">{user.display_name}</span> : null}
-              </div>
+              </Link>
               <button
-                className="terminal-auth-button"
+                className="terminal-auth-button terminal-logout-button"
                 onClick={() => void logout()}
                 title="Sign out"
                 type="button"
@@ -120,7 +125,7 @@ export function TerminalAppShell({ children }: TerminalAppShellProps) {
               </button>
             </>
           ) : (
-            <Link className="terminal-auth-button" href="/login" title="Sign in">
+            <Link className="terminal-auth-button terminal-login-button" href="/login" title="Sign in">
               <LogIn aria-hidden="true" size={18} />
               {!sidebarCollapsed ? <span>Login</span> : null}
             </Link>

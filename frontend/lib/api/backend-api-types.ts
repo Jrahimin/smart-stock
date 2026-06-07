@@ -148,6 +148,35 @@ export type WatchlistStock = {
   signal: SignalType;
 };
 
+export type BackendUserWatchlistDto = {
+  id: string;
+  user_id: string;
+  stock_id: string;
+  stock_symbol: string;
+  is_holding: boolean;
+  buy_price: string | number | null;
+  note: string | null;
+  created_at: string;
+  updated_at: string;
+  unrealized_gain_percent: string | number | null;
+  has_note: boolean;
+  watching_days: number;
+  watching_label: string;
+  current_price: string | number | null;
+  trader_decision: BackendTraderDecisionSummaryDto | null;
+};
+
+export type BackendUserWatchlistSummaryDto = {
+  total_watchlisted: number;
+  total_holdings: number;
+};
+
+export type BackendUserWatchlistToggleResultDto = {
+  added: boolean;
+  is_watchlisted: boolean;
+  item: BackendUserWatchlistDto | null;
+};
+
 export type TradingSignalSummary = {
   symbol: string;
   signal: SignalType;

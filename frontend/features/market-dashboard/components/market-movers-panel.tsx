@@ -19,9 +19,11 @@ export function MarketMoversPanel({ title, movers, eyebrow = "Market Movers" }: 
         {movers.length ? (
           movers.map((mover) => (
             <Link className="mover-row" href={mover.href} key={`${title}-${mover.symbol}`}>
-              <div>
-                <strong>{mover.symbol}</strong>
-                <span>{mover.name}</span>
+              <div className="mover-row-leading">
+                <div>
+                  <strong>{mover.symbol}</strong>
+                  <span>{mover.name}</span>
+                </div>
               </div>
               <div className={`mover-change mover-change-${mover.tone}`}>
                 <strong>{mover.changePercent}</strong>

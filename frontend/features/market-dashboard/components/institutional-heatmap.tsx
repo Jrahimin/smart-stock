@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 
 import type { HeatmapTileModel } from "@/features/market-dashboard/types/market-dashboard-types";
+import { formatPercent } from "@/lib/formatters/financial-formatters";
 
 type InstitutionalHeatmapProps = {
   tiles: HeatmapTileModel[];
@@ -17,19 +18,23 @@ export function InstitutionalHeatmap({ tiles }: InstitutionalHeatmapProps) {
   const [mode, setMode] = useState<"size" | "liquidity">("size");
   const sectorGroups = useMemo(() => {
     const groups = Object.entries(
-        tiles.reduce<Record<string, HeatmapTileModel[]>>((groups, tile) => {
-          const key = tile.sector || "Unclassified";
-          groups[key] = [...(groups[key] ?? []), tile];
-          return groups;
-        }, {}),
-      )
+      tiles.reduce<Record<string, HeatmapTileModel[]>>((groups, tile) => {
+        const key = tile.sector || "Unclassified";
+        groups[key] = [...(groups[key] ?? []), tile];
+        return groups;
+      }, {}),
+    )
       .map(([sector, sectorTiles]) => {
         const sortedTiles = [...sectorTiles].sort((a, b) =>
           mode === "liquidity" ? b.liquidityScore - a.liquidityScore : b.weight - a.weight,
         );
+        const sectorChangePercent = computeSectorChangePercent(sectorTiles);
 
         return {
           sector,
+          changePercent: sectorChangePercent,
+          changeLabel: formatPercent(sectorChangePercent),
+          changeTone: getChangeTone(sectorChangePercent),
           pages: buildHeatmapPages(sortedTiles),
           tiles: sortedTiles,
           totalWeight: sectorTiles.reduce((sum, tile) => sum + tile.weight, 0),
@@ -48,7 +53,7 @@ export function InstitutionalHeatmap({ tiles }: InstitutionalHeatmapProps) {
       <div className="section-heading">
         <p className="eyebrow">Institutional Heatmap</p>
         <h2>Sector-weighted market map</h2>
-        <span>Tiles size by market footprint; color shows latest price pressure.</span>
+        <span>All price-backed names grouped by sector; tile color shows latest price pressure.</span>
       </div>
       <div className="heatmap-toolbar">
         <div className="heatmap-mode-row" aria-label="Heatmap mode">
@@ -74,7 +79,18 @@ export function InstitutionalHeatmap({ tiles }: InstitutionalHeatmapProps) {
               style={{ "--sector-accent": getSectorAccent(groupIndex) } as CSSProperties}
             >
               <div className="heatmap-sector-heading">
-                <strong>{group.sector}</strong>
+                <div className="heatmap-sector-title">
+                  <strong>{group.sector}</strong>
+                  <span
+                    className={`heatmap-sector-change heatmap-sector-change-${group.changeTone}`}
+                    title="Turnover-weighted sector move for the latest session"
+                  >
+                    <span aria-hidden="true" className="heatmap-sector-change-icon">
+                      {group.changeTone === "positive" ? "▲" : group.changeTone === "negative" ? "▼" : "—"}
+                    </span>
+                    {group.changeLabel}
+                  </span>
+                </div>
                 <span>{group.tiles.length} names</span>
               </div>
               <div className="heatmap-sector-scroll">
@@ -106,6 +122,34 @@ export function InstitutionalHeatmap({ tiles }: InstitutionalHeatmapProps) {
       </div>
     </section>
   );
+}
+
+function computeSectorChangePercent(tiles: HeatmapTileModel[]): number {
+  if (!tiles.length) {
+    return 0;
+  }
+
+  const turnoverBacked = tiles.filter((tile) => tile.turnoverValue > 0);
+  if (!turnoverBacked.length) {
+    return tiles.reduce((sum, tile) => sum + tile.changePercent, 0) / tiles.length;
+  }
+
+  const totalTurnover = turnoverBacked.reduce((sum, tile) => sum + tile.turnoverValue, 0);
+  if (totalTurnover <= 0) {
+    return tiles.reduce((sum, tile) => sum + tile.changePercent, 0) / tiles.length;
+  }
+
+  return turnoverBacked.reduce((sum, tile) => sum + tile.changePercent * tile.turnoverValue, 0) / totalTurnover;
+}
+
+function getChangeTone(changePercent: number): "positive" | "negative" | "neutral" {
+  if (changePercent > 0) {
+    return "positive";
+  }
+  if (changePercent < 0) {
+    return "negative";
+  }
+  return "neutral";
 }
 
 function buildHeatmapPages(tiles: HeatmapTileModel[]) {

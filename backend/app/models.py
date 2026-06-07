@@ -67,6 +67,40 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         back_populates="user",
         cascade="all, delete-orphan",
     )
+    watchlist_entries = relationship(
+        "UserWatchlist",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+
+
+class UserWatchlist(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "user_watchlist"
+    __table_args__ = (
+        UniqueConstraint("user_id", "stock_id", name="uq_user_watchlist_user_stock"),
+        CheckConstraint("buy_price IS NULL OR buy_price >= 0", name="user_watchlist_buy_price_non_negative"),
+        Index("ix_user_watchlist_user_created", "user_id", "created_at"),
+        Index("ix_user_watchlist_user_holding", "user_id", "is_holding"),
+        Index("ix_user_watchlist_stock_id", "stock_id"),
+    )
+
+    user_id: Mapped[UUID] = mapped_column(
+        PostgresUUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    stock_id: Mapped[UUID] = mapped_column(
+        PostgresUUID(as_uuid=True),
+        ForeignKey("stocks.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    stock_symbol: Mapped[str] = mapped_column(String(32), nullable=False)
+    is_holding: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    buy_price: Mapped[Decimal | None] = mapped_column(Numeric(20, 4), nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    user = relationship("User", back_populates="watchlist_entries")
+    stock = relationship("Stock")
 
 
 class UserIdentity(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -158,6 +192,7 @@ class Stock(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     corporate_actions = relationship("CorporateAction", back_populates="stock")
     market_events = relationship("MarketEvent", back_populates="stock")
     stock_details_sync_jobs = relationship("StockDetailsSyncJob", back_populates="stock")
+    watchlist_entries = relationship("UserWatchlist", back_populates="stock")
 
 
 class DailyPrice(UUIDPrimaryKeyMixin, TimestampMixin, Base):

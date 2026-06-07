@@ -32,7 +32,7 @@ export function StockDetailWorkspaceView({ exchange, symbol }: StockDetailWorksp
       {isDecisionError ? <div className="data-warning">Decision support unavailable; chart remains active.</div> : null}
 
       <div className="trader-workspace-topbar">
-        <StockWorkspaceHeader decision={decisionModel} model={model} />
+        <StockWorkspaceHeader decision={decisionModel} model={model} stockId={model.intelligence?.stock.id} />
         <DataFreshnessIndicator decision={decisionModel} />
       </div>
 

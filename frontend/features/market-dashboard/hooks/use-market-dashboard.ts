@@ -10,7 +10,7 @@ import { frontendConfig } from "@/lib/frontend-config";
 
 export function useMarketDashboard() {
   const cacheMs = frontendConfig.cacheHours * 60 * 60 * 1000;
-  const marketUniverse = useMarketUniverse({ stockLimit: 80, priceWindowLimit: 60 });
+  const marketUniverse = useMarketUniverse({ stockLimit: 500, priceWindowLimit: 90 });
   const marketSummariesQuery = useQuery({
     queryKey: ["market-summaries", "dashboard", "DSE"],
     queryFn: () => listMarketSummaries({ exchange: "DSE", limit: 10 }),

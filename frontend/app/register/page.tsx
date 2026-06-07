@@ -11,9 +11,6 @@ export default function RegisterPage() {
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [mobileNumber, setMobileNumber] = useState("");
-  const [gender, setGender] = useState("");
-  const [address, setAddress] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -27,9 +24,6 @@ export default function RegisterPage() {
         display_name: displayName,
         email,
         password,
-        mobile_number: mobileNumber.trim() || null,
-        gender: gender ? (gender as "male" | "female" | "other" | "prefer_not_to_say") : null,
-        address: address.trim() || null,
       });
       setSuccess(true);
     } catch {
@@ -56,7 +50,7 @@ export default function RegisterPage() {
           <p>We sent a verification link. Open it before signing in.</p>
         </div>
       ) : (
-        <form className="auth-form" onSubmit={handleSubmit}>
+        <form className="auth-form auth-form-slim" onSubmit={handleSubmit}>
           <label>
             Display name
             <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} required />
@@ -74,24 +68,6 @@ export default function RegisterPage() {
               minLength={8}
               required
             />
-          </label>
-          <label>
-            Mobile number <span className="auth-optional">(optional)</span>
-            <input value={mobileNumber} onChange={(event) => setMobileNumber(event.target.value)} type="tel" />
-          </label>
-          <label>
-            Gender <span className="auth-optional">(optional)</span>
-            <select value={gender} onChange={(event) => setGender(event.target.value)}>
-              <option value="">Not specified</option>
-              <option value="male">Male</option>
-              <option value="female">Female</option>
-              <option value="other">Other</option>
-              <option value="prefer_not_to_say">Prefer not to say</option>
-            </select>
-          </label>
-          <label>
-            Address <span className="auth-optional">(optional)</span>
-            <input value={address} onChange={(event) => setAddress(event.target.value)} />
           </label>
           {error ? <p className="auth-error">{error}</p> : null}
           <button className="auth-primary-button" type="submit" disabled={isSubmitting}>

@@ -12,6 +12,7 @@ import {
   setStoredRefreshToken,
 } from "@/lib/api/backend-api-client";
 import {
+  changePassword as changePasswordRequest,
   getCurrentUser,
   loginUser,
   loginWithFacebook,
@@ -19,7 +20,10 @@ import {
   logoutUser,
   refreshSession,
   registerUser,
+  updateProfile as updateProfileRequest,
+  type ChangePasswordPayload,
   type RegisterPayload,
+  type UpdateProfilePayload,
 } from "@/features/auth/services/auth-api";
 import type { AuthUser, TokenPair } from "@/features/auth/types/auth-types";
 
@@ -33,6 +37,8 @@ type AuthContextValue = {
   loginWithGoogleToken: (idToken: string) => Promise<void>;
   loginWithFacebookToken: (accessToken: string) => Promise<void>;
   refreshCurrentSession: () => Promise<void>;
+  updateProfile: (payload: UpdateProfilePayload) => Promise<void>;
+  changePassword: (payload: ChangePasswordPayload) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -144,6 +150,15 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
     [applyTokenPair],
   );
 
+  const updateProfile = useCallback(async (payload: UpdateProfilePayload) => {
+    const updatedUser = await updateProfileRequest(payload);
+    setUser(updatedUser);
+  }, []);
+
+  const changePassword = useCallback(async (payload: ChangePasswordPayload) => {
+    await changePasswordRequest(payload);
+  }, []);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
@@ -155,8 +170,11 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
       loginWithGoogleToken,
       loginWithFacebookToken,
       refreshCurrentSession,
+      updateProfile,
+      changePassword,
     }),
     [
+      changePassword,
       isLoading,
       login,
       loginWithFacebookToken,
@@ -164,6 +182,7 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
       logout,
       refreshCurrentSession,
       register,
+      updateProfile,
       user,
     ],
   );

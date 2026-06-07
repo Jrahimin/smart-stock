@@ -31,11 +31,13 @@ export type HeatmapTileModel = {
   label: string;
   sector: string;
   value: string;
+  changePercent: number;
   weight: number;
   tone: "positive" | "negative" | "neutral";
   href: string;
   latestPrice: string;
   turnover: string;
+  turnoverValue: number;
   liquidityScore: number;
 };
 
@@ -53,6 +55,7 @@ export type SignalFeedItemModel = {
 };
 
 export type MarketMoverModel = {
+  stockId: string;
   symbol: string;
   name: string;
   latestPrice: string;

@@ -7,6 +7,9 @@ import { SearchableSymbolFilter } from "@/components/filters/searchable-symbol-f
 import { FloatingRefreshButton } from "@/components/ui/floating-refresh-button";
 import { MarketActivityLoader } from "@/components/ui/market-activity-loader";
 import { SignalBadge } from "@/components/ui/signal-badge";
+import { WatchlistStarToggle } from "@/features/watchlist/components/watchlist-star-toggle";
+import { useUserWatchlist } from "@/features/watchlist/hooks/use-user-watchlist";
+import type { WatchlistFilterMode } from "@/features/watchlist/types/watchlist-types";
 import { useMarketUniverse } from "@/features/market-dashboard/hooks/use-market-universe";
 import { formatCompactNumber, formatNumber, formatPercent } from "@/lib/formatters/financial-formatters";
 import { frontendConfig } from "@/lib/frontend-config";
@@ -14,10 +17,28 @@ import { isBreakdownRiskDecision, resolveTraderDecision } from "@/lib/market/tra
 
 export function ScannerWorkspaceView() {
   const { universe, isLoading, isError, refetch } = useMarketUniverse({ stockLimit: 500, priceWindowLimit: 90 });
+  const { watchedStockIds, holdingStockIds } = useUserWatchlist();
   const [symbolFilter, setSymbolFilter] = useState("");
+  const [watchlistFilter, setWatchlistFilter] = useState<WatchlistFilterMode>("ALL");
   const filteredUniverse = useMemo(
-    () => universe.filter((stock) => !symbolFilter || stock.stock.symbol.includes(symbolFilter)),
-    [symbolFilter, universe],
+    () =>
+      universe.filter((stock) => {
+        if (symbolFilter && !stock.stock.symbol.includes(symbolFilter)) {
+          return false;
+        }
+        const stockId = stock.stock.id;
+        if (watchlistFilter === "WATCHLISTED" && !watchedStockIds.has(stockId)) {
+          return false;
+        }
+        if (watchlistFilter === "NOT_WATCHLISTED" && watchedStockIds.has(stockId)) {
+          return false;
+        }
+        if (watchlistFilter === "HOLDINGS" && !holdingStockIds.has(stockId)) {
+          return false;
+        }
+        return true;
+      }),
+    [holdingStockIds, symbolFilter, universe, watchlistFilter, watchedStockIds],
   );
   const categories = useMemo(() => {
     if (frontendConfig.features.advancedScanners) {
@@ -91,6 +112,21 @@ export function ScannerWorkspaceView() {
             value={symbolFilter}
             onChange={setSymbolFilter}
           />
+          <div className="explorer-controls-watchlist" role="group" aria-label="Watchlist filters">
+            <select value={watchlistFilter} onChange={(event) => setWatchlistFilter(event.target.value as WatchlistFilterMode)}>
+              <option value="ALL">All stocks</option>
+              <option value="WATCHLISTED">Watchlisted only</option>
+              <option value="NOT_WATCHLISTED">Not watchlisted</option>
+              <option value="HOLDINGS">Holdings only</option>
+            </select>
+            <button
+              className={`explorer-watchlist-quick ${watchlistFilter === "WATCHLISTED" ? "is-active" : ""}`}
+              onClick={() => setWatchlistFilter("WATCHLISTED")}
+              type="button"
+            >
+              My watchlist
+            </button>
+          </div>
         </div>
       </div>
       {isError ? <div className="data-warning">Could not load scanner data.</div> : null}
@@ -112,7 +148,10 @@ export function ScannerWorkspaceView() {
                     <Link className="scanner-result-card" href={`/stocks/${stock.stock.exchange}/${stock.stock.symbol}`} key={stock.stock.id}>
                       <div className="scanner-card-topline">
                         <strong>{stock.stock.symbol}</strong>
-                        <SignalBadge signal={decision.recommendation} />
+                        <div className="scanner-card-actions">
+                          <WatchlistStarToggle stockId={stock.stock.id} stopPropagation />
+                          <SignalBadge signal={decision.recommendation} />
+                        </div>
                       </div>
                       <span>
                         {formatNumber(stock.latestPrice)} / {formatPercent(stock.priceChangePercent)}

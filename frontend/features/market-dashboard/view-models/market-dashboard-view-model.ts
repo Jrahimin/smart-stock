@@ -23,7 +23,23 @@ import type {
 } from "@/features/market-dashboard/types/market-dashboard-types";
 
 function getLatestSummary(summaries: BackendDailyMarketSummaryDto[]) {
-  return [...summaries].sort((a, b) => b.trade_date.localeCompare(a.trade_date))[0] ?? null;
+  const sorted = [...summaries].sort((a, b) => b.trade_date.localeCompare(a.trade_date));
+  return sorted.find((summary) => summary.index_name !== "SOURCE_VALIDATION") ?? sorted[0] ?? null;
+}
+
+function getSummaryBreadthTotal(summary: BackendDailyMarketSummaryDto | null): number | null {
+  if (
+    summary?.advancing_issues === null ||
+    summary?.advancing_issues === undefined ||
+    summary.declining_issues === null ||
+    summary.declining_issues === undefined ||
+    summary.unchanged_issues === null ||
+    summary.unchanged_issues === undefined
+  ) {
+    return null;
+  }
+
+  return summary.advancing_issues + summary.declining_issues + summary.unchanged_issues;
 }
 
 function getMoodTone(mood: MarketMood) {
@@ -42,32 +58,38 @@ function getMoodTone(mood: MarketMood) {
   return "neutral" as const;
 }
 
-function toBreadthModel(summary: BackendDailyMarketSummaryDto | null, universe: StockIntelligenceModel[]): BreadthModel {
+function toBreadthModel(
+  summary: BackendDailyMarketSummaryDto | null,
+  universe: StockIntelligenceModel[],
+  listedStockCount: number,
+): BreadthModel {
+  const derived = deriveMarketBreadth(universe);
+  const summaryTotal = getSummaryBreadthTotal(summary);
+  const coverageTarget = Math.max(universe.length, listedStockCount);
+
   if (
-    summary?.advancing_issues !== null &&
-    summary?.advancing_issues !== undefined &&
-    summary.declining_issues !== null &&
-    summary.declining_issues !== undefined &&
-    summary.unchanged_issues !== null &&
-    summary.unchanged_issues !== undefined
+    summary &&
+    summary.index_name !== "SOURCE_VALIDATION" &&
+    summaryTotal !== null &&
+    coverageTarget > 0 &&
+    summaryTotal >= coverageTarget * 0.75
   ) {
     return {
-      advancing: summary.advancing_issues,
-      declining: summary.declining_issues,
-      unchanged: summary.unchanged_issues,
-      total: summary.advancing_issues + summary.declining_issues + summary.unchanged_issues,
+      advancing: summary.advancing_issues!,
+      declining: summary.declining_issues!,
+      unchanged: summary.unchanged_issues!,
+      total: summaryTotal,
     };
   }
 
-  return deriveMarketBreadth(universe);
+  return derived;
 }
 
 function buildHeatmapTiles(universe: StockIntelligenceModel[]) {
   const maxTurnover = Math.max(...universe.map((stock) => stock.turnover ?? 0), 1);
 
   return [...universe]
-    .sort((a, b) => (b.marketCap ?? b.turnover ?? 0) - (a.marketCap ?? a.turnover ?? 0))
-    .slice(0, 48)
+    .sort((a, b) => (b.marketCap ?? b.turnover ?? 0) - (a.marketCap ?? b.turnover ?? 0))
     .map((stock) => {
       const change = stock.priceChangePercent ?? 0;
       const sizeSource = stock.marketCap ?? stock.turnover ?? 1;
@@ -77,11 +99,13 @@ function buildHeatmapTiles(universe: StockIntelligenceModel[]) {
         label: stock.stock.symbol,
         sector: stock.sector,
         value: formatPercent(change),
+        changePercent: change,
         weight: Math.max(1, Math.min(8, Math.log10(sizeSource + 10) / 1.8)),
         tone: change > 0 ? ("positive" as const) : change < 0 ? ("negative" as const) : ("neutral" as const),
         href: `/stocks/${stock.stock.exchange}/${stock.stock.symbol}`,
         latestPrice: formatNumber(stock.latestPrice),
         turnover: formatCompactNumber(stock.turnover),
+        turnoverValue: stock.turnover ?? 0,
         liquidityScore: Math.round(((stock.turnover ?? 0) / maxTurnover) * 100),
       };
     });
@@ -105,6 +129,7 @@ function toSignalFeedItem(stock: StockIntelligenceModel): SignalFeedItemModel {
 
 function toMover(stock: StockIntelligenceModel): MarketMoverModel {
   return {
+    stockId: stock.stock.id,
     symbol: stock.stock.symbol,
     name: stock.stock.name,
     latestPrice: formatNumber(stock.latestPrice),
@@ -173,7 +198,7 @@ export function buildMarketDashboardModel(
   universe: StockIntelligenceModel[] = [],
 ): MarketDashboardModel {
   const latestSummary = getLatestSummary(summaries);
-  const breadth = toBreadthModel(latestSummary, universe);
+  const breadth = toBreadthModel(latestSummary, universe, stocks.length);
   const marketMood = deriveMarketCondition(universe, breadth);
   const dataQuality: DataQualityFlag | "UNKNOWN" = latestSummary?.data_quality_flag ?? "UNKNOWN";
   const session = getMarketSession({

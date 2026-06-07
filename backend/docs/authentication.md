@@ -123,6 +123,10 @@ curl http://localhost:8000/api/v1/auth/me \
 
 `/auth/me` uses `get_current_user`.
 
+## Watchlist routes
+
+All `/api/v1/watchlist/*` endpoints require authentication via `get_current_user`. Anonymous or invalid tokens receive `401`. See `backend/docs/watchlists.md` for CRUD, toggle, and computed fields.
+
 ## Change Password
 
 ```bash

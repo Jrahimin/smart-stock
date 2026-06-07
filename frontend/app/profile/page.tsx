@@ -1,12 +1,12 @@
 import { TerminalAppShell } from "@/components/layout/terminal-app-shell";
+import { ProfileView } from "@/features/auth/components/profile-view";
 import { ProtectedRoute } from "@/features/auth/components/protected-route";
-import { WatchlistView } from "@/features/watchlist/watchlist-view";
 
-export default function WatchlistPage() {
+export default function ProfilePage() {
   return (
     <TerminalAppShell>
       <ProtectedRoute>
-        <WatchlistView />
+        <ProfileView />
       </ProtectedRoute>
     </TerminalAppShell>
   );
