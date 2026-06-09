@@ -164,3 +164,81 @@ class UserGender(StrEnum):
     OTHER = "other"
     PREFER_NOT_TO_SAY = "prefer_not_to_say"
 
+
+class MoneySnapshotAssetCategory(StrEnum):
+    CASH = "CASH"
+    DEPOSIT = "DEPOSIT"
+    SANCHAYAPATRA = "SANCHAYAPATRA"
+    STOCK = "STOCK"
+    MUTUAL_FUND = "MUTUAL_FUND"
+    GOLD = "GOLD"
+    PROPERTY = "PROPERTY"
+    BUSINESS = "BUSINESS"
+    OTHER = "OTHER"
+
+
+class MoneySnapshotLiabilityCategory(StrEnum):
+    LOAN = "LOAN"
+    CREDIT = "CREDIT"
+    MORTGAGE = "MORTGAGE"
+    OTHER = "OTHER"
+
+
+class LiquidityTier(StrEnum):
+    IMMEDIATE = "IMMEDIATE"
+    SHORT_TERM = "SHORT_TERM"
+    LOCKED = "LOCKED"
+    ILLIQUID = "ILLIQUID"
+
+
+class WealthGoalCategory(StrEnum):
+    EMERGENCY_FUND = "EMERGENCY_FUND"
+    HOME = "HOME"
+    RETIREMENT = "RETIREMENT"
+    EDUCATION = "EDUCATION"
+    HOUSE_PURCHASE = "HOUSE_PURCHASE"
+    WEALTH_GROWTH = "WEALTH_GROWTH"
+    ZAKAT_READINESS = "ZAKAT_READINESS"
+    PASSIVE_INCOME = "PASSIVE_INCOME"
+    OTHER = "OTHER"
+
+
+class WealthGoalStatus(StrEnum):
+    ACTIVE = "ACTIVE"
+    REACHED = "REACHED"
+    PAUSED = "PAUSED"
+
+
+class WealthScenarioType(StrEnum):
+    TOOL = "TOOL"
+    COMPARISON = "COMPARISON"
+    GOAL = "GOAL"
+
+
+class WealthInsightSeverity(StrEnum):
+    INFO = "INFO"
+    POSITIVE = "POSITIVE"
+    WARNING = "WARNING"
+    NEUTRAL = "NEUTRAL"
+
+
+class TaxPlannerMode(StrEnum):
+    QUICK = "QUICK"
+    DETAILED = "DETAILED"
+
+
+class TaxPlannerGender(StrEnum):
+    MALE = "MALE"
+    FEMALE = "FEMALE"
+    OTHER = "OTHER"
+    PREFER_NOT_TO_SAY = "PREFER_NOT_TO_SAY"
+
+
+class TaxPlannerInsightType(StrEnum):
+    UNUSED_REBATE_OPPORTUNITY = "UNUSED_REBATE_OPPORTUNITY"
+    NO_ELIGIBLE_INVESTMENTS = "NO_ELIGIBLE_INVESTMENTS"
+    MULTIPLE_INCOME_SOURCES = "MULTIPLE_INCOME_SOURCES"
+    HIGH_REMAINING_INVESTMENT_CAPACITY = "HIGH_REMAINING_INVESTMENT_CAPACITY"
+    OUT_OF_SCOPE_PROFILE = "OUT_OF_SCOPE_PROFILE"
+    MINIMUM_TAX_NOT_MODELED = "MINIMUM_TAX_NOT_MODELED"
+

@@ -1393,3 +1393,143 @@ Optional provider endpoint. When Facebook app settings are configured, validates
 ```json
 { "access_token": "facebook-access-token" }
 ```
+
+---
+
+## Wealth Workspace
+
+### POST /api/v1/wealth/tools/{tool_slug}/calculate
+
+**Description**
+Public educational scenario calculation for wealth tools. No persistence.
+
+**Path Params**
+
+* tool_slug: one of `fdr`, `dps`, `sanchayapatra`, `compound-growth`, `emi`, `cagr`, `zakat`, `retirement`, `savings-goal`
+
+**Body**
+
+```json
+{
+  "inputs": {
+    "principal": 500000,
+    "years": 3,
+    "profit_distribution_type": "maturity",
+    "account_identifier": "optional-reference"
+  },
+  "assumptions": {
+    "country_code": "BD",
+    "inflation_rate": 8
+  }
+}
+```
+
+For `sanchayapatra`, `inputs` supports:
+
+```json
+{
+  "inputs": {
+    "certificate_type": "family-savings",
+    "principal": 1000000,
+    "purchase_date": "2026-06-08",
+    "annual_rate": 11.52,
+    "profit_distribution_type": "configured",
+    "account_identifier": "optional-certificate-number",
+    "notes": "Family certificate"
+  },
+  "assumptions": {
+    "country_code": "BD",
+    "inflation_rate": 8
+  }
+}
+```
+
+### POST /api/v1/wealth/tax-planner/calculate
+
+**Description**
+Public stateless Bangladesh Tax Planner estimate. This is for planning only and does not persist scenarios, prepare returns, generate NBR forms, or model full minimum-tax filing edge cases.
+
+**Body**
+
+```json
+{
+  "mode": "QUICK",
+  "fiscal_year": "2025-2026",
+  "profile": {
+    "resident_individual": true,
+    "gender": "PREFER_NOT_TO_SAY",
+    "age": null,
+    "senior_citizen": false,
+    "person_with_disability": false,
+    "freedom_fighter": false
+  },
+  "income": {
+    "annual_salary": 1200000,
+    "other_yearly_income": 100000
+  },
+  "investments": {
+    "tax_saving_investments": 150000,
+    "simulation_additional_investment": 0
+  }
+}
+```
+
+**Response Data**
+
+Returns raw values for frontend presentation:
+
+```json
+{
+  "fiscal_year": "2025-2026",
+  "mode": "QUICK",
+  "total_income": 1300000,
+  "tax_free_allowance": 375000,
+  "taxable_income": 925000,
+  "gross_tax": 135000,
+  "rebate": 22500,
+  "final_tax": 112500,
+  "current_eligible_investment": 150000,
+  "maximum_eligible_investment": 260000,
+  "remaining_eligible_investment": 110000,
+  "potential_additional_tax_saving": 16500,
+  "slab_breakdown": [],
+  "insights": [],
+  "assumptions_used": {},
+  "disclaimer": "Estimated for planning purposes only. This tool is not a substitute for professional tax advice or official NBR tax filing."
+}
+```
+
+### POST /api/v1/wealth/comparisons/{comparison_slug}/evaluate
+
+**Description**
+Public comparison evaluation between two financial scenarios.
+
+**Path Params**
+
+* comparison_slug: one of `dps-vs-fdr`, `fdr-vs-stocks`, `save-vs-spend`, `loan-prepayment-vs-investing`, `inflation-impact`
+
+### GET /api/v1/wealth/seasonal-context
+
+**Description**
+Public lightweight seasonal context for the wealth workspace landing page.
+
+### GET /api/v1/wealth/snapshot
+
+**Description**
+Protected endpoint returning the authenticated user's Money Snapshot.
+
+### PATCH /api/v1/wealth/snapshot
+
+**Description**
+Protected partial update for gradual Money Snapshot collection.
+Asset and liability items may include optional `metadata` for projection context such as rates, dates, certificate type, payout style, account/certificate identifier, periodic profit, and notes. `SANCHAYAPATRA` is a supported asset category and remains separate from `DEPOSIT`; DPS and FDR can both be represented as `DEPOSIT` with `metadata.deposit_type`.
+
+### GET /api/v1/wealth/dashboard
+
+**Description**
+Protected dashboard summary with net worth, clarity score, insights, goals, and saved scenarios.
+
+### POST /api/v1/wealth/scenarios
+
+**Description**
+Protected endpoint for saving calculator or comparison scenarios.

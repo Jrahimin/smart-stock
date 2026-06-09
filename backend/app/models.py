@@ -31,14 +31,21 @@ from app.core.enums import (
     DividendType,
     ExchangeCode,
     IndicatorType,
+    LiquidityTier,
     MarketEventType,
     MetricValueType,
+    MoneySnapshotAssetCategory,
+    MoneySnapshotLiabilityCategory,
     ReportPeriodType,
     ReportStatus,
     SignalType,
     StockDetailsSyncJobStatus,
     StockDetailsSyncTriggerType,
     UserGender,
+    WealthGoalCategory,
+    WealthGoalStatus,
+    WealthInsightSeverity,
+    WealthScenarioType,
 )
 
 
@@ -69,6 +76,22 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     watchlist_entries = relationship(
         "UserWatchlist",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    money_snapshot = relationship(
+        "MoneySnapshot",
+        back_populates="user",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
+    wealth_goals = relationship(
+        "WealthGoal",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    wealth_scenarios = relationship(
+        "WealthScenario",
         back_populates="user",
         cascade="all, delete-orphan",
     )
@@ -723,4 +746,170 @@ class TradingSignal(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     stock = relationship("Stock", back_populates="trading_signals")
+
+
+class MoneySnapshot(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "money_snapshots"
+    __table_args__ = (
+        UniqueConstraint("user_id", name="uq_money_snapshots_user_id"),
+        Index("ix_money_snapshots_user_id", "user_id"),
+    )
+
+    user_id: Mapped[UUID] = mapped_column(
+        PostgresUUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    country_code: Mapped[str] = mapped_column(String(2), default="BD", nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), default="BDT", nullable=False)
+    monthly_savings: Mapped[Decimal | None] = mapped_column(Numeric(20, 4), nullable=True)
+    primary_goal: Mapped[WealthGoalCategory | None] = mapped_column(Enum(WealthGoalCategory), nullable=True)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column("metadata", JSONB, default=dict, nullable=False)
+
+    user = relationship("User", back_populates="money_snapshot")
+    assets = relationship(
+        "MoneySnapshotAsset",
+        back_populates="snapshot",
+        cascade="all, delete-orphan",
+    )
+    liabilities = relationship(
+        "MoneySnapshotLiability",
+        back_populates="snapshot",
+        cascade="all, delete-orphan",
+    )
+    history = relationship(
+        "MoneySnapshotHistory",
+        back_populates="snapshot",
+        cascade="all, delete-orphan",
+    )
+
+
+class MoneySnapshotAsset(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "money_snapshot_assets"
+    __table_args__ = (
+        Index("ix_money_snapshot_assets_snapshot_category", "snapshot_id", "category"),
+    )
+
+    snapshot_id: Mapped[UUID] = mapped_column(
+        PostgresUUID(as_uuid=True),
+        ForeignKey("money_snapshots.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    category: Mapped[MoneySnapshotAssetCategory] = mapped_column(
+        Enum(MoneySnapshotAssetCategory),
+        nullable=False,
+    )
+    label: Mapped[str] = mapped_column(String(120), nullable=False)
+    value: Mapped[Decimal] = mapped_column(Numeric(20, 4), nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), default="BDT", nullable=False)
+    liquidity_tier: Mapped[LiquidityTier] = mapped_column(
+        Enum(LiquidityTier),
+        default=LiquidityTier.IMMEDIATE,
+        nullable=False,
+    )
+    source_scenario_id: Mapped[UUID | None] = mapped_column(
+        PostgresUUID(as_uuid=True),
+        ForeignKey("wealth_scenarios.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    metadata_json: Mapped[dict[str, Any]] = mapped_column("metadata", JSONB, default=dict, nullable=False)
+
+    snapshot = relationship("MoneySnapshot", back_populates="assets")
+
+
+class MoneySnapshotLiability(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "money_snapshot_liabilities"
+    __table_args__ = (
+        Index("ix_money_snapshot_liabilities_snapshot_category", "snapshot_id", "category"),
+    )
+
+    snapshot_id: Mapped[UUID] = mapped_column(
+        PostgresUUID(as_uuid=True),
+        ForeignKey("money_snapshots.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    category: Mapped[MoneySnapshotLiabilityCategory] = mapped_column(
+        Enum(MoneySnapshotLiabilityCategory),
+        nullable=False,
+    )
+    label: Mapped[str] = mapped_column(String(120), nullable=False)
+    balance: Mapped[Decimal] = mapped_column(Numeric(20, 4), nullable=False)
+    interest_rate: Mapped[Decimal | None] = mapped_column(Numeric(8, 4), nullable=True)
+    monthly_emi: Mapped[Decimal | None] = mapped_column(Numeric(20, 4), nullable=True)
+    remaining_months: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    source_scenario_id: Mapped[UUID | None] = mapped_column(
+        PostgresUUID(as_uuid=True),
+        ForeignKey("wealth_scenarios.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    metadata_json: Mapped[dict[str, Any]] = mapped_column("metadata", JSONB, default=dict, nullable=False)
+
+    snapshot = relationship("MoneySnapshot", back_populates="liabilities")
+
+
+class MoneySnapshotHistory(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "money_snapshot_history"
+    __table_args__ = (
+        Index("ix_money_snapshot_history_snapshot_created", "snapshot_id", "created_at"),
+    )
+
+    snapshot_id: Mapped[UUID] = mapped_column(
+        PostgresUUID(as_uuid=True),
+        ForeignKey("money_snapshots.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    net_worth: Mapped[Decimal] = mapped_column(Numeric(20, 4), nullable=False)
+    total_assets: Mapped[Decimal] = mapped_column(Numeric(20, 4), nullable=False)
+    total_liabilities: Mapped[Decimal] = mapped_column(Numeric(20, 4), nullable=False)
+    summary_json: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+
+    snapshot = relationship("MoneySnapshot", back_populates="history")
+
+
+class WealthGoal(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "wealth_goals"
+    __table_args__ = (
+        Index("ix_wealth_goals_user_status", "user_id", "status"),
+    )
+
+    user_id: Mapped[UUID] = mapped_column(
+        PostgresUUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    category: Mapped[WealthGoalCategory] = mapped_column(Enum(WealthGoalCategory), nullable=False)
+    title: Mapped[str] = mapped_column(String(160), nullable=False)
+    target_amount: Mapped[Decimal] = mapped_column(Numeric(20, 4), nullable=False)
+    current_amount: Mapped[Decimal] = mapped_column(Numeric(20, 4), default=Decimal("0"), nullable=False)
+    monthly_contribution: Mapped[Decimal | None] = mapped_column(Numeric(20, 4), nullable=True)
+    horizon_months: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    status: Mapped[WealthGoalStatus] = mapped_column(
+        Enum(WealthGoalStatus),
+        default=WealthGoalStatus.ACTIVE,
+        nullable=False,
+    )
+    metadata_json: Mapped[dict[str, Any]] = mapped_column("metadata", JSONB, default=dict, nullable=False)
+
+    user = relationship("User", back_populates="wealth_goals")
+
+
+class WealthScenario(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "wealth_scenarios"
+    __table_args__ = (
+        Index("ix_wealth_scenarios_user_type", "user_id", "scenario_type"),
+    )
+
+    user_id: Mapped[UUID] = mapped_column(
+        PostgresUUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    scenario_type: Mapped[WealthScenarioType] = mapped_column(Enum(WealthScenarioType), nullable=False)
+    slug: Mapped[str] = mapped_column(String(80), nullable=False)
+    title: Mapped[str] = mapped_column(String(160), nullable=False)
+    input_json: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    output_json: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column("metadata", JSONB, default=dict, nullable=False)
+
+    user = relationship("User", back_populates="wealth_scenarios")
 
