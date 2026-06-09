@@ -12,6 +12,7 @@ import {
   ScanSearch,
   Settings,
   User,
+  Wallet,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -29,6 +30,7 @@ const navigationItems = [
   { label: "Scanner", href: "/scanner", icon: ScanSearch },
   { label: "Signals", href: "/signals", icon: Bell },
   { label: "Watchlist", href: "/watchlist", icon: BarChart3 },
+  { label: "My Money", href: "/wealth", icon: Wallet },
   { label: "Settings", href: "/settings", icon: Settings },
 ];
 
@@ -139,7 +141,7 @@ export function TerminalAppShell({ children }: TerminalAppShellProps) {
 }
 
 function isNavigationItemActive(pathname: string, href: string) {
-  if (href === "/stocks") {
+  if (href === "/stocks" || href === "/wealth") {
     return pathname === href || pathname.startsWith(`${href}/`);
   }
 
