@@ -14,9 +14,24 @@ const WEALTH_SUB_NAV_ITEMS = [
     icon: "◇",
     match: (path: string) => path.startsWith("/wealth/tools/tax-planner"),
   },
-  { href: "/wealth/snapshot", label: "Snapshot", icon: "◈", match: (path: string) => path.startsWith("/wealth/snapshot") },
-  { href: "/wealth/calendar", label: "Calendar", icon: "◷", match: (path: string) => path.startsWith("/wealth/calendar") },
-  { href: "/wealth/compare/dps-vs-fdr", label: "Compare", icon: "⇄", match: (path: string) => path.startsWith("/wealth/compare") },
+  {
+    href: "/wealth/snapshot",
+    label: "Snapshot",
+    icon: "◈",
+    match: (path: string) => path.startsWith("/wealth/snapshot"),
+  },
+  {
+    href: "/wealth/calendar",
+    label: "Time Travel",
+    icon: "◷",
+    match: (path: string) => path.startsWith("/wealth/calendar"),
+  },
+  {
+    href: "/wealth/compare/dps-vs-fdr",
+    label: "Compare",
+    icon: "⇄",
+    match: (path: string) => path.startsWith("/wealth/compare"),
+  },
 ] as const;
 
 export function WealthSubNav() {
@@ -25,7 +40,15 @@ export function WealthSubNav() {
 
   return (
     <div className="wealth-sub-nav-shell">
-      <p className="wealth-sub-nav-label">Wealth workspace</p>
+      <span className="wealth-sub-nav-brand">
+        <span aria-hidden="true" className="wealth-sub-nav-brand-icon">
+          ◆
+        </span>
+        <span className="wealth-sub-nav-brand-text">Wealth Workspace</span>
+      </span>
+
+      <span aria-hidden="true" className="wealth-sub-nav-divider" />
+
       <nav aria-label="Wealth workspace" className="wealth-sub-nav">
         <WealthSubNavLink item={overview} pathname={pathname} />
         <WealthCalculatorsNavItem pathname={pathname} />
@@ -53,10 +76,10 @@ function WealthSubNavLink({
       className={`wealth-sub-nav-item ${isActive ? "wealth-sub-nav-item-active" : ""}`}
       href={item.href}
     >
-      <span aria-hidden="true" className="wealth-sub-nav-icon">
+      <span aria-hidden="true" className="wealth-sub-nav-inline-icon">
         {item.icon}
       </span>
-      <span className="wealth-sub-nav-text">{item.label}</span>
+      <span className="wealth-sub-nav-item-label">{item.label}</span>
     </Link>
   );
 }
@@ -101,10 +124,10 @@ function WealthCalculatorsNavItem({ pathname }: { pathname: string }) {
         onMouseEnter={() => setIsOpen(true)}
         type="button"
       >
-        <span aria-hidden="true" className="wealth-sub-nav-icon">
+        <span aria-hidden="true" className="wealth-sub-nav-inline-icon">
           {activeCalculator?.icon ?? "✦"}
         </span>
-        <span className="wealth-sub-nav-text">
+        <span className="wealth-sub-nav-trigger-label">
           {activeCalculator ? `Calculators · ${activeCalculator.label}` : "Calculators"}
         </span>
         <span aria-hidden="true" className="wealth-sub-nav-chevron">

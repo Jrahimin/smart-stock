@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 import { MetricCard } from "@/components/ui/metric-card";
+import { SnapshotEntryList } from "@/features/wealth/components/snapshot-entry-list";
 import { WealthInsightCard } from "@/features/wealth/components/wealth-insight-card";
 import { WealthSubNav } from "@/features/wealth/components/wealth-sub-nav";
 import { useMoneySnapshot } from "@/features/wealth/hooks/use-money-snapshot";
@@ -15,6 +16,17 @@ import {
   buildSanchayapatraMetadata,
   getSanchayapatraConfig,
 } from "@/features/wealth/catalog/sanchayapatra-catalog";
+import {
+  ensureAssetPlanningDates,
+  formatDateLabel,
+  metadataValue,
+  optionIdForAsset,
+  resolveAssetEndDate,
+  resolveAssetStartDate,
+  setMetadataValue,
+  type SnapshotDraftAsset,
+  type SnapshotDraftLiability,
+} from "@/features/wealth/lib/snapshot-entry-helpers";
 import { formatWealthCurrency } from "@/features/wealth/view-models/wealth-view-model";
 import { useAuth } from "@/features/auth/context/auth-context";
 
@@ -31,23 +43,8 @@ type SnapshotEntryOption = {
   defaultMetadata?: Record<string, unknown>;
 };
 
-type DraftAsset = {
-  category: string;
-  label: string;
-  value: string;
-  liquidity_tier: string;
-  metadata: Record<string, unknown>;
-};
-
-type DraftLiability = {
-  category: string;
-  label: string;
-  balance: string;
-  interest_rate: string;
-  monthly_emi: string;
-  remaining_months: string;
-  metadata: Record<string, unknown>;
-};
+type DraftAsset = SnapshotDraftAsset;
+type DraftLiability = SnapshotDraftLiability;
 
 const ENTRY_OPTIONS: SnapshotEntryOption[] = [
   { id: "cash", kind: "asset", category: "CASH", label: "Cash", title: "Cash", icon: "💵", liquidityTier: "IMMEDIATE" },
@@ -124,15 +121,6 @@ function createLiabilityDraft(option: SnapshotEntryOption): DraftLiability {
     remaining_months: "",
     metadata: {},
   };
-}
-
-function metadataValue(metadata: Record<string, unknown>, key: string) {
-  const value = metadata[key];
-  return value == null ? "" : String(value);
-}
-
-function setMetadataValue(metadata: Record<string, unknown>, key: string, value: string) {
-  return { ...metadata, [key]: value };
 }
 
 export function MoneySnapshotDashboardView() {
@@ -299,6 +287,28 @@ export function MoneySnapshotDashboardView() {
     });
   }
 
+  function handleUpdateAsset(index: number, asset: DraftAsset) {
+    setAssets((current) => {
+      const next = [...current];
+      next[index] = asset;
+      if (!isAuthenticated) {
+        persistLocalDraft(next, liabilities);
+      }
+      return next;
+    });
+  }
+
+  function handleUpdateLiability(index: number, liability: DraftLiability) {
+    setLiabilities((current) => {
+      const next = [...current];
+      next[index] = liability;
+      if (!isAuthenticated) {
+        persistLocalDraft(assets, next);
+      }
+      return next;
+    });
+  }
+
   function persistLocalDraft(nextAssets: DraftAsset[], nextLiabilities: DraftLiability[]) {
     saveLocalMoneySnapshotDraft({
       monthly_savings: monthlySavings ? Number(monthlySavings) : undefined,
@@ -448,18 +458,20 @@ export function MoneySnapshotDashboardView() {
           ) : null}
 
           {hasPendingEntries ? (
-            <div className="wealth-pending-entry-list wealth-pending-entry-list-inline">
-              {assets.map((asset, index) => (
-                <PendingAssetRow asset={asset} key={`asset-${index}-${asset.label}`} onRemove={() => handleRemoveAsset(index)} />
-              ))}
-              {liabilities.map((liability, index) => (
-                <PendingLiabilityRow
-                  key={`liability-${index}-${liability.label}`}
-                  liability={liability}
-                  onRemove={() => handleRemoveLiability(index)}
-                />
-              ))}
-            </div>
+            <SnapshotEntryList
+              assets={assets}
+              liabilities={liabilities}
+              onRemoveAsset={handleRemoveAsset}
+              onRemoveLiability={handleRemoveLiability}
+              onUpdateAsset={handleUpdateAsset}
+              onUpdateLiability={handleUpdateLiability}
+              renderAssetEditForm={(draft, onChange) => (
+                <SnapshotAssetEditForm asset={draft} onChange={onChange} />
+              )}
+              renderLiabilityEditForm={(draft, onChange) => (
+                <SnapshotLiabilityEditForm liability={draft} onChange={onChange} />
+              )}
+            />
           ) : null}
         </div>
 
@@ -544,7 +556,7 @@ function AssetDraftForm({
     <div className={formClassName.join(" ")}>
       {essentialFields.map((field) => (
         <AssetField
-          draft={draft}
+          asset={draft}
           field={field}
           key={field}
           onChange={onChange}
@@ -574,7 +586,7 @@ function AssetProjectionForm({
     <div className="wealth-progressive-form">
       {detailFields.map((field) => (
         <AssetField
-          draft={draft}
+          asset={draft}
           field={field}
           key={field}
           onChange={onChange}
@@ -619,13 +631,24 @@ function SanchayapatraSnapshotDetailFields({
           </select>
         </label>
         <label className="wealth-field">
-          <span>Purchase date</span>
+          <span>Start date</span>
           <input
             onChange={(event) =>
               onChange({ ...draft, metadata: setMetadataValue(draft.metadata, "purchase_date", event.target.value) })
             }
             type="date"
             value={metadataValue(draft.metadata, "purchase_date")}
+          />
+        </label>
+        <label className="wealth-field wealth-field-optional">
+          <span>End / maturity date (optional)</span>
+          <input
+            onChange={(event) =>
+              onChange({ ...draft, metadata: setMetadataValue(draft.metadata, "maturity_date", event.target.value) })
+            }
+            placeholder="Auto from certificate term"
+            type="date"
+            value={metadataValue(draft.metadata, "maturity_date")}
           />
         </label>
         <label className="wealth-field">
@@ -735,6 +758,7 @@ type AssetFieldKey =
   | "profit_distribution"
   | "certificate_type"
   | "purchase_date"
+  | "start_date"
   | "maturity_date"
   | "gold_weight"
   | "gold_weight_unit"
@@ -772,9 +796,9 @@ function getAssetDetailFields(optionId: string): AssetFieldKey[] {
     case "gold":
       return [];
     case "fdr":
-      return ["profit_distribution", "maturity_date", "notes"];
+      return ["profit_distribution", "start_date", "maturity_date", "notes"];
     case "dps":
-      return ["maturity_date", "notes"];
+      return ["start_date", "maturity_date", "notes"];
     case "sanchayapatra":
       return ["certificate_type"];
     default:
@@ -783,12 +807,12 @@ function getAssetDetailFields(optionId: string): AssetFieldKey[] {
 }
 
 function AssetField({
-  draft,
+  asset: draft,
   field,
   onChange,
   option,
 }: {
-  draft: DraftAsset;
+  asset: DraftAsset;
   field: AssetFieldKey;
   onChange: (draft: DraftAsset) => void;
   option: SnapshotEntryOption;
@@ -1018,7 +1042,7 @@ function AssetField({
   if (field === "purchase_date") {
     return (
       <label className="wealth-field">
-        <span>Purchase date</span>
+        <span>Start date</span>
         <input
           onChange={(event) =>
             onChange({ ...draft, metadata: setMetadataValue(draft.metadata, "purchase_date", event.target.value) })
@@ -1030,10 +1054,25 @@ function AssetField({
     );
   }
 
+  if (field === "start_date") {
+    return (
+      <label className="wealth-field">
+        <span>Start date</span>
+        <input
+          onChange={(event) =>
+            onChange({ ...draft, metadata: setMetadataValue(draft.metadata, "start_date", event.target.value) })
+          }
+          type="date"
+          value={metadataValue(draft.metadata, "start_date")}
+        />
+      </label>
+    );
+  }
+
   if (field === "maturity_date") {
     return (
       <label className="wealth-field">
-        <span>Maturity date</span>
+        <span>End / maturity date</span>
         <input
           onChange={(event) =>
             onChange({ ...draft, metadata: setMetadataValue(draft.metadata, "maturity_date", event.target.value) })
@@ -1125,76 +1164,82 @@ function LiabilityProjectionForm({
           value={draft.remaining_months}
         />
       </label>
+      <label className="wealth-field wealth-field-optional">
+        <span>Loan start date (optional)</span>
+        <input
+          onChange={(event) =>
+            onChange({ ...draft, metadata: setMetadataValue(draft.metadata, "start_date", event.target.value) })
+          }
+          type="date"
+          value={metadataValue(draft.metadata, "start_date")}
+        />
+      </label>
     </div>
   );
 }
 
-function PendingAssetRow({ asset, onRemove }: { asset: DraftAsset; onRemove: () => void }) {
-  const accountIdentifier = metadataValue(asset.metadata, "account_identifier");
-  const paymentCount = metadataValue(asset.metadata, "payment_count");
-  const goldWeight = metadataValue(asset.metadata, "gold_weight");
-  const goldUnit = metadataValue(asset.metadata, "gold_weight_unit");
-  const interestRate = metadataValue(asset.metadata, "interest_rate");
-  const details = [
-    interestRate ? `${interestRate}%` : null,
-    paymentCount ? `${paymentCount} payments` : null,
-    goldWeight ? `${goldWeight} ${goldUnit || "gram"}` : null,
-    accountIdentifier ? `Ref ${maskIdentifier(accountIdentifier)}` : null,
-  ].filter(Boolean);
+function SnapshotAssetEditForm({
+  asset,
+  onChange,
+}: {
+  asset: DraftAsset;
+  onChange: (asset: DraftAsset) => void;
+}) {
+  const optionId = optionIdForAsset(asset);
+  const option = ENTRY_OPTIONS.find((item) => item.id === optionId) ?? ENTRY_OPTIONS[0];
+  const fields = getAssetEditFields(optionId);
+
+  if (optionId === "sanchayapatra") {
+    return (
+      <div className="wealth-pending-entry-edit-form">
+        <label className="wealth-field">
+          <span>Amount</span>
+          <input inputMode="decimal" onChange={(event) => onChange({ ...asset, value: event.target.value })} value={asset.value} />
+        </label>
+        <SanchayapatraSnapshotDetailFields draft={asset} onChange={onChange} />
+      </div>
+    );
+  }
 
   return (
-    <div className="wealth-pending-entry-row">
-      <span className="wealth-pending-entry-icon" aria-hidden="true">
-        {labelForAsset(asset).split(" ")[0]}
-      </span>
-      <div className="wealth-pending-entry-copy">
-        <strong>{asset.label}</strong>
-        <span>{formatWealthCurrency(asset.value)}</span>
-        {details.length ? <small>{details.join(" · ")}</small> : null}
-      </div>
-      <button aria-label={`Remove ${asset.label}`} className="wealth-pending-entry-remove" onClick={onRemove} type="button">
-        ✕
-      </button>
+    <div className="wealth-pending-entry-edit-form">
+      {fields.map((field) => (
+        <AssetField asset={asset} field={field} key={field} onChange={onChange} option={option} />
+      ))}
     </div>
   );
 }
 
-function PendingLiabilityRow({ liability, onRemove }: { liability: DraftLiability; onRemove: () => void }) {
-  const accountIdentifier = metadataValue(liability.metadata, "account_identifier");
-  const details = [
-    liability.interest_rate ? `${liability.interest_rate}%` : null,
-    liability.monthly_emi ? `EMI ${formatWealthCurrency(liability.monthly_emi)}` : null,
-    liability.remaining_months ? `${liability.remaining_months} mo left` : null,
-    accountIdentifier ? `Ref ${maskIdentifier(accountIdentifier)}` : null,
-  ].filter(Boolean);
-
+function SnapshotLiabilityEditForm({
+  liability,
+  onChange,
+}: {
+  liability: DraftLiability;
+  onChange: (liability: DraftLiability) => void;
+}) {
   return (
-    <div className="wealth-pending-entry-row wealth-pending-entry-row-liability">
-      <span className="wealth-pending-entry-icon" aria-hidden="true">
-        💳
-      </span>
-      <div className="wealth-pending-entry-copy">
-        <strong>{liability.label}</strong>
-        <span>{formatWealthCurrency(liability.balance)}</span>
-        {details.length ? <small>{details.join(" · ")}</small> : null}
-      </div>
-      <button aria-label={`Remove ${liability.label}`} className="wealth-pending-entry-remove" onClick={onRemove} type="button">
-        ✕
-      </button>
+    <div className="wealth-pending-entry-edit-form">
+      <LiabilityDraftForm draft={liability} onChange={onChange} />
+      <LiabilityProjectionForm draft={liability} onChange={onChange} />
     </div>
   );
+}
+
+function getAssetEditFields(optionId: string): AssetFieldKey[] {
+  return [...getAssetEssentialFields(optionId), ...getAssetDetailFields(optionId)];
 }
 
 function buildAssetMetadata(asset: DraftAsset) {
+  const metadata = ensureAssetPlanningDates(asset);
   if (asset.category !== "SANCHAYAPATRA" && asset.category !== "DEPOSIT") {
-    return asset.metadata;
+    return metadata;
   }
-  const periodicProfit = estimatePeriodicProfitValue(asset);
-  const distribution = metadataValue(asset.metadata, "profit_distribution") || "monthly";
+  const periodicProfit = estimatePeriodicProfitValue({ ...asset, metadata });
+  const distribution = metadataValue(metadata, "profit_distribution") || "monthly";
   const months = distribution === "quarterly" ? 3 : distribution === "yearly" ? 12 : distribution === "monthly" ? 1 : 0;
   const monthlyProfit = periodicProfit && months ? Math.round((periodicProfit * 12) / months) : null;
   return {
-    ...asset.metadata,
+    ...metadata,
     ...(monthlyProfit ? { monthly_profit: monthlyProfit } : {}),
     ...(periodicProfit ? { periodic_profit: periodicProfit } : {}),
   };
@@ -1202,14 +1247,23 @@ function buildAssetMetadata(asset: DraftAsset) {
 
 function buildTimelineEvents(assets: DraftAsset[], liabilities: DraftLiability[]) {
   const events = assets.flatMap((asset) => {
-    const maturityDate = metadataValue(asset.metadata, "maturity_date");
-    const periodicProfit = estimatePeriodicProfit(asset);
+    const planningMetadata = ensureAssetPlanningDates(asset);
+    const startDate = resolveAssetStartDate(planningMetadata);
+    const maturityDate = resolveAssetEndDate(planningMetadata);
+    const periodicProfit = estimatePeriodicProfit({ ...asset, metadata: planningMetadata });
     const moneyEvents = [];
+    if (startDate) {
+      moneyEvents.push({ dateLabel: formatDateLabel(startDate), label: `${asset.label} started`, value: "Planning anchor" });
+    }
     if ((asset.category === "SANCHAYAPATRA" || asset.category === "DEPOSIT") && periodicProfit) {
       moneyEvents.push({ dateLabel: nextPayoutLabel(asset), label: `${asset.label} profit`, value: periodicProfit });
     }
     if (maturityDate) {
-      moneyEvents.push({ dateLabel: formatDateLabel(maturityDate), label: `${asset.label} matures`, value: formatWealthCurrency(asset.value) });
+      moneyEvents.push({
+        dateLabel: formatDateLabel(maturityDate),
+        label: `${asset.label} matures`,
+        value: formatWealthCurrency(asset.value),
+      });
     }
     return moneyEvents;
   });
@@ -1279,12 +1333,6 @@ function nextPayoutLabel(asset: DraftAsset) {
   return "Next month";
 }
 
-function labelForAsset(asset: DraftAsset) {
-  const depositType = metadataValue(asset.metadata, "deposit_type");
-  const option = ENTRY_OPTIONS.find((item) => item.id === depositType) ?? ENTRY_OPTIONS.find((item) => item.label === asset.label);
-  return option ? `${option.icon} ${option.title}` : asset.category;
-}
-
 function defaultLabelForAsset(asset: DraftAsset) {
   const depositType = metadataValue(asset.metadata, "deposit_type");
   const option = ENTRY_OPTIONS.find((item) => item.id === depositType) ?? ENTRY_OPTIONS.find((item) => item.category === asset.category);
@@ -1301,17 +1349,3 @@ function identifierLabel(optionId: string) {
   return "Certificate / SP number (optional)";
 }
 
-function maskIdentifier(value: string) {
-  if (value.length <= 4) {
-    return value;
-  }
-  return `****${value.slice(-4)}`;
-}
-
-function formatDateLabel(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-  return new Intl.DateTimeFormat("en-BD", { month: "short", year: "numeric" }).format(date);
-}
