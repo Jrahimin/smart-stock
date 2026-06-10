@@ -1,155 +1,260 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 
-import { MetricCard } from "@/components/ui/metric-card";
-import { WealthInsightCard } from "@/features/wealth/components/wealth-insight-card";
-import { WealthNextSteps } from "@/features/wealth/components/wealth-next-steps";
+import { useDebouncedValue } from "@/features/wealth/hooks/use-debounced-value";
+
+import { WealthComparisonChart } from "@/features/wealth/components/wealth-comparison-chart";
+import { WealthComparisonHero } from "@/features/wealth/components/wealth-comparison-hero";
+import { WealthComparisonScenarioInputs } from "@/features/wealth/components/wealth-comparison-scenario-inputs";
+import { WealthComparisonTimeControl } from "@/features/wealth/components/wealth-comparison-time-control";
 import { WealthSubNav } from "@/features/wealth/components/wealth-sub-nav";
 import {
   WEALTH_COMPARISON_CARDS,
   WEALTH_COMPARISON_DEFAULTS,
   WEALTH_COMPARISON_STORIES,
+  WEALTH_DEFAULT_RATES,
 } from "@/features/wealth/catalog/wealth-catalog";
 import type { WealthComparisonSlug } from "@/features/wealth/types/wealth-types";
-import { formatBangladeshCurrencyText } from "@/features/wealth/lib/wealth-formatters";
 import { formatWealthCurrency } from "@/features/wealth/view-models/wealth-view-model";
+import {
+  applyComparisonScenarioChip,
+  buildComparisonPresentation,
+  buildScenarioContributionSummary,
+  buildScenarioViewProjection,
+  COMPARISON_MAX_MONTHS,
+  COMPARISON_SCENARIO_CHIPS,
+  parseHorizonMonths,
+  syncHorizonToInputs,
+} from "@/features/wealth/view-models/wealth-comparison-view-model";
 import { useWealthComparison } from "@/features/wealth/hooks/use-wealth-comparison";
 
 type WealthComparisonWorkspaceProps = {
   comparisonSlug: WealthComparisonSlug;
 };
 
+const HERO_COPY: Partial<Record<WealthComparisonSlug, { title: string; subtitle: string }>> = {
+  "dps-vs-fdr": {
+    title: "Two paths. Different futures.",
+    subtitle:
+      "One path rewards consistency. One path rewards certainty. Step forward in time and watch where each decision leads.",
+  },
+};
+
 export function WealthComparisonWorkspace({ comparisonSlug }: WealthComparisonWorkspaceProps) {
   const card = WEALTH_COMPARISON_CARDS.find((item) => item.slug === comparisonSlug);
+  const hero = HERO_COPY[comparisonSlug];
   const defaults = WEALTH_COMPARISON_DEFAULTS[comparisonSlug];
   const story = WEALTH_COMPARISON_STORIES[comparisonSlug];
   const [leftInputs, setLeftInputs] = useState(defaults.left);
   const [rightInputs, setRightInputs] = useState(defaults.right);
+  const [assumptions, setAssumptions] = useState<Record<string, unknown>>({
+    country_code: "BD",
+    inflation_rate: Number(WEALTH_DEFAULT_RATES.inflation),
+  });
+  const initialScenarioMonths = parseHorizonMonths(defaults.left, defaults.right);
+  const [scenarioMonths, setScenarioMonths] = useState(initialScenarioMonths);
+  const [viewMonths, setViewMonths] = useState(initialScenarioMonths);
+
+  const debouncedLeftInputs = useDebouncedValue(leftInputs, 500);
+  const debouncedRightInputs = useDebouncedValue(rightInputs, 500);
+
+  const syncedInputs = useMemo(
+    () => syncHorizonToInputs(debouncedLeftInputs, debouncedRightInputs, scenarioMonths),
+    [scenarioMonths, debouncedLeftInputs, debouncedRightInputs],
+  );
 
   const mergedLeft = useMemo(
-    () => Object.fromEntries(Object.entries(leftInputs).map(([key, value]) => [key, Number(value)])),
-    [leftInputs],
+    () => Object.fromEntries(Object.entries(syncedInputs.left).map(([key, value]) => [key, Number(value)])),
+    [syncedInputs.left],
   );
   const mergedRight = useMemo(
-    () => Object.fromEntries(Object.entries(rightInputs).map(([key, value]) => [key, Number(value)])),
-    [rightInputs],
+    () => Object.fromEntries(Object.entries(syncedInputs.right).map(([key, value]) => [key, Number(value)])),
+    [syncedInputs.right],
   );
 
-  const { result, isLoading, isError } = useWealthComparison(comparisonSlug, mergedLeft, mergedRight);
-  const differenceValue = Number(result?.difference_value ?? 0);
-  const differenceLabel =
-    differenceValue >= 0 ? "Extra value under current assumptions" : "Value gap under current assumptions";
-  const favoredPath = result ? (differenceValue >= 0 ? result.left.label : result.right.label) : null;
+  const { result, isLoading, isFetching, isError } = useWealthComparison(comparisonSlug, mergedLeft, mergedRight, assumptions);
+  const isInitialLoading = isLoading && !result;
+  const isUpdating = isFetching && Boolean(result);
+
+  const presentation = useMemo(
+    () =>
+      result
+        ? buildComparisonPresentation(comparisonSlug, result, mergedLeft, mergedRight, assumptions, scenarioMonths, viewMonths)
+        : null,
+    [assumptions, comparisonSlug, mergedLeft, mergedRight, result, scenarioMonths, viewMonths],
+  );
+
+  const updateScenario = (months: number) => {
+    const nextMonths = Math.max(0, Math.min(COMPARISON_MAX_MONTHS, months));
+    setScenarioMonths(nextMonths);
+    setViewMonths(nextMonths);
+    const synced = syncHorizonToInputs(leftInputs, rightInputs, nextMonths);
+    setLeftInputs(synced.left);
+    setRightInputs(synced.right);
+  };
+
+  const updateView = (months: number) => {
+    setViewMonths(Math.max(0, Math.min(scenarioMonths, months)));
+  };
+
+  const applyScenarioChip = (chipId: string) => {
+    const next = applyComparisonScenarioChip({ assumptions, horizonMonths: scenarioMonths, leftInputs, rightInputs }, chipId);
+    setAssumptions(next.assumptions);
+    const nextMonths = Math.max(0, Math.min(COMPARISON_MAX_MONTHS, next.horizonMonths));
+    setScenarioMonths(nextMonths);
+    setViewMonths(nextMonths);
+    const synced = syncHorizonToInputs(next.leftInputs, next.rightInputs, nextMonths);
+    setLeftInputs(synced.left);
+    setRightInputs(synced.right);
+  };
+
+  const contributionSummary = useMemo(
+    () => buildScenarioContributionSummary(comparisonSlug, leftInputs, rightInputs, scenarioMonths),
+    [comparisonSlug, leftInputs, rightInputs, scenarioMonths],
+  );
+
+  const viewProjection = useMemo(
+    () =>
+      result
+        ? buildScenarioViewProjection(comparisonSlug, mergedLeft, mergedRight, viewMonths)
+        : null,
+    [comparisonSlug, mergedLeft, mergedRight, result, viewMonths],
+  );
 
   return (
-    <section className="wealth-tool-workspace">
+    <section className="wealth-tool-workspace wealth-comparison-page">
       <WealthSubNav />
 
-      <header className="wealth-hero-card">
-        <p className="eyebrow">Compare choices</p>
-        <h1>{card?.title ?? "Comparison"}</h1>
-        <p>{card?.description}</p>
-      </header>
+      {isInitialLoading ? <p className="wealth-muted-copy">Exploring futures…</p> : null}
+      {isError ? <p className="wealth-error-copy">Could not evaluate this comparison right now.</p> : null}
 
-      <div className="wealth-comparison-layout">
-        <section className="wealth-panel">
-          <div className="wealth-story-panel-heading">
-            <p className="eyebrow">Story one</p>
-            <h2>{story.leftTitle}</h2>
-            <p>{story.leftSubtitle}</p>
-          </div>
-          <div className="wealth-form-grid">
-            {Object.entries(leftInputs).map(([key, value]) => (
-              <label className="wealth-field" key={`left-${key}`}>
-                <span>{story.fieldLabels[key] ?? key.replaceAll("_", " ")}</span>
-                <input
-                  inputMode="decimal"
-                  onChange={(event) => setLeftInputs((current) => ({ ...current, [key]: event.target.value }))}
-                  value={value}
-                />
-              </label>
-            ))}
-          </div>
-        </section>
+      {result && presentation ? (
+        <>
+          <WealthComparisonHero
+            beats={presentation.narrativeBeats}
+            subtitle={hero?.subtitle ?? card?.description ?? ""}
+            title={hero?.title ?? card?.title ?? "Comparison"}
+          />
 
-        <section className="wealth-panel">
-          <div className="wealth-story-panel-heading">
-            <p className="eyebrow">Story two</p>
-            <h2>{story.rightTitle}</h2>
-            <p>{story.rightSubtitle}</p>
-          </div>
-          <div className="wealth-form-grid">
-            {Object.entries(rightInputs).map(([key, value]) => (
-              <label className="wealth-field" key={`right-${key}`}>
-                <span>{story.fieldLabels[key] ?? key.replaceAll("_", " ")}</span>
-                <input
-                  inputMode="decimal"
-                  onChange={(event) => setRightInputs((current) => ({ ...current, [key]: event.target.value }))}
-                  value={value}
-                />
-              </label>
-            ))}
-          </div>
-        </section>
-      </div>
+          <WealthComparisonScenarioInputs
+            contributionSummary={contributionSummary}
+            fieldLabels={story.fieldLabels}
+            leftInputs={leftInputs}
+            onLeftChange={setLeftInputs}
+            onRightChange={setRightInputs}
+            rightInputs={rightInputs}
+            viewProjection={viewProjection}
+          />
 
-      <section className="wealth-panel wealth-result-panel">
-        {isLoading ? <p className="wealth-muted-copy">Comparing scenarios…</p> : null}
-        {isError ? <p className="wealth-error-copy">Could not evaluate this comparison right now.</p> : null}
-        {result ? (
-          <>
-            <div className="wealth-result-hero">
-              <p className="eyebrow">Trade-off summary</p>
-              <h2>{result.title}</h2>
-              <p>{formatBangladeshCurrencyText(result.summary)}</p>
-            </div>
-            <div className="wealth-comparison-results">
-              {[result.left, result.right].map((option) => (
-                <article className="wealth-comparison-option" key={option.key}>
-                  <p className="eyebrow">{option.label}</p>
-                  <h3>{formatWealthCurrency(option.final_value)}</h3>
-                  {option.real_value != null ? (
-                    <p>Inflation-adjusted: {formatWealthCurrency(option.real_value)}</p>
-                  ) : null}
-                  <ul className="wealth-story-note-list">
-                    <li>
-                      <span className="wealth-note-icon wealth-note-icon-flex" aria-hidden="true" />
-                      {option.liquidity_note}
-                    </li>
-                    <li>
-                      <span className="wealth-note-icon wealth-note-icon-habit" aria-hidden="true" />
-                      {option.behavior_note}
-                    </li>
-                    <li>
-                      <span className="wealth-note-icon wealth-note-icon-stable" aria-hidden="true" />
-                      {option.risk_note}
-                    </li>
-                  </ul>
-                </article>
-              ))}
-            </div>
-            <div className="wealth-metric-grid">
-              <MetricCard
-                helper={favoredPath ? `Currently favors ${favoredPath}` : undefined}
-                label={differenceLabel}
-                tone="info"
-                value={formatWealthCurrency(Math.abs(differenceValue))}
+          <div className={`wealth-comparison-journey-shell ${isUpdating ? "wealth-comparison-journey-shell-updating" : ""}`}>
+            {isUpdating ? <p className="wealth-comparison-updating-hint">Updating your futures…</p> : null}
+
+            {defaults.left.years != null || defaults.right.years != null ? (
+              <WealthComparisonTimeControl
+                activeStopId={presentation.horizonSnapshot.activeStopId}
+                journeyMoment={presentation.journeyMoment}
+                onScenarioChange={updateScenario}
+                onViewChange={updateView}
+                scenarioMonths={scenarioMonths}
+                turningPointYear={presentation.turningPointYear}
+                unifiedStops={presentation.unifiedJourneyStops}
+                viewMonths={viewMonths}
               />
-              {result.difference_percent != null ? (
-                <MetricCard label="Relative difference" tone="neutral" value={`${Math.abs(Number(result.difference_percent))}%`} />
-              ) : null}
+            ) : null}
+
+            <WealthComparisonChart
+              activeStopId={presentation.horizonSnapshot.activeStopId}
+              chart={presentation.chart}
+              horizonSnapshot={presentation.horizonSnapshot}
+              leftLabel={result.left.label}
+              rightLabel={result.right.label}
+            />
+          </div>
+
+          <section className="wealth-comparison-reflection">
+            <section className="wealth-comparison-scenario-explorer" id="comparison-scenario-chips">
+              <div className="wealth-comparison-section-intro">
+                <p className="eyebrow">Alternate futures</p>
+                <h2>Step into another possible reality</h2>
+              </div>
+              <div className="wealth-comparison-scenario-grid">
+                {COMPARISON_SCENARIO_CHIPS.map((chip) => (
+                  <button className="wealth-comparison-scenario-card" key={chip.id} onClick={() => applyScenarioChip(chip.id)} type="button">
+                    <strong>{chip.label}</strong>
+                    <span>{chip.description}</span>
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            <section className="wealth-comparison-insights-soft" aria-label="What this future teaches">
+              <div className="wealth-comparison-section-intro">
+                <p className="eyebrow">What this future teaches</p>
+                <h2>Observations from your journey</h2>
+              </div>
+              <ul className="wealth-comparison-insight-list">
+                {presentation.contextualInsights.map((insight, index) => (
+                  <li className={index === 0 ? "wealth-comparison-insight-primary" : ""} key={insight.id}>
+                    <strong>{insight.title}</strong>
+                    <p>{insight.body}</p>
+                  </li>
+                ))}
+              </ul>
+            </section>
+
+            <section className="wealth-comparison-outcomes-soft" aria-label="Purchasing power at horizon">
+              <div className="wealth-comparison-section-intro">
+                <p className="eyebrow">Purchasing power</p>
+                <h2>What each future feels like after inflation</h2>
+              </div>
+              <div className="wealth-comparison-outcomes-row">
+                <div className={`wealth-comparison-outcome-pane ${presentation.horizonSnapshot.favoredKey === "left" ? "wealth-comparison-outcome-leading" : ""}`}>
+                  <span>{result.left.label}</span>
+                  <strong className="wealth-comparison-animated-value">
+                    {formatWealthCurrency(presentation.purchasingPower.left.finalValue)}
+                  </strong>
+                  <small>Real purchasing power {formatWealthCurrency(presentation.purchasingPower.left.realValue)}</small>
+                  <em>Inflation takes {formatWealthCurrency(presentation.purchasingPower.left.inflationImpact)}</em>
+                </div>
+                <div className={`wealth-comparison-outcome-pane ${presentation.horizonSnapshot.favoredKey === "right" ? "wealth-comparison-outcome-leading" : ""}`}>
+                  <span>{result.right.label}</span>
+                  <strong className="wealth-comparison-animated-value">
+                    {formatWealthCurrency(presentation.purchasingPower.right.finalValue)}
+                  </strong>
+                  <small>Real purchasing power {formatWealthCurrency(presentation.purchasingPower.right.realValue)}</small>
+                  <em>Inflation takes {formatWealthCurrency(presentation.purchasingPower.right.inflationImpact)}</em>
+                </div>
+              </div>
+            </section>
+          </section>
+
+          <p className="wealth-disclaimer">{result.disclaimer}</p>
+
+          <section className="wealth-comparison-story-end">
+            <p className="eyebrow">Continue the story</p>
+            <div className="wealth-chip-row">
+              <Link className="wealth-chip" href="/wealth/snapshot">
+                Save this scenario
+              </Link>
+              <button
+                className="wealth-chip wealth-chip-button"
+                onClick={() => document.getElementById("comparison-scenario-chips")?.scrollIntoView({ behavior: "smooth", block: "center" })}
+                type="button"
+              >
+                Explore a different assumption
+              </button>
+              <Link className="wealth-chip" href="/wealth/calendar">
+                View in Time Travel
+              </Link>
+              <Link className="wealth-chip" href="/wealth/snapshot">
+                Add to Money Snapshot
+              </Link>
             </div>
-            <div className="wealth-insight-grid">
-              {result.insights.map((insight) => (
-                <WealthInsightCard insight={insight} key={insight.id} />
-              ))}
-            </div>
-            <p className="wealth-disclaimer">{result.disclaimer}</p>
-            <WealthNextSteps steps={result.next_steps} />
-          </>
-        ) : null}
-      </section>
+          </section>
+        </>
+      ) : null}
     </section>
   );
 }

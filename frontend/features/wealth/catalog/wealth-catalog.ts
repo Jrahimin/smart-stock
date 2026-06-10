@@ -116,8 +116,8 @@ export const WEALTH_DEFAULT_RATES = {
 export const WEALTH_COMPARISON_CARDS: WealthComparisonCardModel[] = [
   {
     slug: "dps-vs-fdr",
-    title: "Monthly saver or lump-sum lock-in?",
-    description: "A premium comparison for discipline, certainty, and access to cash.",
+    title: "Two paths. Different futures.",
+    description: "One path rewards consistency. One path rewards certainty. Visit your future and see where each decision leads.",
     cue: "Recommended first",
     accent: "steady",
   },
@@ -154,10 +154,14 @@ export const WEALTH_COMPARISON_CARDS: WealthComparisonCardModel[] = [
 export const WEALTH_COMPARISON_STORIES: Record<
   WealthComparisonSlug,
   {
+    leftIdentity: string;
+    leftStrengths: string[];
     leftTitle: string;
+    rightIdentity: string;
+    rightStrengths: string[];
+    rightSubtitle: string;
     rightTitle: string;
     leftSubtitle: string;
-    rightSubtitle: string;
     fieldLabels: Record<string, string>;
   }
 > = {
@@ -166,9 +170,13 @@ export const WEALTH_COMPARISON_STORIES: Record<
     rightTitle: "Lump Sum Investor",
     leftSubtitle: "A habit-led path built month by month.",
     rightSubtitle: "A steadier path when money is already available.",
+    leftIdentity: "Building wealth gradually through consistency.",
+    rightIdentity: "Growing existing capital with predictable returns.",
+    leftStrengths: ["Flexible contributions", "Habit building", "Accessible for most people"],
+    rightStrengths: ["High certainty", "Predictable outcome", "Immediate capital deployment"],
     fieldLabels: {
       monthly_payment: "Monthly DPS saving",
-      annual_rate: "Interest rate (%)",
+      annual_rate: "DPS interest rate (%)",
       principal: "FDR amount to lock",
       years: "Time horizon",
     },
@@ -178,6 +186,10 @@ export const WEALTH_COMPARISON_STORIES: Record<
     rightTitle: "Market Builder",
     leftSubtitle: "Prefers predictability and a known rate.",
     rightSubtitle: "Accepts uncertainty for possible long-term growth.",
+    leftIdentity: "Protecting capital with a calmer, known path.",
+    rightIdentity: "Accepting volatility for long-term growth potential.",
+    leftStrengths: ["Predictable returns", "Lower daily stress", "Clear maturity outcome"],
+    rightStrengths: ["Higher growth potential", "Keeps capital working", "Useful for long horizons"],
     fieldLabels: {
       principal: "Starting amount",
       annual_rate: "Interest / return (%)",
@@ -189,6 +201,10 @@ export const WEALTH_COMPARISON_STORIES: Record<
     rightTitle: "Today Enjoyer",
     leftSubtitle: "Keeps money working for later flexibility.",
     rightSubtitle: "Chooses the benefit of using money now.",
+    leftIdentity: "Trading present comfort for future optionality.",
+    rightIdentity: "Choosing immediate value over future growth.",
+    leftStrengths: ["Future flexibility", "Compounding potential", "Emergency buffer"],
+    rightStrengths: ["Immediate enjoyment", "No ongoing discipline", "Clear present benefit"],
     fieldLabels: {
       amount: "Decision amount",
       years: "Time horizon",
@@ -199,6 +215,10 @@ export const WEALTH_COMPARISON_STORIES: Record<
     rightTitle: "Opportunity Investor",
     leftSubtitle: "Turns cash into lower interest pressure.",
     rightSubtitle: "Keeps cash aimed at possible growth.",
+    leftIdentity: "Buying peace of mind by reducing debt pressure.",
+    rightIdentity: "Keeping cash aimed at possible upside instead.",
+    leftStrengths: ["Guaranteed interest saved", "Lower monthly pressure", "Psychological relief"],
+    rightStrengths: ["Potential upside", "Keeps liquidity invested", "Useful when returns exceed loan cost"],
     fieldLabels: {
       extra_amount: "Extra amount",
       loan_rate: "Loan rate (%)",
@@ -211,6 +231,10 @@ export const WEALTH_COMPARISON_STORIES: Record<
     rightTitle: "Real-World Value",
     leftSubtitle: "The number you see on paper.",
     rightSubtitle: "What that number may feel like after prices rise.",
+    leftIdentity: "The balance your statement shows today.",
+    rightIdentity: "What that money may actually feel like later.",
+    leftStrengths: ["Easy to track", "Motivating headline", "Useful for planning targets"],
+    rightStrengths: ["More honest planning", "Better lifestyle comparison", "Future-aware decisions"],
     fieldLabels: {
       amount: "Amount",
       years: "Time horizon",
@@ -464,7 +488,7 @@ export const WEALTH_TOOL_CONFIG: Record<
 
 export const WEALTH_COMPARISON_DEFAULTS: Record<WealthComparisonSlug, { left: Record<string, string>; right: Record<string, string> }> = {
   "dps-vs-fdr": {
-    left: { monthly_payment: "10000", annual_rate: WEALTH_DEFAULT_RATES.dps, years: "5" },
+    left: { monthly_payment: "10000", annual_rate: WEALTH_DEFAULT_RATES.fdr, years: "5" },
     right: { principal: "600000", annual_rate: WEALTH_DEFAULT_RATES.fdr, years: "5" },
   },
   "fdr-vs-stocks": {

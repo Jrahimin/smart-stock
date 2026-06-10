@@ -28,7 +28,7 @@ const WEALTH_SUB_NAV_ITEMS = [
   },
   {
     href: "/wealth/compare/dps-vs-fdr",
-    label: "Compare",
+    label: "DPS vs FDR",
     icon: "⇄",
     match: (path: string) => path.startsWith("/wealth/compare"),
   },

@@ -10,7 +10,6 @@ import {
   LogIn,
   LogOut,
   ScanSearch,
-  Settings,
   User,
   Wallet,
 } from "lucide-react";
@@ -21,6 +20,7 @@ import type { ReactNode } from "react";
 import { useEffect } from "react";
 
 import { GlobalCommandPalette } from "@/components/command/global-command-palette";
+import { SidebarThemeToggle } from "@/components/layout/sidebar-theme-toggle";
 import { useAuth } from "@/features/auth/context/auth-context";
 import { useWorkspaceStore } from "@/stores/use-workspace-store";
 
@@ -31,7 +31,6 @@ const navigationItems = [
   { label: "Signals", href: "/signals", icon: Bell },
   { label: "Watchlist", href: "/watchlist", icon: BarChart3 },
   { label: "My Money", href: "/wealth", icon: Wallet },
-  { label: "Settings", href: "/settings", icon: Settings },
 ];
 
 type TerminalAppShellProps = {
@@ -99,6 +98,7 @@ export function TerminalAppShell({ children }: TerminalAppShellProps) {
             );
           })}
         </nav>
+        <SidebarThemeToggle collapsed={sidebarCollapsed} />
         <div className="terminal-sidebar-footer">
           {isLoading ? null : isAuthenticated && user ? (
             <>
