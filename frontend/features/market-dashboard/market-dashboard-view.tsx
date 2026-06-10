@@ -1,12 +1,11 @@
 "use client";
 
-import { HeroMarketIntelligence } from "@/features/market-dashboard/components/hero-market-intelligence";
 import { InsightSidebar } from "@/features/market-dashboard/components/insight-sidebar";
 import { InstitutionalHeatmap } from "@/features/market-dashboard/components/institutional-heatmap";
 import { MarketBreadthPanel } from "@/features/market-dashboard/components/market-breadth-panel";
 import { MarketMoversPanel } from "@/features/market-dashboard/components/market-movers-panel";
+import { MarketDashboardToolbar, MarketPulsePanel } from "@/features/market-dashboard/components/market-pulse-header";
 import { MarketTimeline } from "@/features/market-dashboard/components/market-timeline";
-import { MarketTopbar } from "@/features/market-dashboard/components/market-topbar";
 import { SmartSignalFeed } from "@/features/market-dashboard/components/smart-signal-feed";
 import { useMarketDashboard } from "@/features/market-dashboard/hooks/use-market-dashboard";
 import { WorkspaceCommandSearch } from "@/components/command/workspace-command-search";
@@ -17,17 +16,17 @@ export function MarketDashboardView() {
 
   return (
     <div className="market-dashboard-view">
-      <MarketTopbar model={model} />
-      <div className="workspace-page-search">
+      <MarketDashboardToolbar model={model} />
+      <div className="workspace-page-search workspace-page-search-dashboard">
         <WorkspaceCommandSearch filterContextName="market dashboard" />
       </div>
+      <MarketPulsePanel model={model} />
       {isError ? (
         <div className="data-warning">
           Backend data is unavailable. Showing resilient workspace placeholders based on current contracts.
         </div>
       ) : null}
       {isLoading ? <div className="data-warning">Loading latest market intelligence...</div> : null}
-      <HeroMarketIntelligence model={model} />
       <div className="dashboard-workspace-grid">
         <div className="dashboard-primary-column">
           <MarketBreadthPanel breadth={model.breadth} />

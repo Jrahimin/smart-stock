@@ -2,6 +2,7 @@ import { backendApiGet } from "@/lib/api/backend-api-client";
 import type {
   BackendDailyMarketSummaryDto,
   BackendDailyPriceDto,
+  BackendDsexIndexSnapshotDto,
   BackendLatestMarketPriceDto,
   BackendMarketPriceWindowDto,
   DataQualityFlag,
@@ -26,6 +27,10 @@ export type ListDailyPricesParams = {
 export type ListMarketPriceWindowsParams = ListMarketSummariesParams & {
   price_window_limit?: number;
 };
+
+export function getDsexIndexSnapshot(exchange: ExchangeCode = "DSE") {
+  return backendApiGet<BackendDsexIndexSnapshotDto>("/market/index/dsex", { exchange });
+}
 
 export function listMarketSummaries(params: ListMarketSummariesParams = {}) {
   return backendApiGet<BackendDailyMarketSummaryDto[]>("/market/summaries", {

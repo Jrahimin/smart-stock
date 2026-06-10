@@ -32,8 +32,10 @@ class PostDailyAmarstockStats:
     news_skipped: int = 0
     price_trade_fields_patched: int = 0
     price_trade_rows_missing: int = 0
+    index_summary_upserted: bool = False
     news_error: str | None = None
     latest_price_patch_error: str | None = None
+    index_summary_error: str | None = None
 
 
 async def run_post_daily_amarstock_enrichment(
@@ -77,6 +79,39 @@ async def run_post_daily_amarstock_enrichment(
             stats.latest_price_patch_error = str(exc)
             logger.warning(
                 "AmarStock LatestPrice trade patch failed (daily sync continues): %s",
+                exc,
+                exc_info=True,
+            )
+
+    if settings.amarstock_index_summary_enabled:
+        try:
+            from app.jobs.ingestion.amarstock_index_api_source import AmarStockIndexApiSource
+
+            snapshot = await AmarStockIndexApiSource.from_settings(settings).fetch_dsex_snapshot()
+            await market_repo.upsert_daily_market_summary(
+                {
+                    "exchange": exchange,
+                    "trade_date": trade_date,
+                    "index_name": "DSEX",
+                    "index_close": snapshot.index_close,
+                    "index_change": snapshot.index_change,
+                    "index_change_percent": snapshot.index_change_percent,
+                    "total_volume": snapshot.total_volume,
+                    "total_turnover": snapshot.total_turnover,
+                    "total_trades": snapshot.total_trades,
+                    "advancing_issues": snapshot.advancing_issues,
+                    "declining_issues": snapshot.declining_issues,
+                    "unchanged_issues": snapshot.unchanged_issues,
+                    "source": AmarStockIndexApiSource.source_name,
+                    "data_quality_flag": DataQualityFlag.OK,
+                    "has_suspicious_prices": False,
+                }
+            )
+            stats.index_summary_upserted = True
+        except Exception as exc:
+            stats.index_summary_error = str(exc)
+            logger.warning(
+                "AmarStock DSEX summary upsert failed (daily sync continues): %s",
                 exc,
                 exc_info=True,
             )

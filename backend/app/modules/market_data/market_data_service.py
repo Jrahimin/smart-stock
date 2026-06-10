@@ -10,6 +10,7 @@ from app.api.dependencies.auth_dependencies import get_current_user_context
 from app.core.core_config import get_settings
 from app.core.enums import DataQualityFlag, ExchangeCode
 from app.jobs.ingestion.amarstock_daily_enrichment import PostDailyAmarstockStats, run_post_daily_amarstock_enrichment
+from app.jobs.ingestion.amarstock_index_api_source import AmarStockIndexApiSource
 from app.core.exception_handlers import NotFoundError
 from app.core.security_config import UserContext
 from app.jobs.ingestion.ingestion_source_base import IngestedDailyPrice, MarketDataSource
@@ -19,12 +20,15 @@ from app.modules.market_data.market_data_schemas import (
     DailyMarketSummaryCreate,
     DailyPriceCreate,
     DailyPriceIngestionResult,
+    DsexIndexSnapshotRead,
 )
 
 logger = logging.getLogger(__name__)
 
 LTP_VALIDATION_THRESHOLD_PERCENT = Decimal("1") # 1%
 SOURCE_VALIDATION_SUMMARY_INDEX = "SOURCE_VALIDATION"
+DSEX_SUMMARY_INDEX = "DSEX"
+TRADING_DAYS_1M = 21
 
 
 class MarketDataService:
@@ -397,6 +401,115 @@ class MarketDataService:
             trade_date=summary_data.trade_date,
             index_name=summary_data.index_name,
         )
+
+    async def get_dsex_index_snapshot(self, *, exchange: ExchangeCode = ExchangeCode.DSE) -> DsexIndexSnapshotRead:
+        source = AmarStockIndexApiSource.from_settings(get_settings())
+        snapshot = await source.fetch_dsex_snapshot()
+        summaries = await self.repository.list_daily_market_summaries(
+            exchange=exchange,
+            limit=40,
+            offset=0,
+        )
+        dsex_history = sorted(
+            (
+                summary
+                for summary in summaries
+                if summary.index_name == DSEX_SUMMARY_INDEX and summary.index_close is not None
+            ),
+            key=lambda summary: summary.trade_date,
+        )
+        return_1m_percent = self._compute_index_return_percent(
+            snapshot.index_close,
+            dsex_history,
+            trading_days_back=TRADING_DAYS_1M,
+        )
+        range_position_percent = self._compute_range_position_percent(
+            snapshot.index_close,
+            snapshot.range_52w_low,
+            snapshot.range_52w_high,
+        )
+
+        return DsexIndexSnapshotRead(
+            trade_date=snapshot.trade_date,
+            market_status=snapshot.market_status,
+            index_close=snapshot.index_close,
+            index_change=snapshot.index_change,
+            index_change_percent=snapshot.index_change_percent,
+            day_open=snapshot.day_open,
+            day_high=snapshot.day_high,
+            day_low=snapshot.day_low,
+            range_52w_low=snapshot.range_52w_low,
+            range_52w_high=snapshot.range_52w_high,
+            range_position_percent=range_position_percent,
+            return_1m_percent=return_1m_percent,
+            return_6m_percent=snapshot.return_6m_percent,
+            return_1y_percent=snapshot.return_1y_percent,
+            total_volume=snapshot.total_volume,
+            total_turnover=snapshot.total_turnover,
+            total_trades=snapshot.total_trades,
+            advancing_issues=snapshot.advancing_issues,
+            declining_issues=snapshot.declining_issues,
+            unchanged_issues=snapshot.unchanged_issues,
+            source=source.source_name,
+        )
+
+    async def upsert_dsex_index_summary(
+        self,
+        *,
+        exchange: ExchangeCode,
+        trade_date: date | None = None,
+    ) -> None:
+        source = AmarStockIndexApiSource.from_settings(get_settings())
+        snapshot = await source.fetch_dsex_snapshot()
+        resolved_trade_date = trade_date or snapshot.trade_date
+        await self.repository.upsert_daily_market_summary(
+            {
+                "exchange": exchange,
+                "trade_date": resolved_trade_date,
+                "index_name": DSEX_SUMMARY_INDEX,
+                "index_close": snapshot.index_close,
+                "index_change": snapshot.index_change,
+                "index_change_percent": snapshot.index_change_percent,
+                "total_volume": snapshot.total_volume,
+                "total_turnover": snapshot.total_turnover,
+                "total_trades": snapshot.total_trades,
+                "advancing_issues": snapshot.advancing_issues,
+                "declining_issues": snapshot.declining_issues,
+                "unchanged_issues": snapshot.unchanged_issues,
+                "source": source.source_name,
+                "data_quality_flag": DataQualityFlag.OK,
+                "has_suspicious_prices": False,
+            }
+        )
+
+    def _compute_index_return_percent(
+        self,
+        current_close: Decimal,
+        history: list[DailyMarketSummary],
+        *,
+        trading_days_back: int,
+    ) -> Decimal | None:
+        if not history:
+            return None
+
+        index = max(0, len(history) - 1 - trading_days_back)
+        past_close = history[index].index_close
+        if past_close is None or past_close == 0:
+            return None
+
+        return (current_close - past_close) / past_close * Decimal("100")
+
+    def _compute_range_position_percent(
+        self,
+        current_close: Decimal,
+        range_low: Decimal,
+        range_high: Decimal,
+    ) -> Decimal:
+        if range_high <= range_low:
+            return Decimal("50")
+
+        position = (current_close - range_low) / (range_high - range_low) * Decimal("100")
+        return max(Decimal("0"), min(Decimal("100"), position))
 
     async def _ensure_stock_exists(self, stock_id: UUID) -> None:
         stock = await self.repository.get_stock_by_id(stock_id)

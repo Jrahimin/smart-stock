@@ -111,6 +111,31 @@ class MarketPriceWindowRead(BaseModel):
     trader_decision: TraderDecisionSummaryRead | None = None
 
 
+class DsexIndexSnapshotRead(BaseModel):
+    index_name: str = "DSEX"
+    trade_date: date
+    market_status: str
+    index_close: Decimal
+    index_change: Decimal
+    index_change_percent: Decimal
+    day_open: Decimal
+    day_high: Decimal
+    day_low: Decimal
+    range_52w_low: Decimal
+    range_52w_high: Decimal
+    range_position_percent: Decimal
+    return_1m_percent: Decimal | None = None
+    return_6m_percent: Decimal | None = None
+    return_1y_percent: Decimal | None = None
+    total_volume: int | None = None
+    total_turnover: Decimal | None = None
+    total_trades: int | None = None
+    advancing_issues: int
+    declining_issues: int
+    unchanged_issues: int
+    source: str
+
+
 class DailyPriceIngestionResult(BaseModel):
     exchange: ExchangeCode
     trade_date: date

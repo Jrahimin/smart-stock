@@ -54,6 +54,7 @@ class Settings(BaseSettings):
     amarstock_bulk_api_retry_delay_seconds: float = Field(default=1.0, ge=0)
     amarstock_news_ingestion_enabled: bool = True
     amarstock_daily_latest_price_patch_enabled: bool = True
+    amarstock_index_summary_enabled: bool = True
     amarstock_latest_price_stock_details_enabled: bool = True
 
     @property

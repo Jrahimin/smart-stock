@@ -15,6 +15,7 @@ from app.modules.market_data.market_data_schemas import (
     DailyPriceCreate,
     DailyPriceIngestionResult,
     DailyPriceRead,
+    DsexIndexSnapshotRead,
     LatestMarketPriceRead,
     MarketPriceWindowRead,
 )
@@ -140,6 +141,15 @@ async def ingest_daily_prices(
         source=source,
     )
     return success_response(data=result, message="Daily prices ingested")
+
+
+@router.get("/market/index/dsex", response_model=ApiResponse[DsexIndexSnapshotRead])
+async def get_dsex_index_snapshot(
+    service: Annotated[MarketDataService, Depends(get_market_data_service)],
+    exchange: ExchangeCode = ExchangeCode.DSE,
+) -> ApiResponse[DsexIndexSnapshotRead]:
+    snapshot = await service.get_dsex_index_snapshot(exchange=exchange)
+    return success_response(data=snapshot, message="DSEX index snapshot retrieved")
 
 
 @router.get("/market/summaries", response_model=ApiResponse[list[DailyMarketSummaryRead]])

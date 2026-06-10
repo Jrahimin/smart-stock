@@ -77,6 +77,31 @@ export type BackendTraderDecisionSummaryDto = {
   risk_label: "LOW" | "MEDIUM" | "HIGH" | "SPECULATIVE";
 };
 
+export type BackendDsexIndexSnapshotDto = {
+  index_name: string;
+  trade_date: string;
+  market_status: string;
+  index_close: string | number;
+  index_change: string | number;
+  index_change_percent: string | number;
+  day_open: string | number;
+  day_high: string | number;
+  day_low: string | number;
+  range_52w_low: string | number;
+  range_52w_high: string | number;
+  range_position_percent: string | number;
+  return_1m_percent: string | number | null;
+  return_6m_percent: string | number | null;
+  return_1y_percent: string | number | null;
+  total_volume: number | null;
+  total_turnover: string | number | null;
+  total_trades: number | null;
+  advancing_issues: number;
+  declining_issues: number;
+  unchanged_issues: number;
+  source: string;
+};
+
 export type BackendDailyMarketSummaryDto = {
   exchange: ExchangeCode;
   trade_date: string;

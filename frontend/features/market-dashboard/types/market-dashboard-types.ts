@@ -73,12 +73,64 @@ export type MarketTimelineItemModel = {
   description: string;
 };
 
+export type MarketDirection = "buyers" | "sellers" | "mixed";
+
+export type LeadingSectorModel = {
+  name: string;
+  changePercent: number;
+  label: string;
+};
+
+export type IndexDayStatsModel = {
+  open: string;
+  high: string;
+  low: string;
+};
+
+export type IndexRangeModel = {
+  lowLabel: string;
+  highLabel: string;
+  positionPercent: number;
+};
+
+export type IndexPerformanceModel = {
+  oneMonth: string;
+  sixMonth: string;
+  oneYear: string;
+};
+
+export type MarketPulseModel = {
+  indexName: string;
+  indexAvailable: boolean;
+  indexValue: string;
+  indexChangePercent: number | null;
+  indexChangeLabel: string;
+  indexTone: "positive" | "negative" | "neutral" | "warning";
+  indexDayStats: IndexDayStatsModel | null;
+  indexRange: IndexRangeModel | null;
+  indexPerformance: IndexPerformanceModel;
+  marketStatus: string | null;
+  turnoverLabel: string;
+  turnoverHelper: string;
+  volumeLabel: string;
+  volumeHelper: string;
+  breadthLabel: string;
+  breadthAdvancing: number;
+  breadthDeclining: number;
+  leadingSector: LeadingSectorModel | null;
+  marketDirection: MarketDirection;
+  marketDirectionLabel: string;
+  marketMood: MarketMood;
+  latestTradeDate: string;
+};
+
 export type MarketDashboardModel = {
   exchange: ExchangeCode;
   marketMood: MarketMood;
   latestTradeDate: string;
   dataQuality: DataQualityFlag | "UNKNOWN";
   session: MarketSessionModel;
+  pulse: MarketPulseModel;
   heroMetrics: MarketMetricModel[];
   breadth: BreadthModel;
   heatmapTiles: HeatmapTileModel[];
