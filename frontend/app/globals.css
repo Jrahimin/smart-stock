@@ -7743,96 +7743,236 @@ button {
   line-height: 1.4;
 }
 
-.wealth-comparison-outcomes-soft {
+.wealth-comparison-summary-grid {
   display: grid;
-  gap: 10px;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
 }
 
-.wealth-comparison-outcomes-row {
+.wealth-comparison-summary-panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--foreground) 5%, transparent);
   display: grid;
-  gap: 18px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  overflow: hidden;
+  padding: 16px 18px 18px;
 }
 
-.wealth-comparison-outcome-pane {
+:root[data-theme="light"] .wealth-comparison-summary-panel {
+  background: #fff;
+  border-color: color-mix(in srgb, var(--primary) 14%, var(--border));
+  box-shadow: 0 12px 30px color-mix(in srgb, var(--primary) 7%, transparent);
+}
+
+.wealth-comparison-summary-panel-head {
+  border-bottom: 1px solid color-mix(in srgb, var(--foreground) 8%, var(--border));
   display: grid;
-  gap: 5px;
-  padding: 2px 0 8px;
-  transition:
-    opacity 0.28s ease,
-    transform 0.28s ease;
+  gap: 4px;
+  margin: 0;
+  padding-bottom: 12px;
 }
 
-.wealth-comparison-outcome-pane span {
-  color: var(--muted);
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.wealth-comparison-outcome-pane strong {
+.wealth-comparison-summary-panel-head h2 {
+  color: var(--foreground);
   font-size: 1.02rem;
+  margin: 0;
 }
 
-.wealth-comparison-outcome-pane small,
-.wealth-comparison-outcome-pane em {
-  color: var(--muted);
-  font-size: 0.76rem;
-  font-style: normal;
-  line-height: 1.4;
+.wealth-comparison-insights-panel {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--primary) 5%, var(--panel)), var(--panel) 120px),
+    var(--panel);
 }
 
-.wealth-comparison-outcome-pane em {
-  color: var(--warning);
+:root[data-theme="light"] .wealth-comparison-insights-panel {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--primary) 6%, #fff), #fff 120px);
 }
 
-.wealth-comparison-outcome-leading {
-  opacity: 1;
-  transform: translateY(-1px);
+.wealth-comparison-outcomes-panel {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--positive) 5%, var(--panel)), var(--panel) 120px),
+    var(--panel);
 }
 
-.wealth-comparison-outcome-pane:not(.wealth-comparison-outcome-leading) {
-  opacity: 0.82;
-}
-
-.wealth-comparison-insights-soft {
-  display: grid;
-  gap: 12px;
-  padding: 4px 0;
+:root[data-theme="light"] .wealth-comparison-outcomes-panel {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--positive) 6%, #fff), #fff 120px);
 }
 
 .wealth-comparison-insight-list {
   display: grid;
-  gap: 14px;
+  gap: 10px;
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
-.wealth-comparison-insight-list li {
-  border-left: 2px solid color-mix(in srgb, var(--primary) 28%, transparent);
+.wealth-comparison-insight-card {
+  background: color-mix(in srgb, var(--foreground) 3%, var(--panel-strong));
+  border: 1px solid color-mix(in srgb, var(--foreground) 8%, var(--border));
+  border-radius: 12px;
   display: grid;
   gap: 4px;
-  padding-left: 12px;
-  transition: opacity 0.28s ease;
+  padding: 11px 12px;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
-.wealth-comparison-insight-primary {
-  border-left-color: var(--primary);
-  padding-left: 14px;
+:root[data-theme="light"] .wealth-comparison-insight-card {
+  background: color-mix(in srgb, var(--primary) 3%, #fff);
 }
 
-.wealth-comparison-insight-list strong {
+.wealth-comparison-insight-card-primary {
+  border-color: color-mix(in srgb, var(--primary) 34%, var(--border));
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--primary) 8%, transparent);
+}
+
+.wealth-comparison-insight-card strong {
   color: var(--foreground);
-  font-size: 0.9rem;
+  font-size: 0.88rem;
 }
 
-.wealth-comparison-insight-list p {
+.wealth-comparison-insight-card p {
   color: var(--muted);
-  font-size: 0.82rem;
+  font-size: 0.8rem;
   line-height: 1.45;
   margin: 0;
+}
+
+.wealth-comparison-outcomes-row {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.wealth-comparison-outcome-card {
+  background: color-mix(in srgb, var(--foreground) 3%, var(--panel-strong));
+  border: 1px solid color-mix(in srgb, var(--foreground) 10%, var(--border));
+  border-radius: 14px;
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 12px 12px 10px;
+  position: relative;
+  transition:
+    border-color 0.24s ease,
+    box-shadow 0.24s ease,
+    opacity 0.24s ease,
+    transform 0.24s ease;
+}
+
+.wealth-comparison-outcome-card::before {
+  border-radius: 14px 14px 0 0;
+  content: "";
+  height: 3px;
+  left: 0;
+  position: absolute;
+  right: 0;
+  top: 0;
+}
+
+.wealth-comparison-outcome-card-dps::before {
+  background: linear-gradient(90deg, var(--primary), color-mix(in srgb, var(--primary) 55%, var(--positive)));
+}
+
+.wealth-comparison-outcome-card-fdr::before {
+  background: linear-gradient(90deg, var(--positive), color-mix(in srgb, var(--positive) 55%, var(--primary)));
+}
+
+:root[data-theme="light"] .wealth-comparison-outcome-card {
+  background: #fff;
+}
+
+.wealth-comparison-outcome-card-leading {
+  border-color: color-mix(in srgb, var(--primary) 36%, var(--border));
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--primary) 10%, transparent);
+  opacity: 1;
+  transform: translateY(-1px);
+}
+
+.wealth-comparison-outcome-card-fdr.wealth-comparison-outcome-card-leading {
+  border-color: color-mix(in srgb, var(--positive) 36%, var(--border));
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--positive) 10%, transparent);
+}
+
+.wealth-comparison-outcome-card:not(.wealth-comparison-outcome-card-leading) {
+  opacity: 0.88;
+}
+
+.wealth-comparison-outcome-card-head {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.wealth-comparison-outcome-card-head span:first-child {
+  color: var(--muted);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.wealth-comparison-outcome-badge {
+  background: color-mix(in srgb, var(--primary) 12%, var(--panel));
+  border: 1px solid color-mix(in srgb, var(--primary) 28%, var(--border));
+  border-radius: 999px;
+  color: color-mix(in srgb, var(--primary) 78%, var(--foreground));
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  padding: 2px 7px;
+  text-transform: uppercase;
+}
+
+.wealth-comparison-outcome-card-fdr .wealth-comparison-outcome-badge {
+  background: color-mix(in srgb, var(--positive) 12%, var(--panel));
+  border-color: color-mix(in srgb, var(--positive) 28%, var(--border));
+  color: color-mix(in srgb, var(--positive) 78%, var(--foreground));
+}
+
+.wealth-comparison-outcome-card strong {
+  font-size: clamp(1rem, 2.2vw, 1.18rem);
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.wealth-comparison-outcome-metrics {
+  border-top: 1px solid color-mix(in srgb, var(--foreground) 8%, var(--border));
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-top: 8px;
+}
+
+.wealth-comparison-outcome-metrics div {
+  display: grid;
+  gap: 2px;
+}
+
+.wealth-comparison-outcome-metrics dt {
+  color: var(--muted);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.wealth-comparison-outcome-metrics dd {
+  color: var(--foreground);
+  font-size: 0.8rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.wealth-comparison-outcome-metrics-warn dt,
+.wealth-comparison-outcome-metrics-warn dd {
+  color: color-mix(in srgb, var(--warning) 78%, var(--foreground));
 }
 
 .wealth-comparison-settings {
@@ -7879,6 +8019,10 @@ button {
   }
 
   .wealth-comparison-narrative-beats {
+    grid-template-columns: 1fr;
+  }
+
+  .wealth-comparison-summary-grid {
     grid-template-columns: 1fr;
   }
 

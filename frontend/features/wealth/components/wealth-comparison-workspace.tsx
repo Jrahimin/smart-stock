@@ -189,45 +189,80 @@ export function WealthComparisonWorkspace({ comparisonSlug }: WealthComparisonWo
               </div>
             </section>
 
-            <section className="wealth-comparison-insights-soft" aria-label="What this future teaches">
-              <div className="wealth-comparison-section-intro">
-                <p className="eyebrow">What this future teaches</p>
-                <h2>Observations from your journey</h2>
-              </div>
-              <ul className="wealth-comparison-insight-list">
-                {presentation.contextualInsights.map((insight, index) => (
-                  <li className={index === 0 ? "wealth-comparison-insight-primary" : ""} key={insight.id}>
-                    <strong>{insight.title}</strong>
-                    <p>{insight.body}</p>
-                  </li>
-                ))}
-              </ul>
-            </section>
+            <div className="wealth-comparison-summary-grid">
+              <section className="wealth-comparison-summary-panel wealth-comparison-insights-panel" aria-label="What this future teaches">
+                <header className="wealth-comparison-summary-panel-head">
+                  <p className="eyebrow">What this future teaches</p>
+                  <h2>Observations from your journey</h2>
+                </header>
+                <ul className="wealth-comparison-insight-list">
+                  {presentation.contextualInsights.map((insight, index) => (
+                    <li
+                      className={`wealth-comparison-insight-card ${index === 0 ? "wealth-comparison-insight-card-primary" : ""}`}
+                      key={insight.id}
+                    >
+                      <strong>{insight.title}</strong>
+                      <p>{insight.body}</p>
+                    </li>
+                  ))}
+                </ul>
+              </section>
 
-            <section className="wealth-comparison-outcomes-soft" aria-label="Purchasing power at horizon">
-              <div className="wealth-comparison-section-intro">
-                <p className="eyebrow">Purchasing power</p>
-                <h2>What each future feels like after inflation</h2>
-              </div>
-              <div className="wealth-comparison-outcomes-row">
-                <div className={`wealth-comparison-outcome-pane ${presentation.horizonSnapshot.favoredKey === "left" ? "wealth-comparison-outcome-leading" : ""}`}>
-                  <span>{result.left.label}</span>
-                  <strong className="wealth-comparison-animated-value">
-                    {formatWealthCurrency(presentation.purchasingPower.left.finalValue)}
-                  </strong>
-                  <small>Real purchasing power {formatWealthCurrency(presentation.purchasingPower.left.realValue)}</small>
-                  <em>Inflation takes {formatWealthCurrency(presentation.purchasingPower.left.inflationImpact)}</em>
+              <section className="wealth-comparison-summary-panel wealth-comparison-outcomes-panel" aria-label="Purchasing power at horizon">
+                <header className="wealth-comparison-summary-panel-head">
+                  <p className="eyebrow">Purchasing power</p>
+                  <h2>What each future feels like after inflation</h2>
+                </header>
+                <div className="wealth-comparison-outcomes-row">
+                  <article
+                    className={`wealth-comparison-outcome-card wealth-comparison-outcome-card-dps ${presentation.horizonSnapshot.favoredKey === "left" ? "wealth-comparison-outcome-card-leading" : ""}`}
+                  >
+                    <div className="wealth-comparison-outcome-card-head">
+                      <span>{result.left.label}</span>
+                      {presentation.horizonSnapshot.favoredKey === "left" ? (
+                        <span className="wealth-comparison-outcome-badge">Ahead</span>
+                      ) : null}
+                    </div>
+                    <strong className="wealth-comparison-animated-value">
+                      {formatWealthCurrency(presentation.purchasingPower.left.finalValue)}
+                    </strong>
+                    <dl className="wealth-comparison-outcome-metrics">
+                      <div>
+                        <dt>Real purchasing power</dt>
+                        <dd>{formatWealthCurrency(presentation.purchasingPower.left.realValue)}</dd>
+                      </div>
+                      <div className="wealth-comparison-outcome-metrics-warn">
+                        <dt>Inflation takes</dt>
+                        <dd>{formatWealthCurrency(presentation.purchasingPower.left.inflationImpact)}</dd>
+                      </div>
+                    </dl>
+                  </article>
+                  <article
+                    className={`wealth-comparison-outcome-card wealth-comparison-outcome-card-fdr ${presentation.horizonSnapshot.favoredKey === "right" ? "wealth-comparison-outcome-card-leading" : ""}`}
+                  >
+                    <div className="wealth-comparison-outcome-card-head">
+                      <span>{result.right.label}</span>
+                      {presentation.horizonSnapshot.favoredKey === "right" ? (
+                        <span className="wealth-comparison-outcome-badge">Ahead</span>
+                      ) : null}
+                    </div>
+                    <strong className="wealth-comparison-animated-value">
+                      {formatWealthCurrency(presentation.purchasingPower.right.finalValue)}
+                    </strong>
+                    <dl className="wealth-comparison-outcome-metrics">
+                      <div>
+                        <dt>Real purchasing power</dt>
+                        <dd>{formatWealthCurrency(presentation.purchasingPower.right.realValue)}</dd>
+                      </div>
+                      <div className="wealth-comparison-outcome-metrics-warn">
+                        <dt>Inflation takes</dt>
+                        <dd>{formatWealthCurrency(presentation.purchasingPower.right.inflationImpact)}</dd>
+                      </div>
+                    </dl>
+                  </article>
                 </div>
-                <div className={`wealth-comparison-outcome-pane ${presentation.horizonSnapshot.favoredKey === "right" ? "wealth-comparison-outcome-leading" : ""}`}>
-                  <span>{result.right.label}</span>
-                  <strong className="wealth-comparison-animated-value">
-                    {formatWealthCurrency(presentation.purchasingPower.right.finalValue)}
-                  </strong>
-                  <small>Real purchasing power {formatWealthCurrency(presentation.purchasingPower.right.realValue)}</small>
-                  <em>Inflation takes {formatWealthCurrency(presentation.purchasingPower.right.inflationImpact)}</em>
-                </div>
-              </div>
-            </section>
+              </section>
+            </div>
           </section>
 
           <p className="wealth-disclaimer">{result.disclaimer}</p>
