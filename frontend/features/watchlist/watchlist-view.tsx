@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
+import { WorkspacePageHero } from "@/components/layout/workspace-page-hero";
 import { FloatingRefreshButton } from "@/components/ui/floating-refresh-button";
 import { MarketActivityLoader } from "@/components/ui/market-activity-loader";
 import { SignalBadge } from "@/components/ui/signal-badge";
@@ -109,10 +110,11 @@ export function WatchlistView() {
 
   return (
     <section className="watchlist-workspace-view">
-      <div className="explorer-header watchlist-header">
-        <div>
-          <p className="eyebrow">Watchlist Intelligence</p>
-          <h1>Your tracked market names</h1>
+      <WorkspacePageHero
+        className="watchlist-header"
+        eyebrow="Watchlist Intelligence"
+        filterContextName="watchlist"
+        subtitle={
           <div className="watchlist-stats">
             <span className="watchlist-stat">
               <strong>{summary?.total_watchlisted ?? items.length}</strong> watchlisted
@@ -124,7 +126,9 @@ export function WatchlistView() {
               Showing <strong>{rows.length}</strong>
             </span>
           </div>
-        </div>
+        }
+        title="Your tracked market names"
+      >
         <div className="explorer-controls watchlist-toolbar-filters" role="toolbar" aria-label="Watchlist filters">
           <button
             aria-pressed={filters.holdings === "HOLDINGS_ONLY"}
@@ -172,7 +176,7 @@ export function WatchlistView() {
             </select>
           </label>
         </div>
-      </div>
+      </WorkspacePageHero>
 
       {isError ? <div className="data-warning">Could not load your watchlist.</div> : null}
       {isLoading || universeLoading ? <MarketActivityLoader /> : null}

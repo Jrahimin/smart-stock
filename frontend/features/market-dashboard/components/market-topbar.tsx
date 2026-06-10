@@ -1,19 +1,16 @@
 "use client";
 
-import { Search } from "lucide-react";
 import Image from "next/image";
 
 import { DataQualityBadge } from "@/components/ui/data-quality-badge";
 import type { MarketDashboardModel } from "@/features/market-dashboard/types/market-dashboard-types";
 import { frontendConfig } from "@/lib/frontend-config";
-import { useCommandStore } from "@/stores/use-command-store";
 
 type MarketTopbarProps = {
   model: MarketDashboardModel;
 };
 
 export function MarketTopbar({ model }: MarketTopbarProps) {
-  const openCommand = useCommandStore((state) => state.open);
   const moodTone = model.marketMood.toLowerCase().replace(/\s+/g, "-");
 
   return (
@@ -41,11 +38,6 @@ export function MarketTopbar({ model }: MarketTopbarProps) {
         {model.session.disablesFreshDataActions ? <span className="market-tape-pill market-tape-pill-warning">Refresh guarded</span> : null}
         <DataQualityBadge quality={model.dataQuality} />
       </div>
-      <button className="command-trigger" onClick={openCommand} type="button">
-        <Search size={16} aria-hidden="true" />
-        <span>Search ticker or command</span>
-        <kbd>Ctrl K</kbd>
-      </button>
     </header>
   );
 }

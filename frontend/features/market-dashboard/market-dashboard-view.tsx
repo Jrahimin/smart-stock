@@ -9,6 +9,7 @@ import { MarketTimeline } from "@/features/market-dashboard/components/market-ti
 import { MarketTopbar } from "@/features/market-dashboard/components/market-topbar";
 import { SmartSignalFeed } from "@/features/market-dashboard/components/smart-signal-feed";
 import { useMarketDashboard } from "@/features/market-dashboard/hooks/use-market-dashboard";
+import { WorkspaceCommandSearch } from "@/components/command/workspace-command-search";
 import { FloatingRefreshButton } from "@/components/ui/floating-refresh-button";
 
 export function MarketDashboardView() {
@@ -17,6 +18,9 @@ export function MarketDashboardView() {
   return (
     <div className="market-dashboard-view">
       <MarketTopbar model={model} />
+      <div className="workspace-page-search">
+        <WorkspaceCommandSearch filterContextName="market dashboard" />
+      </div>
       {isError ? (
         <div className="data-warning">
           Backend data is unavailable. Showing resilient workspace placeholders based on current contracts.

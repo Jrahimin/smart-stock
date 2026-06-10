@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
-import { SearchableSymbolFilter } from "@/components/filters/searchable-symbol-filter";
+import { WorkspacePageHero } from "@/components/layout/workspace-page-hero";
 import { FloatingRefreshButton } from "@/components/ui/floating-refresh-button";
 import { MarketActivityLoader } from "@/components/ui/market-activity-loader";
 import { SignalBadge } from "@/components/ui/signal-badge";
@@ -36,26 +36,32 @@ export function SignalCenterView() {
           const decision = resolveTraderDecision(stock);
           return riskFilter === "ALL" || decision.riskLabel === riskFilter;
         })
-        .filter((stock) => !symbolFilter || stock.stock.symbol.includes(symbolFilter))
+        .filter((stock) => {
+          if (!symbolFilter) {
+            return true;
+          }
+
+          const query = symbolFilter.trim().toLowerCase();
+          return (
+            stock.stock.symbol.toLowerCase().includes(query) ||
+            stock.stock.name.toLowerCase().includes(query) ||
+            stock.sector.toLowerCase().includes(query)
+          );
+        })
         .sort((a, b) => compareSignalRows(a, b, sortMode)),
     [filter, riskFilter, sortMode, symbolFilter, universe],
   );
 
   return (
     <section className="signal-center-view">
-      <div className="explorer-header">
-        <div>
-          <p className="eyebrow">Signal Center</p>
-          <h1>Explanation-first trader decisions</h1>
-          <span>{signalRows.length} decision-ready names from the shared deterministic engine</span>
-        </div>
+      <WorkspacePageHero
+        eyebrow="Signal Center"
+        filterContextName="signal center"
+        onFilterTable={setSymbolFilter}
+        subtitle={`${signalRows.length} decision-ready names from the shared deterministic engine`}
+        title="Explanation-first trader decisions"
+      >
         <div className="explorer-controls">
-          <SearchableSymbolFilter
-            id="signal-symbol-filter"
-            options={universe.map((stock) => ({ id: stock.stock.id, symbol: stock.stock.symbol, name: stock.stock.name }))}
-            value={symbolFilter}
-            onChange={setSymbolFilter}
-          />
           <select value={filter} onChange={(event) => setFilter(event.target.value)}>
             <option value="ALL">All actions</option>
             <option value="BUY">BUY</option>
@@ -77,7 +83,7 @@ export function SignalCenterView() {
             <option value="VOLUME_CONFIRMED">Volume-confirmed</option>
           </select>
         </div>
-      </div>
+      </WorkspacePageHero>
       {isError ? <div className="data-warning">Could not load signal data.</div> : null}
       {isLoading ? <MarketActivityLoader /> : null}
       <div className="signal-center-list">

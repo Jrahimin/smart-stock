@@ -483,6 +483,18 @@ button {
   padding: 12px;
 }
 
+.sr-only {
+  border: 0;
+  clip: rect(0, 0, 0, 0);
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  padding: 0;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
 .market-dashboard-view {
   display: grid;
   gap: 9px;
@@ -1630,12 +1642,217 @@ button {
   color: var(--muted);
 }
 
+.explorer-hero {
+  background: var(--hero-gradient);
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  box-shadow: var(--card-shadow);
+  display: grid;
+  gap: 16px;
+  padding: 18px 18px 16px;
+}
+
+.explorer-hero-copy h1 {
+  font-size: clamp(1.7rem, 3vw, 2.55rem);
+  letter-spacing: -0.055em;
+  line-height: 0.98;
+  margin: 4px 0;
+}
+
+.explorer-hero-copy span,
+.explorer-hero-subtitle {
+  color: var(--muted);
+}
+
+.workspace-page-search {
+  background: var(--hero-gradient);
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  box-shadow: var(--card-shadow);
+  padding: 16px 18px;
+}
+
+.explorer-command-search {
+  display: grid;
+  gap: 12px;
+  position: relative;
+  width: 100%;
+}
+
+.explorer-command-input-shell {
+  align-items: center;
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+  border-radius: 18px;
+  box-shadow:
+    0 1px 0 rgb(255 255 255 / 6%) inset,
+    0 18px 40px rgb(0 0 0 / 10%);
+  display: flex;
+  gap: 12px;
+  min-height: 58px;
+  padding: 0 16px;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+  width: 100%;
+}
+
+.explorer-command-input-shell.is-open,
+.explorer-command-input-shell:focus-within {
+  border-color: color-mix(in srgb, var(--primary) 42%, var(--border));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--primary) 18%, transparent),
+    0 0 0 6px color-mix(in srgb, var(--primary) 10%, transparent),
+    0 20px 48px color-mix(in srgb, var(--primary) 12%, transparent);
+  transform: translateY(-1px);
+}
+
+.explorer-command-search-icon {
+  align-items: center;
+  color: var(--muted);
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+.explorer-command-input-shell:focus-within .explorer-command-search-icon {
+  color: var(--primary);
+}
+
+.explorer-command-input {
+  background: transparent;
+  border: 0;
+  color: var(--foreground);
+  flex: 1 1 auto;
+  font-size: 1rem;
+  min-width: 0;
+  outline: none;
+  padding: 14px 0;
+}
+
+.explorer-command-input::placeholder {
+  color: color-mix(in srgb, var(--muted) 88%, transparent);
+}
+
+.explorer-command-kbd {
+  background: color-mix(in srgb, var(--foreground) 4%, var(--panel-strong));
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--muted);
+  flex: 0 0 auto;
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  padding: 5px 8px;
+}
+
+.explorer-command-menu {
+  background: color-mix(in srgb, var(--panel-strong) 96%, transparent);
+  backdrop-filter: blur(14px);
+  border: 1px solid color-mix(in srgb, var(--primary) 14%, var(--border));
+  border-radius: 18px;
+  box-shadow: var(--card-shadow);
+  display: grid;
+  gap: 8px;
+  left: 0;
+  max-height: 380px;
+  overflow: auto;
+  padding: 10px;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 30;
+}
+
+.explorer-command-section {
+  display: grid;
+  gap: 4px;
+}
+
+.explorer-command-section + .explorer-command-section {
+  border-top: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  margin-top: 4px;
+  padding-top: 10px;
+}
+
+.explorer-command-section-label {
+  align-items: center;
+  color: var(--muted);
+  display: inline-flex;
+  font-size: 0.68rem;
+  font-weight: 700;
+  gap: 6px;
+  letter-spacing: 0.08em;
+  padding: 0 8px 4px;
+  text-transform: uppercase;
+}
+
+.explorer-command-option {
+  background: transparent;
+  border: 0;
+  border-radius: 14px;
+  color: var(--foreground);
+  display: grid;
+  gap: 2px;
+  padding: 11px 12px;
+  text-align: left;
+}
+
+.explorer-command-option:hover,
+.explorer-command-option.is-active {
+  background: color-mix(in srgb, var(--primary) 10%, var(--sidebar-hover));
+}
+
+.explorer-command-option strong {
+  font-size: 0.92rem;
+  letter-spacing: 0.02em;
+}
+
+.explorer-command-option span,
+.explorer-command-empty,
+.explorer-command-option-filter {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.explorer-command-empty {
+  padding: 12px;
+}
+
+.explorer-command-quick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.explorer-command-quick-chip {
+  background: color-mix(in srgb, var(--foreground) 4%, var(--panel));
+  border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
+  border-radius: 999px;
+  color: var(--foreground);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  padding: 7px 12px;
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease,
+    transform 0.2s ease;
+}
+
+.explorer-command-quick-chip:hover {
+  background: color-mix(in srgb, var(--primary) 10%, var(--panel));
+  border-color: color-mix(in srgb, var(--primary) 28%, var(--border));
+  transform: translateY(-1px);
+}
+
 .explorer-controls {
   align-items: center;
+  border-top: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  justify-content: flex-end;
+  justify-content: flex-start;
+  padding-top: 4px;
 }
 
 .explorer-controls-watchlist {
@@ -3812,10 +4029,15 @@ button {
   }
 
   .explorer-header,
+  .explorer-hero,
   .stock-workspace-header,
   .explorer-controls {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .explorer-command-input {
+    font-size: 0.92rem;
   }
 
   .explorer-controls-watchlist {

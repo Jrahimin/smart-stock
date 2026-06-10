@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
-import { SearchableSymbolFilter } from "@/components/filters/searchable-symbol-filter";
+import { WorkspacePageHero } from "@/components/layout/workspace-page-hero";
 import { FloatingRefreshButton } from "@/components/ui/floating-refresh-button";
 import { MarketActivityLoader } from "@/components/ui/market-activity-loader";
 import { SignalBadge } from "@/components/ui/signal-badge";
@@ -23,8 +23,14 @@ export function ScannerWorkspaceView() {
   const filteredUniverse = useMemo(
     () =>
       universe.filter((stock) => {
-        if (symbolFilter && !stock.stock.symbol.includes(symbolFilter)) {
-          return false;
+        if (symbolFilter) {
+          const query = symbolFilter.trim().toLowerCase();
+          const matchesSymbol = stock.stock.symbol.toLowerCase().includes(query);
+          const matchesName = stock.stock.name.toLowerCase().includes(query);
+          const matchesSector = stock.sector.toLowerCase().includes(query);
+          if (!matchesSymbol && !matchesName && !matchesSector) {
+            return false;
+          }
         }
         const stockId = stock.stock.id;
         if (watchlistFilter === "WATCHLISTED" && !watchedStockIds.has(stockId)) {
@@ -99,19 +105,14 @@ export function ScannerWorkspaceView() {
 
   return (
     <section className="scanner-workspace-view">
-      <div className="explorer-header">
-        <div>
-          <p className="eyebrow">Market Scanner</p>
-          <h1>Daily opportunity detection</h1>
-          <span>Rule-based scans from latest OHLCV with shared trader decision badges</span>
-        </div>
+      <WorkspacePageHero
+        eyebrow="Market Scanner"
+        filterContextName="scanner"
+        onFilterTable={setSymbolFilter}
+        subtitle="Rule-based scans from latest OHLCV with shared trader decision badges"
+        title="Daily opportunity detection"
+      >
         <div className="explorer-controls">
-          <SearchableSymbolFilter
-            id="scanner-symbol-filter"
-            options={universe.map((stock) => ({ id: stock.stock.id, symbol: stock.stock.symbol, name: stock.stock.name }))}
-            value={symbolFilter}
-            onChange={setSymbolFilter}
-          />
           <div className="explorer-controls-watchlist" role="group" aria-label="Watchlist filters">
             <select value={watchlistFilter} onChange={(event) => setWatchlistFilter(event.target.value as WatchlistFilterMode)}>
               <option value="ALL">All stocks</option>
@@ -128,7 +129,7 @@ export function ScannerWorkspaceView() {
             </button>
           </div>
         </div>
-      </div>
+      </WorkspacePageHero>
       {isError ? <div className="data-warning">Could not load scanner data.</div> : null}
       {isLoading ? <MarketActivityLoader /> : null}
       <div className="scanner-category-grid">

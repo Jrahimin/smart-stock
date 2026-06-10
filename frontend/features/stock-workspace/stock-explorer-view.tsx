@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import {
   createColumnHelper,
@@ -14,6 +15,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 
 import { FloatingRefreshButton } from "@/components/ui/floating-refresh-button";
 import { MarketActivityLoader } from "@/components/ui/market-activity-loader";
+import { WorkspacePageHero } from "@/components/layout/workspace-page-hero";
 import { WatchlistStarToggle } from "@/features/watchlist/components/watchlist-star-toggle";
 import { useUserWatchlist } from "@/features/watchlist/hooks/use-user-watchlist";
 import type { WatchlistFilterMode } from "@/features/watchlist/types/watchlist-types";
@@ -26,6 +28,7 @@ const columnHelper = createColumnHelper<StockIntelligenceModel>();
 const NUMERIC_EXPLORER_COLUMNS = new Set(["latestPrice", "change", "turnover", "volume", "rsi", "confidence"]);
 
 export function StockExplorerView() {
+  const searchParams = useSearchParams();
   const { universe, isLoading, isError, stocks, refetch } = useMarketUniverse({ stockLimit: 500, priceWindowLimit: 90 });
   const { watchedStockIds, holdingStockIds } = useUserWatchlist();
   const [search, setSearch] = useState("");
@@ -67,6 +70,13 @@ export function StockExplorerView() {
     });
   }, [dataQualityFilter, deferredSearch, holdingStockIds, riskFilter, signalFilter, universe, volumeFilter, watchlistFilter, watchedStockIds]);
   const visibleUniverse = useMemo(() => filteredUniverse.slice(0, visibleCount), [filteredUniverse, visibleCount]);
+
+  useEffect(() => {
+    const initialSearch = searchParams.get("search");
+    if (initialSearch) {
+      setSearch(initialSearch);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     setVisibleCount(120);
@@ -223,16 +233,18 @@ export function StockExplorerView() {
 
   return (
     <section className="stock-explorer-view">
-      <div className="explorer-header">
-        <div>
-          <p className="eyebrow">Stock Explorer</p>
-          <h1>High-speed stock discovery</h1>
-          <span>
+      <WorkspacePageHero
+        eyebrow="Stock Explorer"
+        filterContextName="stock explorer"
+        onFilterTable={setSearch}
+        subtitle={
+          <>
             {filteredUniverse.length} price-backed instruments from {stocks.length} active stocks. Showing {visibleUniverse.length}.
-          </span>
-        </div>
+          </>
+        }
+        title="High-speed stock discovery"
+      >
         <div className="explorer-controls">
-          <input placeholder="Search symbol, company, sector..." value={search} onChange={(event) => setSearch(event.target.value)} />
           <select value={signalFilter} onChange={(event) => setSignalFilter(event.target.value)}>
             <option value="ALL">All actions</option>
             <option value="BUY">BUY</option>
@@ -275,7 +287,7 @@ export function StockExplorerView() {
             </button>
           </div>
         </div>
-      </div>
+      </WorkspacePageHero>
       {isError ? <div className="data-warning">Could not load stock explorer data.</div> : null}
       {isLoading ? <MarketActivityLoader /> : null}
       <div className="stock-table-shell" onScroll={handleTableScroll} ref={tableContainerRef}>
