@@ -118,6 +118,7 @@ class MarketDataService:
         trade_date: date,
         source: MarketDataSource,
         validation_source: MarketDataSource | None = None,
+        insert_only: bool = False,
     ) -> DailyPriceIngestionResult:
         ingested_prices, validation_prices = await self._fetch_ingestion_prices(
             source=source,
@@ -153,6 +154,7 @@ class MarketDataService:
         )
 
         upserted_count = 0
+        skipped_existing_count = 0
         skipped_unknown_symbol_count = 0
 
         for ingested_price in ingested_prices:
@@ -163,8 +165,15 @@ class MarketDataService:
 
             price_data = self._build_daily_price_create(stock.id, ingested_price)
             prepared_values = await self._prepare_daily_price_values(price_data)
-            await self.repository.upsert_daily_price(prepared_values)
-            upserted_count += 1
+            if insert_only:
+                inserted = await self.repository.insert_daily_price_if_absent(prepared_values)
+                if inserted is None:
+                    skipped_existing_count += 1
+                else:
+                    upserted_count += 1
+            else:
+                await self.repository.upsert_daily_price(prepared_values)
+                upserted_count += 1
 
         if validation_source is not None:
             await self._upsert_source_validation_summary(
@@ -192,7 +201,7 @@ class MarketDataService:
             source=source.source_name,
             fetched_count=len(ingested_prices),
             created_count=upserted_count,
-            skipped_existing_count=0,
+            skipped_existing_count=skipped_existing_count,
             skipped_unknown_symbol_count=skipped_unknown_symbol_count,
             suspicious_count=suspicious_count,
         )

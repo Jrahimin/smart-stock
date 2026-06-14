@@ -14,6 +14,7 @@ argon2-cffi
 google-auth
 requests
 httpx
+certifi
 
 # zoneinfo lookups (Asia/Dhaka scheduler/CLI); required on Windows when OS has no IANA data
 tzdata

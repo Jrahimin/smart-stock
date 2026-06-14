@@ -127,23 +127,31 @@ Session logic (`market_session_schedule.py`) is shared by schedulers, `GET /mark
 
 ## CLI
 
-**Intraday snapshot (prices + DSEX):**
+**Market snapshot (prices + DSEX) — default operator command:**
 
 ```bash
-python -m app.jobs.sync_market_snapshot
-python -m app.jobs.sync_market_snapshot --date 2026-06-11
-python -m app.jobs.sync_market_snapshot --no-validation
-```
-
-**Daily orchestration (news; optional snapshot first):**
-
-```bash
-python -m app.jobs.sync_market_data              # news only (default)
-python -m app.jobs.sync_market_data --snapshot   # snapshot then news
+python -m app.jobs.sync_market_data
 python -m app.jobs.sync_market_data --date 2026-06-11
+python -m app.jobs.sync_market_data --no-validation
+python -m app.jobs.sync_market_data --with-news    # snapshot then news
+python -m app.jobs.sync_market_data --news-only   # news only
 ```
 
-Default trade date: calendar **today in Asia/Dhaka**.
+`python -m app.jobs.sync_market_snapshot` remains as a **deprecated alias** for `sync_market_data`.
+
+**Historical backfill (true past-date OHLCV via DSE archive):**
+
+```bash
+python -m app.jobs.backfill_daily_prices --date 2026-05-15
+python -m app.jobs.backfill_daily_prices --from 2026-05-01 --to 2026-05-15
+python -m app.jobs.backfill_daily_prices --date 2026-05-15 --overwrite
+```
+
+Default backfill is **insert-only** (skips existing `stock_id + trade_date` rows). Use `--overwrite` to upsert. Snapshot `--date` only labels live AmarStock data — use backfill for missed historical sessions.
+
+**DSE TLS:** `dse_archive_ssl_verify` defaults to `false` in `core_config.py` because `dsebd.org` often serves an incomplete certificate chain. Set `DSE_ARCHIVE_SSL_VERIFY=true` in `.env` only if verification succeeds in your environment.
+
+Default trade date for snapshot/news: calendar **today in Asia/Dhaka**.
 
 **Exit codes:** `0` success; `2` invalid `--date`; `130` Ctrl+C; `1` uncaught exception.
 

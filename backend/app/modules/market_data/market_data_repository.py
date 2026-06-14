@@ -201,6 +201,13 @@ class MarketDataRepository(BaseRepository[DailyPrice]):
             raise RuntimeError("Daily price upsert did not return a row")
         return daily_price
 
+    async def insert_daily_price_if_absent(self, values: dict[str, object]) -> DailyPrice | None:
+        statement = insert(DailyPrice).values(**values)
+        statement = statement.on_conflict_do_nothing(
+            index_elements=[DailyPrice.stock_id, DailyPrice.trade_date],
+        ).returning(DailyPrice)
+        return await self.session.scalar(statement)
+
     async def patch_daily_price_trade_stats(
         self,
         *,

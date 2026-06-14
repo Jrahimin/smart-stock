@@ -670,7 +670,7 @@ None
 ### POST /api/v1/market-data/ingestion/daily-prices
 
 **Description**
-Run daily price ingestion for a trade date. The job implementation may use AmarStock HTML (scheduled sync) or another configured primary source. After primary OHLCV upsert, the same run optionally ingests AmarStock `/info/News` into `market_events` and may patch `trade_count` / `turnover` from the bulk LatestPrice JSON when enabled via settings (failures there do not roll back primary prices).
+Run daily price ingestion for a trade date using the **DSE day-end archive** source (`DseMarketDataSource`). Suitable for historical backfill when `trade_date` is a past session day. For live intraday snapshots use the `sync_market_data` CLI or scheduler instead. Does not run news or LatestPrice enrichment.
 
 **Path Params**
 
@@ -684,6 +684,11 @@ None
 **Body**
 
 None
+
+**CLI equivalent**
+
+* `python -m app.jobs.backfill_daily_prices --date YYYY-MM-DD` (insert-only by default)
+* `python -m app.jobs.backfill_daily_prices --from YYYY-MM-DD --to YYYY-MM-DD`
 
 **Response**
 

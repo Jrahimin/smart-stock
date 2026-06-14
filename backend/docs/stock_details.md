@@ -161,4 +161,4 @@ Manual trigger parameters:
 * `force`: bypass cadence on scheduled/API runs; not required for the CLI (always `MANUAL`).
 * `scope`: `full` (default) or `stocks` (see **Sync scope** above).
 
-**Typical gap-fill workflow:** run `python -m app.jobs.sync_market_data` for day-end prices, then `python -m app.jobs.sync_stock_details --symbols SYMBOL --historical-window-days N` to insert any missing dates in the lookback window without overwriting dates daily sync already stored.
+**Typical gap-fill workflow:** run `python -m app.jobs.backfill_daily_prices --date YYYY-MM-DD` for a missing session day (DSE archive, insert-only by default). For a date range, use `--from` / `--to`. Use `sync_stock_details` only when you also need fundamentals or per-symbol AmarStock historical gaps.

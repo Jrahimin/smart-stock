@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, Query
 from app.core.enums import DataQualityFlag, ExchangeCode
 from app.core.pagination import PaginationParams, get_pagination_params
 from app.core.response_handler import ApiResponse, success_response
+from app.core.core_config import get_settings
 from app.jobs.ingestion.dse_market_data_source import DseMarketDataSource
 from app.jobs.ingestion.ingestion_source_base import MarketDataSource
 from app.modules.market_data.market_data_schemas import (
@@ -28,7 +29,7 @@ router = APIRouter(tags=["market data"])
 
 
 def get_default_market_data_source() -> MarketDataSource:
-    return DseMarketDataSource()
+    return DseMarketDataSource.from_settings(get_settings())
 
 
 @router.get("/stocks/{stock_id}/prices", response_model=ApiResponse[list[DailyPriceRead]])

@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from app.core.core_config import Settings, get_settings
 from app.core.enums import ExchangeCode
 from app.core.security_config import UserContext
+from app.jobs.ingestion.dse_market_data_source import DseMarketDataSource
 from app.jobs.ingestion.ingestion_source_base import MarketDataSource
 from app.jobs.ingestion.market_data_source_factory import (
     build_primary_market_data_source,
@@ -194,3 +195,63 @@ async def ingest_daily_market_prices(
             source=source,
             validation_source=validation_source,
         )
+
+
+def _merge_ingestion_results(results: list[DailyPriceIngestionResult]) -> DailyPriceIngestionResult:
+    if not results:
+        raise ValueError("No backfill results to merge")
+    first = results[0]
+    if len(results) == 1:
+        return first
+    return DailyPriceIngestionResult(
+        exchange=first.exchange,
+        trade_date=first.trade_date,
+        source=first.source,
+        fetched_count=sum(item.fetched_count for item in results),
+        created_count=sum(item.created_count for item in results),
+        skipped_existing_count=sum(item.skipped_existing_count for item in results),
+        skipped_unknown_symbol_count=sum(item.skipped_unknown_symbol_count for item in results),
+        suspicious_count=sum(item.suspicious_count for item in results),
+    )
+
+
+async def backfill_daily_prices(
+    trade_date: date,
+    *,
+    end_date: date | None = None,
+    exchange: ExchangeCode = ExchangeCode.DSE,
+    insert_only: bool = True,
+    source: MarketDataSource | None = None,
+) -> DailyPriceIngestionResult:
+    """Historical OHLCV backfill from the DSE day-end archive (one request per date)."""
+    resolved_end = end_date or trade_date
+    if resolved_end < trade_date:
+        raise ValueError(f"end_date {resolved_end} must be on or after trade_date {trade_date}")
+
+    dse_source = source or DseMarketDataSource.from_settings(get_settings())
+    results: list[DailyPriceIngestionResult] = []
+    day = trade_date
+    while day <= resolved_end:
+        async with AsyncSessionLocal() as session:
+            service = _build_service(session)
+            result = await service.ingest_daily_prices(
+                exchange=exchange,
+                trade_date=day,
+                source=dse_source,
+                validation_source=None,
+                insert_only=insert_only,
+            )
+        logger.info(
+            "DSE backfill %s: fetched=%s inserted=%s skipped_existing=%s skipped_unknown=%s",
+            day.isoformat(),
+            result.fetched_count,
+            result.created_count,
+            result.skipped_existing_count,
+            result.skipped_unknown_symbol_count,
+        )
+        if result.fetched_count == 0:
+            logger.warning("No rows parsed for %s (weekend/holiday or DSE archive empty)", day.isoformat())
+        results.append(result)
+        day += timedelta(days=1)
+
+    return _merge_ingestion_results(results)

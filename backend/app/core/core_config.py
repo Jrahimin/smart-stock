@@ -64,6 +64,8 @@ class Settings(BaseSettings):
     amarstock_daily_latest_price_patch_enabled: bool = False
     amarstock_index_summary_enabled: bool = True
     amarstock_latest_price_stock_details_enabled: bool = True
+    # DSE day-end archive often serves an incomplete TLS chain; disable verify only for that host.
+    dse_archive_ssl_verify: bool = False
 
     @property
     def cors_origins(self) -> list[str]:
