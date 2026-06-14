@@ -8,6 +8,21 @@ export type ExchangeCode = "DSE" | "CSE";
 
 export type DataQualityFlag = "OK" | "PARTIAL" | "SUSPICIOUS";
 
+export type MarketSessionStatus = "PRE_OPEN" | "OPEN" | "POST_CLOSE" | "HOLIDAY";
+
+export type BackendMarketFreshnessDto = {
+  exchange: ExchangeCode;
+  trade_date: string | null;
+  last_synced_at: string | null;
+  next_sync_at: string | null;
+  snapshot_interval_minutes: number;
+  expected_delay_minutes: number;
+  market_open_time: string;
+  market_close_time: string;
+  market_status: MarketSessionStatus;
+  freshness_label: string;
+};
+
 export type SignalType = "BUY" | "SELL" | "HOLD";
 
 export type TraderRecommendation = "BUY" | "HOLD" | "WAIT" | "SELL";

@@ -479,8 +479,38 @@ button {
 }
 
 .terminal-main {
+  display: grid;
+  gap: 8px;
   min-width: 0;
   padding: 12px;
+}
+
+.market-freshness-bar {
+  align-items: center;
+  background: var(--surface-elevated, var(--surface));
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 12px;
+  gap: 8px 16px;
+  line-height: 1.4;
+  padding: 8px 12px;
+}
+
+.market-freshness-bar-warning {
+  border-color: color-mix(in srgb, var(--warning, #d97706) 40%, var(--border));
+  color: var(--foreground);
+}
+
+.market-freshness-bar-item strong {
+  color: var(--foreground);
+  font-weight: 600;
+}
+
+.market-freshness-bar-muted {
+  color: var(--muted);
 }
 
 .sr-only {

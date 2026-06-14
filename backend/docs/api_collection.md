@@ -341,6 +341,46 @@ None
 
 ## Market Data
 
+### GET /api/v1/market/freshness
+
+**Description**
+Return snapshot timing and session metadata so the frontend can show last/next update, delay disclaimer, and market status without hardcoding Dhaka session bounds.
+
+**Query Params**
+
+* exchange: optional enum, one of `DSE`, `CSE` (default `DSE`)
+
+**Response**
+
+```json
+{
+  "success": true,
+  "message": "Market freshness retrieved",
+  "data": {
+    "exchange": "DSE",
+    "trade_date": "2026-06-11",
+    "last_synced_at": "2026-06-11T14:45:00+06:00",
+    "next_sync_at": "2026-06-11T15:00:00+06:00",
+    "snapshot_interval_minutes": 15,
+    "expected_delay_minutes": 15,
+    "market_open_time": "10:00",
+    "market_close_time": "15:00",
+    "market_status": "OPEN",
+    "freshness_label": "Snapshot prices; updates about every 15 minutes"
+  }
+}
+```
+
+**Notes**
+
+* `last_synced_at` is `max(daily_prices.updated_at)` for the latest trade date with rows.
+* `next_sync_at` is present only when `market_status` is `PRE_OPEN` or `OPEN`; otherwise `null`.
+* `expected_delay_minutes` matches `snapshot_interval_minutes` by default (max staleness between scheduled snapshots).
+* `market_status`: `PRE_OPEN` | `OPEN` | `POST_CLOSE` | `HOLIDAY`.
+* No `is_live` field — prices are always snapshot-based.
+
+---
+
 ### GET /api/v1/market/latest-prices
 
 **Description**

@@ -4,7 +4,7 @@ import Image from "next/image";
 
 import { DataQualityBadge } from "@/components/ui/data-quality-badge";
 import type { MarketDashboardModel } from "@/features/market-dashboard/types/market-dashboard-types";
-import { frontendConfig } from "@/lib/frontend-config";
+import { buildMarketFreshnessViewModel, useMarketDataFreshness } from "@/hooks/market/use-market-data-freshness";
 
 type MarketDashboardToolbarProps = {
   model: MarketDashboardModel;
@@ -12,6 +12,8 @@ type MarketDashboardToolbarProps = {
 
 export function MarketDashboardToolbar({ model }: MarketDashboardToolbarProps) {
   const { pulse, session, dataQuality } = model;
+  const { data: freshness, isLoading, isError } = useMarketDataFreshness("DSE");
+  const freshnessModel = buildMarketFreshnessViewModel(freshness, isLoading, isError);
 
   return (
     <div className="market-pulse-toolbar">
@@ -28,8 +30,15 @@ export function MarketDashboardToolbar({ model }: MarketDashboardToolbarProps) {
           Session: {session.label}
         </span>
         <span className="market-pulse-utility-pill">As of {pulse.latestTradeDate}</span>
+        {freshnessModel.lastUpdatedLabel ? (
+          <span className="market-pulse-utility-pill" title={freshnessModel.freshnessLabel ?? undefined}>
+            Snapshot {freshnessModel.lastUpdatedLabel}
+          </span>
+        ) : null}
         <span className="market-pulse-utility-pill">
-          Cache {frontendConfig.cacheHours}h · {session.shouldPoll ? "polling" : "manual"}
+          {session.shouldPoll && session.pollingIntervalMs
+            ? `Refreshing every ${Math.round(session.pollingIntervalMs / 60_000)} min`
+            : "Manual refresh"}
         </span>
         {session.disablesFreshDataActions ? (
           <span className="market-pulse-utility-pill market-pulse-utility-pill-warning">Refresh guarded</span>

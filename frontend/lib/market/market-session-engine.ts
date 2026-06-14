@@ -1,4 +1,4 @@
-import type { DataQualityFlag } from "@/lib/api/backend-api-types";
+import type { BackendMarketFreshnessDto, DataQualityFlag, MarketSessionStatus } from "@/lib/api/backend-api-types";
 
 export type MarketSessionState =
   | "PRE_OPEN"
@@ -14,6 +14,7 @@ export type MarketSessionInput = {
   latestTradeDate?: string | null;
   dataQualityFlag?: DataQualityFlag | null;
   isSyncing?: boolean;
+  freshness?: BackendMarketFreshnessDto | null;
 };
 
 export type MarketSessionModel = {
@@ -25,24 +26,19 @@ export type MarketSessionModel = {
   disablesFreshDataActions: boolean;
 };
 
-const DHAKA_TIME_ZONE = "Asia/Dhaka";
+const SESSION_LABELS: Record<MarketSessionStatus, string> = {
+  PRE_OPEN: "Pre-open",
+  OPEN: "Open",
+  POST_CLOSE: "Post-close",
+  HOLIDAY: "Closed",
+};
 
-function getDhakaParts(now: Date) {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: DHAKA_TIME_ZONE,
-    weekday: "short",
-    hour: "numeric",
-    minute: "numeric",
-    hour12: false,
-  }).formatToParts(now);
-
-  const byType = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-  return {
-    weekday: byType.weekday,
-    hour: Number(byType.hour),
-    minute: Number(byType.minute),
-  };
-}
+const SESSION_DESCRIPTIONS: Record<MarketSessionStatus, string> = {
+  PRE_OPEN: "Waiting for the next scheduled market snapshot.",
+  OPEN: "Snapshot prices refresh on the configured interval.",
+  POST_CLOSE: "Session closed; showing the latest stored snapshot.",
+  HOLIDAY: "Bangladesh market is outside the regular trading week.",
+};
 
 function isLikelyStale(latestTradeDate: string | null | undefined, now: Date) {
   if (!latestTradeDate) {
@@ -52,6 +48,21 @@ function isLikelyStale(latestTradeDate: string | null | undefined, now: Date) {
   const latest = new Date(`${latestTradeDate}T00:00:00+06:00`);
   const ageMs = now.getTime() - latest.getTime();
   return ageMs > 1000 * 60 * 60 * 24 * 5;
+}
+
+function sessionFromFreshness(freshness: BackendMarketFreshnessDto): MarketSessionModel {
+  const status = freshness.market_status;
+  const pollingMs = freshness.snapshot_interval_minutes * 60 * 1000;
+  const shouldPoll = status === "OPEN" || status === "PRE_OPEN";
+
+  return {
+    state: status,
+    label: SESSION_LABELS[status],
+    description: freshness.freshness_label || SESSION_DESCRIPTIONS[status],
+    shouldPoll,
+    pollingIntervalMs: shouldPoll ? pollingMs : false,
+    disablesFreshDataActions: status === "PRE_OPEN" || status === "HOLIDAY",
+  };
 }
 
 export function getMarketSession(input: MarketSessionInput = {}): MarketSessionModel {
@@ -79,6 +90,13 @@ export function getMarketSession(input: MarketSessionInput = {}): MarketSessionM
     };
   }
 
+  if (input.freshness) {
+    const fromApi = sessionFromFreshness(input.freshness);
+    if (!isLikelyStale(input.latestTradeDate ?? input.freshness.trade_date, now)) {
+      return fromApi;
+    }
+  }
+
   if (isLikelyStale(input.latestTradeDate, now)) {
     return {
       state: "STALE",
@@ -90,47 +108,14 @@ export function getMarketSession(input: MarketSessionInput = {}): MarketSessionM
     };
   }
 
-  const { weekday, hour, minute } = getDhakaParts(now);
-  const minutes = hour * 60 + minute;
-  const isWeekend = weekday === "Fri" || weekday === "Sat";
-
-  if (isWeekend) {
-    return {
-      state: "HOLIDAY",
-      label: "Closed",
-      description: "Bangladesh market is outside the regular trading week.",
-      shouldPoll: false,
-      pollingIntervalMs: false,
-      disablesFreshDataActions: true,
-    };
-  }
-
-  if (minutes < 10 * 60) {
-    return {
-      state: "PRE_OPEN",
-      label: "Pre-open",
-      description: "Market workspace is preparing for the trading session.",
-      shouldPoll: true,
-      pollingIntervalMs: 120_000,
-      disablesFreshDataActions: true,
-    };
-  }
-
-  if (minutes <= 14 * 60 + 30) {
-    return {
-      state: "OPEN",
-      label: "Open",
-      description: "Polling cadence is ready for live-capable data sources.",
-      shouldPoll: true,
-      pollingIntervalMs: 30_000,
-      disablesFreshDataActions: false,
-    };
+  if (input.freshness) {
+    return sessionFromFreshness(input.freshness);
   }
 
   return {
     state: "POST_CLOSE",
     label: "Post-close",
-    description: "Daily market data should be treated as end-of-day intelligence.",
+    description: "Market freshness metadata is unavailable.",
     shouldPoll: false,
     pollingIntervalMs: false,
     disablesFreshDataActions: false,

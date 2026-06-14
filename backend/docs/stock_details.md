@@ -13,6 +13,8 @@ The implementation uses only JSON APIs documented in `backend/app/scraping_sourc
 * Company financials API: `https://www.amarstock.com/company/2b5e8cfdd75f/?symbol={SYMBOL}`
 * **Bulk LatestPrice JSON** (one fetch per batch): `https://www.amarstock.com/LatestPrice/{token}` — fill-empty stock profile fields and additive `shareholding_snapshots` / `valuation_snapshots` under `source = AMARSTOCK_LATEST_PRICE_API` (see **Bulk LatestPrice enrichment** below).
 
+**Note:** The same LatestPrice feed also powers **intraday market snapshots** (`sync_market_snapshot` → `daily_prices` via `AmarStockLatestPriceMarketDataSource`). That path is separate from this module's `sync_stock_details` job and cadence. News ingestion runs on the **daily** market job only, not on the 15-minute snapshot loop.
+
 There is no stock-details HTML scraping path. Do not reintroduce `/stock/{SYMBOL}` fetches, DOM parsing, `data-key` parsing, BeautifulSoup, or `lxml` for this feature.
 
 ## Sync Controls

@@ -38,6 +38,83 @@ class PostDailyAmarstockStats:
     index_summary_error: str | None = None
 
 
+async def run_snapshot_market_enrichment(
+    session: AsyncSession,
+    *,
+    exchange: ExchangeCode,
+    trade_date: date,
+    settings: Settings,
+) -> PostDailyAmarstockStats:
+    """Intraday snapshot post-step: DSEX index summary only (soft-fail)."""
+    stats = PostDailyAmarstockStats()
+    if not settings.amarstock_index_summary_enabled:
+        return stats
+
+    market_repo = MarketDataRepository(session)
+    try:
+        from app.jobs.ingestion.amarstock_index_api_source import AmarStockIndexApiSource
+
+        snapshot = await AmarStockIndexApiSource.from_settings(settings).fetch_dsex_snapshot()
+        await market_repo.upsert_daily_market_summary(
+            {
+                "exchange": exchange,
+                "trade_date": trade_date,
+                "index_name": "DSEX",
+                "index_close": snapshot.index_close,
+                "index_change": snapshot.index_change,
+                "index_change_percent": snapshot.index_change_percent,
+                "total_volume": snapshot.total_volume,
+                "total_turnover": snapshot.total_turnover,
+                "total_trades": snapshot.total_trades,
+                "advancing_issues": snapshot.advancing_issues,
+                "declining_issues": snapshot.declining_issues,
+                "unchanged_issues": snapshot.unchanged_issues,
+                "source": AmarStockIndexApiSource.source_name,
+                "data_quality_flag": DataQualityFlag.OK,
+                "has_suspicious_prices": False,
+            }
+        )
+        stats.index_summary_upserted = True
+    except Exception as exc:
+        stats.index_summary_error = str(exc)
+        logger.warning(
+            "AmarStock DSEX summary upsert failed (snapshot sync continues): %s",
+            exc,
+            exc_info=True,
+        )
+    return stats
+
+
+async def run_daily_news_enrichment(
+    session: AsyncSession,
+    *,
+    exchange: ExchangeCode,
+    trade_date: date,
+    settings: Settings,
+) -> PostDailyAmarstockStats:
+    """Once-per-day post-step: AmarStock news only (soft-fail)."""
+    stats = PostDailyAmarstockStats()
+    if not settings.amarstock_news_ingestion_enabled:
+        return stats
+
+    market_repo = MarketDataRepository(session)
+    details_repo = StockDetailsRepository(session)
+    try:
+        news_stats = await _ingest_amarstock_news(
+            details_repo,
+            market_repo,
+            exchange=exchange,
+            event_date=trade_date,
+            settings=settings,
+        )
+        stats.news_upserted = news_stats[0]
+        stats.news_skipped = news_stats[1]
+    except Exception as exc:
+        stats.news_error = str(exc)
+        logger.warning("AmarStock news ingestion failed (daily sync continues): %s", exc, exc_info=True)
+    return stats
+
+
 async def run_post_daily_amarstock_enrichment(
     session: AsyncSession,
     *,
@@ -45,27 +122,25 @@ async def run_post_daily_amarstock_enrichment(
     trade_date: date,
     settings: Settings,
 ) -> PostDailyAmarstockStats:
-    """Soft-fail each subsection; caller commits."""
-    stats = PostDailyAmarstockStats()
-    market_repo = MarketDataRepository(session)
-    details_repo = StockDetailsRepository(session)
-
-    if settings.amarstock_news_ingestion_enabled:
-        try:
-            news_stats = await _ingest_amarstock_news(
-                details_repo,
-                market_repo,
-                exchange=exchange,
-                event_date=trade_date,
-                settings=settings,
-            )
-            stats.news_upserted = news_stats[0]
-            stats.news_skipped = news_stats[1]
-        except Exception as exc:
-            stats.news_error = str(exc)
-            logger.warning("AmarStock news ingestion failed (daily sync continues): %s", exc, exc_info=True)
+    """Legacy full post-step: snapshot enrichment + optional news + optional LatestPrice patch."""
+    stats = await run_snapshot_market_enrichment(
+        session,
+        exchange=exchange,
+        trade_date=trade_date,
+        settings=settings,
+    )
+    news_stats = await run_daily_news_enrichment(
+        session,
+        exchange=exchange,
+        trade_date=trade_date,
+        settings=settings,
+    )
+    stats.news_upserted = news_stats.news_upserted
+    stats.news_skipped = news_stats.news_skipped
+    stats.news_error = news_stats.news_error
 
     if settings.amarstock_daily_latest_price_patch_enabled:
+        market_repo = MarketDataRepository(session)
         try:
             patch_stats = await _patch_trade_stats_from_latest_price(
                 market_repo,
@@ -82,40 +157,6 @@ async def run_post_daily_amarstock_enrichment(
                 exc,
                 exc_info=True,
             )
-
-    if settings.amarstock_index_summary_enabled:
-        try:
-            from app.jobs.ingestion.amarstock_index_api_source import AmarStockIndexApiSource
-
-            snapshot = await AmarStockIndexApiSource.from_settings(settings).fetch_dsex_snapshot()
-            await market_repo.upsert_daily_market_summary(
-                {
-                    "exchange": exchange,
-                    "trade_date": trade_date,
-                    "index_name": "DSEX",
-                    "index_close": snapshot.index_close,
-                    "index_change": snapshot.index_change,
-                    "index_change_percent": snapshot.index_change_percent,
-                    "total_volume": snapshot.total_volume,
-                    "total_turnover": snapshot.total_turnover,
-                    "total_trades": snapshot.total_trades,
-                    "advancing_issues": snapshot.advancing_issues,
-                    "declining_issues": snapshot.declining_issues,
-                    "unchanged_issues": snapshot.unchanged_issues,
-                    "source": AmarStockIndexApiSource.source_name,
-                    "data_quality_flag": DataQualityFlag.OK,
-                    "has_suspicious_prices": False,
-                }
-            )
-            stats.index_summary_upserted = True
-        except Exception as exc:
-            stats.index_summary_error = str(exc)
-            logger.warning(
-                "AmarStock DSEX summary upsert failed (daily sync continues): %s",
-                exc,
-                exc_info=True,
-            )
-
     return stats
 
 

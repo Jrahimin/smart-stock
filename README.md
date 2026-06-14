@@ -40,16 +40,21 @@ python -m app.scripts.seed_stocks
 
 Use the backend virtualenv and `backend/.env`. Details: `backend/docs/stocks.md`.
 
-## Daily market prices (manual run)
+## Market data sync (manual run)
 
-To fetch and upsert day-end OHLCV for the scheduled-equivalent workflow (AmarStock with optional StockNow validation), from **`backend/`**:
+From **`backend/`**:
 
 ```bash
 cd backend
+# Intraday snapshot (prices + DSEX) — same as the 15-minute scheduler tick
+python -m app.jobs.sync_market_snapshot
+
+# Daily news job (default for sync_market_data); add --snapshot for both
 python -m app.jobs.sync_market_data
+python -m app.jobs.sync_market_data --snapshot
 ```
 
-By default the trade date is **today’s calendar date in Asia/Dhaka** (aligned with the in-app scheduler). Use `--date YYYY-MM-DD` for a specific session, or `--no-validation` for AmarStock-only ingestion. The same CLI run also triggers **additive post-steps** when enabled in `Settings`: AmarStock **News** → `market_events`, and a **LatestPrice** bulk fetch to patch `trade_count` / `turnover` on existing `daily_prices` rows for that date (never replaces OHLCV). There is **no separate CLI** for those steps. Same virtualenv and `.env` as the API. Details: `backend/docs/market_data.md`.
+Default trade date is **today in Asia/Dhaka**. Primary price source is AmarStock **LatestPrice JSON** (`daily_market_primary_source`). DSEX/breadth come from the separate index API on each snapshot. News runs on the daily job only. `GET /api/v1/market/freshness` exposes last/next sync for the UI. Details: `backend/docs/market_data.md`.
 
 ## Stock details (manual run)
 

@@ -1,6 +1,7 @@
 import type {
   BackendDailyMarketSummaryDto,
   BackendDsexIndexSnapshotDto,
+  BackendMarketFreshnessDto,
   BackendStockDto,
   DataQualityFlag,
 } from "@/lib/api/backend-api-types";
@@ -323,14 +324,16 @@ export function buildMarketDashboardModel(
   stocks: BackendStockDto[],
   universe: StockIntelligenceModel[] = [],
   dsexSnapshot: BackendDsexIndexSnapshotDto | null = null,
+  freshness: BackendMarketFreshnessDto | null = null,
 ): MarketDashboardModel {
   const latestSummary = getLatestSummary(summaries);
   const breadth = dsexSnapshot ? toBreadthFromSnapshot(dsexSnapshot) : toBreadthModel(latestSummary, universe, stocks.length);
   const marketMood = deriveMarketCondition(universe, breadth);
   const dataQuality: DataQualityFlag | "UNKNOWN" = latestSummary?.data_quality_flag ?? "UNKNOWN";
   const session = getMarketSession({
-    latestTradeDate: latestSummary?.trade_date ?? universe[0]?.latestTradeDate,
+    latestTradeDate: latestSummary?.trade_date ?? universe[0]?.latestTradeDate ?? freshness?.trade_date,
     dataQualityFlag: latestSummary?.data_quality_flag,
+    freshness,
   });
   const derivedTurnover = getDerivedTurnover(universe);
   const turnoverValue = latestSummary?.total_turnover ?? derivedTurnover;

@@ -5,7 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.core.enums import DataQualityFlag, ExchangeCode
+from app.core.enums import DataQualityFlag, ExchangeCode, MarketSessionStatus
 from app.modules.stock_details.stock_details_schemas import TraderDecisionSummaryRead
 from app.modules.stocks.stocks_schemas import StockRead
 
@@ -134,6 +134,39 @@ class DsexIndexSnapshotRead(BaseModel):
     declining_issues: int
     unchanged_issues: int
     source: str
+
+
+class MarketSnapshotSyncResult(BaseModel):
+    exchange: ExchangeCode
+    trade_date: date
+    source: str
+    fetched_count: int
+    created_count: int
+    skipped_unknown_symbol_count: int
+    suspicious_count: int = 0
+    index_summary_upserted: bool = False
+    index_summary_error: str | None = None
+
+
+class DailyNewsSyncResult(BaseModel):
+    exchange: ExchangeCode
+    trade_date: date
+    news_upserted: int = 0
+    news_skipped: int = 0
+    news_error: str | None = None
+
+
+class MarketFreshnessRead(BaseModel):
+    exchange: ExchangeCode
+    trade_date: date | None
+    last_synced_at: datetime | None
+    next_sync_at: datetime | None
+    snapshot_interval_minutes: int
+    expected_delay_minutes: int
+    market_open_time: str
+    market_close_time: str
+    market_status: MarketSessionStatus
+    freshness_label: str
 
 
 class DailyPriceIngestionResult(BaseModel):

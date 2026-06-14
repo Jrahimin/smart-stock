@@ -59,10 +59,11 @@ def _normalize_symbols(raw_symbols: list[str]) -> set[str]:
 async def seed_stocks_from_amarstock(trade_date: date) -> SeedStocksResult:
     from app.core.database_session import AsyncSessionLocal
     from app.core.enums import ExchangeCode
-    from app.jobs.ingestion.amarstock_market_data_source import AmarStockMarketDataSource
+    from app.core.core_config import get_settings
+    from app.jobs.ingestion.market_data_source_factory import build_primary_market_data_source
     from app.modules.market_data.market_data_repository import MarketDataRepository
 
-    source = AmarStockMarketDataSource()
+    source = build_primary_market_data_source(get_settings())
     parsed_prices = await source.fetch_daily_prices(trade_date)
     if not parsed_prices:
         raise RuntimeError("AmarStock returned no data")

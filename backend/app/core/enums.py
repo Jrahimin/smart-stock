@@ -13,6 +13,18 @@ class ExchangeCode(StrEnum):
     CSE = "CSE"
 
 
+class DailyMarketPrimarySource(StrEnum):
+    AMARSTOCK_LATEST_PRICE_JSON = "amarstock_latest_price_json"
+    AMARSTOCK_HTML = "amarstock_html"
+
+
+class MarketSessionStatus(StrEnum):
+    PRE_OPEN = "PRE_OPEN"
+    OPEN = "OPEN"
+    POST_CLOSE = "POST_CLOSE"
+    HOLIDAY = "HOLIDAY"
+
+
 class DataQualityFlag(StrEnum):
     OK = "OK"
     PARTIAL = "PARTIAL"

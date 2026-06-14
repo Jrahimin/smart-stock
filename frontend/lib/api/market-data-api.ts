@@ -4,6 +4,7 @@ import type {
   BackendDailyPriceDto,
   BackendDsexIndexSnapshotDto,
   BackendLatestMarketPriceDto,
+  BackendMarketFreshnessDto,
   BackendMarketPriceWindowDto,
   DataQualityFlag,
   ExchangeCode,
@@ -27,6 +28,10 @@ export type ListDailyPricesParams = {
 export type ListMarketPriceWindowsParams = ListMarketSummariesParams & {
   price_window_limit?: number;
 };
+
+export function getMarketFreshness(exchange: ExchangeCode = "DSE") {
+  return backendApiGet<BackendMarketFreshnessDto>("/market/freshness", { exchange });
+}
 
 export function getDsexIndexSnapshot(exchange: ExchangeCode = "DSE") {
   return backendApiGet<BackendDsexIndexSnapshotDto>("/market/index/dsex", { exchange });

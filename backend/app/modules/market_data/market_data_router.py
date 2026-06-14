@@ -17,6 +17,7 @@ from app.modules.market_data.market_data_schemas import (
     DailyPriceRead,
     DsexIndexSnapshotRead,
     LatestMarketPriceRead,
+    MarketFreshnessRead,
     MarketPriceWindowRead,
 )
 from app.modules.stock_details.decision.summary import compute_trader_decision_summary_for_stock
@@ -51,6 +52,15 @@ async def list_daily_prices(
     )
     price_items = [DailyPriceRead.model_validate(price) for price in prices]
     return success_response(data=price_items, message="Daily prices retrieved")
+
+
+@router.get("/market/freshness", response_model=ApiResponse[MarketFreshnessRead])
+async def get_market_freshness(
+    service: Annotated[MarketDataService, Depends(get_market_data_service)],
+    exchange: ExchangeCode = ExchangeCode.DSE,
+) -> ApiResponse[MarketFreshnessRead]:
+    freshness = await service.get_market_freshness(exchange=exchange)
+    return success_response(data=freshness, message="Market freshness retrieved")
 
 
 @router.get("/market/latest-prices", response_model=ApiResponse[list[LatestMarketPriceRead]])
