@@ -2,168 +2,140 @@
 
 ## Purpose
 
-The market data module owns per-stock daily OHLCV prices and exchange-level daily market summaries. It is the bridge between stock master data and later indicator, signal, scanner, and dashboard features.
+Stores per-stock daily OHLCV (`daily_prices`) and exchange summaries (`daily_market_summaries`). Feeds indicators, signals, scanner, and dashboard features.
 
-## Workflows (snapshot vs daily)
+## Operator quick reference
 
-Market ingestion is split into two coordinated jobs:
+Run from **`backend/`** with venv and `.env` loaded.
 
-| Workflow | Entry point | Cadence | Writes |
-|----------|-------------|---------|--------|
-| **Intraday snapshot** | `sync_market_snapshot()` | Every `market_snapshot_interval_minutes` (default 15) between `market_open_time` and `market_close_time` on Sun–Thu | `daily_prices` (upsert), `daily_market_summaries` (DSEX via index API) |
-| **Daily orchestration** | `run_daily_market_sync()` | Once per trading day at `daily_market_sync_time` (default 15:15 Asia/Dhaka) | `market_events` (news only by default) |
+| Goal | Command |
+|------|---------|
+| Live snapshot (prices + DSEX) | `python -m app.jobs.sync_market_data` |
+| Snapshot + news | `python -m app.jobs.sync_market_data --with-news` |
+| News only | `python -m app.jobs.sync_market_data --news-only` |
+| Backfill one past session day | `python -m app.jobs.backfill_daily_prices --date YYYY-MM-DD` |
+| Backfill a date range | `python -m app.jobs.backfill_daily_prices --from YYYY-MM-DD --to YYYY-MM-DD` |
+| Backfill upsert (not insert-only) | add `--overwrite` |
 
-The same `daily_prices` row for `stock_id + trade_date` is upserted on each snapshot; `updated_at` moves every run and drives `GET /market/freshness`.
+| Do | Use |
+|----|-----|
+| Today's live prices during session | `sync_market_data` |
+| Missed historical day (whole market) | `backfill_daily_prices` |
+| Per-stock fundamentals + small price gaps | `sync_stock_details` (see `stock_details.md`) |
+
+**Do not** use `sync_market_data --date` for historical backfill — it stores **current** AmarStock prices under that date label.
+
+`python -m app.jobs.sync_market_snapshot` is a deprecated alias for `sync_market_data`.
+
+Exit codes: `0` success · `2` bad date · `130` interrupt · `1` error.
+
+## Workflows
+
+| Workflow | Code entry | Cadence | Writes |
+|----------|------------|---------|--------|
+| Intraday snapshot | `sync_market_snapshot()` | Every `market_snapshot_interval_minutes` (default 15) between `market_open_time`–`market_close_time`, Sun–Thu | `daily_prices` (upsert), DSEX summary |
+| Daily news | `run_daily_market_sync()` | Once per session day at `daily_market_sync_time` (default 15:15) | `market_events` |
+| Historical backfill | `backfill_daily_prices()` | Manual / API | `daily_prices` from DSE archive |
 
 ```text
-Intraday scheduler → sync_market_snapshot()
-  → LatestPrice JSON (primary) → daily_prices
-  → Index API (/info/DSE + /data/index/summery) → daily_market_summaries
+Scheduler (snapshot) → LatestPrice JSON → daily_prices
+                    → Index API → daily_market_summaries (DSEX)
 
-Daily scheduler → run_daily_market_sync()
-  → News API (/info/News) → market_events
+Scheduler (daily)    → News API → market_events
+
+backfill_daily_prices → DSE day-end archive → daily_prices (insert-only by default)
 ```
 
-Manual operators can chain both via CLI (see below).
+Each snapshot upserts the same `stock_id + trade_date` row; `updated_at` drives `GET /market/freshness`.
 
 ## Sources
 
-Primary per-stock snapshot source (default):
+| Data | Source | When |
+|------|--------|------|
+| Per-stock OHLCV (live) | AmarStock `/LatestPrice/{token}` (`AMARSTOCK_LATEST_PRICE_API`) | Snapshot scheduler / `sync_market_data` |
+| Per-stock OHLCV (historical) | DSE `day_end_archive.php` (`DSE`) | `backfill_daily_prices` / `POST .../ingestion/daily-prices` |
+| DSEX, breadth, exchange turnover | AmarStock index API (`/info/DSE` + `/data/index/summery`) | Every snapshot |
+| News | AmarStock `/info/News` | Daily job only |
 
-* **AmarStock bulk LatestPrice JSON** (`/LatestPrice/{token}`) via `AmarStockLatestPriceMarketDataSource` — full OHLCV, volume, trade count, turnover; `source = AMARSTOCK_LATEST_PRICE_API`.
+**Not in LatestPrice JSON:** DSEX level, advancing/declining counts, exchange-wide turnover — always use the index API for those.
 
-Alternate / legacy sources (configurable, not default):
+**Optional / alternate** (via `core_config.py`):
 
-* **AmarStock latest-share-price HTML** via `AmarStockMarketDataSource` (`daily_market_primary_source = amarstock_html`).
-* **StockNow** — optional validation (`daily_market_stocknow_validation_enabled`) or fallback (`daily_market_stocknow_fallback_enabled`); both off by default.
-* **DSE day-end archive** via `DseMarketDataSource` — first-party historical rows; used by dedicated ingestion endpoints, not the snapshot scheduler.
+* `daily_market_primary_source = amarstock_html` — HTML scraper instead of JSON
+* StockNow validation or fallback (`daily_market_stocknow_*`) — off by default
 
-Exchange-level DSEX / breadth / official turnover (not in LatestPrice JSON):
+Factory: `market_data_source_factory.build_primary_market_data_source()`.
 
-* **AmarStock index API** (`AmarStockIndexApiSource`) on every snapshot when `amarstock_index_summary_enabled = true`.
+### LatestPrice JSON → `daily_prices`
 
-News (daily job only):
-
-* **AmarStock News JSON** (`/info/News`) when `amarstock_news_ingestion_enabled = true`.
-
-Stock-details historical backfill (separate job — see `stock_details.md`):
-
-* AmarStock historical price API (`/data/5ee4d332a90e`).
-
-Source classes live under `backend/app/jobs/ingestion/`. `market_data_source_factory.build_primary_market_data_source()` selects the configured primary source.
-
-### LatestPrice JSON mapping
-
-| JSON field | `daily_prices` |
-|------------|----------------|
-| `Scrip` | symbol lookup → `stock_id` |
+| Field | Column |
+|-------|--------|
+| `Scrip` | symbol → `stock_id` |
 | `Close` / `LTP` | `close_price` |
-| `Open`, `High`, `Low` | OHLC (conservative fallbacks when missing) |
+| `Open`, `High`, `Low` | OHLC (fallbacks when missing) |
 | `YCP` | `previous_close_price` |
 | `Volume`, `Trade`, `Value` | volume, trade_count, turnover |
-| — | skip row when `close <= 0` |
 
-Turnover parsing for `Value` matches HTML: unsuffixed numbers are **millions** BDT; `K` / `M` suffixes scale accordingly (`amarstock_turnover.py`).
+Skip rows where `close <= 0`. `Value` turnover: unsuffixed = millions BDT; `K`/`M` suffixes supported.
 
-### HTML source (when configured)
+## Schedulers
 
-`AmarStockMarketDataSource` parses the latest-price table with BeautifulSoup/`lxml`. `LTP` → `close_price`; missing `OPEN` uses `YCP` and marks `PARTIAL`.
+Started in `app.main` lifespan when enabled:
 
-### StockNow validation (optional)
+| Setting | Default |
+|---------|---------|
+| `market_snapshot_scheduler_enabled` | `true` |
+| `daily_market_sync_scheduler_enabled` | `true` |
+| `market_open_time` / `market_close_time` | `10:00` / `15:00` (Asia/Dhaka) |
+| `market_snapshot_interval_minutes` | `15` |
+| `daily_market_sync_time` | `15:15` |
 
-When enabled, validation compares only `close_price`. Differences above `0.50%` mark an otherwise `OK` row `SUSPICIOUS` and upsert a `SOURCE_VALIDATION` summary row. StockNow never overrides AmarStock values.
+Session helpers live in `market_session_schedule.py` (shared with `GET /market/freshness`).
 
-## Business Rules
+## API
 
-* Daily prices are unique by `stock_id + trade_date`.
-* Ingestion upserts by natural key so repeated snapshot runs are idempotent.
-* `high_price >= low_price`; close must sit inside low/high when provided.
-* Missing previous close → `PARTIAL` change fields.
-* Unknown symbols are skipped.
-* Run `python -m app.scripts.seed_stocks` before ingestion on a fresh DB (`backend/docs/stocks.md`).
-* Empty parses are logged and skipped.
-* **Do not** derive official exchange breadth from aggregating LatestPrice `ChangePer`; use the index API. Frontend stock-level aggregation remains a UI fallback only.
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /api/v1/market/freshness` | Last/next sync, session status, delay disclaimer |
+| `GET /api/v1/market/latest-prices` | Latest row per active stock |
+| `GET /api/v1/market/price-windows` | Recent OHLCV windows for dashboard/scanner |
+| `GET /api/v1/market/index/dsex` | Live DSEX snapshot |
+| `GET /api/v1/market/summaries` | Stored daily summaries |
+| `GET /api/v1/stocks/{id}/prices` | Paginated history |
+| `POST /api/v1/market-data/ingestion/daily-prices?trade_date=` | DSE archive ingest (same as backfill CLI) |
 
-## Derived Fields
+`GET /market/freshness` intentionally omits `is_live` — prices are always snapshot-based.
 
-Computed before persistence:
+## Rules
 
-* `price_change`, `price_change_percent`, `day_range`, `day_range_percent`
-* `turnover` from source, or `close_price * volume` when absent
-* `vwap = turnover / volume`
+* Natural key: `stock_id + trade_date`
+* Snapshot ingest: upsert; backfill default: insert-only (skip existing rows)
+* Unknown symbols skipped — run `seed_stocks` on a fresh DB
+* Official breadth from index API only; do not aggregate LatestPrice `ChangePer` as exchange breadth
+* Derived on write: `price_change`, `price_change_percent`, `day_range`, `vwap`, etc.
 
-## Schedulers (in-process)
-
-Started from `app.main` lifespan when enabled:
-
-| Setting | Default | Scheduler |
-|---------|---------|-----------|
-| `market_snapshot_scheduler_enabled` | `true` | `MarketSnapshotScheduler` → `sync_market_snapshot()` |
-| `daily_market_sync_scheduler_enabled` | `true` | `DailyMarketSyncScheduler` → `run_daily_market_sync()` |
-| `market_open_time` / `market_close_time` | `10:00` / `15:00` | Snapshot window (Asia/Dhaka) |
-| `market_snapshot_interval_minutes` | `15` | Snapshot cadence |
-| `daily_market_sync_time` | `15:15` | Daily news job |
-
-Session logic (`market_session_schedule.py`) is shared by schedulers, `GET /market/freshness`, and unit tests.
-
-## API Behavior
-
-`GET /api/v1/stocks/{stock_id}/prices` — paginated history with date/source/quality filters.
-
-`POST /api/v1/stocks/{stock_id}/prices` — single-row upsert with derived fields.
-
-`GET /api/v1/market/freshness` — snapshot metadata for the UI (`last_synced_at`, `next_sync_at` when OPEN/PRE_OPEN, `market_status`, `expected_delay_minutes`, etc.). No `is_live` field.
-
-`POST /api/v1/market-data/ingestion/daily-prices` — manual price ingest for a trade date (operator/API path).
-
-## Enrichment split
+## Enrichment
 
 `amarstock_daily_enrichment.py`:
 
-* `run_snapshot_market_enrichment()` — DSEX index summary only (snapshot path).
-* `run_daily_news_enrichment()` — news only (daily path).
-* `amarstock_daily_latest_price_patch_enabled` defaults to **`false`** (redundant when JSON is primary).
-* Legacy `run_post_daily_amarstock_enrichment` chains news + optional patch for backward compatibility.
+* Snapshot path → DSEX summary only (`run_snapshot_market_enrichment`)
+* Daily path → news only (`run_daily_news_enrichment`)
+* `amarstock_daily_latest_price_patch_enabled` defaults to `false`
 
-## CLI
+## Configuration
 
-**Market snapshot (prices + DSEX) — default operator command:**
+Key settings in `backend/app/core/core_config.py`:
 
-```bash
-python -m app.jobs.sync_market_data
-python -m app.jobs.sync_market_data --date 2026-06-11
-python -m app.jobs.sync_market_data --no-validation
-python -m app.jobs.sync_market_data --with-news    # snapshot then news
-python -m app.jobs.sync_market_data --news-only   # news only
-```
+| Setting | Default | Notes |
+|---------|---------|-------|
+| `daily_market_primary_source` | `amarstock_latest_price_json` | or `amarstock_html` |
+| `dse_archive_ssl_verify` | `false` | DSE TLS chain often incomplete |
+| `amarstock_index_summary_enabled` | `true` | DSEX on each snapshot |
+| `amarstock_news_ingestion_enabled` | `true` | Daily job only |
+| `daily_market_stocknow_validation_enabled` | `false` | Optional close check |
 
-`python -m app.jobs.sync_market_snapshot` remains as a **deprecated alias** for `sync_market_data`.
+## Related
 
-**Historical backfill (true past-date OHLCV via DSE archive):**
-
-```bash
-python -m app.jobs.backfill_daily_prices --date 2026-05-15
-python -m app.jobs.backfill_daily_prices --from 2026-05-01 --to 2026-05-15
-python -m app.jobs.backfill_daily_prices --date 2026-05-15 --overwrite
-```
-
-Default backfill is **insert-only** (skips existing `stock_id + trade_date` rows). Use `--overwrite` to upsert. Snapshot `--date` only labels live AmarStock data — use backfill for missed historical sessions.
-
-**DSE TLS:** `dse_archive_ssl_verify` defaults to `false` in `core_config.py` because `dsebd.org` often serves an incomplete certificate chain. Set `DSE_ARCHIVE_SSL_VERIFY=true` in `.env` only if verification succeeds in your environment.
-
-Default trade date for snapshot/news: calendar **today in Asia/Dhaka**.
-
-**Exit codes:** `0` success; `2` invalid `--date`; `130` Ctrl+C; `1` uncaught exception.
-
-## Settings reference
-
-See `backend/app/core/core_config.py`:
-
-* `daily_market_primary_source` — `amarstock_latest_price_json` (default) or `amarstock_html`
-* `daily_market_stocknow_validation_enabled` / `daily_market_stocknow_fallback_enabled`
-* `amarstock_news_ingestion_enabled`, `amarstock_index_summary_enabled`
-* `amarstock_latest_price_token`, `amarstock_news_path`, bulk API retry settings
-
-## Future Notes
-
-Broader cross-source validation, bulk upsert optimization, and anomaly detection should stay inside ingestion source classes. Stock-details bulk LatestPrice usage for profiles remains a separate module/cadence — see `backend/docs/stock_details.md`.
+* Stock master: `backend/docs/stocks.md`
+* Fundamentals / per-symbol history: `backend/docs/stock_details.md`
+* API shapes: `backend/docs/api_collection.md`

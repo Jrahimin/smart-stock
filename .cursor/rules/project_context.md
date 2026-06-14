@@ -271,7 +271,7 @@ Pipeline jobs live under `backend/app/jobs/`:
 Market data ingestion context:
 
 * **Primary snapshot source** (default): AmarStock bulk LatestPrice JSON (`AMARSTOCK_LATEST_PRICE_API`). HTML scraper remains available via `daily_market_primary_source = amarstock_html`.
-* Intraday scheduler calls `sync_market_snapshot()` only; daily scheduler calls `run_daily_market_sync()` for news.
+* Manual snapshot CLI: `python -m app.jobs.sync_market_data` (prices + DSEX; `--news-only` / `--with-news`). Historical gaps: `python -m app.jobs.backfill_daily_prices --date YYYY-MM-DD`.
 * DSEX / official breadth come from the AmarStock **index API**, not LatestPrice JSON.
 * Daily price ingestion uses replaceable source classes that return `IngestedDailyPrice`.
 * `AmarStockMarketDataSource` fetches live AmarStock latest-share-price HTML, parses with BeautifulSoup plus `lxml`, detects the table from minimal headers (`TRADING CODE`, `LTP`), and maps by header name rather than fixed column positions.
