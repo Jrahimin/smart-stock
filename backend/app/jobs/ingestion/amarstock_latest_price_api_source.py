@@ -10,8 +10,10 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from app.core.core_config import Settings
+from app.core.enums import DataQualityFlag
 from app.jobs.ingestion.amarstock_http_client import AmarStockHttpClient
 from app.jobs.ingestion.amarstock_turnover import normalize_amarstock_turnover_text
+from app.jobs.ingestion.ingestion_source_base import IngestedDailyPrice
 
 DHAKA_TZ = ZoneInfo("Asia/Dhaka")
 
@@ -23,6 +25,11 @@ class AmarStockLatestPriceRow:
     created_on_ms: int | None
     ltp: Decimal | None
     close: Decimal | None
+    open_price: Decimal | None
+    high_price: Decimal | None
+    low_price: Decimal | None
+    ycp: Decimal | None
+    volume: int | None
     trade: int | None
     value_turnover_millions_raw: str | None
     pe: Decimal | None
@@ -103,6 +110,11 @@ def _parse_row(row: dict[str, Any]) -> AmarStockLatestPriceRow | None:
         created_on_ms=_aspnet_ms(row.get("CreatedOn")),
         ltp=_to_decimal(row.get("LTP")),
         close=_to_decimal(row.get("Close")),
+        open_price=_to_decimal(row.get("Open")),
+        high_price=_to_decimal(row.get("High")),
+        low_price=_to_decimal(row.get("Low")),
+        ycp=_to_decimal(row.get("YCP")),
+        volume=_to_int(row.get("Volume")),
         trade=_to_int(row.get("Trade")),
         value_turnover_millions_raw=value_str,
         pe=_to_decimal(row.get("PE")),
@@ -138,6 +150,57 @@ def latest_price_snapshot_date(row: AmarStockLatestPriceRow, *, fallback: date) 
         except (OSError, ValueError, OverflowError):
             pass
     return fallback
+
+
+def row_to_ingested_daily_price(
+    row: AmarStockLatestPriceRow,
+    *,
+    trade_date: date,
+    source_name: str = AmarStockLatestPriceApiSource.source_name,
+) -> IngestedDailyPrice | None:
+    close_price = row.close if row.close is not None else row.ltp
+    if close_price is None or close_price <= 0:
+        return None
+
+    source_open = row.open_price
+    previous_close_price = row.ycp
+    high_price = row.high_price
+    low_price = row.low_price
+    volume = row.volume
+    trade_count = row.trade
+    turnover = turnover_decimal_from_latest_price_row(row)
+
+    is_partial = any(
+        value is None
+        for value in (
+            source_open,
+            high_price,
+            low_price,
+            previous_close_price,
+            volume,
+            trade_count,
+            turnover,
+        )
+    )
+    high_price = high_price or close_price
+    low_price = low_price or close_price
+    open_price = source_open or previous_close_price or close_price
+
+    return IngestedDailyPrice(
+        symbol=row.scrip,
+        trade_date=trade_date,
+        open_price=open_price,
+        high_price=high_price,
+        low_price=low_price,
+        close_price=close_price,
+        adjusted_close_price=None,
+        previous_close_price=previous_close_price,
+        volume=volume or 0,
+        trade_count=trade_count,
+        turnover=turnover,
+        source=source_name,
+        data_quality_flag=DataQualityFlag.PARTIAL if is_partial else DataQualityFlag.OK,
+    )
 
 
 def turnover_decimal_from_latest_price_row(row: AmarStockLatestPriceRow) -> Decimal | None:

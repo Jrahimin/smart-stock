@@ -61,13 +61,15 @@ Signals are based on:
 
 ## 4. Data Pipeline
 
-Daily workflow:
+Market data workflow (split):
 
-1. Ingest data (scraping or API)
-2. Clean and validate
-3. Store in database
-4. Compute indicators
-5. Generate signals
+1. **Intraday snapshots** (`sync_market_snapshot`) — LatestPrice JSON → `daily_prices`; index API → DSEX `daily_market_summaries`; every ~15 min during Sun–Thu session window.
+2. **Daily orchestration** (`run_daily_market_sync`) — AmarStock News → `market_events` once per session day after close.
+3. Clean and validate (optional StockNow validation when enabled)
+4. Store in database (upsert by `stock_id + trade_date`)
+5. Compute indicators and generate signals downstream
+
+`GET /market/freshness` exposes snapshot timing and `market_status` for the frontend (no hardcoded session times in UI).
 
 The system must be reliable and repeatable.
 
@@ -268,15 +270,18 @@ Pipeline jobs live under `backend/app/jobs/`:
 
 Market data ingestion context:
 
+* **Primary snapshot source** (default): AmarStock bulk LatestPrice JSON (`AMARSTOCK_LATEST_PRICE_API`). HTML scraper remains available via `daily_market_primary_source = amarstock_html`.
+* Manual snapshot CLI: `python -m app.jobs.sync_market_data` (prices + DSEX; `--news-only` / `--with-news`). Historical gaps: `python -m app.jobs.backfill_daily_prices --date YYYY-MM-DD`.
+* DSEX / official breadth come from the AmarStock **index API**, not LatestPrice JSON.
 * Daily price ingestion uses replaceable source classes that return `IngestedDailyPrice`.
 * `AmarStockMarketDataSource` fetches live AmarStock latest-share-price HTML, parses with BeautifulSoup plus `lxml`, detects the table from minimal headers (`TRADING CODE`, `LTP`), and maps by header name rather than fixed column positions.
 * AmarStock `LTP` maps to `close_price`; `OPEN` is optional, otherwise `YCP` is used as the open-price proxy and rows are marked `PARTIAL`.
 * AmarStock `VALUE` supports `K`/`M` suffixes; unsuffixed values are assumed to be in millions until the source contract is confirmed.
 * `StockNowMarketDataSource` parses StockNow's rendered AG Grid snapshot for validation only; it does not override AmarStock data.
-* The daily AmarStock sync is scheduled for 2:30 PM Asia/Dhaka and fetches StockNow in parallel to compare only `close_price`.
+* Snapshot scheduler runs between configurable `market_open_time` and `market_close_time` (default 10:00–15:00 Asia/Dhaka) every `market_snapshot_interval_minutes` (default 15). Daily news runs at `daily_market_sync_time` (default 15:15). StockNow validation/fallback is optional and off by default.
 * If AmarStock and StockNow close prices differ by more than `0.50%`, an otherwise `OK` AmarStock row is marked `SUSPICIOUS` and `daily_market_summaries` gets a `SOURCE_VALIDATION` row with `has_suspicious_prices = true`.
 * Ingestion upserts `daily_prices` by `stock_id + trade_date` and skips database writes when a source parse returns no rows.
-* **Post-ingestion (additive)**: after primary prices commit, the same daily job optionally ingests AmarStock **News** JSON into `market_events` (`AMARSTOCK_NEWS_API`) and may **patch** existing `daily_prices` rows with LatestPrice bulk JSON for `trade_count` / `turnover` only (`run_post_daily_amarstock_enrichment` in `backend/app/jobs/ingestion/amarstock_daily_enrichment.py`). Failures there do not roll back committed OHLCV. Details: `backend/docs/market_data.md`.
+* **Enrichment split**: snapshot path runs DSEX index summary only (`run_snapshot_market_enrichment`). Daily path runs news only (`run_daily_news_enrichment`). LatestPrice trade-stat patch is disabled by default (`amarstock_daily_latest_price_patch_enabled=false`). Details: `backend/docs/market_data.md`.
 
 Stock details ingestion context:
 

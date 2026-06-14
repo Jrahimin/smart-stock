@@ -1,26 +1,37 @@
 import asyncio
 import logging
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from fastapi import Depends
 
 from app.api.dependencies.auth_dependencies import get_current_user_context
 from app.core.core_config import get_settings
 from app.core.enums import DataQualityFlag, ExchangeCode
-from app.jobs.ingestion.amarstock_daily_enrichment import PostDailyAmarstockStats, run_post_daily_amarstock_enrichment
+from app.jobs.ingestion.amarstock_daily_enrichment import (
+    PostDailyAmarstockStats,
+    run_daily_news_enrichment,
+    run_snapshot_market_enrichment,
+)
 from app.jobs.ingestion.amarstock_index_api_source import AmarStockIndexApiSource
 from app.core.exception_handlers import NotFoundError
 from app.core.security_config import UserContext
 from app.jobs.ingestion.ingestion_source_base import IngestedDailyPrice, MarketDataSource
 from app.models import DailyMarketSummary, DailyPrice, Stock
 from app.modules.market_data.market_data_repository import MarketDataRepository, get_market_data_repository
+from app.jobs.market_session_schedule import (
+    build_freshness_label,
+    next_snapshot_sync_at,
+    resolve_market_status,
+)
 from app.modules.market_data.market_data_schemas import (
     DailyMarketSummaryCreate,
     DailyPriceCreate,
     DailyPriceIngestionResult,
     DsexIndexSnapshotRead,
+    MarketFreshnessRead,
 )
 
 logger = logging.getLogger(__name__)
@@ -107,6 +118,7 @@ class MarketDataService:
         trade_date: date,
         source: MarketDataSource,
         validation_source: MarketDataSource | None = None,
+        insert_only: bool = False,
     ) -> DailyPriceIngestionResult:
         ingested_prices, validation_prices = await self._fetch_ingestion_prices(
             source=source,
@@ -120,7 +132,6 @@ class MarketDataService:
                 trade_date,
                 source.source_name,
             )
-            post = await self._run_post_daily_amarstock_enrichment(exchange, trade_date)
             return DailyPriceIngestionResult(
                 exchange=exchange,
                 trade_date=trade_date,
@@ -130,12 +141,6 @@ class MarketDataService:
                 skipped_existing_count=0,
                 skipped_unknown_symbol_count=0,
                 suspicious_count=0,
-                post_news_upserted=post.news_upserted,
-                post_news_skipped=post.news_skipped,
-                post_latest_price_trade_fields_patched=post.price_trade_fields_patched,
-                post_latest_price_trade_rows_missing=post.price_trade_rows_missing,
-                post_news_error=post.news_error,
-                post_latest_price_patch_error=post.latest_price_patch_error,
             )
 
         suspicious_count = self._apply_close_price_validation(
@@ -149,6 +154,7 @@ class MarketDataService:
         )
 
         upserted_count = 0
+        skipped_existing_count = 0
         skipped_unknown_symbol_count = 0
 
         for ingested_price in ingested_prices:
@@ -159,8 +165,15 @@ class MarketDataService:
 
             price_data = self._build_daily_price_create(stock.id, ingested_price)
             prepared_values = await self._prepare_daily_price_values(price_data)
-            await self.repository.upsert_daily_price(prepared_values)
-            upserted_count += 1
+            if insert_only:
+                inserted = await self.repository.insert_daily_price_if_absent(prepared_values)
+                if inserted is None:
+                    skipped_existing_count += 1
+                else:
+                    upserted_count += 1
+            else:
+                await self.repository.upsert_daily_price(prepared_values)
+                upserted_count += 1
 
         if validation_source is not None:
             await self._upsert_source_validation_summary(
@@ -171,11 +184,9 @@ class MarketDataService:
             )
 
         await self.repository.commit()
-        post = await self._run_post_daily_amarstock_enrichment(exchange, trade_date)
         logger.info(
             "Daily market ingestion completed: exchange=%s trade_date=%s source=%s total_rows=%s "
-            "success=%s failed_rows=%s suspicious_rows=%s post_news=%s post_news_skipped=%s "
-            "post_lp_trade_patch=%s post_lp_missing_rows=%s",
+            "success=%s failed_rows=%s suspicious_rows=%s",
             exchange,
             trade_date,
             source.source_name,
@@ -183,10 +194,6 @@ class MarketDataService:
             upserted_count,
             skipped_unknown_symbol_count,
             suspicious_count,
-            post.news_upserted,
-            post.news_skipped,
-            post.price_trade_fields_patched,
-            post.price_trade_rows_missing,
         )
         return DailyPriceIngestionResult(
             exchange=exchange,
@@ -194,24 +201,19 @@ class MarketDataService:
             source=source.source_name,
             fetched_count=len(ingested_prices),
             created_count=upserted_count,
-            skipped_existing_count=0,
+            skipped_existing_count=skipped_existing_count,
             skipped_unknown_symbol_count=skipped_unknown_symbol_count,
             suspicious_count=suspicious_count,
-            post_news_upserted=post.news_upserted,
-            post_news_skipped=post.news_skipped,
-            post_latest_price_trade_fields_patched=post.price_trade_fields_patched,
-            post_latest_price_trade_rows_missing=post.price_trade_rows_missing,
-            post_news_error=post.news_error,
-            post_latest_price_patch_error=post.latest_price_patch_error,
         )
 
-    async def _run_post_daily_amarstock_enrichment(
+    async def run_snapshot_enrichment(
         self,
+        *,
         exchange: ExchangeCode,
         trade_date: date,
     ) -> PostDailyAmarstockStats:
         try:
-            stats = await run_post_daily_amarstock_enrichment(
+            stats = await run_snapshot_market_enrichment(
                 self.repository.session,
                 exchange=exchange,
                 trade_date=trade_date,
@@ -221,11 +223,28 @@ class MarketDataService:
             return stats
         except Exception as exc:
             await self.repository.rollback()
-            logger.warning("Post-daily AmarStock enrichment failed: %s", exc, exc_info=True)
-            return PostDailyAmarstockStats(
-                news_error=str(exc),
-                latest_price_patch_error=str(exc),
+            logger.warning("Snapshot market enrichment failed: %s", exc, exc_info=True)
+            return PostDailyAmarstockStats(index_summary_error=str(exc))
+
+    async def run_daily_news_sync(
+        self,
+        *,
+        exchange: ExchangeCode,
+        trade_date: date,
+    ) -> PostDailyAmarstockStats:
+        try:
+            stats = await run_daily_news_enrichment(
+                self.repository.session,
+                exchange=exchange,
+                trade_date=trade_date,
+                settings=get_settings(),
             )
+            await self.repository.commit()
+            return stats
+        except Exception as exc:
+            await self.repository.rollback()
+            logger.warning("Daily news enrichment failed: %s", exc, exc_info=True)
+            return PostDailyAmarstockStats(news_error=str(exc))
 
     async def _fetch_ingestion_prices(
         self,
@@ -593,6 +612,31 @@ class MarketDataService:
         if turnover is None or volume == 0:
             return None
         return turnover / Decimal(volume)
+
+    async def get_market_freshness(self, *, exchange: ExchangeCode) -> MarketFreshnessRead:
+        settings = get_settings()
+        now = datetime.now(ZoneInfo("Asia/Dhaka"))
+        status = resolve_market_status(now, settings)
+        trade_date, last_synced_at = await self.repository.get_market_price_freshness(exchange=exchange)
+        from app.core.enums import MarketSessionStatus
+
+        interval = settings.market_snapshot_interval_minutes
+        next_sync = None
+        if status in {MarketSessionStatus.PRE_OPEN, MarketSessionStatus.OPEN}:
+            next_sync = next_snapshot_sync_at(now, settings)
+
+        return MarketFreshnessRead(
+            exchange=exchange,
+            trade_date=trade_date,
+            last_synced_at=last_synced_at,
+            next_sync_at=next_sync,
+            snapshot_interval_minutes=interval,
+            expected_delay_minutes=interval,
+            market_open_time=settings.market_open_time,
+            market_close_time=settings.market_close_time,
+            market_status=status,
+            freshness_label=build_freshness_label(settings, status),
+        )
 
 
 def get_market_data_service(

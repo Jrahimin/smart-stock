@@ -13,6 +13,8 @@ The implementation uses only JSON APIs documented in `backend/app/scraping_sourc
 * Company financials API: `https://www.amarstock.com/company/2b5e8cfdd75f/?symbol={SYMBOL}`
 * **Bulk LatestPrice JSON** (one fetch per batch): `https://www.amarstock.com/LatestPrice/{token}` — fill-empty stock profile fields and additive `shareholding_snapshots` / `valuation_snapshots` under `source = AMARSTOCK_LATEST_PRICE_API` (see **Bulk LatestPrice enrichment** below).
 
+**Note:** The same LatestPrice feed also powers **intraday market snapshots** (`sync_market_snapshot` → `daily_prices` via `AmarStockLatestPriceMarketDataSource`). That path is separate from this module's `sync_stock_details` job and cadence. News ingestion runs on the **daily** market job only, not on the 15-minute snapshot loop.
+
 There is no stock-details HTML scraping path. Do not reintroduce `/stock/{SYMBOL}` fetches, DOM parsing, `data-key` parsing, BeautifulSoup, or `lxml` for this feature.
 
 ## Sync Controls
@@ -159,4 +161,4 @@ Manual trigger parameters:
 * `force`: bypass cadence on scheduled/API runs; not required for the CLI (always `MANUAL`).
 * `scope`: `full` (default) or `stocks` (see **Sync scope** above).
 
-**Typical gap-fill workflow:** run `python -m app.jobs.sync_market_data` for day-end prices, then `python -m app.jobs.sync_stock_details --symbols SYMBOL --historical-window-days N` to insert any missing dates in the lookback window without overwriting dates daily sync already stored.
+**Typical gap-fill workflow:** run `python -m app.jobs.backfill_daily_prices --date YYYY-MM-DD` for a missing session day (DSE archive, insert-only by default). For a date range, use `--from` / `--to`. Use `sync_stock_details` only when you also need fundamentals or per-symbol AmarStock historical gaps.

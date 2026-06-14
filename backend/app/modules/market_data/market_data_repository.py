@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
 
@@ -201,6 +201,13 @@ class MarketDataRepository(BaseRepository[DailyPrice]):
             raise RuntimeError("Daily price upsert did not return a row")
         return daily_price
 
+    async def insert_daily_price_if_absent(self, values: dict[str, object]) -> DailyPrice | None:
+        statement = insert(DailyPrice).values(**values)
+        statement = statement.on_conflict_do_nothing(
+            index_elements=[DailyPrice.stock_id, DailyPrice.trade_date],
+        ).returning(DailyPrice)
+        return await self.session.scalar(statement)
+
     async def patch_daily_price_trade_stats(
         self,
         *,
@@ -296,6 +303,34 @@ class MarketDataRepository(BaseRepository[DailyPrice]):
             DailyMarketSummary.index_name == index_name,
         )
         return await self.session.scalar(statement)
+
+    async def get_market_price_freshness(
+        self,
+        *,
+        exchange: ExchangeCode,
+    ) -> tuple[date | None, datetime | None]:
+        latest_trade_date_stmt = (
+            select(func.max(DailyPrice.trade_date))
+            .select_from(DailyPrice)
+            .join(Stock, Stock.id == DailyPrice.stock_id)
+            .where(Stock.exchange == exchange, Stock.is_active.is_(True))
+        )
+        latest_trade_date = await self.session.scalar(latest_trade_date_stmt)
+        if latest_trade_date is None:
+            return None, None
+
+        last_synced_stmt = (
+            select(func.max(DailyPrice.updated_at))
+            .select_from(DailyPrice)
+            .join(Stock, Stock.id == DailyPrice.stock_id)
+            .where(
+                Stock.exchange == exchange,
+                Stock.is_active.is_(True),
+                DailyPrice.trade_date == latest_trade_date,
+            )
+        )
+        last_synced_at = await self.session.scalar(last_synced_stmt)
+        return latest_trade_date, last_synced_at
 
     async def upsert_daily_market_summary(self, values: dict[str, object]) -> DailyMarketSummary:
         statement = insert(DailyMarketSummary).values(**values)

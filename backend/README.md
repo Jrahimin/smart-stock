@@ -28,13 +28,22 @@ Requirements include **tzdata** so `ZoneInfo("Asia/Dhaka")` works on Windows (sc
 uvicorn app.main:app --reload
 ```
 
-Run the scheduled-equivalent daily market sync (AmarStock + StockNow, writes to PostgreSQL) without starting the API:
+Run market sync jobs (writes to PostgreSQL) without starting the API:
 
 ```bash
+# Snapshot: LatestPrice JSON + DSEX (default)
 python -m app.jobs.sync_market_data
-python -m app.jobs.sync_market_data --date 2026-05-02
-python -m app.jobs.sync_market_data --no-validation
+python -m app.jobs.sync_market_data --with-news
+python -m app.jobs.sync_market_data --news-only
+
+# Historical backfill: DSE day-end archive for a past date or range
+python -m app.jobs.backfill_daily_prices --date 2026-05-15
+python -m app.jobs.backfill_daily_prices --from 2026-05-01 --to 2026-05-15
 ```
+
+`python -m app.jobs.sync_market_snapshot` is a deprecated alias for `sync_market_data`.
+
+With the API running, in-process schedulers call `sync_market_snapshot()` every `market_snapshot_interval_minutes` (default 15) during `market_open_time`–`market_close_time` Sun–Thu, and `run_daily_market_sync()` at `daily_market_sync_time` (default 15:15). Configure via `core_config.py` / `.env`.
 
 Run these from the `backend` directory (same as `uvicorn`) with your virtualenv activated and `.env` loaded for `DATABASE_URL`.
 

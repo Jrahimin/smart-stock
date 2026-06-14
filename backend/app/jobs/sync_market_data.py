@@ -1,11 +1,14 @@
-"""Run the scheduled-equivalent daily market sync from the shell (AmarStock + optional StockNow).
+"""Run market snapshot (default), news-only, or snapshot + news from the shell.
 
 Usage from the backend directory::
 
     python -m app.jobs.sync_market_data
-    python -m app.jobs.sync_market_data --date 2026-05-02
-    python -m app.jobs.sync_market_data --no-validation
+    python -m app.jobs.sync_market_data --with-news
+    python -m app.jobs.sync_market_data --news-only
+    python -m app.jobs.sync_market_data --date 2026-06-11
 """
+
+from __future__ import annotations
 
 import argparse
 import asyncio
@@ -15,28 +18,91 @@ from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
 from app.core.logging_config import configure_logging
-from app.jobs.ingestion.ingest_daily_market_prices import run_daily_market_sync
+from app.jobs.ingestion.ingest_daily_market_prices import run_daily_market_sync, sync_market_snapshot
 
 logger = logging.getLogger(__name__)
-
 DHAKA_TZ = ZoneInfo("Asia/Dhaka")
 
 
 def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Fetch and upsert DSE daily prices (AmarStock; StockNow validation by default).",
+        description="Market snapshot (prices + DSEX) by default; optional news ingestion.",
     )
-    parser.add_argument(
-        "--date",
-        metavar="YYYY-MM-DD",
-        help="Trading date (default: calendar date in Asia/Dhaka now, not the machine's local timezone)",
+    parser.add_argument("--date", metavar="YYYY-MM-DD", help="Trade date label (default: today in Asia/Dhaka)")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
+        "--news-only",
+        action="store_true",
+        help="Ingest AmarStock news only (no price snapshot)",
+    )
+    mode.add_argument(
+        "--with-news",
+        action="store_true",
+        help="Run snapshot first, then news",
     )
     parser.add_argument(
         "--no-validation",
         action="store_true",
-        help="Skip StockNow cross-check (AmarStock-only ingest; no SOURCE_VALIDATION summary)",
+        help="Skip StockNow validation on snapshot when enabled in settings",
     )
     return parser.parse_args(argv)
+
+
+def _resolve_trade_date(raw: str | None) -> date:
+    if raw:
+        return date.fromisoformat(raw)
+    return datetime.now(DHAKA_TZ).date()
+
+
+def _warn_snapshot_past_date(trade_date: date) -> None:
+    today = datetime.now(DHAKA_TZ).date()
+    if trade_date < today:
+        logger.warning(
+            "Snapshot sync fetches live AmarStock prices; --date only sets the stored trade_date. "
+            "For true historical OHLCV use: python -m app.jobs.backfill_daily_prices --date %s",
+            trade_date.isoformat(),
+        )
+
+
+async def _run_snapshot(trade_date: date, *, skip_validation: bool) -> None:
+    result = await sync_market_snapshot(trade_date, skip_validation=skip_validation)
+    logger.info(
+        "Snapshot done: trade_date=%s source=%s fetched=%s upserted=%s unknown=%s "
+        "suspicious=%s dsex_upserted=%s dsex_error=%s",
+        result.trade_date,
+        result.source,
+        result.fetched_count,
+        result.created_count,
+        result.skipped_unknown_symbol_count,
+        result.suspicious_count,
+        result.index_summary_upserted,
+        result.index_summary_error,
+    )
+    if result.fetched_count == 0:
+        logger.error("No rows from primary source (possible API outage or empty parse)")
+
+
+async def _run_news(trade_date: date) -> None:
+    daily = await run_daily_market_sync(trade_date, include_snapshot=False)
+    logger.info(
+        "News sync done: news_upserted=%s news_skipped=%s error=%s",
+        daily.news_upserted,
+        daily.news_skipped,
+        daily.news_error,
+    )
+
+
+async def _run(args: argparse.Namespace) -> None:
+    trade_date = _resolve_trade_date(args.date)
+
+    if args.news_only:
+        await _run_news(trade_date)
+        return
+
+    _warn_snapshot_past_date(trade_date)
+    await _run_snapshot(trade_date, skip_validation=args.no_validation)
+    if args.with_news:
+        await _run_news(trade_date)
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -45,53 +111,18 @@ def main(argv: list[str] | None = None) -> None:
 
     if args.date:
         try:
-            trade_date = date.fromisoformat(args.date)
+            _resolve_trade_date(args.date)
         except ValueError:
             logger.error("Invalid --date %r (use YYYY-MM-DD)", args.date)
             sys.exit(2)
-    else:
-        trade_date = datetime.now(DHAKA_TZ).date()
-
-    async def _run() -> None:
-        result = await run_daily_market_sync(
-            trade_date,
-            skip_validation=args.no_validation,
-        )
-        done_msg = (
-            "Done: exchange=%s trade_date=%s source=%s fetched=%s upserted=%s "
-            "skipped_existing=%s skipped_unknown_symbol=%s suspicious=%s "
-            "post_news=%s post_news_skipped=%s post_lp_trade_patch=%s post_lp_missing_rows=%s"
-        )
-        done_args = (
-            result.exchange,
-            result.trade_date,
-            result.source,
-            result.fetched_count,
-            result.created_count,
-            result.skipped_existing_count,
-            result.skipped_unknown_symbol_count,
-            result.suspicious_count,
-            result.post_news_upserted,
-            result.post_news_skipped,
-            result.post_latest_price_trade_fields_patched,
-            result.post_latest_price_trade_rows_missing,
-        )
-        if result.fetched_count == 0:
-            logger.error(
-                done_msg
-                + " — no rows from primary source (possible scraper outage, wrong trade date, or empty parse)",
-                *done_args,
-            )
-        else:
-            logger.info(done_msg, *done_args)
 
     try:
-        asyncio.run(_run())
+        asyncio.run(_run(args))
     except KeyboardInterrupt:
         logger.info("Interrupted")
         sys.exit(130)
     except Exception:
-        logger.exception("Daily market sync failed")
+        logger.exception("Market sync failed")
         sys.exit(1)
 
 

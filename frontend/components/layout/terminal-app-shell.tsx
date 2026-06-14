@@ -20,6 +20,7 @@ import type { ReactNode } from "react";
 import { useEffect } from "react";
 
 import { GlobalCommandPalette } from "@/components/command/global-command-palette";
+import { MarketDataFreshnessBar } from "@/components/layout/market-data-freshness-bar";
 import { SidebarThemeToggle } from "@/components/layout/sidebar-theme-toggle";
 import { useAuth } from "@/features/auth/context/auth-context";
 import { useWorkspaceStore } from "@/stores/use-workspace-store";
@@ -134,7 +135,10 @@ export function TerminalAppShell({ children }: TerminalAppShellProps) {
           )}
         </div>
       </aside>
-      <main className="terminal-main">{children}</main>
+      <main className="terminal-main">
+        <MarketDataFreshnessBar />
+        {children}
+      </main>
       <GlobalCommandPalette />
     </div>
   );

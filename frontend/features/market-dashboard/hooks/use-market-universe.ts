@@ -15,12 +15,13 @@ const DEFAULT_PRICE_WINDOW_LIMIT = 90;
 type UseMarketUniverseOptions = {
   stockLimit?: number;
   priceWindowLimit?: number;
+  staleTimeMs?: number;
 };
 
 export function useMarketUniverse(options: UseMarketUniverseOptions = {}) {
   const stockLimit = options.stockLimit ?? DEFAULT_MARKET_UNIVERSE_LIMIT;
   const priceWindowLimit = options.priceWindowLimit ?? DEFAULT_PRICE_WINDOW_LIMIT;
-  const cacheMs = frontendConfig.cacheHours * 60 * 60 * 1000;
+  const cacheMs = options.staleTimeMs ?? frontendConfig.cacheHours * 60 * 60 * 1000;
   const stocksQuery = useQuery({
     queryKey: ["stocks", "market-universe-count", "DSE"],
     queryFn: () => listStocks({ exchange: "DSE", is_active: true, limit: 500 }),

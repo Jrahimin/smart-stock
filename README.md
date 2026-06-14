@@ -1,87 +1,76 @@
 # Smart Stock
 
-AI-assisted stock analysis foundation for the Bangladesh stock market.
+AI-assisted stock analysis for the Bangladesh stock market (DSE/CSE).
 
-This repository is organized as a monorepo:
+| Area | Stack |
+|------|--------|
+| `backend/` | FastAPI, async SQLAlchemy, PostgreSQL |
+| `frontend/` | Next.js App Router, TypeScript |
 
-- `backend`: FastAPI, async SQLAlchemy, PostgreSQL
-- `frontend`: Next.js App Router, TypeScript
-
-The current scaffold focuses on clean architecture, maintainable module boundaries, and a practical data model for market data, indicators, and trading signals. It intentionally avoids feature-heavy business logic so the system can grow incrementally.
-
-## Architecture Direction
-
-Backend flow:
-
-```text
-Router -> Service -> Repository -> DB session dependency -> PostgreSQL
-```
-
-Frontend flow:
-
-```text
-UI -> Domain hook -> API client -> Backend
-```
-
-Data pipeline direction:
-
-```text
-Ingestion -> Prices -> Features -> Indicators -> Signals
-```
-
-## Bootstrap stock master (optional)
-
-On a fresh database, populate **`stocks`** from AmarStock before daily price ingestion can attach every symbol:
+## Quick start (backend)
 
 ```bash
 cd backend
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1          # Windows
+pip install -r requirements.txt
+Copy-Item .env.example .env
+alembic upgrade head
+uvicorn app.main:app --reload
+```
+
+On a **fresh database**, seed symbols first:
+
+```bash
 python -m app.scripts.seed_stocks
 ```
 
-Use the backend virtualenv and `backend/.env`. Details: `backend/docs/stocks.md`.
+Details: [`backend/docs/stocks.md`](backend/docs/stocks.md).
 
-## Daily market prices (manual run)
+## Market data commands
 
-To fetch and upsert day-end OHLCV for the scheduled-equivalent workflow (AmarStock with optional StockNow validation), from **`backend/`**:
+Run from **`backend/`** with venv active and `.env` loaded. Trade dates default to **today in Asia/Dhaka** unless `--date` is set.
 
-```bash
-cd backend
-python -m app.jobs.sync_market_data
-```
+| Goal | Command |
+|------|---------|
+| Live snapshot (prices + DSEX) | `python -m app.jobs.sync_market_data` |
+| Snapshot + news | `python -m app.jobs.sync_market_data --with-news` |
+| News only | `python -m app.jobs.sync_market_data --news-only` |
+| **Backfill a past trading day** | `python -m app.jobs.backfill_daily_prices --date YYYY-MM-DD` |
+| Backfill a date range | `python -m app.jobs.backfill_daily_prices --from YYYY-MM-DD --to YYYY-MM-DD` |
 
-By default the trade date is **today’s calendar date in Asia/Dhaka** (aligned with the in-app scheduler). Use `--date YYYY-MM-DD` for a specific session, or `--no-validation` for AmarStock-only ingestion. The same CLI run also triggers **additive post-steps** when enabled in `Settings`: AmarStock **News** → `market_events`, and a **LatestPrice** bulk fetch to patch `trade_count` / `turnover` on existing `daily_prices` rows for that date (never replaces OHLCV). There is **no separate CLI** for those steps. Same virtualenv and `.env` as the API. Details: `backend/docs/market_data.md`.
+**Important:** `sync_market_data` pulls **live** AmarStock LatestPrice JSON. `--date` only sets the stored `trade_date` — it does **not** fetch historical OHLCV. Use **`backfill_daily_prices`** for missed session days (DSE day-end archive).
 
-## Stock details (manual run)
+With the API running, schedulers handle snapshot (~every 15 min, Sun–Thu session) and daily news automatically. See [`backend/docs/market_data.md`](backend/docs/market_data.md).
 
-To backfill **missing** recent historical prices after daily market sync (`sync_market_data`), or refresh fundamentals and snapshots from AmarStock APIs:
+## Stock details (fundamentals)
 
-```bash
-cd backend
-python -m app.jobs.sync_stock_details --symbols EBL --historical-window-days 180
-```
-
-The CLI uses `trigger_type=MANUAL`, so the **3‑month cadence check is not applied** — you can re-run soon after a prior sync to fill gaps. For each date in the historical window, **`daily_prices` rows are inserted only when no row exists yet** for that stock and trade date; existing OHLCV from daily market sync is left unchanged. The job still updates other tables (metrics, valuation, shareholding, events, stock profile) per the usual `full` scope rules.
-
-To **only** backfill empty `stocks` columns (sector, category, caps, listing date, placeholder name) from the snapshot + LatestPrice profile merge, without writing `daily_prices` or other tables:
+For company financials, valuation, shareholding, and per-symbol AmarStock historical gaps — not for whole-market day backfill:
 
 ```bash
-cd backend
-python -m app.jobs.sync_stock_details --symbols EBL --scope stocks
+python -m app.jobs.sync_stock_details --symbols EBL --historical-window-days 90
+python -m app.jobs.sync_stock_details --scope stocks --symbols EBL   # profile fill-empty only
 ```
 
-All runs still require `stocks.is_active = true` and `stocks.should_fetch_details = true`. Use `--force` on scheduled or API-triggered runs when you need to bypass cadence without `trigger_type=MANUAL`. Without `--symbols`, use `--limit` and `--offset` to page through eligible stocks. Details: `backend/docs/stock_details.md`.
+Details: [`backend/docs/stock_details.md`](backend/docs/stock_details.md).
+
+## Architecture
+
+```text
+Router -> Service -> Repository -> PostgreSQL
+UI -> Domain hook -> API client -> Backend
+Ingestion -> Prices -> Indicators -> Signals
+```
 
 ## Authentication
 
-The backend includes a JWT authentication MVP with email verification, refresh tokens, password change, Google sign-in, and optional Facebook sign-in. Middleware parses optional Bearer tokens into `request.state.user`; protected routes use `get_current_user`.
+JWT auth with email verification, refresh tokens, Google sign-in. Configure `JWT_SECRET_KEY`, SMTP, `FRONTEND_BASE_URL`, and `GOOGLE_CLIENT_ID` in `backend/.env`. Details: [`backend/docs/authentication.md`](backend/docs/authentication.md).
 
-Set `JWT_SECRET_KEY`, SMTP settings, `FRONTEND_BASE_URL`, and `GOOGLE_CLIENT_ID` in `backend/.env`. Frontend Google sign-in uses `NEXT_PUBLIC_GOOGLE_CLIENT_ID`. Details: `backend/docs/authentication.md`.
+## Documentation
 
-## Development Areas
-
-- Market data management
-- Technical indicator computation
-- Rule-based signal generation
-- Future AI/RAG analysis
-- Future backtesting and portfolio tracking
-
+| Topic | Path |
+|-------|------|
+| Market data (sources, schedulers, API) | [`backend/docs/market_data.md`](backend/docs/market_data.md) |
+| Stock details sync | [`backend/docs/stock_details.md`](backend/docs/stock_details.md) |
+| API reference | [`backend/docs/api_collection.md`](backend/docs/api_collection.md) |
+| Backend setup | [`backend/README.md`](backend/README.md) |

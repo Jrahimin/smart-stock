@@ -37,6 +37,14 @@ class Settings(BaseSettings):
     smtp_password: str | None = None
     mail_from: str = "noreply@smart-stock.local"
     daily_market_sync_scheduler_enabled: bool = True
+    market_snapshot_scheduler_enabled: bool = True
+    market_open_time: str = "10:00"
+    market_close_time: str = "15:00"
+    market_snapshot_interval_minutes: int = Field(default=15, ge=1, le=120)
+    daily_market_sync_time: str = "15:15"
+    daily_market_primary_source: str = "amarstock_latest_price_json"
+    daily_market_stocknow_validation_enabled: bool = False
+    daily_market_stocknow_fallback_enabled: bool = False
     stock_details_sync_frequency_months: int = Field(default=3, ge=1)
     stock_details_sync_max_concurrency: int = Field(default=3, ge=1, le=5)
     stock_details_sync_request_delay_min_seconds: float = Field(default=1.0, ge=0)
@@ -53,9 +61,11 @@ class Settings(BaseSettings):
     amarstock_bulk_api_max_retries: int = Field(default=3, ge=1)
     amarstock_bulk_api_retry_delay_seconds: float = Field(default=1.0, ge=0)
     amarstock_news_ingestion_enabled: bool = True
-    amarstock_daily_latest_price_patch_enabled: bool = True
+    amarstock_daily_latest_price_patch_enabled: bool = False
     amarstock_index_summary_enabled: bool = True
     amarstock_latest_price_stock_details_enabled: bool = True
+    # DSE day-end archive often serves an incomplete TLS chain; disable verify only for that host.
+    dse_archive_ssl_verify: bool = False
 
     @property
     def cors_origins(self) -> list[str]:

@@ -341,6 +341,46 @@ None
 
 ## Market Data
 
+### GET /api/v1/market/freshness
+
+**Description**
+Return snapshot timing and session metadata so the frontend can show last/next update, delay disclaimer, and market status without hardcoding Dhaka session bounds.
+
+**Query Params**
+
+* exchange: optional enum, one of `DSE`, `CSE` (default `DSE`)
+
+**Response**
+
+```json
+{
+  "success": true,
+  "message": "Market freshness retrieved",
+  "data": {
+    "exchange": "DSE",
+    "trade_date": "2026-06-11",
+    "last_synced_at": "2026-06-11T14:45:00+06:00",
+    "next_sync_at": "2026-06-11T15:00:00+06:00",
+    "snapshot_interval_minutes": 15,
+    "expected_delay_minutes": 15,
+    "market_open_time": "10:00",
+    "market_close_time": "15:00",
+    "market_status": "OPEN",
+    "freshness_label": "Snapshot prices; updates about every 15 minutes"
+  }
+}
+```
+
+**Notes**
+
+* `last_synced_at` is `max(daily_prices.updated_at)` for the latest trade date with rows.
+* `next_sync_at` is present only when `market_status` is `PRE_OPEN` or `OPEN`; otherwise `null`.
+* `expected_delay_minutes` matches `snapshot_interval_minutes` by default (max staleness between scheduled snapshots).
+* `market_status`: `PRE_OPEN` | `OPEN` | `POST_CLOSE` | `HOLIDAY`.
+* No `is_live` field — prices are always snapshot-based.
+
+---
+
 ### GET /api/v1/market/latest-prices
 
 **Description**
@@ -630,7 +670,7 @@ None
 ### POST /api/v1/market-data/ingestion/daily-prices
 
 **Description**
-Run daily price ingestion for a trade date. The job implementation may use AmarStock HTML (scheduled sync) or another configured primary source. After primary OHLCV upsert, the same run optionally ingests AmarStock `/info/News` into `market_events` and may patch `trade_count` / `turnover` from the bulk LatestPrice JSON when enabled via settings (failures there do not roll back primary prices).
+Run daily price ingestion for a trade date using the **DSE day-end archive** source (`DseMarketDataSource`). Suitable for historical backfill when `trade_date` is a past session day. For live intraday snapshots use the `sync_market_data` CLI or scheduler instead. Does not run news or LatestPrice enrichment.
 
 **Path Params**
 
@@ -644,6 +684,11 @@ None
 **Body**
 
 None
+
+**CLI equivalent**
+
+* `python -m app.jobs.backfill_daily_prices --date YYYY-MM-DD` (insert-only by default)
+* `python -m app.jobs.backfill_daily_prices --from YYYY-MM-DD --to YYYY-MM-DD`
 
 **Response**
 
