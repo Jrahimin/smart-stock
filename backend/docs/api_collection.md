@@ -381,6 +381,60 @@ Return snapshot timing and session metadata so the frontend can show last/next u
 
 ---
 
+### GET /api/v1/market/pulse
+
+**Description**
+Return the curated Market Pulse briefing: hero attention summary, focus stocks, conditional insight, change timeline, and market alerts. Pulse Score, focus labels, triggers, and ranking are computed server-side from price windows and the trader decision engine.
+
+**Query Params**
+
+* exchange: optional enum, one of `DSE`, `CSE` (default `DSE`)
+* display_name: optional string, max 160 chars — used for greeting personalization
+* previous_snapshot: optional URL-encoded JSON string — prior client snapshot for change detection
+
+**Response**
+
+```json
+{
+  "success": true,
+  "message": "Market pulse retrieved",
+  "data": {
+    "hero": {
+      "greeting": "Good morning, Junayed",
+      "attention_headline": "5 stocks deserve attention today.",
+      "attention_subline": "2 entered focus recently.",
+      "last_updated_label": "10:35 AM",
+      "relative_updated_label": "Updated 8 minutes ago",
+      "session_label": "OPEN",
+      "focus_count": 5,
+      "recent_focus_count": 2
+    },
+    "since_last_visit": {
+      "visible": true,
+      "new_changes_count": 3,
+      "new_focus_count": 2,
+      "new_alerts_count": 1,
+      "summary_label": "3 new changes · 2 new focus stocks · 1 new market alert"
+    },
+    "focus_stocks": [],
+    "monitor_candidates": [],
+    "today_insight": null,
+    "changes": [],
+    "alerts": [],
+    "empty_state": "none",
+    "empty_message": null,
+    "data_quality_note": null
+  }
+}
+```
+
+**Notes**
+
+* Focus labels: `New BUY Setup`, `Momentum Building`, `Volume Breakout`, `Watch Closely`, `Signal Upgrade`.
+* See `backend/docs/market_pulse.md` for Pulse Score methodology and module architecture.
+
+---
+
 ### GET /api/v1/market/latest-prices
 
 **Description**

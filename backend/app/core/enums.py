@@ -136,6 +136,28 @@ class TraderRecommendation(StrEnum):
     SELL = "SELL"
 
 
+class PulseFocusLabel(StrEnum):
+    NEW_BUY_SETUP = "New BUY Setup"
+    MOMENTUM_BUILDING = "Momentum Building"
+    VOLUME_BREAKOUT = "Volume Breakout"
+    WATCH_CLOSELY = "Watch Closely"
+    SIGNAL_UPGRADE = "Signal Upgrade"
+
+
+class PulseScoreBand(StrEnum):
+    HIGH_ATTENTION = "High Attention"
+    WORTH_WATCHING = "Worth Watching"
+    MONITOR = "Monitor"
+
+
+class MarketAlertType(StrEnum):
+    UNUSUAL_VOLUME = "unusual-volume"
+    MOMENTUM_REVERSAL = "momentum-reversal"
+    LIQUIDITY_SURGE = "liquidity-surge"
+    SECTOR_ROTATION = "sector-rotation"
+    PULSE_SCORE_JUMP = "pulse-score-jump"
+
+
 class RiskLevelLabel(StrEnum):
     LOW = "LOW"
     MEDIUM = "MEDIUM"

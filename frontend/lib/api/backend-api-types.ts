@@ -224,3 +224,139 @@ export type TradingSignalSummary = {
   reason: string;
 };
 
+export type PulseFocusLabel =
+  | "New BUY Setup"
+  | "Momentum Building"
+  | "Volume Breakout"
+  | "Watch Closely"
+  | "Signal Upgrade";
+
+export type PulseScoreBand = "High Attention" | "Worth Watching" | "Monitor";
+
+export type MarketAlertType =
+  | "unusual-volume"
+  | "momentum-reversal"
+  | "liquidity-surge"
+  | "sector-rotation"
+  | "pulse-score-jump";
+
+export type BackendPulseScoreBreakdownDto = {
+  trend: number;
+  momentum: number;
+  volume: number;
+  signal_boost: number;
+  risk_penalty: number;
+  total: number;
+  contributors: string[];
+  band: PulseScoreBand;
+};
+
+export type BackendFocusStockDto = {
+  rank: number;
+  stock_id: string;
+  symbol: string;
+  name: string;
+  exchange: ExchangeCode;
+  pulse_score: number;
+  score_breakdown: BackendPulseScoreBreakdownDto;
+  focus_label: PulseFocusLabel;
+  label_tone: string;
+  why_here: string[];
+  trigger: string;
+  action_summary: string;
+  latest_price: string;
+  price_change_percent: string;
+  price_tone: string;
+  sparkline_points: number[];
+  recommendation: string;
+};
+
+export type BackendMarketPulseHeroDto = {
+  greeting: string;
+  attention_headline: string;
+  attention_subline: string;
+  last_updated_label: string | null;
+  relative_updated_label: string | null;
+  session_label: string | null;
+  focus_count: number;
+  recent_focus_count: number;
+};
+
+export type BackendSinceLastVisitDto = {
+  visible: boolean;
+  new_changes_count: number;
+  new_focus_count: number;
+  new_alerts_count: number;
+  summary_label: string;
+};
+
+export type BackendTodayInsightDto = {
+  title: string;
+  explanation: string;
+  supporting_fact: string;
+  tone: string;
+};
+
+export type BackendPulseChangeDto = {
+  id: string;
+  time_label: string;
+  change_type: string;
+  title: string;
+  description: string;
+  badge: string;
+  badge_tone: string;
+  symbol: string | null;
+  exchange: ExchangeCode | null;
+};
+
+export type BackendMarketAlertDto = {
+  id: string;
+  alert_type: MarketAlertType;
+  event_title: string;
+  event_explanation: string;
+  why_it_matters: string;
+  metric_label: string;
+  symbol: string | null;
+  exchange: ExchangeCode | null;
+  latest_price: string | null;
+  price_change_percent: string | null;
+  price_tone: string | null;
+};
+
+export type BackendMarketMoverDto = {
+  symbol: string;
+  name: string;
+  exchange: ExchangeCode;
+  latest_price: string;
+  price_change_percent: string;
+  price_tone: string;
+  turnover: string | null;
+};
+
+export type BackendMarketMoversDto = {
+  gainers: BackendMarketMoverDto[];
+  losers: BackendMarketMoverDto[];
+};
+
+export type BackendMarketPulseDto = {
+  hero: BackendMarketPulseHeroDto;
+  since_last_visit: BackendSinceLastVisitDto;
+  focus_stocks: BackendFocusStockDto[];
+  monitor_candidates: BackendFocusStockDto[];
+  today_insight: BackendTodayInsightDto | null;
+  changes: BackendPulseChangeDto[];
+  alerts: BackendMarketAlertDto[];
+  market_movers?: BackendMarketMoversDto;
+  empty_state: string;
+  empty_message: string | null;
+  data_quality_note: string | null;
+};
+
+export type BackendMarketPulsePreviousSnapshotDto = {
+  last_synced_at: string | null;
+  focus_stock_ids: string[];
+  scores: Record<string, number>;
+  recommendations: Record<string, string>;
+  alert_ids: string[];
+};
+

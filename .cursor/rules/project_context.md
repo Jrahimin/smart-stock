@@ -223,6 +223,14 @@ Each active feature module keeps schemas, repository, service, and router files 
   * Routes: `backend/app/modules/market_data/market_data_router.py`
   * Includes per-stock daily prices and market-wide daily summaries.
 
+* Market Pulse:
+  * Schemas: `backend/app/modules/market_pulse/market_pulse_schemas.py`
+  * Service: `backend/app/modules/market_pulse/market_pulse_service.py`
+  * Pulse Score: `backend/app/modules/market_pulse/pulse_score.py`
+  * Routes: `backend/app/modules/market_pulse/market_pulse_router.py`
+  * Docs: `backend/docs/market_pulse.md`
+  * `GET /api/v1/market/pulse` — curated daily briefing, Pulse Score, focus stocks, changes, alerts
+
 * Stock details:
   * Schemas: `backend/app/modules/stock_details/stock_details_schemas.py`
   * Repository: `backend/app/modules/stock_details/stock_details_repository.py`
@@ -325,9 +333,11 @@ Root: `frontend/`
 * Scanner feature: `frontend/features/scanner/`
 * Signal center feature: `frontend/features/signals/`
 * Watchlist feature: `frontend/features/watchlist/`
+* Market Pulse feature: `frontend/features/market-pulse/` — daily briefing at `/market-pulse`, powered by `GET /api/v1/market/pulse`
 
 Current frontend product flow:
 
+* Market Pulse loads the backend briefing endpoint and maps the response into editorial page sections (hero, focus stocks, insight, changes, alerts).
 * Dashboard loads active stocks and recent per-stock OHLCV to derive heatmap tiles, movers, breadth, market condition, deterministic signals, and timeline context.
 * Stock Explorer uses TanStack Table over derived stock intelligence models for trader-focused discovery.
 * Stock Detail Workspace uses exchange/symbol lookup, historical OHLCV, candlestick charting, technical summary, deterministic insights, and available stock fundamentals.

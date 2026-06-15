@@ -4,11 +4,10 @@ import { InsightSidebar } from "@/features/market-dashboard/components/insight-s
 import { InstitutionalHeatmap } from "@/features/market-dashboard/components/institutional-heatmap";
 import { MarketBreadthPanel } from "@/features/market-dashboard/components/market-breadth-panel";
 import { MarketMoversPanel } from "@/features/market-dashboard/components/market-movers-panel";
-import { MarketDashboardToolbar, MarketPulsePanel } from "@/features/market-dashboard/components/market-pulse-header";
+import { MarketDashboardHeader, MarketPulsePanel } from "@/features/market-dashboard/components/market-pulse-header";
 import { MarketTimeline } from "@/features/market-dashboard/components/market-timeline";
 import { SmartSignalFeed } from "@/features/market-dashboard/components/smart-signal-feed";
 import { useMarketDashboard } from "@/features/market-dashboard/hooks/use-market-dashboard";
-import { WorkspaceCommandSearch } from "@/components/command/workspace-command-search";
 import { FloatingRefreshButton } from "@/components/ui/floating-refresh-button";
 
 export function MarketDashboardView() {
@@ -16,10 +15,7 @@ export function MarketDashboardView() {
 
   return (
     <div className="market-dashboard-view">
-      <MarketDashboardToolbar model={model} />
-      <div className="workspace-page-search workspace-page-search-dashboard">
-        <WorkspaceCommandSearch filterContextName="market dashboard" />
-      </div>
+      <MarketDashboardHeader />
       <MarketPulsePanel model={model} />
       {isError ? (
         <div className="data-warning">

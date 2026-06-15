@@ -12,6 +12,7 @@ type WorkspaceCommandSearchProps = {
   filterContextName?: string;
   onFilterTable?: (query: string) => void;
   showQuickActions?: boolean;
+  variant?: "default" | "compact" | "discovery";
 };
 
 type SearchMenuItem =
@@ -32,8 +33,22 @@ function useSearchShortcutLabel() {
 export function WorkspaceCommandSearch({
   filterContextName = "stock explorer",
   onFilterTable,
-  showQuickActions = true,
+  showQuickActions = false,
+  variant = "default",
 }: WorkspaceCommandSearchProps) {
+  const isCompact = variant === "compact";
+  const isDiscovery = variant === "discovery";
+  const placeholder = isDiscovery
+    ? "Search stocks, sectors, symbols…"
+    : isCompact
+      ? "Search e.g. GP, BATBC, banks…"
+      : "Search stocks, companies, sectors, or signals…";
+  const searchClassName = isDiscovery
+    ? "explorer-command-search explorer-command-search-discovery"
+    : isCompact
+      ? "explorer-command-search explorer-command-search-compact"
+      : "explorer-command-search";
+  const iconSize = isDiscovery ? 20 : isCompact ? 15 : 18;
   const router = useRouter();
   const inputId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -154,10 +169,10 @@ export function WorkspaceCommandSearch({
   const showMenu = isOpen && (isSearchEnabled || menuItems.length > 0);
 
   return (
-    <div className="explorer-command-search" onBlur={handleBlur} ref={containerRef}>
+    <div className={searchClassName} onBlur={handleBlur} ref={containerRef}>
       <div className={`explorer-command-input-shell ${isOpen ? "is-open" : ""}`}>
         <label className="explorer-command-search-icon" htmlFor={inputId}>
-          <Search aria-hidden="true" size={18} />
+          <Search aria-hidden="true" size={iconSize} strokeWidth={isDiscovery ? 2.1 : 2} />
           <span className="sr-only">Search stocks</span>
         </label>
         <input
@@ -220,7 +235,7 @@ export function WorkspaceCommandSearch({
               inputRef.current?.blur();
             }
           }}
-          placeholder="Search stocks, companies, sectors, or signals..."
+          placeholder={placeholder}
           ref={inputRef}
           role="combobox"
           spellCheck={false}
@@ -286,7 +301,7 @@ export function WorkspaceCommandSearch({
         </div>
       ) : null}
 
-      {showQuickActions ? (
+      {showQuickActions && !isCompact && !isDiscovery ? (
         <div className="explorer-command-quick-actions" role="group" aria-label="Quick stock shortcuts">
           {EXPLORER_QUICK_ACTIONS.map((action) => (
             <button

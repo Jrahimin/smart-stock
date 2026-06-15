@@ -71,6 +71,7 @@ JWT auth with email verification, refresh tokens, Google sign-in. Configure `JWT
 | Topic | Path |
 |-------|------|
 | Market data (sources, schedulers, API) | [`backend/docs/market_data.md`](backend/docs/market_data.md) |
+| Market Pulse briefing | [`backend/docs/market_pulse.md`](backend/docs/market_pulse.md) |
 | Stock details sync | [`backend/docs/stock_details.md`](backend/docs/stock_details.md) |
 | API reference | [`backend/docs/api_collection.md`](backend/docs/api_collection.md) |
 | Backend setup | [`backend/README.md`](backend/README.md) |

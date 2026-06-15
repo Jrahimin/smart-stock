@@ -2,6 +2,14 @@ import type { CommandItem } from "@/lib/command/command-types";
 
 export const coreCommandItems: CommandItem[] = [
   {
+    id: "go-market-pulse",
+    label: "Open Market Pulse",
+    description: "The stocks and market shifts that deserve your attention.",
+    category: "NAVIGATION",
+    href: "/market-pulse",
+    keywords: ["pulse", "focus", "briefing", "attention"],
+  },
+  {
     id: "go-dashboard",
     label: "Open Market Dashboard",
     description: "15-second read of market mood, breadth, signals, and events.",

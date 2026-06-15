@@ -1,18 +1,6 @@
 "use client";
 
-import {
-  BarChart3,
-  Bell,
-  ChevronsLeft,
-  ChevronsRight,
-  LayoutDashboard,
-  LineChart,
-  LogIn,
-  LogOut,
-  ScanSearch,
-  User,
-  Wallet,
-} from "lucide-react";
+import { ChevronsLeft, ChevronsRight, LogIn, LogOut, User } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -20,19 +8,10 @@ import type { ReactNode } from "react";
 import { useEffect } from "react";
 
 import { GlobalCommandPalette } from "@/components/command/global-command-palette";
-import { MarketDataFreshnessBar } from "@/components/layout/market-data-freshness-bar";
 import { SidebarThemeToggle } from "@/components/layout/sidebar-theme-toggle";
+import { TerminalSidebarNav } from "@/components/layout/terminal-sidebar-nav";
 import { useAuth } from "@/features/auth/context/auth-context";
 import { useWorkspaceStore } from "@/stores/use-workspace-store";
-
-const navigationItems = [
-  { label: "Intelligence", href: "/dashboard", icon: LayoutDashboard },
-  { label: "Stocks", href: "/stocks", icon: LineChart },
-  { label: "Scanner", href: "/scanner", icon: ScanSearch },
-  { label: "Signals", href: "/signals", icon: Bell },
-  { label: "Watchlist", href: "/watchlist", icon: BarChart3 },
-  { label: "My Money", href: "/wealth", icon: Wallet },
-];
 
 type TerminalAppShellProps = {
   children: ReactNode;
@@ -80,27 +59,13 @@ export function TerminalAppShell({ children }: TerminalAppShellProps) {
             {sidebarCollapsed ? <ChevronsRight size={18} /> : <ChevronsLeft size={18} />}
           </button>
         </div>
-        <nav aria-label="Primary navigation">
-          {navigationItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = isNavigationItemActive(pathname, item.href);
-
-            return (
-              <Link
-                aria-current={isActive ? "page" : undefined}
-                className={isActive ? "active" : undefined}
-                href={item.href}
-                key={item.href}
-                title={item.label}
-              >
-                <Icon aria-hidden="true" size={18} />
-                <span>{item.label}</span>
-              </Link>
-            );
-          })}
-        </nav>
-        <SidebarThemeToggle collapsed={sidebarCollapsed} />
-        <div className="terminal-sidebar-footer">
+        <div className="terminal-sidebar-primary">
+          <TerminalSidebarNav collapsed={sidebarCollapsed} pathname={pathname} />
+        </div>
+        <div aria-hidden="true" className="terminal-sidebar-spacer" />
+        <div className="terminal-sidebar-utilities">
+          <SidebarThemeToggle collapsed={sidebarCollapsed} />
+          <div className="terminal-sidebar-footer">
           {isLoading ? null : isAuthenticated && user ? (
             <>
               <Link
@@ -133,21 +98,13 @@ export function TerminalAppShell({ children }: TerminalAppShellProps) {
               {!sidebarCollapsed ? <span>Login</span> : null}
             </Link>
           )}
+          </div>
         </div>
       </aside>
       <main className="terminal-main">
-        <MarketDataFreshnessBar />
         {children}
       </main>
       <GlobalCommandPalette />
     </div>
   );
-}
-
-function isNavigationItemActive(pathname: string, href: string) {
-  if (href === "/stocks" || href === "/wealth") {
-    return pathname === href || pathname.startsWith(`${href}/`);
-  }
-
-  return pathname === href;
 }

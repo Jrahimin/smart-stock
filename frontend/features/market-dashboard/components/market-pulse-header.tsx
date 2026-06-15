@@ -1,22 +1,15 @@
 "use client";
 
 import Image from "next/image";
+import { ArrowUpDown, Banknote, BarChart3, Trophy, type LucideIcon } from "lucide-react";
 
-import { DataQualityBadge } from "@/components/ui/data-quality-badge";
+import { WorkspaceCommandSearch } from "@/components/command/workspace-command-search";
+import { MarketDataFreshnessBar } from "@/components/layout/market-data-freshness-bar";
 import type { MarketDashboardModel } from "@/features/market-dashboard/types/market-dashboard-types";
-import { buildMarketFreshnessViewModel, useMarketDataFreshness } from "@/hooks/market/use-market-data-freshness";
 
-type MarketDashboardToolbarProps = {
-  model: MarketDashboardModel;
-};
-
-export function MarketDashboardToolbar({ model }: MarketDashboardToolbarProps) {
-  const { pulse, session, dataQuality } = model;
-  const { data: freshness, isLoading, isError } = useMarketDataFreshness("DSE");
-  const freshnessModel = buildMarketFreshnessViewModel(freshness, isLoading, isError);
-
+export function MarketDashboardHeader() {
   return (
-    <div className="market-pulse-toolbar">
+    <header className="market-dashboard-header">
       <Image
         alt="Stock Intelligence"
         className="market-pulse-logo"
@@ -25,27 +18,11 @@ export function MarketDashboardToolbar({ model }: MarketDashboardToolbarProps) {
         src="/stock-icon-wide.png"
         width={160}
       />
-      <div className="market-pulse-utility" aria-label="System status">
-        <span className="market-pulse-utility-pill" title={session.description}>
-          Session: {session.label}
-        </span>
-        <span className="market-pulse-utility-pill">As of {pulse.latestTradeDate}</span>
-        {freshnessModel.lastUpdatedLabel ? (
-          <span className="market-pulse-utility-pill" title={freshnessModel.freshnessLabel ?? undefined}>
-            Snapshot {freshnessModel.lastUpdatedLabel}
-          </span>
-        ) : null}
-        <span className="market-pulse-utility-pill">
-          {session.shouldPoll && session.pollingIntervalMs
-            ? `Refreshing every ${Math.round(session.pollingIntervalMs / 60_000)} min`
-            : "Manual refresh"}
-        </span>
-        {session.disablesFreshDataActions ? (
-          <span className="market-pulse-utility-pill market-pulse-utility-pill-warning">Refresh guarded</span>
-        ) : null}
-        <DataQualityBadge quality={dataQuality} />
+      <div className="market-dashboard-header-tools">
+        <WorkspaceCommandSearch filterContextName="market dashboard" showQuickActions={false} variant="discovery" />
+        <MarketDataFreshnessBar variant="inline" />
       </div>
-    </div>
+    </header>
   );
 }
 
@@ -72,16 +49,34 @@ export function MarketPulsePanel({ model }: MarketPulsePanelProps) {
       <div className="market-pulse-card">
         <div className="market-pulse-strip" role="list" aria-label="Market performance">
           <DsexStripCell indexArrow={indexArrow} pulse={pulse} />
-          <PulseMetric helper={pulse.turnoverHelper} label="Turnover" tone="info" value={pulse.turnoverLabel} />
-          <PulseMetric helper={pulse.volumeHelper} label="Volume" tone="info" value={pulse.volumeLabel} />
+          <PulseMetric
+            helper={pulse.turnoverHelper}
+            icon={Banknote}
+            iconTone="turnover"
+            label="Turnover"
+            tone="info"
+            value={pulse.turnoverLabel}
+          />
+          <PulseMetric
+            helper={pulse.volumeHelper}
+            icon={BarChart3}
+            iconTone="volume"
+            label="Volume"
+            tone="info"
+            value={pulse.volumeLabel}
+          />
           <PulseMetric
             helper={`${pulse.marketDirectionLabel} · ${pulse.breadthAdvancing} advancing · ${pulse.breadthDeclining} declining · ${model.breadth.unchanged} unchanged`}
+            icon={ArrowUpDown}
+            iconTone="breadth"
             label="Breadth"
             tone={pulse.breadthAdvancing >= pulse.breadthDeclining ? "positive" : "negative"}
             value={pulse.breadthLabel}
           />
           <PulseMetric
             helper={pulse.leadingSector ? "Strongest sector today" : "Need broader sector coverage"}
+            icon={Trophy}
+            iconTone="leaders"
             label="Leaders"
             tone={pulse.leadingSector && pulse.leadingSector.changePercent > 0 ? "positive" : "neutral"}
             value={pulse.leadingSector?.label ?? "N/A"}
@@ -186,12 +181,19 @@ type PulseMetricProps = {
   value: string;
   helper: string;
   tone: "positive" | "negative" | "neutral" | "warning" | "info";
+  icon: LucideIcon;
+  iconTone: "turnover" | "volume" | "breadth" | "leaders";
 };
 
-function PulseMetric({ label, value, helper, tone }: PulseMetricProps) {
+function PulseMetric({ label, value, helper, tone, icon: Icon, iconTone }: PulseMetricProps) {
   return (
     <div className="market-pulse-metric" role="listitem">
-      <span className="market-pulse-metric-label">{label}</span>
+      <div className="market-pulse-metric-head">
+        <span className="market-pulse-metric-label">{label}</span>
+        <div className={`market-pulse-metric-icon market-pulse-metric-icon-${iconTone}`}>
+          <Icon aria-hidden="true" size={20} strokeWidth={2.1} />
+        </div>
+      </div>
       <strong className={`market-pulse-metric-value market-pulse-metric-value-${tone}`}>{value}</strong>
       <span className="market-pulse-metric-helper">{helper}</span>
     </div>

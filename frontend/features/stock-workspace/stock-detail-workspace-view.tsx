@@ -1,6 +1,8 @@
 "use client";
 
 import type { ExchangeCode } from "@/lib/api/backend-api-types";
+import { WorkspaceCommandSearch } from "@/components/command/workspace-command-search";
+import { MarketDataFreshnessBar } from "@/components/layout/market-data-freshness-bar";
 import { StockCandlestickChart } from "@/components/charts/stock-candlestick-chart";
 import { BreakoutAnalysisCard } from "@/features/stock-workspace/components/breakout-analysis-card";
 import { DecisionScoresPanel } from "@/features/stock-workspace/components/decision-scores-panel";
@@ -33,7 +35,11 @@ export function StockDetailWorkspaceView({ exchange, symbol }: StockDetailWorksp
 
       <div className="trader-workspace-topbar">
         <StockWorkspaceHeader decision={decisionModel} model={model} stockId={model.intelligence?.stock.id} />
-        <DataFreshnessIndicator decision={decisionModel} />
+        <div className="trader-workspace-topbar-rail">
+          <MarketDataFreshnessBar variant="inline" />
+          <WorkspaceCommandSearch filterContextName="stocks" showQuickActions={false} variant="compact" />
+          <DataFreshnessIndicator decision={decisionModel} />
+        </div>
       </div>
 
       <div className="trader-workspace-layout">
