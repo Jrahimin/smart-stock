@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 
 from app.api.dependencies.auth_dependencies import get_current_user
 from app.core.response_handler import ApiResponse, success_response
@@ -20,6 +20,7 @@ from app.modules.auth.auth_schemas import (
     UserUpdateRequest,
     VerifyEmailRequest,
 )
+from app.modules.auth.auth_request_helpers import build_login_client_info
 from app.modules.auth.auth_service import AuthService, get_auth_service
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -69,9 +70,14 @@ async def resend_verification(
 @router.post("/login", response_model=ApiResponse[TokenPair])
 async def login(
     request: LoginRequest,
+    http_request: Request,
     service: Annotated[AuthService, Depends(get_auth_service)],
 ) -> ApiResponse[TokenPair]:
-    token_pair = await service.login(email=request.email, password=request.password)
+    token_pair = await service.login(
+        email=request.email,
+        password=request.password,
+        client_info=build_login_client_info(http_request),
+    )
     return success_response(data=token_pair, message="Login successful")
 
 
@@ -129,16 +135,24 @@ async def change_password(
 @router.post("/google", response_model=ApiResponse[TokenPair])
 async def login_with_google(
     request: GoogleLoginRequest,
+    http_request: Request,
     service: Annotated[AuthService, Depends(get_auth_service)],
 ) -> ApiResponse[TokenPair]:
-    token_pair = await service.login_with_google(request.id_token)
+    token_pair = await service.login_with_google(
+        request.id_token,
+        client_info=build_login_client_info(http_request),
+    )
     return success_response(data=token_pair, message="Google login successful")
 
 
 @router.post("/facebook", response_model=ApiResponse[TokenPair])
 async def login_with_facebook(
     request: FacebookLoginRequest,
+    http_request: Request,
     service: Annotated[AuthService, Depends(get_auth_service)],
 ) -> ApiResponse[TokenPair]:
-    token_pair = await service.login_with_facebook(request.access_token)
+    token_pair = await service.login_with_facebook(
+        request.access_token,
+        client_info=build_login_client_info(http_request),
+    )
     return success_response(data=token_pair, message="Facebook login successful")

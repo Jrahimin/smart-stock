@@ -19,6 +19,10 @@ from zoneinfo import ZoneInfo
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
 os.chdir(BACKEND_ROOT)
 
+from app.core.dotenv_loader import load_backend_dotenv
+
+load_backend_dotenv()
+
 logger = logging.getLogger(__name__)
 
 DHAKA_TIMEZONE = ZoneInfo("Asia/Dhaka")

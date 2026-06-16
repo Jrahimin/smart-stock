@@ -18,3 +18,4 @@ certifi
 
 # zoneinfo lookups (Asia/Dhaka scheduler/CLI); required on Windows when OS has no IANA data
 tzdata
+APScheduler>=3.10,<4

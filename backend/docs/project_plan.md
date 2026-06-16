@@ -25,6 +25,7 @@
 | Smart Insights     | Explain stock condition         | B ⏳ / M ⏳ / A ⏳  |         |
 | Market Dashboard   | Market overview                 | B ⏳ / M ⏳ / A ⏳  |         |
 | Watchlist & Alerts | Personalized tracking           | B ⏳ / M ⏳ / A ⏳  |         |
+| Admin Panel        | Operational admin surface       | B ✅ / M ⏳ / A ⏳  |         |
 | Backtesting        | Strategy evaluation             | B ⏳ / M ⏳ / A ⏳  |         |
 | AI Analysis        | LLM-powered insights            | B ⏳ / M ⏳ / A ⏳  |         |
 

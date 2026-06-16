@@ -5,6 +5,7 @@ from uuid import uuid4
 
 import pytest
 
+from app.core.enums import UserRole
 from app.core.exception_handlers import AppError
 from app.core.security.jwt_service import decode_access_token
 from app.core.security.password_service import hash_password, verify_password
@@ -20,6 +21,7 @@ class FakeAuthRepository:
         self.identities: dict[tuple[str, str], SimpleNamespace] = {}
         self.refresh_tokens: dict[str, SimpleNamespace] = {}
         self.email_tokens: dict[str, SimpleNamespace] = {}
+        self.sessions: list[SimpleNamespace] = []
 
     async def get_user_by_email(self, email: str):
         return self.users.get(email.lower())
@@ -56,6 +58,8 @@ class FakeAuthRepository:
             address=address,
             profile_pic_url=profile_pic_url,
             is_active=True,
+            role=UserRole.USER,
+            deleted_at=None,
         )
         self.users[email.lower()] = user
         self.users_by_id[user.id] = user
@@ -105,6 +109,21 @@ class FakeAuthRepository:
 
     async def get_by_id(self, user_id):
         return self.users_by_id.get(user_id)
+
+    @staticmethod
+    def generate_session_identifier() -> str:
+        return "test-session-id"
+
+    async def create_user_session(self, **kwargs):
+        session = SimpleNamespace(**kwargs)
+        self.sessions.append(session)
+        return session
+
+    async def update_user_last_seen(self, user, *, ip_address, user_agent, seen_at):
+        user.last_seen_ip = ip_address
+        user.last_seen_user_agent = user_agent
+        user.last_seen_at = seen_at
+        return user
 
     async def commit(self):
         return None

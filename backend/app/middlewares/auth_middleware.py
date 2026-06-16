@@ -7,6 +7,16 @@ from app.core.security.jwt_service import JwtValidationError, decode_access_toke
 from app.core.security_config import ANONYMOUS_USER_CONTEXT, UserContext
 
 
+def _extract_roles(payload: dict[str, object]) -> list[str]:
+    roles = payload.get("roles")
+    if isinstance(roles, list):
+        return [str(role) for role in roles if role]
+    role = payload.get("role")
+    if role:
+        return [str(role)]
+    return []
+
+
 async def auth_middleware(
     request: Request,
     call_next: Callable[[Request], Awaitable[Response]],
@@ -19,14 +29,16 @@ async def auth_middleware(
         try:
             payload = decode_access_token(token)
             email = str(payload["email"])
+            session_id = payload.get("session_id")
             request.state.user = UserContext(
                 user_id=str(payload["sub"]),
                 display_name=str(payload.get("display_name") or email),
                 email=email,
                 is_authenticated=True,
+                roles=_extract_roles(payload),
+                session_id=str(session_id) if session_id else None,
             )
         except JwtValidationError:
             request.state.user = ANONYMOUS_USER_CONTEXT
 
     return await call_next(request)
-

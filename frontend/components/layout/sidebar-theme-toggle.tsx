@@ -6,12 +6,13 @@ import { useWorkspaceStore } from "@/stores/use-workspace-store";
 
 type SidebarThemeToggleProps = {
   collapsed: boolean;
+  ready?: boolean;
 };
 
-export function SidebarThemeToggle({ collapsed }: SidebarThemeToggleProps) {
+export function SidebarThemeToggle({ collapsed, ready = true }: SidebarThemeToggleProps) {
   const theme = useWorkspaceStore((state) => state.theme);
   const setTheme = useWorkspaceStore((state) => state.setTheme);
-  const isLight = theme === "light";
+  const isLight = ready && theme === "light";
 
   const toggleTheme = () => setTheme(isLight ? "dark" : "light");
 

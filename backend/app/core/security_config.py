@@ -7,6 +7,7 @@ class UserContext(BaseModel):
     email: str | None = None
     is_authenticated: bool = False
     roles: list[str] = Field(default_factory=list)
+    session_id: str | None = None
 
 
 ANONYMOUS_USER_CONTEXT = UserContext(

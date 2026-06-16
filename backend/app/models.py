@@ -24,11 +24,16 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database_session import Base, TimestampMixin, UUIDPrimaryKeyMixin
 from app.core.enums import (
+    AdminConfigCategory,
     CorporateActionSubtype,
     CorporateActionType,
+    ConfigValueType,
     DataQualityFlag,
     DividendStatus,
     DividendType,
+    EmailCampaignRecipientDeliveryStatus,
+    EmailCampaignRecipientScope,
+    EmailCampaignStatus,
     ExchangeCode,
     IndicatorType,
     LiquidityTier,
@@ -41,7 +46,11 @@ from app.core.enums import (
     SignalType,
     StockDetailsSyncJobStatus,
     StockDetailsSyncTriggerType,
+    SystemJobExecutionStatus,
+    SystemJobTriggerSource,
+    SystemJobType,
     UserGender,
+    UserRole,
     WealthGoalCategory,
     WealthGoalStatus,
     WealthInsightSeverity,
@@ -66,6 +75,16 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     profile_pic_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    role: Mapped[UserRole] = mapped_column(Enum(UserRole), default=UserRole.USER, nullable=False)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    deleted_by_user_id: Mapped[UUID | None] = mapped_column(
+        PostgresUUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    last_seen_ip: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    last_seen_user_agent: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     identities = relationship("UserIdentity", back_populates="user", cascade="all, delete-orphan")
     refresh_tokens = relationship("RefreshToken", back_populates="user", cascade="all, delete-orphan")
@@ -94,6 +113,12 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         "WealthScenario",
         back_populates="user",
         cascade="all, delete-orphan",
+    )
+    sessions = relationship(
+        "UserSession",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        foreign_keys="UserSession.user_id",
     )
 
 
@@ -912,4 +937,157 @@ class WealthScenario(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     metadata_json: Mapped[dict[str, Any]] = mapped_column("metadata", JSONB, default=dict, nullable=False)
 
     user = relationship("User", back_populates="wealth_scenarios")
+
+
+class UserSession(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "user_sessions"
+    __table_args__ = (
+        UniqueConstraint("session_identifier", name="uq_user_sessions_session_identifier"),
+        Index("ix_user_sessions_user_login_at", "user_id", "login_at"),
+    )
+
+    user_id: Mapped[UUID | None] = mapped_column(
+        PostgresUUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=True,
+    )
+    session_identifier: Mapped[str] = mapped_column(String(64), nullable=False)
+    login_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    ip_address: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    device_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    browser: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    operating_system: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    last_activity_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    logout_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    is_successful: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    failure_reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column("metadata", JSONB, default=dict, nullable=False)
+
+    user = relationship("User", back_populates="sessions", foreign_keys=[user_id])
+
+
+class AdminConfigSetting(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "admin_config_settings"
+    __table_args__ = (
+        UniqueConstraint("setting_key", name="uq_admin_config_settings_setting_key"),
+        Index("ix_admin_config_settings_setting_key", "setting_key"),
+        Index("ix_admin_config_settings_category", "category"),
+    )
+
+    setting_key: Mapped[str] = mapped_column(String(120), nullable=False)
+    setting_value: Mapped[str] = mapped_column(Text, nullable=False)
+    value_type: Mapped[ConfigValueType] = mapped_column(
+        Enum(ConfigValueType),
+        default=ConfigValueType.STRING,
+        nullable=False,
+    )
+    category: Mapped[AdminConfigCategory] = mapped_column(
+        Enum(AdminConfigCategory),
+        default=AdminConfigCategory.SYSTEM,
+        nullable=False,
+    )
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    requires_restart: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    updated_by_user_id: Mapped[UUID | None] = mapped_column(
+        PostgresUUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
+
+class SystemJobExecution(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "system_job_executions"
+    __table_args__ = (
+        Index("ix_system_job_executions_type_started", "job_type", "started_at"),
+        Index("ix_system_job_executions_status_started", "status", "started_at"),
+    )
+
+    job_type: Mapped[SystemJobType] = mapped_column(Enum(SystemJobType), nullable=False)
+    job_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    status: Mapped[SystemJobExecutionStatus] = mapped_column(Enum(SystemJobExecutionStatus), nullable=False)
+    trigger_source: Mapped[SystemJobTriggerSource] = mapped_column(Enum(SystemJobTriggerSource), nullable=False)
+    triggered_by_user_id: Mapped[UUID | None] = mapped_column(
+        PostgresUUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    attempt_count: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column("metadata", JSONB, default=dict, nullable=False)
+
+
+class EmailCampaign(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "email_campaigns"
+    __table_args__ = (
+        Index("ix_email_campaigns_status_created", "status", "created_at"),
+    )
+
+    subject: Mapped[str] = mapped_column(String(255), nullable=False)
+    body_text: Mapped[str] = mapped_column(Text, nullable=False)
+    body_html: Mapped[str | None] = mapped_column(Text, nullable=True)
+    recipient_scope: Mapped[EmailCampaignRecipientScope] = mapped_column(
+        Enum(EmailCampaignRecipientScope),
+        nullable=False,
+    )
+    status: Mapped[EmailCampaignStatus] = mapped_column(
+        Enum(EmailCampaignStatus),
+        default=EmailCampaignStatus.DRAFT,
+        nullable=False,
+    )
+    filter_criteria_json: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    created_by_user_id: Mapped[UUID] = mapped_column(
+        PostgresUUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    queued_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    total_recipients: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    sent_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    failed_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    system_job_execution_id: Mapped[UUID | None] = mapped_column(
+        PostgresUUID(as_uuid=True),
+        ForeignKey("system_job_executions.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    metadata_json: Mapped[dict[str, Any]] = mapped_column("metadata", JSONB, default=dict, nullable=False)
+
+    recipients = relationship("EmailCampaignRecipient", back_populates="campaign", cascade="all, delete-orphan")
+
+
+class EmailCampaignRecipient(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "email_campaign_recipients"
+    __table_args__ = (
+        UniqueConstraint("campaign_id", "email", name="uq_email_campaign_recipients_campaign_email"),
+        Index("ix_email_campaign_recipients_campaign_status", "campaign_id", "delivery_status"),
+    )
+
+    campaign_id: Mapped[UUID] = mapped_column(
+        PostgresUUID(as_uuid=True),
+        ForeignKey("email_campaigns.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    user_id: Mapped[UUID | None] = mapped_column(
+        PostgresUUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    email: Mapped[str] = mapped_column(String(320), nullable=False)
+    display_name: Mapped[str] = mapped_column(String(160), nullable=False)
+    delivery_status: Mapped[EmailCampaignRecipientDeliveryStatus] = mapped_column(
+        Enum(EmailCampaignRecipientDeliveryStatus),
+        default=EmailCampaignRecipientDeliveryStatus.PENDING,
+        nullable=False,
+    )
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    campaign = relationship("EmailCampaign", back_populates="recipients")
 

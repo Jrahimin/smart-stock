@@ -8,6 +8,7 @@ from app.api.api_router import api_router
 from app.core.core_config import get_settings
 from app.core.exception_handlers import register_exception_handlers
 from app.core.logging_config import configure_logging
+from app.jobs.email_campaign_scheduler import start_email_campaign_scheduler, stop_email_campaign_scheduler
 from app.jobs.market_data_scheduler import daily_market_sync_scheduler, market_snapshot_scheduler
 from app.middlewares.auth_middleware import auth_middleware
 from app.middlewares.request_logging_middleware import request_logging_middleware
@@ -21,9 +22,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         market_snapshot_scheduler.start()
     if settings.daily_market_sync_scheduler_enabled:
         daily_market_sync_scheduler.start()
+    start_email_campaign_scheduler()
     try:
         yield
     finally:
+        stop_email_campaign_scheduler()
         await market_snapshot_scheduler.stop()
         await daily_market_sync_scheduler.stop()
 

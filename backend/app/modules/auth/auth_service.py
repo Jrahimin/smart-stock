@@ -13,6 +13,7 @@ from app.models import User
 from app.modules.auth.auth_repository import AuthRepository, get_auth_repository
 from app.core.enums import UserGender
 from app.modules.auth.auth_schemas import TokenPair, UserUpdateRequest
+from app.modules.auth.login_client_info import LoginClientInfo
 from app.modules.auth.social_verifier import SocialUserInfo, SocialVerifier, get_social_verifier
 from app.modules.mail.mail_service import MailService, get_mail_service
 
@@ -101,12 +102,43 @@ class AuthService:
             token=verification_token,
         )
 
-    async def login(self, *, email: str, password: str) -> TokenPair:
+    async def login(
+        self,
+        *,
+        email: str,
+        password: str,
+        client_info: LoginClientInfo | None = None,
+    ) -> TokenPair:
+        now = datetime.now(UTC)
         user = await self.repository.get_user_by_email(email)
-        if user is None or user.password_hash is None or not verify_password(password, user.password_hash):
+        invalid_credentials = (
+            user is None or user.password_hash is None or not verify_password(password, user.password_hash)
+        )
+        if invalid_credentials:
+            await self._record_login_attempt(
+                user=user,
+                client_info=client_info,
+                is_successful=False,
+                failure_reason="Invalid email or password",
+                login_at=now,
+            )
+            await self.repository.commit()
             raise UnauthorizedError("Invalid email or password")
-        self._ensure_login_allowed(user)
-        token_pair = await self._create_token_pair(user)
+
+        try:
+            self._ensure_login_allowed(user)
+        except (UnauthorizedError, AppError) as exc:
+            await self._record_login_attempt(
+                user=user,
+                client_info=client_info,
+                is_successful=False,
+                failure_reason=exc.message,
+                login_at=now,
+            )
+            await self.repository.commit()
+            raise
+
+        token_pair = await self._create_token_pair(user, client_info=client_info, login_at=now)
         await self.repository.commit()
         return token_pair
 
@@ -117,7 +149,7 @@ class AuthService:
             raise UnauthorizedError("Refresh token is invalid or expired")
 
         user = await self.repository.get_by_id(token_record.user_id)
-        if user is None or not user.is_active:
+        if user is None or not user.is_active or user.deleted_at is not None:
             raise UnauthorizedError("Refresh token is invalid or expired")
 
         await self.repository.revoke_refresh_token(token_hash)
@@ -125,8 +157,10 @@ class AuthService:
         await self.repository.commit()
         return token_pair
 
-    async def logout(self, refresh_token: str) -> None:
+    async def logout(self, refresh_token: str, *, session_id: str | None = None) -> None:
         await self.repository.revoke_refresh_token(hash_token(refresh_token))
+        if session_id:
+            await self.repository.revoke_user_session(session_id)
         await self.repository.commit()
 
     async def get_me(self, user_context: UserContext) -> User:
@@ -165,17 +199,29 @@ class AuthService:
         await self.repository.revoke_user_refresh_tokens(user.id)
         await self.repository.commit()
 
-    async def login_with_google(self, raw_id_token: str) -> TokenPair:
+    async def login_with_google(
+        self,
+        raw_id_token: str,
+        *,
+        client_info: LoginClientInfo | None = None,
+    ) -> TokenPair:
         social_user = self.social_verifier.verify_google_id_token(raw_id_token)
         user = await self._get_or_create_social_user(social_user)
-        token_pair = await self._create_token_pair(user)
+        self._ensure_login_allowed(user)
+        token_pair = await self._create_token_pair(user, client_info=client_info, login_at=datetime.now(UTC))
         await self.repository.commit()
         return token_pair
 
-    async def login_with_facebook(self, access_token: str) -> TokenPair:
+    async def login_with_facebook(
+        self,
+        access_token: str,
+        *,
+        client_info: LoginClientInfo | None = None,
+    ) -> TokenPair:
         social_user = await self.social_verifier.verify_facebook_access_token(access_token)
         user = await self._get_or_create_social_user(social_user)
-        token_pair = await self._create_token_pair(user)
+        self._ensure_login_allowed(user)
+        token_pair = await self._create_token_pair(user, client_info=client_info, login_at=datetime.now(UTC))
         await self.repository.commit()
         return token_pair
 
@@ -216,20 +262,71 @@ class AuthService:
         )
         return user
 
-    async def _create_token_pair(self, user: User) -> TokenPair:
+    async def _create_token_pair(
+        self,
+        user: User,
+        *,
+        client_info: LoginClientInfo | None = None,
+        login_at: datetime | None = None,
+        session_id: str | None = None,
+    ) -> TokenPair:
+        now = login_at or datetime.now(UTC)
+        resolved_session_id = session_id or self.repository.generate_session_identifier()
+        if client_info is not None:
+            await self._record_login_attempt(
+                user=user,
+                client_info=client_info,
+                is_successful=True,
+                failure_reason=None,
+                login_at=now,
+                session_identifier=resolved_session_id,
+            )
         access_token, expires_in = create_access_token(
             user_id=user.id,
             email=user.email,
             display_name=user.display_name,
+            role=user.role,
+            session_id=resolved_session_id,
         )
         refresh_token = generate_opaque_token()
-        refresh_expires_at = datetime.now(UTC) + timedelta(days=self.settings.jwt_refresh_token_expire_days)
+        refresh_expires_at = now + timedelta(days=self.settings.jwt_refresh_token_expire_days)
         await self.repository.create_refresh_token(
             user_id=user.id,
             token_hash=hash_token(refresh_token),
             expires_at=refresh_expires_at,
         )
         return TokenPair(access_token=access_token, refresh_token=refresh_token, expires_in=expires_in)
+
+    async def _record_login_attempt(
+        self,
+        *,
+        user: User | None,
+        client_info: LoginClientInfo | None,
+        is_successful: bool,
+        failure_reason: str | None,
+        login_at: datetime,
+        session_identifier: str | None = None,
+    ) -> None:
+        resolved_session_id = session_identifier or self.repository.generate_session_identifier()
+        await self.repository.create_user_session(
+            user_id=user.id if user is not None else None,
+            session_identifier=resolved_session_id,
+            login_at=login_at,
+            ip_address=client_info.ip_address if client_info else None,
+            device_type=client_info.device_type if client_info else None,
+            browser=client_info.browser if client_info else None,
+            operating_system=client_info.operating_system if client_info else None,
+            user_agent=client_info.user_agent if client_info else None,
+            is_successful=is_successful,
+            failure_reason=failure_reason,
+        )
+        if is_successful and user is not None and client_info is not None:
+            await self.repository.update_user_last_seen(
+                user,
+                ip_address=client_info.ip_address,
+                user_agent=client_info.user_agent,
+                seen_at=login_at,
+            )
 
     async def _create_email_verification_token(self, user: User) -> str:
         verification_token = generate_opaque_token()
@@ -243,6 +340,8 @@ class AuthService:
 
     @staticmethod
     def _ensure_login_allowed(user: User) -> None:
+        if user.deleted_at is not None:
+            raise UnauthorizedError("User account is inactive")
         if not user.is_active:
             raise UnauthorizedError("User account is inactive")
         if user.email_verified_at is None:

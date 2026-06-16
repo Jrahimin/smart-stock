@@ -7,7 +7,36 @@ export class BackendApiError extends Error {
     public readonly status: number,
   ) {
     super(message);
+    this.name = "BackendApiError";
   }
+}
+
+async function readApiErrorMessage(response: Response): Promise<string> {
+  try {
+    const body = (await response.json()) as {
+      message?: string;
+      detail?: string | Array<{ msg?: string; loc?: Array<string | number> }>;
+    };
+
+    if (body.message) {
+      return body.message;
+    }
+
+    if (typeof body.detail === "string") {
+      return body.detail;
+    }
+
+    if (Array.isArray(body.detail)) {
+      return body.detail
+        .map((item) => item.msg)
+        .filter(Boolean)
+        .join(", ");
+    }
+  } catch {
+    // Fall through to generic message.
+  }
+
+  return "Request failed";
 }
 
 type QueryValue = string | number | boolean | null | undefined;
@@ -282,7 +311,7 @@ export async function backendApiRequest<T>(
   const response = await fetchBackend(url, options);
 
   if (!response.ok) {
-    throw new BackendApiError("Backend request failed", response.status);
+    throw new BackendApiError(await readApiErrorMessage(response), response.status);
   }
 
   const envelope = (await response.json()) as ApiResponse<T>;
@@ -299,6 +328,10 @@ export async function backendApiPost<T>(path: string, body?: unknown, init?: Req
 
 export async function backendApiPatch<T>(path: string, body?: unknown, init?: RequestInit): Promise<T> {
   return backendApiRequest<T>(path, { method: "PATCH", body, init });
+}
+
+export async function backendApiPut<T>(path: string, body?: unknown, init?: RequestInit): Promise<T> {
+  return backendApiRequest<T>(path, { method: "PUT", body, init });
 }
 
 export async function backendApiDelete<T>(path: string, init?: RequestInit): Promise<T> {
@@ -320,7 +353,7 @@ export async function backendApiGet<T>(
   const response = await fetchBackend(url, { method: "GET", init });
 
   if (!response.ok) {
-    throw new BackendApiError("Backend request failed", response.status);
+    throw new BackendApiError(await readApiErrorMessage(response), response.status);
   }
 
   const envelope = (await response.json()) as ApiResponse<T>;

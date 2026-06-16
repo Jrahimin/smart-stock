@@ -1,4 +1,4 @@
-export type CommandCategory = "NAVIGATION" | "STOCK" | "WATCHLIST" | "SCANNER" | "SIGNAL";
+export type CommandCategory = "NAVIGATION" | "STOCK" | "WATCHLIST" | "SCANNER" | "SIGNAL" | "ADMIN";
 
 export type CommandItem = {
   id: string;

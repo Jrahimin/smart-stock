@@ -1495,6 +1495,80 @@ Optional provider endpoint. When Facebook app settings are configured, validates
 
 ---
 
+## Admin Panel
+
+All admin routes require `ADMIN` or `SUPER_ADMIN`. High-impact routes require `SUPER_ADMIN`.
+
+### GET /api/v1/admin/dashboard
+
+Operational overview: user counts, scheduler flags, data health, email campaign health, recent `system_job_executions`.
+
+### GET /api/v1/admin/users
+
+List/search users. Query params: `search`, `is_active`, `role`, `include_deleted`, `limit`, `offset`.
+
+### GET /api/v1/admin/users/{user_id}
+
+Get one user.
+
+### GET /api/v1/admin/users/{user_id}/sessions
+
+List `user_sessions` login/session history for a user.
+
+### PATCH /api/v1/admin/users/{user_id}/active
+
+Activate/deactivate a user.
+
+### PATCH /api/v1/admin/users/{user_id}/role
+
+Update role (`SUPER_ADMIN` only).
+
+### DELETE /api/v1/admin/users/{user_id}
+
+Soft delete user (`deleted_at`, `deleted_by_user_id`) (`SUPER_ADMIN` only).
+
+### POST /api/v1/admin/users/{user_id}/revoke-sessions
+
+Revoke refresh tokens and mark user sessions revoked.
+
+### GET /api/v1/admin/configuration
+
+List safe runtime operational settings with environment/database source metadata.
+
+### PUT /api/v1/admin/configuration/{setting_key}
+
+Update one safe runtime setting (`SUPER_ADMIN` only).
+
+### GET /api/v1/admin/jobs/executions
+
+List `system_job_executions`.
+
+### GET /api/v1/admin/jobs/executions/{execution_id}
+
+Get one execution record.
+
+### POST /api/v1/admin/jobs/trigger
+
+Manually trigger market sync, snapshot, stock details sync, indicators, or signals (`SUPER_ADMIN` only).
+
+### GET /api/v1/admin/email-campaigns
+
+List email campaigns.
+
+### POST /api/v1/admin/email-campaigns
+
+Create a draft campaign.
+
+### POST /api/v1/admin/email-campaigns/{campaign_id}/queue
+
+Snapshot recipients into `email_campaign_recipients` and mark campaign `QUEUED`.
+
+### GET /api/v1/admin/email-campaigns/{campaign_id}/recipients
+
+List snapshotted campaign recipients and delivery status.
+
+---
+
 ## Wealth Workspace
 
 ### POST /api/v1/wealth/tools/{tool_slug}/calculate
