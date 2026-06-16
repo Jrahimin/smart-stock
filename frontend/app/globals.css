@@ -3536,6 +3536,20 @@ button {
   z-index: 1;
 }
 
+.market-activity-loader-inner {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.market-activity-loader-label {
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin: 0;
+  text-align: center;
+}
+
 .market-pulse-line {
   align-items: center;
   backdrop-filter: blur(18px);

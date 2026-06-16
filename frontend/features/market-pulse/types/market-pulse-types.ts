@@ -59,7 +59,7 @@ export type TodayInsightModel = {
   title: string;
   explanation: string;
   whyItMatters: string;
-  tone: "positive" | "warning" | "info";
+  tone: "positive" | "negative" | "warning" | "info";
 };
 
 export type PulseBriefingChipModel = {
