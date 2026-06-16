@@ -86,6 +86,10 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     last_seen_user_agent: Mapped[str | None] = mapped_column(String(500), nullable=True)
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    @property
+    def has_password(self) -> bool:
+        return self.password_hash is not None
+
     identities = relationship("UserIdentity", back_populates="user", cascade="all, delete-orphan")
     refresh_tokens = relationship("RefreshToken", back_populates="user", cascade="all, delete-orphan")
     email_verification_tokens = relationship(

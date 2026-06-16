@@ -1471,6 +1471,7 @@ Return the current authenticated user. Requires `Authorization: Bearer <access_t
     "address": "123 Market Street",
     "profile_pic_url": "https://example.com/avatar.png",
     "is_active": true,
+    "has_password": true,
     "email_verified_at": "2026-06-04T12:00:00Z",
     "created_at": "2026-06-04T12:00:00Z",
     "updated_at": "2026-06-04T12:00:00Z"
@@ -1500,13 +1501,26 @@ All fields are optional. Send only the fields you want to change.
 ### PATCH /api/v1/auth/change-password
 
 **Description**
-Change the authenticated user's password and revoke existing refresh tokens.
+Change the authenticated user's password and revoke existing refresh tokens. Requires an existing password (`has_password: true` on `/auth/me`).
 
 **Body**
 
 ```json
 {
   "current_password": "old-password",
+  "new_password": "new-strong-password"
+}
+```
+
+### PATCH /api/v1/auth/set-password
+
+**Description**
+Set a password for OAuth-only accounts that do not yet have one (`has_password: false` on `/auth/me`). Revokes existing refresh tokens. After success, the user can sign in with email/password or their linked social provider.
+
+**Body**
+
+```json
+{
   "new_password": "new-strong-password"
 }
 ```

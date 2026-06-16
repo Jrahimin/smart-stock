@@ -6,7 +6,7 @@ import { useAuth } from "@/features/auth/context/auth-context";
 import type { UserGender } from "@/features/auth/types/auth-types";
 
 export function ProfileView() {
-  const { user, updateProfile, changePassword } = useAuth();
+  const { user, updateProfile, changePassword, setPassword } = useAuth();
   const [displayName, setDisplayName] = useState("");
   const [mobileNumber, setMobileNumber] = useState("");
   const [gender, setGender] = useState<UserGender | "">("");
@@ -55,7 +55,7 @@ export function ProfileView() {
     }
   }
 
-  async function handlePasswordSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleChangePasswordSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setPasswordMessage(null);
     setPasswordError(null);
@@ -76,6 +76,23 @@ export function ProfileView() {
     }
   }
 
+  async function handleSetPasswordSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setPasswordMessage(null);
+    setPasswordError(null);
+    setIsSavingPassword(true);
+
+    try {
+      await setPassword({ new_password: newPassword });
+      setNewPassword("");
+      setPasswordMessage("Password created. You can now sign in with your email and password.");
+    } catch {
+      setPasswordError("Could not set password. Use at least 8 characters and try again.");
+    } finally {
+      setIsSavingPassword(false);
+    }
+  }
+
   if (!user) {
     return null;
   }
@@ -86,7 +103,7 @@ export function ProfileView() {
         <div>
           <p className="eyebrow">Account</p>
           <h1>Your profile</h1>
-          <span>Manage your display name, optional details, and password.</span>
+          <span>Manage your display name, optional details, and account security.</span>
         </div>
       </div>
 
@@ -158,40 +175,74 @@ export function ProfileView() {
         </section>
 
         <section className="workspace-card profile-panel profile-panel-security">
-          <div className="section-heading">
-            <p className="eyebrow">Security</p>
-            <h2>Change password</h2>
-            <span>Use a strong password with at least 8 characters.</span>
-          </div>
+          {user.has_password ? (
+            <>
+              <div className="section-heading">
+                <p className="eyebrow">Security</p>
+                <h2>Change password</h2>
+                <span>Use a strong password with at least 8 characters.</span>
+              </div>
 
-          <form className="profile-form profile-form-compact" onSubmit={handlePasswordSubmit}>
-            <label>
-              Current password
-              <input
-                autoComplete="current-password"
-                onChange={(event) => setCurrentPassword(event.target.value)}
-                required
-                type="password"
-                value={currentPassword}
-              />
-            </label>
-            <label>
-              New password
-              <input
-                autoComplete="new-password"
-                minLength={8}
-                onChange={(event) => setNewPassword(event.target.value)}
-                required
-                type="password"
-                value={newPassword}
-              />
-            </label>
-            {passwordError ? <p className="auth-error">{passwordError}</p> : null}
-            {passwordMessage ? <p className="profile-success">{passwordMessage}</p> : null}
-            <button className="profile-submit-button" disabled={isSavingPassword} type="submit">
-              {isSavingPassword ? "Updating..." : "Update password"}
-            </button>
-          </form>
+              <form className="profile-form profile-form-compact" onSubmit={handleChangePasswordSubmit}>
+                <label>
+                  Current password
+                  <input
+                    autoComplete="current-password"
+                    onChange={(event) => setCurrentPassword(event.target.value)}
+                    required
+                    type="password"
+                    value={currentPassword}
+                  />
+                </label>
+                <label>
+                  New password
+                  <input
+                    autoComplete="new-password"
+                    minLength={8}
+                    onChange={(event) => setNewPassword(event.target.value)}
+                    required
+                    type="password"
+                    value={newPassword}
+                  />
+                </label>
+                {passwordError ? <p className="auth-error">{passwordError}</p> : null}
+                {passwordMessage ? <p className="profile-success">{passwordMessage}</p> : null}
+                <button className="profile-submit-button" disabled={isSavingPassword} type="submit">
+                  {isSavingPassword ? "Updating..." : "Update password"}
+                </button>
+              </form>
+            </>
+          ) : (
+            <>
+              <div className="section-heading">
+                <p className="eyebrow">Security</p>
+                <h2>Set password</h2>
+                <span>
+                  You signed in with a social account. Add a password to also sign in with your email and password on
+                  this device or others.
+                </span>
+              </div>
+
+              <form className="profile-form profile-form-compact" onSubmit={handleSetPasswordSubmit}>
+                <label>
+                  New password
+                  <input
+                    autoComplete="new-password"
+                    minLength={8}
+                    onChange={(event) => setNewPassword(event.target.value)}
+                    required
+                    type="password"
+                    value={newPassword}
+                  />
+                </label>
+                {passwordError ? <p className="auth-error">{passwordError}</p> : null}
+                {passwordMessage ? <p className="profile-success">{passwordMessage}</p> : null}
+                <button className="profile-submit-button" disabled={isSavingPassword} type="submit">
+                  {isSavingPassword ? "Setting..." : "Set password"}
+                </button>
+              </form>
+            </>
+          )}
         </section>
       </div>
     </section>

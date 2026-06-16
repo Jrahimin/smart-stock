@@ -6,10 +6,12 @@ from uuid import uuid4
 import pytest
 
 from app.core.enums import UserRole
-from app.core.exception_handlers import AppError
+from app.core.exception_handlers import AppError, ConflictError
 from app.core.security.jwt_service import decode_access_token
+from app.core.security_config import UserContext
 from app.core.security.password_service import hash_password, verify_password
 from app.core.security.token_hash import hash_token
+from app.modules.auth.auth_schemas import UserRead
 from app.modules.auth.auth_service import AuthService
 from app.modules.auth.social_verifier import SocialUserInfo
 
@@ -220,3 +222,105 @@ def test_google_login_sets_email_verified() -> None:
         assert user.email_verified_at is not None
 
     asyncio.run(run())
+
+
+def test_oauth_user_can_set_password_and_login_with_email() -> None:
+    async def run() -> None:
+        service, repository, _ = _build_service()
+        await service.login_with_google("google-token")
+        user = await repository.get_user_by_email("google@example.com")
+        assert user is not None
+        assert user.password_hash is None
+
+        user_context = UserContext(
+            user_id=str(user.id),
+            email=user.email,
+            display_name=user.display_name,
+            is_authenticated=True,
+        )
+        await service.set_password(user_context=user_context, new_password="new-strong-password")
+
+        assert user.password_hash is not None
+        assert verify_password("new-strong-password", user.password_hash)
+
+        token_pair = await service.login(email="google@example.com", password="new-strong-password")
+        assert token_pair.access_token
+
+        await service.login_with_google("google-token")
+
+    asyncio.run(run())
+
+
+def test_set_password_rejects_when_password_already_set() -> None:
+    async def run() -> None:
+        service, repository, mail_service = _build_service()
+        await service.register(email="trader@example.com", password="strong-password", display_name="Trader")
+        await service.verify_email(mail_service.verification_tokens[0])
+        user = await repository.get_user_by_email("trader@example.com")
+        assert user is not None
+
+        user_context = UserContext(
+            user_id=str(user.id),
+            email=user.email,
+            display_name=user.display_name,
+            is_authenticated=True,
+        )
+
+        with pytest.raises(ConflictError):
+            await service.set_password(user_context=user_context, new_password="another-password")
+
+    asyncio.run(run())
+
+
+def test_change_password_rejects_when_password_not_set() -> None:
+    async def run() -> None:
+        service, repository, _ = _build_service()
+        await service.login_with_google("google-token")
+        user = await repository.get_user_by_email("google@example.com")
+        assert user is not None
+
+        user_context = UserContext(
+            user_id=str(user.id),
+            email=user.email,
+            display_name=user.display_name,
+            is_authenticated=True,
+        )
+
+        with pytest.raises(AppError):
+            await service.change_password(
+                user_context=user_context,
+                current_password="any-password",
+                new_password="new-strong-password",
+            )
+
+    asyncio.run(run())
+
+
+def test_user_read_includes_has_password() -> None:
+    user = SimpleNamespace(
+        id=uuid4(),
+        email="google@example.com",
+        display_name="Google User",
+        password_hash=None,
+        mobile_number=None,
+        gender=None,
+        address=None,
+        profile_pic_url=None,
+        is_active=True,
+        role=UserRole.USER,
+        email_verified_at=datetime.now(UTC),
+        last_seen_ip=None,
+        last_seen_user_agent=None,
+        last_seen_at=None,
+        deleted_at=None,
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+        has_password=False,
+    )
+    read = UserRead.model_validate(user)
+    assert read.has_password is False
+
+    user.password_hash = hash_password("strong-password")
+    user.has_password = True
+    read = UserRead.model_validate(user)
+    assert read.has_password is True

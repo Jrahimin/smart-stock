@@ -20,9 +20,11 @@ import {
   logoutUser,
   refreshSession,
   registerUser,
+  setPassword as setPasswordRequest,
   updateProfile as updateProfileRequest,
   type ChangePasswordPayload,
   type RegisterPayload,
+  type SetPasswordPayload,
   type UpdateProfilePayload,
 } from "@/features/auth/services/auth-api";
 import type { AuthUser, TokenPair } from "@/features/auth/types/auth-types";
@@ -39,6 +41,7 @@ type AuthContextValue = {
   refreshCurrentSession: () => Promise<void>;
   updateProfile: (payload: UpdateProfilePayload) => Promise<void>;
   changePassword: (payload: ChangePasswordPayload) => Promise<void>;
+  setPassword: (payload: SetPasswordPayload) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -159,6 +162,12 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
     await changePasswordRequest(payload);
   }, []);
 
+  const setPassword = useCallback(async (payload: SetPasswordPayload) => {
+    await setPasswordRequest(payload);
+    const updatedUser = await getCurrentUser();
+    setUser(updatedUser);
+  }, []);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
@@ -172,6 +181,7 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
       refreshCurrentSession,
       updateProfile,
       changePassword,
+      setPassword,
     }),
     [
       changePassword,
@@ -182,6 +192,7 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
       logout,
       refreshCurrentSession,
       register,
+      setPassword,
       updateProfile,
       user,
     ],

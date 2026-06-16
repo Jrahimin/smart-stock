@@ -8,6 +8,7 @@ from app.core.security_config import UserContext
 from app.modules.auth.auth_schemas import (
     AuthMessage,
     ChangePasswordRequest,
+    SetPasswordRequest,
     FacebookLoginRequest,
     GoogleLoginRequest,
     LoginRequest,
@@ -130,6 +131,19 @@ async def change_password(
         new_password=request.new_password,
     )
     return success_response(data=AuthMessage(detail="Password changed"), message="Password changed")
+
+
+@router.patch("/set-password", response_model=ApiResponse[AuthMessage])
+async def set_password(
+    request: SetPasswordRequest,
+    service: Annotated[AuthService, Depends(get_auth_service)],
+    user_context: Annotated[UserContext, Depends(get_current_user)],
+) -> ApiResponse[AuthMessage]:
+    await service.set_password(
+        user_context=user_context,
+        new_password=request.new_password,
+    )
+    return success_response(data=AuthMessage(detail="Password set"), message="Password set")
 
 
 @router.post("/google", response_model=ApiResponse[TokenPair])

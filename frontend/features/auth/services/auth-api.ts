@@ -29,6 +29,10 @@ export type ChangePasswordPayload = {
   new_password: string;
 };
 
+export type SetPasswordPayload = {
+  new_password: string;
+};
+
 export function registerUser(payload: RegisterPayload) {
   return backendApiRequest<AuthMessage>("/auth/register", {
     method: "POST",
@@ -87,6 +91,10 @@ export function updateProfile(payload: UpdateProfilePayload) {
 
 export function changePassword(payload: ChangePasswordPayload) {
   return backendApiPatch<AuthMessage>("/auth/change-password", payload);
+}
+
+export function setPassword(payload: SetPasswordPayload) {
+  return backendApiPatch<AuthMessage>("/auth/set-password", payload);
 }
 
 export function loginWithGoogle(idToken: string) {

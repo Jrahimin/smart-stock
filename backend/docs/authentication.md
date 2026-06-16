@@ -121,7 +121,7 @@ curl http://localhost:8000/api/v1/auth/me \
   -H "Authorization: Bearer access-jwt"
 ```
 
-`/auth/me` uses `get_current_user`.
+`/auth/me` uses `get_current_user` and includes `has_password` so the profile UI can show **Change password** vs **Set password**.
 
 ## Watchlist routes
 
@@ -136,7 +136,20 @@ curl -X PATCH http://localhost:8000/api/v1/auth/change-password \
   -d '{"current_password":"old-password","new_password":"new-strong-password"}'
 ```
 
-Changing password revokes all refresh tokens for that user.
+Changing password revokes all refresh tokens for that user. Requires `has_password: true` on `/auth/me`.
+
+## Set Password (OAuth users)
+
+Google and Facebook users are stored as normal users but may have no password (`password_hash = null`). `/auth/me` exposes this as `has_password: false`. Those users can add a password without providing a current one:
+
+```bash
+curl -X PATCH http://localhost:8000/api/v1/auth/set-password \
+  -H "Authorization: Bearer access-jwt" \
+  -H "Content-Type: application/json" \
+  -d '{"new_password":"new-strong-password"}'
+```
+
+After setting a password, the same account supports both the linked social provider and email/password login.
 
 ## Google OAuth
 

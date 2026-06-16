@@ -192,8 +192,24 @@ class AuthService:
         new_password: str,
     ) -> None:
         user = await self.get_me(user_context)
-        if user.password_hash is None or not verify_password(current_password, user.password_hash):
+        if user.password_hash is None:
+            raise AppError("Password is not set. Use set password instead.")
+        if not verify_password(current_password, user.password_hash):
             raise UnauthorizedError("Current password is invalid")
+
+        user.password_hash = hash_password(new_password)
+        await self.repository.revoke_user_refresh_tokens(user.id)
+        await self.repository.commit()
+
+    async def set_password(
+        self,
+        *,
+        user_context: UserContext,
+        new_password: str,
+    ) -> None:
+        user = await self.get_me(user_context)
+        if user.password_hash is not None:
+            raise ConflictError("Password is already set. Use change password instead.")
 
         user.password_hash = hash_password(new_password)
         await self.repository.revoke_user_refresh_tokens(user.id)

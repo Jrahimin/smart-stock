@@ -19,6 +19,7 @@ class UserRead(BaseModel):
     profile_pic_url: str | None = None
     is_active: bool
     role: UserRole
+    has_password: bool
     email_verified_at: datetime | None
     last_seen_ip: str | None = None
     last_seen_user_agent: str | None = None
@@ -127,6 +128,10 @@ class ResendVerificationRequest(BaseModel):
 
 class ChangePasswordRequest(BaseModel):
     current_password: str = Field(min_length=1, max_length=128)
+    new_password: str = Field(min_length=8, max_length=128)
+
+
+class SetPasswordRequest(BaseModel):
     new_password: str = Field(min_length=8, max_length=128)
 
 
