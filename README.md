@@ -70,6 +70,8 @@ JWT auth with email verification, refresh tokens, Google sign-in. Configure `JWT
 
 | Topic | Path |
 |-------|------|
+| **Production deployment** | [`deploy/README.md`](deploy/README.md) |
+| Deployment architecture | [`backend/docs/deployment_architecture.md`](backend/docs/deployment_architecture.md) |
 | Market data (sources, schedulers, API) | [`backend/docs/market_data.md`](backend/docs/market_data.md) |
 | Market Pulse briefing | [`backend/docs/market_pulse.md`](backend/docs/market_pulse.md) |
 | Stock details sync | [`backend/docs/stock_details.md`](backend/docs/stock_details.md) |

@@ -1,0 +1,159 @@
+name: smart-stock
+
+x-logging: &rotated-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+x-backend-environment: &backend-environment
+  APP_NAME: ${APP_NAME:-Smart Stock API}
+  APP_ENV: ${APP_ENV:-production}
+  DEBUG: ${DEBUG:-false}
+  API_V1_PREFIX: ${API_V1_PREFIX:-/api/v1}
+  DATABASE_URL: ${DATABASE_URL}
+  ALEMBIC_DATABASE_URL: ${ALEMBIC_DATABASE_URL:-}
+  BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS}
+  FRONTEND_BASE_URL: ${FRONTEND_BASE_URL}
+  JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+  JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+  JWT_ACCESS_TOKEN_EXPIRE_MINUTES: ${JWT_ACCESS_TOKEN_EXPIRE_MINUTES:-15}
+  JWT_REFRESH_TOKEN_EXPIRE_DAYS: ${JWT_REFRESH_TOKEN_EXPIRE_DAYS:-30}
+  EMAIL_VERIFICATION_TOKEN_EXPIRE_HOURS: ${EMAIL_VERIFICATION_TOKEN_EXPIRE_HOURS:-24}
+  GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+  FACEBOOK_APP_ID: ${FACEBOOK_APP_ID:-}
+  FACEBOOK_APP_SECRET: ${FACEBOOK_APP_SECRET:-}
+  SMTP_HOST: ${SMTP_HOST:-}
+  SMTP_PORT: ${SMTP_PORT:-587}
+  SMTP_USER: ${SMTP_USER:-}
+  SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+  MAIL_FROM: ${MAIL_FROM:-noreply@stockwealthbd.com}
+  MARKET_SNAPSHOT_SCHEDULER_ENABLED: ${MARKET_SNAPSHOT_SCHEDULER_ENABLED:-true}
+  DAILY_MARKET_SYNC_SCHEDULER_ENABLED: ${DAILY_MARKET_SYNC_SCHEDULER_ENABLED:-true}
+  MARKET_OPEN_TIME: ${MARKET_OPEN_TIME:-10:00}
+  MARKET_CLOSE_TIME: ${MARKET_CLOSE_TIME:-15:00}
+  MARKET_SNAPSHOT_INTERVAL_MINUTES: ${MARKET_SNAPSHOT_INTERVAL_MINUTES:-15}
+  DAILY_MARKET_SYNC_TIME: ${DAILY_MARKET_SYNC_TIME:-15:15}
+  DAILY_MARKET_PRIMARY_SOURCE: ${DAILY_MARKET_PRIMARY_SOURCE:-amarstock_latest_price_json}
+  DAILY_MARKET_STOCKNOW_VALIDATION_ENABLED: ${DAILY_MARKET_STOCKNOW_VALIDATION_ENABLED:-false}
+  DAILY_MARKET_STOCKNOW_FALLBACK_ENABLED: ${DAILY_MARKET_STOCKNOW_FALLBACK_ENABLED:-false}
+  AMARSTOCK_NEWS_INGESTION_ENABLED: ${AMARSTOCK_NEWS_INGESTION_ENABLED:-true}
+  AMARSTOCK_DAILY_LATEST_PRICE_PATCH_ENABLED: ${AMARSTOCK_DAILY_LATEST_PRICE_PATCH_ENABLED:-false}
+  AMARSTOCK_INDEX_SUMMARY_ENABLED: ${AMARSTOCK_INDEX_SUMMARY_ENABLED:-true}
+  AMARSTOCK_LATEST_PRICE_STOCK_DETAILS_ENABLED: ${AMARSTOCK_LATEST_PRICE_STOCK_DETAILS_ENABLED:-true}
+  STOCK_DETAILS_SYNC_FREQUENCY_MONTHS: ${STOCK_DETAILS_SYNC_FREQUENCY_MONTHS:-3}
+  STOCK_DETAILS_SYNC_MAX_CONCURRENCY: ${STOCK_DETAILS_SYNC_MAX_CONCURRENCY:-3}
+  STOCK_DETAILS_HISTORICAL_WINDOW_DAYS: ${STOCK_DETAILS_HISTORICAL_WINDOW_DAYS:-90}
+  AMARSTOCK_API_BASE_URL: ${AMARSTOCK_API_BASE_URL:-https://www.amarstock.com}
+  DSE_ARCHIVE_SSL_VERIFY: ${DSE_ARCHIVE_SSL_VERIFY:-false}
+  POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
+  POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  backend-api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    image: smart-stock-backend:latest
+    restart: unless-stopped
+    stop_grace_period: 30s
+    environment:
+      <<: *backend-environment
+      RUN_SCHEDULER: "false"
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-2}
+      FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-127.0.0.1,172.28.0.0/16}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app-network
+    logging: *rotated-logging
+    command: ["gunicorn", "app.main:app", "-c", "gunicorn_conf.py"]
+
+  backend-scheduler:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    image: smart-stock-backend:latest
+    restart: unless-stopped
+    stop_grace_period: 30s
+    healthcheck:
+      disable: true
+    environment:
+      <<: *backend-environment
+      RUN_SCHEDULER: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app-network
+    logging: *rotated-logging
+    command: ["python", "-m", "app.jobs.scheduler"]
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL}
+        NEXT_PUBLIC_MARKET_CACHE_HOURS: ${NEXT_PUBLIC_MARKET_CACHE_HOURS:-2}
+        NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${NEXT_PUBLIC_GOOGLE_CLIENT_ID:-}
+        NEXT_PUBLIC_FACEBOOK_APP_ID: ${NEXT_PUBLIC_FACEBOOK_APP_ID:-}
+        NEXT_PUBLIC_FEATURE_ADVANCED_CHART_OVERLAYS: ${NEXT_PUBLIC_FEATURE_ADVANCED_CHART_OVERLAYS:-false}
+        NEXT_PUBLIC_FEATURE_ADVANCED_SCANNERS: ${NEXT_PUBLIC_FEATURE_ADVANCED_SCANNERS:-false}
+        NEXT_PUBLIC_FEATURE_BACKEND_SIGNAL_ENRICHMENT: ${NEXT_PUBLIC_FEATURE_BACKEND_SIGNAL_ENRICHMENT:-false}
+    image: smart-stock-frontend:latest
+    restart: unless-stopped
+    stop_grace_period: 30s
+    depends_on:
+      backend-api:
+        condition: service_healthy
+    networks:
+      - app-network
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./deploy/nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./deploy/certs:/etc/nginx/certs:ro
+      - certbot_webroot:/var/www/certbot:ro
+    depends_on:
+      - frontend
+      - backend-api
+    networks:
+      - app-network
+    logging: *rotated-logging
+
+networks:
+  app-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+volumes:
+  postgres_data:
+  certbot_webroot:

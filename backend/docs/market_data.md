@@ -80,15 +80,20 @@ Skip rows where `close <= 0`. `Value` turnover: unsuffixed = millions BDT; `K`/`
 
 ## Schedulers
 
-Started in `app.main` lifespan when enabled:
+**Production (Docker):** Market snapshot and daily sync jobs run in the dedicated `backend-scheduler` container (`python -m app.jobs.scheduler`, `RUN_SCHEDULER=true`). The API container (`backend-api`) sets `RUN_SCHEDULER=false` and does not start schedulers.
+
+**Local development:** With `RUN_SCHEDULER=true`, schedulers can start inside the FastAPI process (`uvicorn`) via `app.main` lifespan.
 
 | Setting | Default |
 |---------|---------|
+| `run_scheduler` | `false` — process gate; `true` only in scheduler container or local single-process dev |
 | `market_snapshot_scheduler_enabled` | `true` |
 | `daily_market_sync_scheduler_enabled` | `true` |
 | `market_open_time` / `market_close_time` | `10:00` / `15:00` (Asia/Dhaka) |
 | `market_snapshot_interval_minutes` | `15` |
 | `daily_market_sync_time` | `15:15` |
+
+See [`deployment_architecture.md`](deployment_architecture.md) for the full production layout.
 
 Session helpers live in `market_session_schedule.py` (shared with `GET /market/freshness`).
 
