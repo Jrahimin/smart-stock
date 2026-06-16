@@ -8,6 +8,13 @@ import type {
 import { formatCompactNumber, formatNumber, formatPercent, toNumber } from "@/lib/formatters/financial-formatters";
 import { buildMarketInsights } from "@/lib/insights/deterministic-insights";
 import { deriveMarketBreadth, deriveMarketCondition } from "@/lib/market/market-intelligence";
+import { buildDashboardMovers } from "@/lib/market/market-movers";
+import {
+  buildBreadthPulseContext,
+  buildLeadersPulseContext,
+  buildTurnoverPulseContext,
+  buildVolumePulseContext,
+} from "@/lib/market/market-pulse-metrics";
 import type { StockIntelligenceModel } from "@/lib/market/market-intelligence-types";
 import {
   buildDecisionSupportingContext,
@@ -19,10 +26,8 @@ import { buildMarketIndexContext } from "@/lib/market/market-index-context";
 import { getMarketSession } from "@/lib/market/market-session-engine";
 import type {
   BreadthModel,
-  LeadingSectorModel,
   MarketDashboardModel,
   MarketDirection,
-  MarketMoverModel,
   MarketMood,
   MarketPulseModel,
   SignalFeedItemModel,
@@ -133,26 +138,6 @@ function toSignalFeedItem(stock: StockIntelligenceModel): SignalFeedItemModel {
   };
 }
 
-function toMover(stock: StockIntelligenceModel): MarketMoverModel {
-  return {
-    stockId: stock.stock.id,
-    symbol: stock.stock.symbol,
-    name: stock.stock.name,
-    latestPrice: formatNumber(stock.latestPrice),
-    changePercent: formatPercent(stock.priceChangePercent),
-    turnover: formatCompactNumber(stock.turnover),
-    volume: formatCompactNumber(stock.volume),
-    trend: stock.trend,
-    href: `/stocks/${stock.stock.exchange}/${stock.stock.symbol}`,
-    tone:
-      (stock.priceChangePercent ?? 0) > 0
-        ? "positive"
-        : (stock.priceChangePercent ?? 0) < 0
-          ? "negative"
-          : "neutral",
-  };
-}
-
 function getDerivedTurnover(universe: StockIntelligenceModel[]) {
   const values = universe
     .map((stock) => stock.turnover)
@@ -171,38 +156,6 @@ function getDerivedVolume(universe: StockIntelligenceModel[]) {
   }
 
   return universe.reduce((sum, stock) => sum + stock.volume, 0);
-}
-
-function deriveLeadingSector(universe: StockIntelligenceModel[]): LeadingSectorModel | null {
-  const sectorBuckets = new Map<string, number[]>();
-
-  for (const stock of universe) {
-    const sector = stock.sector?.trim() || "Unclassified";
-    const changes = sectorBuckets.get(sector) ?? [];
-    if (stock.priceChangePercent !== null) {
-      changes.push(stock.priceChangePercent);
-    }
-    sectorBuckets.set(sector, changes);
-  }
-
-  let leader: LeadingSectorModel | null = null;
-
-  for (const [name, changes] of sectorBuckets.entries()) {
-    if (changes.length < 3) {
-      continue;
-    }
-
-    const changePercent = changes.reduce((sum, value) => sum + value, 0) / changes.length;
-    if (!leader || changePercent > leader.changePercent) {
-      leader = {
-        name,
-        changePercent,
-        label: `${name} ${formatPercent(changePercent)}`,
-      };
-    }
-  }
-
-  return leader;
 }
 
 function deriveMarketDirection(
@@ -240,17 +193,20 @@ function buildMarketPulseModel(input: {
   breadth: BreadthModel;
   marketMood: MarketMood;
   dsexSnapshot: BackendDsexIndexSnapshotDto | null;
+  sessionTradeDate: string | null | undefined;
 }): MarketPulseModel {
-  const { summaries, latestSummary, universe, breadth, marketMood, dsexSnapshot } = input;
+  const { summaries, latestSummary, universe, breadth, marketMood, dsexSnapshot, sessionTradeDate } = input;
   const indexContext = buildMarketIndexContext(summaries, latestSummary, dsexSnapshot);
   const derivedTurnover = getDerivedTurnover(universe);
   const derivedVolume = getDerivedVolume(universe);
-  const turnoverValue = dsexSnapshot?.total_turnover ?? latestSummary?.total_turnover ?? derivedTurnover;
+  const turnoverValue =
+    toNumber(dsexSnapshot?.total_turnover) ?? toNumber(latestSummary?.total_turnover) ?? derivedTurnover;
   const volumeValue = dsexSnapshot?.total_volume ?? latestSummary?.total_volume ?? derivedVolume;
   const { direction, label } = deriveMarketDirection(breadth, indexContext.indexChangePercent);
   const turnoverLabel = turnoverValue !== null ? `BDT ${formatCompactNumber(turnoverValue)}` : "N/A";
   const volumeLabel = volumeValue !== null ? `${formatCompactNumber(volumeValue)} Shares` : "N/A";
-  const leadingSector = deriveLeadingSector(universe);
+  const leadersContext = buildLeadersPulseContext(universe, sessionTradeDate);
+  const leadingSector = leadersContext.primary;
   const hasExchangeTurnover = Boolean(dsexSnapshot?.total_turnover ?? latestSummary?.total_turnover);
   const hasExchangeVolume = Boolean(dsexSnapshot?.total_volume ?? latestSummary?.total_volume);
 
@@ -283,6 +239,10 @@ function buildMarketPulseModel(input: {
     marketDirectionLabel: label,
     marketMood,
     latestTradeDate: dsexSnapshot?.trade_date ?? latestSummary?.trade_date ?? universe[0]?.latestTradeDate ?? "Awaiting market summary",
+    turnoverContext: buildTurnoverPulseContext(summaries, turnoverValue, turnoverLabel),
+    volumeContext: buildVolumePulseContext(summaries, volumeValue, volumeLabel),
+    breadthContext: buildBreadthPulseContext(breadth, direction),
+    leadersContext,
   };
 }
 
@@ -338,6 +298,7 @@ export function buildMarketDashboardModel(
   const derivedTurnover = getDerivedTurnover(universe);
   const turnoverValue = latestSummary?.total_turnover ?? derivedTurnover;
   const turnoverLabel = formatCompactNumber(turnoverValue);
+  const sessionTradeDate = dsexSnapshot?.trade_date ?? latestSummary?.trade_date ?? freshness?.trade_date ?? universe[0]?.latestTradeDate;
   const pulse = buildMarketPulseModel({
     summaries,
     latestSummary,
@@ -345,6 +306,7 @@ export function buildMarketDashboardModel(
     breadth,
     marketMood,
     dsexSnapshot,
+    sessionTradeDate,
   });
 
   return {
@@ -394,11 +356,6 @@ export function buildMarketDashboardModel(
       signalCount: universe.filter((stock) => isActionableDecision(resolveTraderDecision(stock).recommendation)).length,
       turnoverLabel,
     }),
-    movers: {
-      gainers: [...universe].sort((a, b) => (b.priceChangePercent ?? -Infinity) - (a.priceChangePercent ?? -Infinity)).slice(0, 5).map(toMover),
-      losers: [...universe].sort((a, b) => (a.priceChangePercent ?? Infinity) - (b.priceChangePercent ?? Infinity)).slice(0, 5).map(toMover),
-      turnoverLeaders: [...universe].sort((a, b) => (b.turnover ?? 0) - (a.turnover ?? 0)).slice(0, 5).map(toMover),
-      volumeLeaders: [...universe].sort((a, b) => b.volume - a.volume).slice(0, 5).map(toMover),
-    },
+    movers: buildDashboardMovers(universe, sessionTradeDate),
   };
 }

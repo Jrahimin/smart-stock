@@ -1028,6 +1028,7 @@ button {
 .market-dashboard-view {
   display: grid;
   gap: 9px;
+  min-width: 0;
 }
 
 .market-dashboard-header {
@@ -1064,6 +1065,7 @@ button {
 .market-pulse-panel {
   display: grid;
   gap: 8px;
+  min-width: 0;
 }
 
 .market-pulse-toolbar {
@@ -1112,6 +1114,8 @@ button {
   box-shadow: var(--card-shadow);
   display: grid;
   gap: 14px;
+  min-width: 0;
+  overflow: hidden;
   padding: 16px 18px;
 }
 
@@ -1377,19 +1381,40 @@ button {
 }
 
 .market-pulse-strip {
+  align-items: stretch;
   display: grid;
-  gap: 10px;
-  grid-template-columns: minmax(300px, 2.1fr) repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  grid-template-columns: minmax(0, 1.55fr) repeat(4, minmax(0, 1fr));
+  min-width: 0;
+  width: 100%;
 }
 
 .market-pulse-dsex {
   background: color-mix(in srgb, var(--panel) 78%, transparent);
   border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
   border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+  min-width: 0;
+  padding: 10px 12px;
+}
+
+.market-pulse-dsex-balanced {
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.market-pulse-dsex-hero,
+.market-pulse-dsex-detail {
   display: grid;
   gap: 8px;
   min-width: 0;
-  padding: 10px 12px;
+}
+
+.market-pulse-dsex-detail {
+  align-content: start;
 }
 
 .market-pulse-dsex-positive {
@@ -1490,23 +1515,54 @@ button {
   gap: 5px;
 }
 
-.market-pulse-dsex-returns {
+.pulse-dsex-performance-row {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  width: 100%;
+}
+
+.pulse-dsex-performance-pill {
+  border-radius: 10px;
+  display: grid;
+  gap: 3px;
+  justify-items: center;
+  min-width: 0;
+  padding: 8px 6px;
+  text-align: center;
+}
+
+.pulse-dsex-performance-pill-label {
   color: var(--muted);
-  display: flex;
-  flex-wrap: wrap;
-  font-size: 0.72rem;
+  font-size: 0.6rem;
   font-weight: 700;
-  gap: 10px 16px;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
-.market-pulse-dsex-returns strong {
-  color: var(--foreground);
-  font-size: 0.8rem;
+.pulse-dsex-performance-pill strong {
+  font-size: 0.84rem;
+  font-weight: 800;
   letter-spacing: -0.02em;
-  margin-left: 4px;
-  text-transform: none;
+  line-height: 1.1;
+}
+
+.pulse-dsex-performance-pill-positive {
+  background: color-mix(in srgb, var(--positive) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--positive) 24%, var(--border));
+  color: var(--positive);
+}
+
+.pulse-dsex-performance-pill-negative {
+  background: color-mix(in srgb, var(--negative) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--negative) 24%, var(--border));
+  color: var(--negative);
+}
+
+.pulse-dsex-performance-pill-neutral {
+  background: color-mix(in srgb, var(--muted) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  color: var(--foreground);
 }
 
 .market-pulse-metric {
@@ -1514,27 +1570,641 @@ button {
   border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
   border-radius: 14px;
   display: grid;
-  gap: 4px;
-  min-height: 108px;
+  gap: 6px;
+  min-height: 0;
   min-width: 0;
-  padding: 10px 12px;
+  padding: 9px 11px;
 }
 
-.market-pulse-metric-head {
+.pulse-widget {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--panel) 92%, white 2%), color-mix(in srgb, var(--panel) 74%, transparent)),
+    var(--panel);
+  border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  padding: 10px 11px;
+}
+
+.pulse-widget-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 7px;
+  min-height: 0;
+  min-width: 0;
+}
+
+.pulse-widget-body-balanced {
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.pulse-widget-hero-block,
+.pulse-widget-detail-block {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.pulse-widget-hero-emphasis .pulse-widget-insight {
+  font-size: 0.94rem;
+  white-space: normal;
+}
+
+.pulse-widget-hero-emphasis .pulse-widget-primary {
+  font-size: 1.26rem;
+}
+
+.pulse-widget-status-chip {
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  line-height: 1;
+  padding: 7px 11px;
+  text-transform: uppercase;
+  width: fit-content;
+}
+
+.pulse-widget-status-chip-positive {
+  background: color-mix(in srgb, var(--positive) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--positive) 28%, var(--border));
+  color: var(--positive);
+}
+
+.pulse-widget-status-chip-negative {
+  background: color-mix(in srgb, var(--negative) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--negative) 28%, var(--border));
+  color: var(--negative);
+}
+
+.pulse-widget-status-chip-neutral,
+.pulse-widget-status-chip-info {
+  background: color-mix(in srgb, var(--muted) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
+  color: color-mix(in srgb, var(--foreground) 86%, var(--muted));
+}
+
+.pulse-widget-viz-label {
+  color: var(--muted);
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.pulse-widget-labeled-meter {
+  display: grid;
+  gap: 5px;
+}
+
+.pulse-widget-meter-head {
+  align-items: baseline;
+  color: var(--muted);
+  display: flex;
+  font-size: 0.58rem;
+  font-weight: 700;
+  justify-content: space-between;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.pulse-widget-meter-scale {
+  color: color-mix(in srgb, var(--muted) 88%, transparent);
+  font-size: 0.56rem;
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+
+.pulse-widget-body > * {
+  min-width: 0;
+}
+
+.pulse-widget-anchor {
+  display: grid;
+  gap: 6px;
+  margin-top: auto;
+}
+
+.pulse-widget-top {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.pulse-widget-category {
+  color: var(--muted);
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.pulse-widget-icon {
+  align-items: center;
+  border-radius: 9px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  height: 30px;
+  justify-content: center;
+  width: 30px;
+}
+
+.pulse-widget-icon-turnover {
+  background: color-mix(in srgb, #5eb8ff 14%, transparent);
+  color: #6eb5ff;
+}
+
+.pulse-widget-icon-volume {
+  background: color-mix(in srgb, #8b7cff 14%, transparent);
+  color: #9d8cff;
+}
+
+.pulse-widget-icon-breadth {
+  background: color-mix(in srgb, var(--positive) 12%, transparent);
+  color: var(--positive);
+}
+
+.pulse-widget-icon-leaders {
+  background: color-mix(in srgb, var(--warning) 14%, transparent);
+  color: #f5b942;
+}
+
+.pulse-widget-insight {
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pulse-widget-insight-positive {
+  color: var(--positive);
+}
+
+.pulse-widget-insight-negative {
+  color: var(--negative);
+}
+
+.pulse-widget-insight-neutral,
+.pulse-widget-insight-info {
+  color: color-mix(in srgb, var(--foreground) 88%, var(--muted));
+}
+
+.pulse-widget-insight-warning {
+  color: var(--warning);
+}
+
+.pulse-widget-insight-row {
   align-items: flex-start;
   display: flex;
   gap: 8px;
   justify-content: space-between;
 }
 
+.pulse-widget-insight-row .pulse-widget-insight {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.pulse-widget-primary {
+  font-size: 1.1rem;
+  letter-spacing: -0.04em;
+  line-height: 1.05;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pulse-widget-primary-positive {
+  color: var(--positive);
+}
+
+.pulse-widget-primary-negative {
+  color: var(--negative);
+}
+
+.pulse-widget-primary-neutral {
+  color: var(--foreground);
+}
+
+.pulse-widget-primary-info {
+  color: var(--info);
+}
+
+.pulse-widget-divider {
+  background: color-mix(in srgb, var(--border) 82%, transparent);
+  height: 1px;
+  width: 100%;
+}
+
+.pulse-widget-context-row {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.pulse-widget-pill {
+  background: color-mix(in srgb, var(--subtle) 70%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
+  border-radius: 9px;
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 5px 7px;
+}
+
+.pulse-widget-pill span {
+  color: var(--muted);
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.pulse-widget-pill-value {
+  font-size: 0.76rem;
+  letter-spacing: -0.02em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pulse-widget-pill-value-positive {
+  color: var(--positive);
+}
+
+.pulse-widget-pill-value-negative {
+  color: var(--negative);
+}
+
+.pulse-widget-pill-value-neutral,
+.pulse-widget-pill-value-info {
+  color: var(--foreground);
+}
+
+.pulse-widget-context-line {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.35;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pulse-widget-meter-track {
+  background: color-mix(in srgb, var(--muted) 12%, var(--subtle));
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius: 999px;
+  height: 8px;
+  overflow: hidden;
+  position: relative;
+}
+
+.pulse-widget-meter-fill {
+  border-radius: inherit;
+  height: 100%;
+  transition: width 0.2s ease;
+}
+
+.pulse-widget-meter-fill-positive {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--positive) 55%, transparent), var(--positive));
+}
+
+.pulse-widget-meter-fill-negative {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--negative) 55%, transparent), var(--negative));
+}
+
+.pulse-widget-meter-fill-neutral,
+.pulse-widget-meter-fill-info {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--info) 55%, transparent), var(--info));
+}
+
+.pulse-widget-meter-marker {
+  background: var(--foreground);
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: 999px;
+  height: 9px;
+  position: absolute;
+  top: -1px;
+  transform: translateX(-50%);
+  width: 9px;
+}
+
+.pulse-widget-status-badge,
+.pulse-widget-performance-badge {
+  border-radius: 999px;
+  flex: 0 0 auto;
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  line-height: 1;
+  padding: 4px 7px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.pulse-widget-status-badge-positive,
+.pulse-widget-performance-badge-positive {
+  background: color-mix(in srgb, var(--positive) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--positive) 24%, var(--border));
+  color: var(--positive);
+}
+
+.pulse-widget-status-badge-negative,
+.pulse-widget-performance-badge-negative {
+  background: color-mix(in srgb, var(--negative) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--negative) 24%, var(--border));
+  color: var(--negative);
+}
+
+.pulse-widget-status-badge-neutral,
+.pulse-widget-performance-badge-neutral,
+.pulse-widget-performance-badge-info {
+  background: color-mix(in srgb, var(--muted) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  color: var(--muted);
+}
+
+.pulse-widget-performance-badge {
+  flex: 0 0 auto;
+  font-size: 0.68rem;
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+
+.pulse-breadth-bar {
+  border-radius: 999px;
+  display: flex;
+  height: 8px;
+  overflow: hidden;
+  width: 100%;
+}
+
+.pulse-breadth-bar-tall {
+  height: 10px;
+}
+
+.pulse-breadth-segment {
+  min-width: 2px;
+}
+
+.pulse-breadth-segment-adv {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--positive) 70%, transparent), var(--positive));
+}
+
+.pulse-breadth-segment-unch {
+  background: color-mix(in srgb, var(--muted) 34%, transparent);
+}
+
+.pulse-breadth-segment-decl {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--negative) 70%, transparent), var(--negative));
+}
+
+.pulse-widget-chip-row {
+  display: grid;
+  gap: 4px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.pulse-widget-chip {
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  overflow: hidden;
+  padding: 4px 6px;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pulse-widget-chip-positive {
+  background: color-mix(in srgb, var(--positive) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--positive) 22%, var(--border));
+  color: var(--positive);
+}
+
+.pulse-widget-chip-negative {
+  background: color-mix(in srgb, var(--negative) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--negative) 22%, var(--border));
+  color: var(--negative);
+}
+
+.pulse-widget-chip-neutral {
+  background: color-mix(in srgb, var(--muted) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  color: var(--muted);
+}
+
+.pulse-widget-breadth-chips {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.pulse-widget-breadth-chip {
+  border-radius: 10px;
+  display: grid;
+  gap: 2px;
+  justify-items: center;
+  min-width: 0;
+  padding: 7px 5px;
+  text-align: center;
+}
+
+.pulse-widget-breadth-chip-label {
+  font-size: 0.56rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.pulse-widget-breadth-chip strong {
+  font-size: 0.88rem;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.pulse-widget-breadth-chip-percent {
+  font-size: 0.64rem;
+  font-weight: 700;
+  opacity: 0.9;
+}
+
+.pulse-widget-breadth-chip-positive {
+  background: color-mix(in srgb, var(--positive) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--positive) 24%, var(--border));
+  color: var(--positive);
+}
+
+.pulse-widget-breadth-chip-negative {
+  background: color-mix(in srgb, var(--negative) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--negative) 24%, var(--border));
+  color: var(--negative);
+}
+
+.pulse-widget-breadth-chip-neutral {
+  background: color-mix(in srgb, var(--muted) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  color: var(--muted);
+}
+
+.pulse-widget-leaders-rows {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: space-evenly;
+  min-height: 0;
+  min-width: 0;
+}
+
+.pulse-leader-row {
+  align-items: center;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(58px, auto) minmax(0, 1fr) auto;
+  min-height: 0;
+  min-width: 0;
+  padding: 9px 0;
+}
+
+.pulse-leader-row:last-child {
+  border-bottom: 0;
+}
+
+.pulse-leader-row-label {
+  color: var(--muted);
+  font-size: 0.56rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.pulse-leader-row-name {
+  font-size: 0.86rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pulse-leader-row-badge {
+  border-radius: 999px;
+  flex: 0 0 auto;
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1;
+  padding: 5px 9px;
+  white-space: nowrap;
+}
+
+.pulse-leader-row-badge-positive {
+  background: color-mix(in srgb, var(--positive) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--positive) 26%, var(--border));
+  color: var(--positive);
+}
+
+.pulse-leader-row-badge-negative {
+  background: color-mix(in srgb, var(--negative) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--negative) 26%, var(--border));
+  color: var(--negative);
+}
+
+.pulse-leader-row-badge-neutral,
+.pulse-leader-row-badge-info {
+  background: color-mix(in srgb, var(--muted) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  color: var(--foreground);
+}
+
+.pulse-widget-footer {
+  color: var(--muted);
+  font-size: 0.64rem;
+  font-weight: 600;
+  line-height: 1.35;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.market-pulse-metric-head {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.market-pulse-metric-head-end {
+  align-items: center;
+  display: flex;
+  gap: 6px;
+}
+
+.market-pulse-metric-badge {
+  border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  line-height: 1;
+  max-width: 92px;
+  overflow: hidden;
+  padding: 4px 7px;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.market-pulse-metric-badge-positive {
+  background: color-mix(in srgb, var(--positive) 12%, transparent);
+  border-color: color-mix(in srgb, var(--positive) 24%, var(--border));
+  color: var(--positive);
+}
+
+.market-pulse-metric-badge-negative {
+  background: color-mix(in srgb, var(--negative) 12%, transparent);
+  border-color: color-mix(in srgb, var(--negative) 24%, var(--border));
+  color: var(--negative);
+}
+
+.market-pulse-metric-badge-neutral,
+.market-pulse-metric-badge-info {
+  background: color-mix(in srgb, var(--muted) 10%, transparent);
+  color: var(--muted);
+}
+
+.market-pulse-metric-badge-warning {
+  background: color-mix(in srgb, var(--warning) 12%, transparent);
+  color: var(--warning);
+}
+
 .market-pulse-metric-icon {
   align-items: center;
-  border-radius: 12px;
+  border-radius: 8px;
   display: inline-flex;
   flex: 0 0 auto;
-  height: 34px;
+  height: 24px;
   justify-content: center;
-  width: 34px;
+  width: 24px;
 }
 
 .market-pulse-metric-icon-turnover {
@@ -1560,7 +2230,7 @@ button {
 .market-pulse-metric-label {
   color: var(--muted);
   flex: 1 1 auto;
-  font-size: 0.68rem;
+  font-size: 1rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   line-height: 1.2;
@@ -1591,10 +2261,62 @@ button {
 
 .market-pulse-metric-helper {
   color: var(--muted);
-  font-size: 0.72rem;
+  font-size: 0.66rem;
+  font-weight: 600;
+  line-height: 1.35;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.market-pulse-metric-secondary-grid {
+  display: grid;
+  gap: 4px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.market-pulse-metric-secondary-item {
+  background: color-mix(in srgb, var(--subtle) 72%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  border-radius: 8px;
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 4px 5px;
+}
+
+.market-pulse-metric-secondary-item span {
+  color: var(--muted);
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.market-pulse-metric-secondary-item strong {
+  font-size: 0.72rem;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.market-pulse-metric-secondary-positive {
+  color: var(--positive);
+}
+
+.market-pulse-metric-secondary-negative {
+  color: var(--negative);
+}
+
+.market-pulse-metric-secondary-neutral,
+.market-pulse-metric-secondary-info {
+  color: var(--foreground);
+}
+
+.market-pulse-metric-secondary-warning {
+  color: var(--warning);
 }
 
 .market-pulse-ticker {
@@ -5364,12 +6086,12 @@ button {
     align-self: flex-end;
   }
 
-  .market-pulse-strip,
-  .market-pulse-dsex-ohlc {
-    grid-template-columns: 1fr 1fr;
+  .market-pulse-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .market-pulse-dsex {
+  .market-pulse-dsex,
+  .market-pulse-dsex-ohlc {
     grid-column: 1 / -1;
   }
 
@@ -12377,6 +13099,14 @@ button {
 
 .wealth-fdr-timeline-story .wealth-fdr-story-stop-active {
   color: color-mix(in srgb, var(--warning) 76%, var(--foreground));
+}
+
+.wealth-fdr-timeline-story .wealth-fdr-story-stop-start {
+  transform: translateX(0);
+}
+
+.wealth-fdr-timeline-story .wealth-fdr-story-stop-end {
+  transform: translateX(-100%);
 }
 
 .wealth-fdr-range-shell {

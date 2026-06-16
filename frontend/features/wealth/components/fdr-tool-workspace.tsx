@@ -391,7 +391,13 @@ function FdrMaturityTimeline({
         <div className="wealth-fdr-timeline-story" aria-hidden="true">
           {storyStops.map((stop) => (
             <span
-              className={wholeYears >= stop.year ? "wealth-fdr-story-stop-active" : ""}
+              className={[
+                wholeYears >= stop.year ? "wealth-fdr-story-stop-active" : "",
+                stop.year === FDR_TENURE_MIN ? "wealth-fdr-story-stop-start" : "",
+                stop.year === FDR_TENURE_MAX ? "wealth-fdr-story-stop-end" : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
               key={`${stop.label}-${stop.year}`}
               style={{ left: `${tenureSliderPercent(stop.year)}%` }}
             >

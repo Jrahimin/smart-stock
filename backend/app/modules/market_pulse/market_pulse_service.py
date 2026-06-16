@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated
 from uuid import UUID
 from zoneinfo import ZoneInfo
@@ -21,6 +21,7 @@ from app.core.enums import DataQualityFlag, ExchangeCode, MarketAlertType, Pulse
 from app.models import DailyPrice, Stock
 from app.modules.market_data.market_data_repository import MarketDataRepository, get_market_data_repository
 from app.modules.market_data.market_data_service import MarketDataService, get_market_data_service
+from app.modules.market_data.market_mover_rules import is_eligible_session_mover
 from app.modules.market_pulse.market_pulse_schemas import (
     FocusStockRead,
     MarketAlertRead,
@@ -200,8 +201,16 @@ def _to_market_mover_read(row: ScoredUniverseRow) -> MarketMoverRead:
     )
 
 
-def _build_market_movers(rows: list[ScoredUniverseRow]) -> MarketMoversRead:
-    ranked = [row for row in rows if row.snapshot.price_change_percent is not None]
+def _is_eligible_market_mover(row: ScoredUniverseRow, session_trade_date: date | None) -> bool:
+    return is_eligible_session_mover(row.snapshot, session_trade_date)
+
+
+def _build_market_movers(
+    rows: list[ScoredUniverseRow],
+    *,
+    session_trade_date: date | None,
+) -> MarketMoversRead:
+    ranked = [row for row in rows if _is_eligible_market_mover(row, session_trade_date)]
     gainers = sorted(
         [row for row in ranked if (row.snapshot.price_change_percent or 0) > 0],
         key=lambda row: row.snapshot.price_change_percent or 0,
@@ -326,7 +335,7 @@ class MarketPulseService:
 
         since_last_visit = self._build_since_last_visit(previous, changes, new_focus_count, new_alerts_count)
         today_insight = self._build_today_insight(scored_rows, focus_reads)
-        market_movers = _build_market_movers(scored_rows)
+        market_movers = _build_market_movers(scored_rows, session_trade_date=freshness.trade_date)
 
         suspicious_count = sum(1 for row in scored_rows if row.snapshot.data_quality == DataQualityFlag.SUSPICIOUS)
         empty_state = "none"

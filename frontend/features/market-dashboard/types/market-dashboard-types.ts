@@ -1,5 +1,11 @@
 import type { DataQualityFlag, ExchangeCode, TraderRecommendation } from "@/lib/api/backend-api-types";
 import type { InsightBlockModel } from "@/lib/insights/insight-types";
+import type {
+  BreadthPulseContext,
+  LeadersPulseContext,
+  TurnoverPulseContext,
+  VolumePulseContext,
+} from "@/lib/market/market-pulse-metrics";
 import type { MarketSessionModel } from "@/lib/market/market-session-engine";
 
 export type MarketMood =
@@ -122,6 +128,10 @@ export type MarketPulseModel = {
   marketDirectionLabel: string;
   marketMood: MarketMood;
   latestTradeDate: string;
+  turnoverContext: TurnoverPulseContext;
+  volumeContext: VolumePulseContext;
+  breadthContext: BreadthPulseContext;
+  leadersContext: LeadersPulseContext;
 };
 
 export type MarketDashboardModel = {

@@ -21,8 +21,8 @@ import { useAuth } from "@/features/auth/context/auth-context";
 import { WealthWorkspaceNavPill } from "@/components/layout/wealth-workspace-nav-pill";
 
 const marketNavigationItems = [
+  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, tone: "blue" as const },
   { label: "Market Pulse", href: "/market-pulse", icon: Flame, tone: "fire" as const },
-  { label: "Intelligence", href: "/dashboard", icon: LayoutDashboard, tone: "blue" as const },
   { label: "Stocks", href: "/stocks", icon: LineChart, tone: "blue" as const },
   { label: "Scanner", href: "/scanner", icon: ScanSearch, tone: "blue" as const },
   { label: "Signals", href: "/signals", icon: Bell, tone: "blue" as const },
