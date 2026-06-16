@@ -1,0 +1,13 @@
+.git/
+**/.venv/
+**/venv/
+**/__pycache__/
+**/.pytest_cache/
+**/.ruff_cache/
+**/.env
+**/.env.local
+**/node_modules/
+**/.next/
+deploy/certs/
+*.md
+.cursor/
