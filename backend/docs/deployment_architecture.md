@@ -229,7 +229,7 @@ Operational keys in that file overlap with admin-editable settings — see [Conf
 | Choice | Rationale |
 |--------|-----------|
 | Non-root containers | `appuser` (backend), `node` (frontend), official image users (postgres, nginx) |
-| Postgres not published | No host port mapping |
+| Postgres not on public interface | Bound to `127.0.0.1:5432` on the host for SSH tunnel access only; no UFW rule for 5432 |
 | Log rotation on api/scheduler/nginx | `json-file` max 10m × 5 files — prevents disk fill on single VPS |
 | Internal Docker network | Services resolve by name (`postgres`, `backend-api`, `frontend`) — never `localhost` |
 

@@ -152,6 +152,51 @@ Rebuild the frontend image whenever `NEXT_PUBLIC_*` variables change.
 
 ---
 
+## Remote database access (DBeaver via SSH tunnel)
+
+Postgres is published on the VPS **loopback only** (`127.0.0.1:5432`). It is not reachable from the public internet. Do **not** open port 5432 in UFW.
+
+After changing `docker-compose.yml`, recreate the postgres container on the VPS:
+
+```bash
+docker compose up -d postgres
+```
+
+### 1. SSH tunnel (Windows PowerShell or terminal)
+
+Keep this session open while using DBeaver:
+
+```bash
+ssh -L 5433:127.0.0.1:5432 junayed@173.212.215.28
+```
+
+- Local port `5433` avoids clashing with a Postgres instance on your machine at `5432`.
+- Use your VPS IP or hostname instead of `173.212.215.28` if it changed.
+
+### 2. DBeaver connection
+
+Create a **PostgreSQL** connection:
+
+| Setting | Value |
+|---------|--------|
+| Host | `localhost` |
+| Port | `5433` |
+| Database | `smart_stock` (or `POSTGRES_DB` from `.env`) |
+| Username | `smartstock` (or `POSTGRES_USER` from `.env`) |
+| Password | `POSTGRES_PASSWORD` from root `.env` |
+
+**Optional:** DBeaver can manage the tunnel under **SSH** → enable **Use SSH Tunnel**, host `173.212.215.28`, user `junayed`, then set DB host `127.0.0.1` and port `5432` (remote side inside the VPS).
+
+### 3. Copying local data to production
+
+1. On production: `docker compose exec backend-api alembic upgrade head`
+2. From DBeaver: export local database or use **Tools → Restore** / `pg_dump` on data tables
+3. Import into the tunneled production connection
+
+Local and production should be on the same Alembic migration head before a data-only restore.
+
+---
+
 ## Troubleshooting
 
 | Issue | Check |
