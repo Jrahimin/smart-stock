@@ -5,6 +5,7 @@ import jwt
 from jwt import InvalidTokenError
 
 from app.core.core_config import get_settings
+from app.core.enums import UserRole
 
 ACCESS_TOKEN_TYPE = "access"
 
@@ -18,6 +19,8 @@ def create_access_token(
     user_id: UUID,
     email: str,
     display_name: str,
+    role: UserRole,
+    session_id: str,
 ) -> tuple[str, int]:
     settings = get_settings()
     expires_delta = timedelta(minutes=settings.jwt_access_token_expire_minutes)
@@ -27,6 +30,9 @@ def create_access_token(
         "sub": str(user_id),
         "email": email,
         "display_name": display_name,
+        "role": role.value,
+        "roles": [role.value],
+        "session_id": session_id,
         "type": ACCESS_TOKEN_TYPE,
         "iat": int(issued_at.timestamp()),
         "exp": int(expires_at.timestamp()),

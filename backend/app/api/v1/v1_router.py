@@ -2,6 +2,11 @@ from fastapi import APIRouter
 
 from app.core.response_handler import ApiResponse, success_response
 from app.modules.auth.auth_router import router as auth_router
+from app.modules.admin_dashboard.admin_dashboard_router import router as admin_dashboard_router
+from app.modules.admin_configuration.admin_configuration_router import router as admin_configuration_router
+from app.modules.admin_email_campaigns.admin_email_campaigns_router import router as admin_email_campaigns_router
+from app.modules.admin_jobs.admin_jobs_router import router as admin_jobs_router
+from app.modules.admin_users.admin_users_router import router as admin_users_router
 from app.modules.indicators.indicators_router import router as indicators_router
 from app.modules.market_data.market_data_router import router as market_data_router
 from app.modules.market_pulse.market_pulse_router import router as market_pulse_router
@@ -13,6 +18,11 @@ from app.modules.wealth.wealth_router import router as wealth_router
 
 router = APIRouter()
 router.include_router(auth_router)
+router.include_router(admin_dashboard_router)
+router.include_router(admin_users_router)
+router.include_router(admin_configuration_router)
+router.include_router(admin_jobs_router)
+router.include_router(admin_email_campaigns_router)
 router.include_router(stocks_router)
 router.include_router(watchlists_router)
 router.include_router(wealth_router)

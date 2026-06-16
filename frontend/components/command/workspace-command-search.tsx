@@ -89,7 +89,13 @@ export function WorkspaceCommandSearch({
         meta: `${stock.exchange} · ${stock.sector ?? "Unclassified"}`,
       }));
 
-      if (query.trim() && (stockItems.length !== 1 || stockItems[0]?.stock.symbol.toUpperCase() !== query.trim().toUpperCase())) {
+      const firstItem = stockItems[0];
+      if (
+        query.trim() &&
+        (stockItems.length !== 1 ||
+          firstItem?.kind !== "stock" ||
+          firstItem.stock.symbol.toUpperCase() !== query.trim().toUpperCase())
+      ) {
         stockItems.push({
           kind: "filter",
           query: query.trim(),
@@ -151,7 +157,7 @@ export function WorkspaceCommandSearch({
 
   function handleQuickAction(action: ExplorerQuickAction) {
     if (action.type === "stock") {
-      navigateToStock(action);
+      navigateToStock({ symbol: action.symbol, exchange: action.exchange, name: action.label });
       return;
     }
 

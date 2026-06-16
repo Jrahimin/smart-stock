@@ -276,3 +276,77 @@ class TaxPlannerInsightType(StrEnum):
     OUT_OF_SCOPE_PROFILE = "OUT_OF_SCOPE_PROFILE"
     MINIMUM_TAX_NOT_MODELED = "MINIMUM_TAX_NOT_MODELED"
 
+
+class UserRole(StrEnum):
+    USER = "USER"
+    ADMIN = "ADMIN"
+    SUPER_ADMIN = "SUPER_ADMIN"
+
+
+class SystemJobType(StrEnum):
+    MARKET_SYNC = "MARKET_SYNC"
+    MARKET_SNAPSHOT = "MARKET_SNAPSHOT"
+    STOCK_DETAILS_SYNC = "STOCK_DETAILS_SYNC"
+    INDICATORS = "INDICATORS"
+    SIGNALS = "SIGNALS"
+    EMAIL_CAMPAIGN = "EMAIL_CAMPAIGN"
+    OTHER = "OTHER"
+
+
+class SystemJobExecutionStatus(StrEnum):
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
+    SUCCEEDED = "SUCCEEDED"
+    PARTIAL = "PARTIAL"
+    FAILED = "FAILED"
+    CANCELLED = "CANCELLED"
+
+
+class SystemJobTriggerSource(StrEnum):
+    SCHEDULER = "SCHEDULER"
+    MANUAL = "MANUAL"
+    API = "API"
+    SYSTEM = "SYSTEM"
+
+
+class EmailCampaignStatus(StrEnum):
+    DRAFT = "DRAFT"
+    QUEUED = "QUEUED"
+    RUNNING = "RUNNING"
+    SUCCEEDED = "SUCCEEDED"
+    PARTIAL = "PARTIAL"
+    FAILED = "FAILED"
+    CANCELLED = "CANCELLED"
+
+
+class EmailCampaignRecipientScope(StrEnum):
+    ALL_USERS = "ALL_USERS"
+    VERIFIED_USERS = "VERIFIED_USERS"
+    SELECTED_USERS = "SELECTED_USERS"
+    SUBSCRIBED_USERS = "SUBSCRIBED_USERS"
+    NON_ADMIN_USERS = "NON_ADMIN_USERS"
+    FILTERED_USERS = "FILTERED_USERS"
+
+
+class EmailCampaignRecipientDeliveryStatus(StrEnum):
+    PENDING = "PENDING"
+    SENT = "SENT"
+    FAILED = "FAILED"
+    SKIPPED = "SKIPPED"
+
+
+class ConfigValueType(StrEnum):
+    STRING = "STRING"
+    INTEGER = "INTEGER"
+    FLOAT = "FLOAT"
+    BOOLEAN = "BOOLEAN"
+    JSON = "JSON"
+
+
+class AdminConfigCategory(StrEnum):
+    SYSTEM = "SYSTEM"
+    FEATURE_FLAG = "FEATURE_FLAG"
+    MARKET = "MARKET"
+    EMAIL = "EMAIL"
+    SCRAPER = "SCRAPER"
+

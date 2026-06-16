@@ -4,7 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.core.enums import UserGender
+from app.core.enums import UserGender, UserRole
 
 
 class UserRead(BaseModel):
@@ -18,7 +18,12 @@ class UserRead(BaseModel):
     address: str | None = None
     profile_pic_url: str | None = None
     is_active: bool
+    role: UserRole
     email_verified_at: datetime | None
+    last_seen_ip: str | None = None
+    last_seen_user_agent: str | None = None
+    last_seen_at: datetime | None = None
+    deleted_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
 

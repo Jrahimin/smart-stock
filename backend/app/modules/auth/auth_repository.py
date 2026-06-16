@@ -1,5 +1,5 @@
 from datetime import UTC, datetime
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import Depends
 from sqlalchemy import func, select, update
@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.base_repository import BaseRepository
 from app.core.database_session import get_db_session
 from app.core.enums import UserGender
-from app.models import EmailVerificationToken, RefreshToken, User, UserIdentity
+from app.models import EmailVerificationToken, RefreshToken, User, UserIdentity, UserSession
 
 
 class AuthRepository(BaseRepository[User]):
@@ -135,6 +135,81 @@ class AuthRepository(BaseRepository[User]):
             EmailVerificationToken.expires_at > now,
         )
         return await self.session.scalar(statement)
+
+    async def create_user_session(
+        self,
+        *,
+        user_id: UUID | None,
+        session_identifier: str,
+        login_at: datetime,
+        ip_address: str | None,
+        device_type: str | None,
+        browser: str | None,
+        operating_system: str | None,
+        user_agent: str | None,
+        is_successful: bool,
+        failure_reason: str | None = None,
+    ) -> UserSession:
+        return await self.create_model(
+            UserSession,
+            {
+                "user_id": user_id,
+                "session_identifier": session_identifier,
+                "login_at": login_at,
+                "ip_address": ip_address,
+                "device_type": device_type,
+                "browser": browser,
+                "operating_system": operating_system,
+                "user_agent": user_agent,
+                "last_activity_at": login_at if is_successful else None,
+                "is_successful": is_successful,
+                "failure_reason": failure_reason,
+            },
+        )
+
+    async def update_user_last_seen(
+        self,
+        user: User,
+        *,
+        ip_address: str | None,
+        user_agent: str | None,
+        seen_at: datetime,
+    ) -> User:
+        return await self.update(
+            user,
+            {
+                "last_seen_ip": ip_address,
+                "last_seen_user_agent": user_agent,
+                "last_seen_at": seen_at,
+            },
+        )
+
+    async def revoke_user_session(self, session_identifier: str) -> None:
+        statement = (
+            update(UserSession)
+            .where(
+                UserSession.session_identifier == session_identifier,
+                UserSession.revoked_at.is_(None),
+            )
+            .values(revoked_at=datetime.now(UTC))
+        )
+        await self.session.execute(statement)
+        await self.session.flush()
+
+    async def list_user_sessions(self, user_id: UUID, *, limit: int = 50, offset: int = 0) -> list[UserSession]:
+        statement = (
+            select(UserSession)
+            .where(UserSession.user_id == user_id)
+            .order_by(UserSession.login_at.desc(), UserSession.id.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        result = await self.session.scalars(statement)
+        return list(result.all())
+
+    @staticmethod
+    def generate_session_identifier() -> str:
+        return uuid4().hex
 
 
 def get_auth_repository(session: AsyncSession = Depends(get_db_session)) -> AuthRepository:

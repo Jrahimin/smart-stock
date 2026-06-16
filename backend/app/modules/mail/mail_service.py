@@ -26,7 +26,24 @@ class MailService:
         )
         await self._send_email(to_email=email, subject=subject, body=body)
 
-    async def _send_email(self, *, to_email: str, subject: str, body: str) -> None:
+    async def send_email(
+        self,
+        *,
+        to_email: str,
+        subject: str,
+        body: str,
+        body_html: str | None = None,
+    ) -> None:
+        await self._send_email(to_email=to_email, subject=subject, body=body, body_html=body_html)
+
+    async def _send_email(
+        self,
+        *,
+        to_email: str,
+        subject: str,
+        body: str,
+        body_html: str | None = None,
+    ) -> None:
         if not self.settings.smtp_host:
             logger.info("SMTP is not configured; verification email body follows:\n%s", body)
             return
@@ -36,14 +53,24 @@ class MailService:
             to_email=to_email,
             subject=subject,
             body=body,
+            body_html=body_html,
         )
 
-    def _send_email_sync(self, *, to_email: str, subject: str, body: str) -> None:
+    def _send_email_sync(
+        self,
+        *,
+        to_email: str,
+        subject: str,
+        body: str,
+        body_html: str | None = None,
+    ) -> None:
         message = EmailMessage()
         message["From"] = self.settings.mail_from
         message["To"] = to_email
         message["Subject"] = subject
         message.set_content(body)
+        if body_html:
+            message.add_alternative(body_html, subtype="html")
 
         with smtplib.SMTP(self.settings.smtp_host, self.settings.smtp_port) as smtp:
             smtp.starttls()

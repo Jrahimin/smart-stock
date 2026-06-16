@@ -49,4 +49,12 @@ export const coreCommandItems: CommandItem[] = [
     href: "/watchlist",
     keywords: ["alerts", "heatmap"],
   },
+  {
+    id: "go-admin",
+    label: "Open Admin Panel",
+    description: "Operational dashboard, users, jobs, configuration, and email campaigns.",
+    category: "ADMIN",
+    href: "/admin",
+    keywords: ["admin", "operations", "users", "jobs"],
+  },
 ];
