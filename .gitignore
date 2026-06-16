@@ -15,3 +15,8 @@ out/
 .pytest_cache/
 .ruff_cache/
 
+# Deployment
+deploy/certs/*
+!deploy/certs/README.md
+.env.production.local
+

@@ -1,5 +1,45 @@
 # Smart Stock API Collection
 
+## Health
+
+### GET /api/v1/health
+
+**Description**
+Liveness probe. Returns OK without checking external dependencies.
+
+**Response**
+
+```json
+{
+  "success": true,
+  "message": "API is healthy",
+  "data": { "status": "ok" }
+}
+```
+
+---
+
+### GET /api/v1/health/ready
+
+**Description**
+Readiness probe. Executes `SELECT 1` against PostgreSQL. Use for Docker health checks and uptime monitoring.
+
+**Response**
+
+```json
+{
+  "success": true,
+  "message": "API is ready",
+  "data": { "status": "ready" }
+}
+```
+
+**Notes**
+
+* Returns HTTP 500 if the database is unreachable.
+
+---
+
 ## Stocks
 
 ### GET /api/v1/stocks

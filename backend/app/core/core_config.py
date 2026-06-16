@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     smtp_user: str | None = None
     smtp_password: str | None = None
     mail_from: str = "noreply@smart-stock.local"
+    run_scheduler: bool = False
     daily_market_sync_scheduler_enabled: bool = True
     market_snapshot_scheduler_enabled: bool = True
     market_open_time: str = "10:00"

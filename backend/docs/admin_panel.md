@@ -63,7 +63,7 @@ There is no full request/activity middleware and no admin audit log table in thi
 
 ## Configuration rules
 
-Editable through the admin panel:
+Editable through the admin panel (stored in `admin_config_settings`):
 
 - Scheduler toggles and market session timing
 - Stock details / market ingestion feature flags listed in `admin_operational_settings.py`
@@ -74,8 +74,28 @@ Never editable through the admin panel:
 - SMTP credentials
 - API keys and AmarStock tokens
 - Database URLs and infrastructure secrets
+- `RUN_SCHEDULER` and other Docker/process topology flags
 
-Environment values in `core_config.py` remain the source of truth until overridden in `admin_config_settings`.
+### Precedence and runtime behavior
+
+Configuration layers:
+
+```text
+core_config.py        → schema + defaults
+.env / .env.docker    → values at process start (Docker: repo-root .env via Compose)
+admin_config_settings → DB overrides for the operational subset only
+```
+
+**Listing in admin UI:** `GET /admin/configuration` shows each safe setting with `source: "environment"` (from `get_settings()`) or `source: "database"` (from `admin_config_settings`).
+
+**Runtime today:** schedulers, ingestion jobs, and most services call `get_settings()`, which reads **environment variables only** (`@lru_cache`). DB overrides are **saved and displayed** but **not merged** into `get_settings()` yet. Until that is implemented:
+
+- **Environment** (local `backend/.env` or production root `.env` from [`.env.docker.example`](../../.env.docker.example)) is what actually drives market schedulers and ingestion flags.
+- Admin panel changes to those keys are persisted for operators but do not change live behavior without matching env updates and container restart.
+
+**Production Docker:** use root `.env` for infrastructure secrets and operational defaults. See [`deployment_architecture.md`](deployment_architecture.md#configuration-precedence).
+
+Settings marked `requires_restart: true` (e.g. scheduler toggles) need a process restart when changed via env; restart `backend-scheduler` after operational env updates.
 
 ## Email campaigns
 

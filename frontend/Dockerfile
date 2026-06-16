@@ -1,0 +1,58 @@
+# syntax=docker/dockerfile:1
+
+FROM node:20-alpine AS deps
+
+WORKDIR /app
+
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+
+
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+COPY --from=deps /app/node_modules ./node_modules
+COPY frontend/ .
+
+ARG NEXT_PUBLIC_API_BASE_URL=https://api.stockwealthbd.com/api/v1
+ARG NEXT_PUBLIC_MARKET_CACHE_HOURS=2
+ARG NEXT_PUBLIC_GOOGLE_CLIENT_ID=
+ARG NEXT_PUBLIC_FACEBOOK_APP_ID=
+ARG NEXT_PUBLIC_FEATURE_ADVANCED_CHART_OVERLAYS=false
+ARG NEXT_PUBLIC_FEATURE_ADVANCED_SCANNERS=false
+ARG NEXT_PUBLIC_FEATURE_BACKEND_SIGNAL_ENRICHMENT=false
+
+ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL \
+    NEXT_PUBLIC_MARKET_CACHE_HOURS=$NEXT_PUBLIC_MARKET_CACHE_HOURS \
+    NEXT_PUBLIC_GOOGLE_CLIENT_ID=$NEXT_PUBLIC_GOOGLE_CLIENT_ID \
+    NEXT_PUBLIC_FACEBOOK_APP_ID=$NEXT_PUBLIC_FACEBOOK_APP_ID \
+    NEXT_PUBLIC_FEATURE_ADVANCED_CHART_OVERLAYS=$NEXT_PUBLIC_FEATURE_ADVANCED_CHART_OVERLAYS \
+    NEXT_PUBLIC_FEATURE_ADVANCED_SCANNERS=$NEXT_PUBLIC_FEATURE_ADVANCED_SCANNERS \
+    NEXT_PUBLIC_FEATURE_BACKEND_SIGNAL_ENRICHMENT=$NEXT_PUBLIC_FEATURE_BACKEND_SIGNAL_ENRICHMENT
+
+RUN npm run build
+
+
+FROM node:20-alpine AS runner
+
+WORKDIR /app
+
+ENV NODE_ENV=production \
+    HOSTNAME=0.0.0.0 \
+    PORT=3000
+
+RUN apk add --no-cache wget
+
+COPY --from=builder /app/public ./public
+COPY --from=builder --chown=node:node /app/.next/standalone ./
+COPY --from=builder --chown=node:node /app/.next/static ./.next/static
+
+USER node
+
+EXPOSE 3000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
+    CMD wget -qO- http://127.0.0.1:3000/ > /dev/null || exit 1
+
+CMD ["node", "server.js"]

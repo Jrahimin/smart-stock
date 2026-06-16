@@ -1,5 +1,7 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, status
+from sqlalchemy import text
 
+from app.core.database_session import async_engine
 from app.core.response_handler import ApiResponse, success_response
 from app.modules.auth.auth_router import router as auth_router
 from app.modules.admin_dashboard.admin_dashboard_router import router as admin_dashboard_router
@@ -36,4 +38,17 @@ router.include_router(stock_details_router)
 @router.get("/health", response_model=ApiResponse[dict[str, str]])
 async def health_check() -> ApiResponse[dict[str, str]]:
     return success_response(data={"status": "ok"}, message="API is healthy")
+
+
+@router.get("/health/ready", response_model=ApiResponse[dict[str, str]])
+async def health_ready() -> ApiResponse[dict[str, str]]:
+    try:
+        async with async_engine.connect() as connection:
+            await connection.execute(text("SELECT 1"))
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database is not ready",
+        ) from exc
+    return success_response(data={"status": "ready"}, message="API is ready")
 

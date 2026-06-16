@@ -303,6 +303,15 @@ UI → Domain Hook → API Client → Backend
 - Follow api_doc.md strictly
 
 
+## Deployment & Infrastructure
+
+Production runs on a single VPS via Docker Compose behind Cloudflare.
+Before changing containers, networking, schedulers, or proxy configuration, read:
+
+- `backend/docs/deployment_architecture.md` — architecture, flows, and design choices
+- `deploy/README.md` — operational runbook
+
+
 ## Task Management Rule
 
 The project uses a tracking file:
