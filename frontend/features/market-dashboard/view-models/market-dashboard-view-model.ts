@@ -138,6 +138,18 @@ function toSignalFeedItem(stock: StockIntelligenceModel): SignalFeedItemModel {
   };
 }
 
+function buildSignalFeed(universe: StockIntelligenceModel[]): SignalFeedItemModel[] {
+  const ranked = universe
+    .map((stock) => ({ stock, decision: resolveTraderDecision(stock) }))
+    .filter(
+      ({ decision }) => isActionableDecision(decision.recommendation) || decision.confidence >= 55,
+    )
+    .sort((left, right) => right.decision.confidence - left.decision.confidence)
+    .slice(0, 8);
+
+  return ranked.map(({ stock }) => toSignalFeedItem(stock));
+}
+
 function getDerivedTurnover(universe: StockIntelligenceModel[]) {
   const values = universe
     .map((stock) => stock.turnover)
@@ -249,9 +261,10 @@ function buildMarketPulseModel(input: {
 function buildTimeline(universe: StockIntelligenceModel[], latestSummary: BackendDailyMarketSummaryDto | null) {
   const items = [];
   const suspiciousCount = universe.filter((stock) => stock.dataQuality === "SUSPICIOUS").length;
-  const highConfidenceDecision = [...universe].sort(
-    (a, b) => resolveTraderDecision(b).confidence - resolveTraderDecision(a).confidence,
-  )[0];
+  const rankedByConfidence = universe
+    .map((stock) => ({ stock, decision: resolveTraderDecision(stock) }))
+    .sort((left, right) => right.decision.confidence - left.decision.confidence);
+  const highConfidenceDecision = rankedByConfidence[0];
 
   if (latestSummary?.has_suspicious_prices || suspiciousCount > 0) {
     items.push({
@@ -262,10 +275,10 @@ function buildTimeline(universe: StockIntelligenceModel[], latestSummary: Backen
   }
 
   if (highConfidenceDecision) {
-    const decision = resolveTraderDecision(highConfidenceDecision);
+    const decision = highConfidenceDecision.decision;
     items.push({
-      time: highConfidenceDecision.latestTradeDate ?? "Latest",
-      title: `${highConfidenceDecision.stock.symbol} ${decision.recommendation}`,
+      time: highConfidenceDecision.stock.latestTradeDate ?? "Latest",
+      title: `${highConfidenceDecision.stock.stock.symbol} ${decision.recommendation}`,
       description: decision.reason,
     });
   }
@@ -344,11 +357,7 @@ export function buildMarketDashboardModel(
     ],
     breadth,
     heatmapTiles: buildHeatmapTiles(universe),
-    signals: [...universe]
-      .filter((stock) => isActionableDecision(resolveTraderDecision(stock).recommendation) || resolveTraderDecision(stock).confidence >= 55)
-      .sort((a, b) => resolveTraderDecision(b).confidence - resolveTraderDecision(a).confidence)
-      .slice(0, 8)
-      .map(toSignalFeedItem),
+    signals: buildSignalFeed(universe),
     timeline: buildTimeline(universe, latestSummary),
     insights: buildMarketInsights({
       marketMood,

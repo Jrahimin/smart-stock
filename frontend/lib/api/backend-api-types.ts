@@ -16,6 +16,8 @@ export type BackendMarketFreshnessDto = {
   last_synced_at: string | null;
   next_sync_at: string | null;
   snapshot_interval_minutes: number;
+  market_sync_interval_seconds: number;
+  dashboard_cache_ttl_seconds: number;
   expected_delay_minutes: number;
   market_open_time: string;
   market_close_time: string;

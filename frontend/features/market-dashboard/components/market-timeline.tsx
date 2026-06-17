@@ -1,10 +1,12 @@
+import { memo } from "react";
+
 import type { MarketTimelineItemModel } from "@/features/market-dashboard/types/market-dashboard-types";
 
 type MarketTimelineProps = {
   items: MarketTimelineItemModel[];
 };
 
-export function MarketTimeline({ items }: MarketTimelineProps) {
+export const MarketTimeline = memo(function MarketTimeline({ items }: MarketTimelineProps) {
   return (
     <section className="workspace-card">
       <div className="section-heading">
@@ -24,4 +26,4 @@ export function MarketTimeline({ items }: MarketTimelineProps) {
       </div>
     </section>
   );
-}
+});

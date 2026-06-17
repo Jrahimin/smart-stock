@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { memo } from "react";
 
 import { SignalBadge } from "@/components/ui/signal-badge";
 import type { SignalFeedItemModel } from "@/features/market-dashboard/types/market-dashboard-types";
@@ -7,7 +8,7 @@ type SmartSignalFeedProps = {
   signals: SignalFeedItemModel[];
 };
 
-export function SmartSignalFeed({ signals }: SmartSignalFeedProps) {
+export const SmartSignalFeed = memo(function SmartSignalFeed({ signals }: SmartSignalFeedProps) {
   return (
     <section className="workspace-card">
       <div className="section-heading">
@@ -45,4 +46,4 @@ export function SmartSignalFeed({ signals }: SmartSignalFeedProps) {
       </div>
     </section>
   );
-}
+});

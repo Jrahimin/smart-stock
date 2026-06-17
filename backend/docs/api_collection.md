@@ -402,6 +402,8 @@ Return snapshot timing and session metadata so the frontend can show last/next u
     "last_synced_at": "2026-06-11T14:45:00+06:00",
     "next_sync_at": "2026-06-11T15:00:00+06:00",
     "snapshot_interval_minutes": 15,
+    "market_sync_interval_seconds": 900,
+    "dashboard_cache_ttl_seconds": 600,
     "expected_delay_minutes": 15,
     "market_open_time": "10:00",
     "market_close_time": "15:00",
@@ -416,6 +418,8 @@ Return snapshot timing and session metadata so the frontend can show last/next u
 * `last_synced_at` is `max(daily_prices.updated_at)` for the latest trade date with rows.
 * `next_sync_at` is present only when `market_status` is `PRE_OPEN` or `OPEN`; otherwise `null`.
 * `expected_delay_minutes` matches `snapshot_interval_minutes` by default (max staleness between scheduled snapshots).
+* `market_sync_interval_seconds` is `snapshot_interval_minutes * 60`.
+* `dashboard_cache_ttl_seconds` is `max(60, min(600, market_sync_interval_seconds))` — shared TTL for dashboard Redis cache and frontend TanStack Query `staleTime`.
 * `market_status`: `PRE_OPEN` | `OPEN` | `POST_CLOSE` | `HOLIDAY`.
 * No `is_live` field — prices are always snapshot-based.
 
