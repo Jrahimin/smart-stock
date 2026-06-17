@@ -1,41 +1,16 @@
 "use client";
 
-import {
-  BarChart3,
-  Bell,
-  ChevronDown,
-  Flame,
-  LayoutDashboard,
-  LineChart,
-  Mail,
-  ScanSearch,
-  Settings,
-  ShieldCheck,
-  Users,
-  Workflow,
-} from "lucide-react";
+import { ChevronDown, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import { useAuth } from "@/features/auth/context/auth-context";
 import { WealthWorkspaceNavPill } from "@/components/layout/wealth-workspace-nav-pill";
-
-const marketNavigationItems = [
-  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, tone: "blue" as const },
-  { label: "Market Pulse", href: "/market-pulse", icon: Flame, tone: "fire" as const },
-  { label: "Stocks", href: "/stocks", icon: LineChart, tone: "blue" as const },
-  { label: "Scanner", href: "/scanner", icon: ScanSearch, tone: "blue" as const },
-  { label: "Signals", href: "/signals", icon: Bell, tone: "blue" as const },
-  { label: "Watchlist", href: "/watchlist", icon: BarChart3, tone: "blue" as const },
-];
-
-const adminNavigationItems = [
-  { label: "Dashboard", href: "/admin", icon: LayoutDashboard, exact: true },
-  { label: "Users", href: "/admin/users", icon: Users, exact: false },
-  { label: "Configuration", href: "/admin/configuration", icon: Settings, exact: false },
-  { label: "Jobs", href: "/admin/jobs", icon: Workflow, exact: false },
-  { label: "Email Campaigns", href: "/admin/email-campaigns", icon: Mail, exact: false },
-] as const;
+import { useAuth } from "@/features/auth/context/auth-context";
+import {
+  adminNavigationItems,
+  isNavigationItemActive,
+  marketNavigationItems,
+} from "@/lib/navigation/terminal-navigation-config";
 
 type TerminalSidebarNavProps = {
   collapsed: boolean;
@@ -150,12 +125,4 @@ export function TerminalSidebarNav({ collapsed, pathname }: TerminalSidebarNavPr
       <WealthWorkspaceNavPill collapsed={collapsed} isActive={isWealthActive} />
     </nav>
   );
-}
-
-function isNavigationItemActive(pathname: string, href: string) {
-  if (href === "/stocks" || href === "/wealth" || href === "/market-pulse") {
-    return pathname === href || pathname.startsWith(`${href}/`);
-  }
-
-  return pathname === href || pathname.startsWith(`${href}/`);
 }
