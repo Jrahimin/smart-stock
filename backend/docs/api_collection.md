@@ -425,6 +425,74 @@ Return snapshot timing and session metadata so the frontend can show last/next u
 
 ---
 
+## Market Dashboard
+
+Trader `/dashboard` section endpoints. Optional Redis cache — see [market_dashboard.md](market_dashboard.md).
+
+### GET /api/v1/dashboard/overview
+
+**Description**
+Return DSEX index snapshot, recent market summaries, listed stock count, and session trade date for the dashboard pulse header.
+
+**Query Params**
+
+* exchange: optional enum, one of `DSE`, `CSE` (default `DSE`)
+
+**Response**
+
+```json
+{
+  "success": true,
+  "message": "Dashboard overview retrieved",
+  "data": {
+    "exchange": "DSE",
+    "session_trade_date": "2026-06-17",
+    "listed_stock_count": 398,
+    "dsex_index": { "...": "DsexIndexSnapshotRead — same shape as GET /market/index/dsex" },
+    "summaries": [{ "...": "DailyMarketSummaryRead[] — recent rows for turnover/volume context" }]
+  }
+}
+```
+
+**Notes**
+
+* Cached in Redis when `REDIS_URL` is set; TTL matches `dashboard_cache_ttl_seconds`.
+* Invalidated on successful `sync_market_snapshot`.
+
+---
+
+### GET /api/v1/dashboard/movers
+
+**Description**
+Return session-eligible gainers, losers, turnover leaders, and volume leaders from latest daily prices.
+
+**Query Params**
+
+* exchange: optional enum, one of `DSE`, `CSE` (default `DSE`)
+
+**Response**
+
+```json
+{
+  "success": true,
+  "message": "Dashboard movers retrieved",
+  "data": {
+    "session_trade_date": "2026-06-17",
+    "gainers": [],
+    "losers": [],
+    "turnover_leaders": [],
+    "volume_leaders": []
+  }
+}
+```
+
+**Notes**
+
+* Eligibility mirrors `market_mover_rules.is_eligible_session_mover`.
+* Default limit per list: 5 (`DASHBOARD_MARKET_MOVERS_LIMIT`).
+
+---
+
 ### GET /api/v1/market/pulse
 
 **Description**

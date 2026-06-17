@@ -298,9 +298,16 @@ export function buildMarketDashboardModel(
   universe: StockIntelligenceModel[] = [],
   dsexSnapshot: BackendDsexIndexSnapshotDto | null = null,
   freshness: BackendMarketFreshnessDto | null = null,
+  options?: {
+    listedStockCount?: number;
+    movers?: MarketDashboardModel["movers"];
+  },
 ): MarketDashboardModel {
   const latestSummary = getLatestSummary(summaries);
-  const breadth = dsexSnapshot ? toBreadthFromSnapshot(dsexSnapshot) : toBreadthModel(latestSummary, universe, stocks.length);
+  const listedStockCount = options?.listedStockCount ?? stocks.length;
+  const breadth = dsexSnapshot
+    ? toBreadthFromSnapshot(dsexSnapshot)
+    : toBreadthModel(latestSummary, universe, listedStockCount);
   const marketMood = deriveMarketCondition(universe, breadth);
   const dataQuality: DataQualityFlag | "UNKNOWN" = latestSummary?.data_quality_flag ?? "UNKNOWN";
   const session = getMarketSession({
@@ -350,7 +357,7 @@ export function buildMarketDashboardModel(
       },
       {
         label: "Listed Stocks",
-        value: formatNumber(stocks.length || 0, { maximumFractionDigits: 0 }),
+        value: formatNumber(listedStockCount || 0, { maximumFractionDigits: 0 }),
         helper: `${universe.length} price-backed names loaded for analytics`,
         tone: "neutral",
       },
@@ -365,6 +372,6 @@ export function buildMarketDashboardModel(
       signalCount: universe.filter((stock) => isActionableDecision(resolveTraderDecision(stock).recommendation)).length,
       turnoverLabel,
     }),
-    movers: buildDashboardMovers(universe, sessionTradeDate),
+    movers: options?.movers ?? buildDashboardMovers(universe, sessionTradeDate),
   };
 }

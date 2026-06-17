@@ -48,6 +48,7 @@ x-backend-environment: &backend-environment
   DSE_ARCHIVE_SSL_VERIFY: ${DSE_ARCHIVE_SSL_VERIFY:-false}
   POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
   POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+  REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
 
 services:
   postgres:
@@ -71,6 +72,18 @@ services:
       retries: 5
       start_period: 10s
 
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
   backend-api:
     build:
       context: .
@@ -85,6 +98,8 @@ services:
       FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-127.0.0.1,172.28.0.0/16}
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     networks:
       - app-network
@@ -105,6 +120,8 @@ services:
       RUN_SCHEDULER: "true"
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     networks:
       - app-network

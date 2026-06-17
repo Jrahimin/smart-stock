@@ -67,6 +67,7 @@ class Settings(BaseSettings):
     amarstock_latest_price_stock_details_enabled: bool = True
     # DSE day-end archive often serves an incomplete TLS chain; disable verify only for that host.
     dse_archive_ssl_verify: bool = False
+    redis_url: str | None = None
 
     @property
     def market_sync_interval_seconds(self) -> int:

@@ -141,6 +141,34 @@ export type BackendDailyMarketSummaryDto = {
   updated_at: string;
 };
 
+export type BackendDashboardMoverDto = {
+  stock_id: string;
+  symbol: string;
+  name: string;
+  exchange: ExchangeCode;
+  latest_price: string | number;
+  price_change_percent: string | number | null;
+  turnover: string | number | null;
+  volume: number;
+  trend_direction: string;
+};
+
+export type BackendDashboardMoversDto = {
+  session_trade_date: string | null;
+  gainers: BackendDashboardMoverDto[];
+  losers: BackendDashboardMoverDto[];
+  turnover_leaders: BackendDashboardMoverDto[];
+  volume_leaders: BackendDashboardMoverDto[];
+};
+
+export type BackendDashboardOverviewDto = {
+  exchange: ExchangeCode;
+  session_trade_date: string | null;
+  listed_stock_count: number;
+  dsex_index: BackendDsexIndexSnapshotDto;
+  summaries: BackendDailyMarketSummaryDto[];
+};
+
 export type BackendTechnicalIndicatorDto = {
   stock_id: string;
   trade_date: string;

@@ -128,6 +128,14 @@ async def sync_market_snapshot(
             trade_date=resolved_trade_date,
         )
 
+    from app.core.redis_client import build_redis_client
+    from app.modules.market_dashboard.market_dashboard_cache import invalidate_dashboard_cache
+
+    await invalidate_dashboard_cache(
+        build_redis_client(resolved_settings),
+        exchange,
+    )
+
     return MarketSnapshotSyncResult(
         exchange=exchange,
         trade_date=resolved_trade_date,
