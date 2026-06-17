@@ -10,6 +10,16 @@ type StockWorkspaceHeaderProps = {
   stockId?: string;
 };
 
+function getChangeTone(changePercent: string): "positive" | "negative" | "neutral" {
+  if (changePercent.startsWith("+")) {
+    return "positive";
+  }
+  if (changePercent.startsWith("-")) {
+    return "negative";
+  }
+  return "neutral";
+}
+
 export function StockWorkspaceHeader({ model, decision, stockId }: StockWorkspaceHeaderProps) {
   const action: SignalType | TraderRecommendation = decision?.available
     ? (decision.recommendation as TraderRecommendation)
@@ -30,19 +40,19 @@ export function StockWorkspaceHeader({ model, decision, stockId }: StockWorkspac
         <span>{model.header.name}</span>
       </div>
       <div className="stock-header-metrics">
-        <div>
+        <div className="stock-header-metric stock-header-metric-price">
           <span>Last</span>
           <strong>{model.header.latestPrice}</strong>
         </div>
-        <div>
+        <div className={`stock-header-metric stock-header-metric-change stock-header-metric-change-${getChangeTone(model.header.changePercent)}`}>
           <span>Change</span>
           <strong>{model.header.changePercent}</strong>
         </div>
-        <div>
+        <div className="stock-header-metric stock-header-metric-cap">
           <span>Market Cap</span>
           <strong>{model.header.marketCap}</strong>
         </div>
-        <div>
+        <div className="stock-header-metric stock-header-metric-action">
           <span>{actionLabel}</span>
           <SignalBadge signal={action} />
           <small>{confidence}</small>

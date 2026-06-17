@@ -9,7 +9,7 @@ type FundamentalsPanelProps = {
 };
 
 export function FundamentalsPanel({ model }: FundamentalsPanelProps) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
 
   return (
     <section className="trader-workspace-strip fundamentals-strip">

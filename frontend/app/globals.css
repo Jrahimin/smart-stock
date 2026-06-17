@@ -4350,11 +4350,11 @@ button {
 .technical-summary-grid,
 .fundamentals-grid {
   display: grid;
-  gap: 6px;
+  gap: 12px;
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
-.stock-header-metrics > div,
+.stock-header-metrics > .stock-header-metric,
 .technical-summary-card,
 .fundamentals-grid article {
   background: var(--soft-surface);
@@ -4365,21 +4365,94 @@ button {
   padding: 7px 8px;
 }
 
+.stock-header-metrics > .stock-header-metric {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--soft-surface) 88%, white 12%), var(--soft-surface));
+  border: 1px solid color-mix(in srgb, var(--border) 72%, white 28%);
+  border-radius: 14px;
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 10%, transparent),
+    0 10px 24px rgb(0 0 0 / 14%);
+  gap: 1px;
+  min-height: 74px;
+  padding: 8px 12px;
+  text-align: center;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.stock-header-metric:hover {
+  border-color: color-mix(in srgb, var(--primary) 24%, var(--border));
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 12%, transparent),
+    0 14px 28px rgb(0 0 0 / 18%);
+  transform: translateY(-1px);
+}
+
+.stock-header-metric-price strong {
+  color: var(--foreground);
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.stock-header-metric-change-positive {
+  background: linear-gradient(180deg, rgb(75 214 164 / 14%), rgb(75 214 164 / 5%));
+  border-color: rgb(75 214 164 / 28%);
+}
+
+.stock-header-metric-change-positive strong {
+  color: var(--positive);
+}
+
+.stock-header-metric-change-negative {
+  background: linear-gradient(180deg, rgb(255 119 119 / 14%), rgb(255 119 119 / 5%));
+  border-color: rgb(255 119 119 / 28%);
+}
+
+.stock-header-metric-change-negative strong {
+  color: var(--negative);
+}
+
+.stock-header-metric-change-neutral strong {
+  color: var(--foreground);
+}
+
+.stock-header-metric-cap strong {
+  color: color-mix(in srgb, var(--primary) 72%, var(--foreground));
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.stock-header-metric-action {
+  gap: 6px;
+  justify-items: center;
+}
+
+.stock-header-metric-action .signal-badge {
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 5px 10px;
+}
+
 .stock-header-metrics span,
 .technical-summary-card span,
 .fundamentals-grid span {
   color: var(--muted);
   font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
 }
 
 .stock-header-metrics strong {
-  font-size: 0.9rem;
+  font-size: 0.95rem;
+  font-weight: 800;
+  line-height: 1.1;
 }
 
 .stock-header-metrics small {
   color: var(--muted);
-  font-size: 0.7rem;
+  font-size: 0.68rem;
+  font-weight: 600;
 }
 
 .fundamentals-grid small {
@@ -4911,67 +4984,107 @@ button {
 
 .circular-progress-ring {
   align-items: center;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 16px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--panel) 90%, white 10%), var(--panel));
+  border: 1px solid color-mix(in srgb, var(--border) 70%, white 30%);
+  border-radius: 18px;
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 8%, transparent),
+    0 12px 28px rgb(0 0 0 / 16%);
   display: grid;
-  gap: 6px;
+  gap: 8px;
   justify-items: center;
-  padding: 12px 8px 10px;
+  padding: 14px 10px 12px;
   position: relative;
-  transition: transform 0.2s ease, border-color 0.2s ease;
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .circular-progress-ring:hover {
-  border-color: color-mix(in srgb, var(--primary) 20%, var(--border));
-  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--primary) 28%, var(--border));
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 10%, transparent),
+    0 16px 32px rgb(0 0 0 / 20%);
+  transform: translateY(-2px);
 }
 
 .circular-progress-clickable {
   cursor: pointer;
 }
 
+.circular-progress-chart {
+  position: relative;
+}
+
 .circular-progress-track-circle {
-  stroke: var(--subtle);
+  stroke: color-mix(in srgb, var(--subtle) 72%, transparent);
+}
+
+.circular-progress-opportunity {
+  background: linear-gradient(180deg, rgb(75 214 164 / 10%), rgb(75 214 164 / 3%));
+  border-color: rgb(75 214 164 / 24%);
 }
 
 .circular-progress-opportunity .circular-progress-value-circle {
-  stroke: var(--positive);
+  filter: drop-shadow(0 0 6px rgb(75 214 164 / 45%));
+}
+
+.circular-progress-risk {
+  background: linear-gradient(180deg, rgb(255 119 119 / 10%), rgb(255 119 119 / 3%));
+  border-color: rgb(255 119 119 / 24%);
 }
 
 .circular-progress-risk .circular-progress-value-circle {
-  stroke: var(--negative);
+  filter: drop-shadow(0 0 6px rgb(255 119 119 / 40%));
 }
 
 .circular-progress-breakout .circular-progress-value-circle {
+  filter: drop-shadow(0 0 6px rgb(123 183 255 / 40%));
   stroke: #7bb7ff;
 }
 
 .circular-progress-value-circle {
   fill: none;
+  stroke: var(--primary);
   transition: stroke-dashoffset 0.6s ease;
 }
 
 .circular-progress-center {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   inset: 0;
-  place-items: center;
+  justify-content: center;
   position: absolute;
-  display: grid;
 }
 
 .circular-progress-center strong {
-  font-size: 1.1rem;
+  color: var(--foreground);
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: -0.05em;
+  line-height: 1;
+}
+
+.circular-progress-opportunity .circular-progress-center strong {
+  color: color-mix(in srgb, var(--positive) 82%, white);
+}
+
+.circular-progress-risk .circular-progress-center strong {
+  color: color-mix(in srgb, var(--negative) 82%, white);
 }
 
 .circular-progress-icon {
-  font-size: 0.8rem;
-  margin-bottom: -8px;
+  font-size: 0.72rem;
+  line-height: 1;
+  opacity: 0.9;
 }
 
 .circular-progress-label {
   color: var(--muted);
   font-size: 0.72rem;
   font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .trader-workspace-strip {
