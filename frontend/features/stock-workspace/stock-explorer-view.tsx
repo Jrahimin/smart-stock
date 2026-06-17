@@ -21,6 +21,7 @@ import type { WatchlistFilterMode } from "@/features/watchlist/types/watchlist-t
 import { useMarketUniverse } from "@/features/market-dashboard/hooks/use-market-universe";
 import { formatCompactNumber, formatNumber, formatPercent } from "@/lib/formatters/financial-formatters";
 import type { StockIntelligenceModel } from "@/lib/market/market-intelligence-types";
+import { formatTrendAriaLabel } from "@/lib/market/trend-display";
 import { getVolumeBehaviorId, resolveTraderDecision } from "@/lib/market/trader-decision";
 
 const columnHelper = createColumnHelper<StockIntelligenceModel>();
@@ -132,8 +133,8 @@ export function StockExplorerView() {
               {info.getValue()}
               <span
                 className={`trend-icon trend-icon-${info.row.original.trend.toLowerCase()}`}
-                aria-label={formatTrend(info.row.original.trend)}
-                title={formatTrend(info.row.original.trend)}
+                aria-label={formatTrendAriaLabel(info.row.original.trend)}
+                title={formatTrendAriaLabel(info.row.original.trend)}
               />
             </strong>
             <span>{info.row.original.stock.name}</span>
@@ -345,10 +346,6 @@ export function StockExplorerView() {
       </div>
     </section>
   );
-}
-
-function formatTrend(trend: StockIntelligenceModel["trend"]) {
-  return trend.replace("_", " ");
 }
 
 function getExplorerCellClassName(columnId: string) {

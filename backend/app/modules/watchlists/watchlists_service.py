@@ -5,10 +5,14 @@ from uuid import UUID
 from fastapi import Depends
 
 from app.api.dependencies.auth_dependencies import get_current_user
+from app.core.constants.trading_constants import PULSE_PRICE_WINDOW_LIMIT
 from app.core.exception_handlers import NotFoundError
 from app.core.security_config import UserContext
 from app.models import UserWatchlist
+from app.modules.market_universe.market_universe_compute import technical_snapshot_to_read
+from app.modules.market_universe.market_universe_schemas import TechnicalSnapshotRead
 from app.modules.stock_details.decision.summary import compute_trader_decision_summary_for_stock
+from app.modules.stock_details.decision.technical import build_technical_snapshot
 from app.modules.watchlists.watchlists_repository import WatchlistsRepository, get_watchlists_repository
 from app.modules.watchlists.watchlists_schemas import (
     UserWatchlistCreate,
@@ -18,7 +22,7 @@ from app.modules.watchlists.watchlists_schemas import (
     UserWatchlistUpdate,
 )
 
-PRICE_WINDOW_LIMIT = 90
+PRICE_WINDOW_LIMIT = PULSE_PRICE_WINDOW_LIMIT
 
 
 def _build_watching_label(watching_days: int) -> str:
@@ -167,9 +171,18 @@ class WatchlistsService:
             current_price = latest_price.close_price if latest_price is not None else None
             stock = stocks.get(entry.stock_id)
             windows = price_windows.get(entry.stock_id, [])
+            technical_snapshot: TechnicalSnapshotRead | None = None
             trader_decision = None
             if stock is not None and windows:
-                trader_decision = compute_trader_decision_summary_for_stock(stock, windows)
+                sorted_windows = sorted(windows, key=lambda row: row.trade_date)
+                snapshot = build_technical_snapshot(sorted_windows)
+                if snapshot is not None:
+                    technical_snapshot = technical_snapshot_to_read(snapshot)
+                    trader_decision = compute_trader_decision_summary_for_stock(
+                        stock,
+                        sorted_windows,
+                        snapshot=snapshot,
+                    )
 
             created_date = entry.created_at.date() if entry.created_at.tzinfo else entry.created_at.replace(tzinfo=UTC).date()
             watching_days = max(0, (today - created_date).days)
@@ -195,6 +208,7 @@ class WatchlistsService:
                     watching_label=_build_watching_label(watching_days),
                     current_price=current_price,
                     trader_decision=trader_decision,
+                    technical_snapshot=technical_snapshot,
                 )
             )
 

@@ -366,6 +366,7 @@ export type BackendUserWatchlistDto = {
   watching_label: string;
   current_price: string | number | null;
   trader_decision: BackendTraderDecisionSummaryDto | null;
+  technical_snapshot: BackendTechnicalSnapshotDto | null;
 };
 
 export type BackendUserWatchlistSummaryDto = {

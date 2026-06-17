@@ -255,6 +255,21 @@ Rules:
 * Components should not parse backend decimals, infer trading risk, inspect raw data quality, or call APIs directly.
 * Formatting belongs in `frontend/lib/formatters`; deterministic trading derivations belong in `frontend/lib/market` or `frontend/lib/insights`.
 
+### Shared Market Intelligence (Client)
+
+List views (Explorer, Scanner, Signals, Watchlist) must not derive action, RSI, or trend independently. Use one pipeline:
+
+| Piece | Location | Role |
+|-------|----------|------|
+| Backend source | `GET /api/v1/market/universe-rows` | `ScoredUniverseRow`: `technical_snapshot` + `decision` |
+| Row mapper | `frontend/lib/market/universe-row-mapper.ts` | DTO → `StockIntelligenceModel` |
+| Enrichment | `frontend/lib/market/universe-intelligence.ts` | Merge universe rows + legacy persisted signals (`GET /signals/latest`) for **NEW** badges |
+| Hook | `frontend/hooks/market/use-enriched-universe-intelligence.ts` | TanStack Query wrapper; returns `intelligenceByStockId` map |
+| Decisions | `frontend/lib/market/trader-decision.ts` | `resolveTraderDecision()`, session-change helpers — **only** source for action badges |
+| Trend labels | `frontend/lib/market/trend-display.ts` | Shared Bullish/Bearish/Sideways copy and filter keys |
+
+Watchlist fallback when a symbol is missing from the universe payload: use watchlist item `technical_snapshot` + `trader_decision` (same backend compute path). Stock detail workspace still uses `GET /stock-details/.../decision` for the full decision rail; list-level badges stay on the universe contract above.
+
 ### Market Session And Cache Policy
 
 The market session engine should model `PRE_OPEN`, `OPEN`, `POST_CLOSE`, `HOLIDAY`, `STALE`, `PARTIAL`, and `SYNCING` using Asia/Dhaka context, latest market dates, data quality, and future sync job state.

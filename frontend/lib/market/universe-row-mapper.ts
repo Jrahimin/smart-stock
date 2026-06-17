@@ -1,5 +1,6 @@
 import type { BackendScoredUniverseRowDto, SignalType } from "@/lib/api/backend-api-types";
 import type { DerivedSignalModel, RiskLevel, StockIntelligenceModel, TrendDirection } from "@/lib/market/market-intelligence-types";
+import { normalizeTrendDirection } from "@/lib/market/trend-display";
 
 function mapRiskLabel(value: string | undefined): RiskLevel {
   if (value === "LOW" || value === "MEDIUM" || value === "HIGH") {
@@ -16,10 +17,7 @@ function mapRecommendationToSignal(recommendation: string | undefined): SignalTy
 }
 
 function mapTrend(value: string): TrendDirection {
-  if (value === "UPTREND" || value === "DOWNTREND" || value === "SIDEWAYS" || value === "UNKNOWN") {
-    return value;
-  }
-  return "UNKNOWN";
+  return normalizeTrendDirection(value);
 }
 
 export function mapUniverseRowToListRow(row: BackendScoredUniverseRowDto): StockIntelligenceModel {

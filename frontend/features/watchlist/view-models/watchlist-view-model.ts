@@ -1,83 +1,25 @@
-import type { BackendUserWatchlistDto, TraderRecommendation } from "@/lib/api/backend-api-types";
+import type { BackendUserWatchlistDto } from "@/lib/api/backend-api-types";
 import { formatNumber, formatPercent } from "@/lib/formatters/financial-formatters";
 import type {
   WatchlistPageFilters,
   WatchlistRowViewModel,
-  WatchlistTrendKey,
 } from "@/features/watchlist/types/watchlist-types";
-import type { StockIntelligenceModel, TrendDirection } from "@/lib/market/market-intelligence-types";
-import { mapPersistedSignalToRecommendation, resolveTraderDecision, resolveWatchlistAction } from "@/lib/market/trader-decision";
+import type { StockIntelligenceModel } from "@/lib/market/market-intelligence-types";
+import {
+  formatTrendLabel,
+  getTrendFilterKey,
+  getTrendTone,
+} from "@/lib/market/trend-display";
+import {
+  getPreviousSessionRecommendation,
+  isTraderDecisionChangedThisSession,
+  resolveTraderDecision,
+} from "@/lib/market/trader-decision";
 
 /**
- * NEW = the trader decision changed during the latest trading session versus the
- * last persisted strategy signal (e.g. HOLD → BUY, WAIT → SELL).
+ * Watchlist rows derive action, RSI, and trend from the shared scored-universe
+ * intelligence map (same source as explorer, scanner, and signal center).
  */
-function getPriorTradeDate(stock: StockIntelligenceModel): string | null {
-  if (!stock.latestTradeDate) {
-    return null;
-  }
-
-  const priorDates = stock.prices
-    .map((price) => price.trade_date)
-    .filter((tradeDate) => tradeDate < stock.latestTradeDate!)
-    .sort();
-
-  return priorDates.at(-1) ?? null;
-}
-
-export function getPreviousSessionRecommendation(stock: StockIntelligenceModel): TraderRecommendation | null {
-  const persisted = stock.persistedSignal;
-  if (!persisted || !stock.latestTradeDate) {
-    return null;
-  }
-
-  // Intraday refresh on the latest session.
-  if (persisted.asOfTradeDate === stock.latestTradeDate) {
-    return mapPersistedSignalToRecommendation(persisted.signal);
-  }
-
-  // Prior trading session only (not an older stale signal).
-  const priorTradeDate = getPriorTradeDate(stock);
-  if (priorTradeDate && persisted.asOfTradeDate === priorTradeDate) {
-    return mapPersistedSignalToRecommendation(persisted.signal);
-  }
-
-  return null;
-}
-
-export function isNewWatchlistSignal(stock: StockIntelligenceModel): boolean {
-  const current = resolveTraderDecision(stock).recommendation;
-  const previous = getPreviousSessionRecommendation(stock);
-
-  if (!previous || !stock.latestTradeDate) {
-    return false;
-  }
-
-  return previous !== current;
-}
-
-function getTrendKey(trend: TrendDirection): WatchlistTrendKey {
-  if (trend === "UPTREND") {
-    return "BULLISH";
-  }
-  if (trend === "DOWNTREND") {
-    return "BEARISH";
-  }
-  if (trend === "SIDEWAYS") {
-    return "SIDEWAYS";
-  }
-  return "UNKNOWN";
-}
-
-function getTrendTone(trend: TrendDirection): "positive" | "negative" | "neutral" {
-  if (trend === "UPTREND") {
-    return "positive";
-  }
-  if (trend === "DOWNTREND") {
-    return "negative";
-  }
-  return "neutral";
-}
 
 function formatShortTradeDate(tradeDate: string | null | undefined): string {
   if (!tradeDate) {
@@ -92,30 +34,13 @@ function formatShortTradeDate(tradeDate: string | null | undefined): string {
   return parsed.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-function formatTrendBadge(trend: TrendDirection): string {
-  if (trend === "UPTREND") {
-    return "Bullish";
-  }
-  if (trend === "DOWNTREND") {
-    return "Bearish";
-  }
-  if (trend === "SIDEWAYS") {
-    return "Sideways";
-  }
-  return "Unknown";
-}
-
 export function buildWatchlistRowViewModel(
   item: BackendUserWatchlistDto,
   intelligence: StockIntelligenceModel | null,
 ): WatchlistRowViewModel {
   const decision = intelligence ? resolveTraderDecision(intelligence) : null;
-  const actionLabel = resolveWatchlistAction(intelligence, item.trader_decision?.recommendation);
+  const actionLabel = decision?.recommendation ?? item.trader_decision?.recommendation ?? "WAIT";
   const previousActionLabel = intelligence ? getPreviousSessionRecommendation(intelligence) : null;
-  const unrealized =
-    item.unrealized_gain_percent !== null && item.unrealized_gain_percent !== undefined
-      ? formatPercent(Number(item.unrealized_gain_percent))
-      : null;
   const trendDirection = intelligence?.trend ?? "UNKNOWN";
   const buyPriceLabel =
     item.buy_price !== null && item.buy_price !== undefined ? formatNumber(Number(item.buy_price)) : null;
@@ -129,15 +54,18 @@ export function buildWatchlistRowViewModel(
     latestPriceLabel: formatNumber(intelligence?.latestPrice ?? item.current_price),
     changePercentLabel: formatPercent(intelligence?.priceChangePercent),
     rsiLabel: formatNumber(intelligence?.rsi),
-    trendLabel: intelligence ? formatTrendBadge(trendDirection) : "Unknown",
+    trendLabel: intelligence ? formatTrendLabel(trendDirection) : "Unknown",
     trendTone: intelligence ? getTrendTone(trendDirection) : "neutral",
-    trendKey: intelligence ? getTrendKey(trendDirection) : "UNKNOWN",
+    trendKey: intelligence ? getTrendFilterKey(trendDirection) : "UNKNOWN",
     trendDirection,
     actionLabel,
     previousActionLabel,
     lastUpdatedLabel: formatShortTradeDate(intelligence?.latestTradeDate),
-    unrealizedGainLabel: unrealized,
-    isNewSignal: intelligence ? isNewWatchlistSignal(intelligence) : false,
+    unrealizedGainLabel:
+      item.unrealized_gain_percent !== null && item.unrealized_gain_percent !== undefined
+        ? formatPercent(Number(item.unrealized_gain_percent))
+        : null,
+    isNewSignal: intelligence ? isTraderDecisionChangedThisSession(intelligence) : false,
   };
 }
 

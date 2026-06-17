@@ -327,7 +327,10 @@ Root: `frontend/`
 * API client: `frontend/lib/api/backend-api-client.ts`
 * API types: `frontend/lib/api/backend-api-types.ts`
 * Frontend config: `frontend/lib/frontend-config.ts`
-* Market intelligence derivation: `frontend/lib/market/market-intelligence.ts`
+* Market intelligence derivation: `frontend/lib/market/market-intelligence.ts` (legacy client derivations; chart/historical paths)
+* Shared list intelligence: `frontend/lib/market/universe-row-mapper.ts`, `universe-intelligence.ts`, `trader-decision.ts`, `trend-display.ts`
+* Shared list hook: `frontend/hooks/market/use-enriched-universe-intelligence.ts` (`intelligenceByStockId` from universe rows + persisted signals)
+* Market universe hook: `frontend/features/market-dashboard/hooks/use-market-universe.ts` (raw rows + mapped list models)
 * Market dashboard feature: `frontend/features/market-dashboard/`
 * Stock workspace feature: `frontend/features/stock-workspace/`
 * Scanner feature: `frontend/features/scanner/`
@@ -340,8 +343,10 @@ Current frontend product flow:
 * Market Pulse loads the backend briefing endpoint and maps the response into editorial page sections (hero, focus stocks, insight, changes, alerts).
 * Dashboard loads active stocks and recent per-stock OHLCV to derive heatmap tiles, movers, breadth, market condition, deterministic signals, and timeline context.
 * Stock Explorer uses TanStack Table over derived stock intelligence models for trader-focused discovery.
+* Explorer, Scanner, Signal Center, and Watchlist resolve **Action**, **RSI**, and **Trend** from the shared enriched universe map (`useEnrichedUniverseIntelligence` → `resolveTraderDecision` + `trend-display`). Do not read watchlist-only `trader_decision` when universe intelligence exists.
 * Stock Detail Workspace uses exchange/symbol lookup, historical OHLCV, candlestick charting, technical summary, deterministic insights, and available stock fundamentals.
 * Signal Center and Scanner reuse deterministic signal and stock intelligence models instead of static placeholders.
+* Watchlist joins user items to the same `intelligenceByStockId` map; API `technical_snapshot` is fallback only when a symbol is outside the universe payload.
 * Until a backend market-wide latest-prices endpoint exists, the frontend uses per-stock price requests for Trader-usable V1 and should keep this logic isolated in feature hooks/view models.
 * Dashboard listed-stock count should represent active stock-master coverage; price-backed analytics can use a smaller capped universe for performance.
 * DSEX and total exchange turnover depend on real `daily_market_summaries` index rows. `SOURCE_VALIDATION` rows are data-quality records and should not be presented as DSEX index values.

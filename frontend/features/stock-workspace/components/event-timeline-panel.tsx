@@ -9,6 +9,14 @@ type EventTimelinePanelProps = {
   decision: StockDecisionViewModel;
 };
 
+function truncateEventTitle(title: string, maxLength = 20): string {
+  const trimmed = title.trim();
+  if (trimmed.length <= maxLength) {
+    return trimmed;
+  }
+  return `${trimmed.slice(0, maxLength)}...`;
+}
+
 export function EventTimelinePanel({ decision }: EventTimelinePanelProps) {
   const [selectedEventIndex, setSelectedEventIndex] = useState<number | null>(null);
   if (!decision.available || decision.events.length === 0) {
@@ -33,7 +41,7 @@ export function EventTimelinePanel({ decision }: EventTimelinePanelProps) {
               type="button"
             >
               <span className="event-timeline-dot" />
-              <strong>{event.category.replace("Corporate Announcements", "News")}</strong>
+              <strong>{truncateEventTitle(event.title)}</strong>
               <small>{event.event_date}</small>
               {index < decision.events.length - 1 ? <span aria-hidden="true" className="event-timeline-line" /> : null}
             </button>

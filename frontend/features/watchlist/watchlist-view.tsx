@@ -21,13 +21,13 @@ import {
   filterWatchlistRows,
   sortWatchlistRows,
 } from "@/features/watchlist/view-models/watchlist-view-model";
-import { useMarketUniverse } from "@/features/market-dashboard/hooks/use-market-universe";
+import { useEnrichedUniverseIntelligence } from "@/hooks/market/use-enriched-universe-intelligence";
+import { resolveWatchlistStockIntelligence } from "@/lib/market/universe-intelligence";
 
 export function WatchlistView() {
   const { items, summary, isLoading, isError } = useUserWatchlist();
-  const { universe, isLoading: universeLoading } = useMarketUniverse({
+  const { intelligenceByStockId, isLoading: universeLoading } = useEnrichedUniverseIntelligence({
     stockLimit: 500,
-    priceWindowLimit: 90,
   });
   const updateMutation = useWatchlistItemUpdate();
   const [filters, setFilters] = useState<WatchlistPageFilters>({
@@ -40,17 +40,9 @@ export function WatchlistView() {
   const [noteDraft, setNoteDraft] = useState("");
   const [buyPriceDraft, setBuyPriceDraft] = useState("");
 
-  const intelligenceByStockId = useMemo(() => {
-    const map = new Map<string, (typeof universe)[number]>();
-    for (const stock of universe) {
-      map.set(stock.stock.id, stock);
-    }
-    return map;
-  }, [universe]);
-
   const rows = useMemo(() => {
     const built = items.map((item) =>
-      buildWatchlistRowViewModel(item, intelligenceByStockId.get(item.stock_id) ?? null),
+      buildWatchlistRowViewModel(item, resolveWatchlistStockIntelligence(item, intelligenceByStockId)),
     );
     return filterWatchlistRows(sortWatchlistRows(built), filters);
   }, [filters, intelligenceByStockId, items]);

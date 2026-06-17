@@ -1,5 +1,4 @@
-import type { TraderRecommendation } from "@/lib/api/backend-api-types";
-import type { SignalType } from "@/lib/api/backend-api-types";
+import type { SignalType, TraderRecommendation } from "@/lib/api/backend-api-types";
 import type { StockIntelligenceModel } from "@/lib/market/market-intelligence-types";
 
 export type ResolvedTraderDecision = {
@@ -20,6 +19,48 @@ export function resolveWatchlistAction(
   }
 
   return backendRecommendation ?? "WAIT";
+}
+
+function getPriorTradeDate(stock: StockIntelligenceModel): string | null {
+  if (!stock.latestTradeDate) {
+    return null;
+  }
+
+  const priorDates = stock.prices
+    .map((price) => price.trade_date)
+    .filter((tradeDate) => tradeDate < stock.latestTradeDate!)
+    .sort();
+
+  return priorDates.at(-1) ?? null;
+}
+
+export function getPreviousSessionRecommendation(stock: StockIntelligenceModel): TraderRecommendation | null {
+  const persisted = stock.persistedSignal;
+  if (!persisted || !stock.latestTradeDate) {
+    return null;
+  }
+
+  if (persisted.asOfTradeDate === stock.latestTradeDate) {
+    return mapPersistedSignalToRecommendation(persisted.signal);
+  }
+
+  const priorTradeDate = getPriorTradeDate(stock);
+  if (priorTradeDate && persisted.asOfTradeDate === priorTradeDate) {
+    return mapPersistedSignalToRecommendation(persisted.signal);
+  }
+
+  return null;
+}
+
+export function isTraderDecisionChangedThisSession(stock: StockIntelligenceModel): boolean {
+  const current = resolveTraderDecision(stock).recommendation;
+  const previous = getPreviousSessionRecommendation(stock);
+
+  if (!previous || !stock.latestTradeDate) {
+    return false;
+  }
+
+  return previous !== current;
 }
 
 export function mapPersistedSignalToRecommendation(signal: SignalType): TraderRecommendation {

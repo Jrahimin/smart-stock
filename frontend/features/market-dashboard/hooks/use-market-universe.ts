@@ -42,6 +42,7 @@ export function useMarketUniverse(options: UseMarketUniverseOptions = {}) {
 
   return {
     stocks,
+    rows,
     listedStockCount: universeQuery.data?.meta.listed_stock_count ?? stocks.length,
     universe,
     isLoading: universeQuery.isLoading,

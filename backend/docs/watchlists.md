@@ -47,7 +47,8 @@ There is no `filter=watchlisted` query param; all list results are already watch
 | `watching_days` | Days since `created_at` |
 | `watching_label` | e.g. `Watching for 47 days` |
 | `current_price` | Latest `daily_prices.close_price` |
-| `trader_decision` | Same engine as market price windows |
+| `trader_decision` | Same engine as `market/universe-rows` (shared snapshot + decision path) |
+| `technical_snapshot` | Same `TechnicalSnapshotRead` contract as scored universe rows (RSI, trend, change %) |
 
 Gain percentage is computed on the backend only.
 
@@ -67,6 +68,7 @@ User-facing **Action** badges use the shared trader decision engine (`BUY`, `HOL
 - Star control calls `POST .../toggle` only.
 - User-specific GETs use `cache: no-store`.
 - Watchlist page filters are client-side: **Holding** toggle (inactive = all, active = holdings only), **Action** dropdown (All / BUY / HOLD / WAIT / SELL / NEW), **Trend** dropdown (All / Bullish / Bearish / Sideways).
+- Action, RSI, and trend columns resolve through the shared frontend intelligence map built from `GET /market/universe-rows` plus legacy persisted signals for **NEW** badges (`frontend/lib/market/universe-intelligence.ts`, `frontend/lib/market/trader-decision.ts`). When a row is outside the universe payload, the API `technical_snapshot` + `trader_decision` fields provide the same fallback contract.
 - Price column shows market price plus inline holding context (bought price, unrealized P/L, or “Set buy price”). Notes and buy-price edits use compact popovers/inline controls—no full-row expansion panels.
 
 ### NEW badge definition
