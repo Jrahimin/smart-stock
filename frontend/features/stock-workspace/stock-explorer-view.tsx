@@ -13,7 +13,6 @@ import {
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
-import { FloatingRefreshButton } from "@/components/ui/floating-refresh-button";
 import { MarketActivityLoader } from "@/components/ui/market-activity-loader";
 import { WorkspacePageHero } from "@/components/layout/workspace-page-hero";
 import { WatchlistStarToggle } from "@/features/watchlist/components/watchlist-star-toggle";
@@ -29,7 +28,7 @@ const NUMERIC_EXPLORER_COLUMNS = new Set(["latestPrice", "change", "turnover", "
 
 export function StockExplorerView() {
   const searchParams = useSearchParams();
-  const { universe, isLoading, isError, stocks, refetch } = useMarketUniverse({ stockLimit: 500, priceWindowLimit: 90 });
+  const { universe, isLoading, isError, stocks } = useMarketUniverse({ stockLimit: 500, priceWindowLimit: 90 });
   const { watchedStockIds, holdingStockIds } = useUserWatchlist();
   const [search, setSearch] = useState("");
   const [watchlistFilter, setWatchlistFilter] = useState<WatchlistFilterMode>("ALL");
@@ -337,7 +336,6 @@ export function StockExplorerView() {
           </div>
         ) : null}
       </div>
-      <FloatingRefreshButton onRefresh={refetch} />
     </section>
   );
 }

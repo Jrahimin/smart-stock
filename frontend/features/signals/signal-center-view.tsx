@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import { WorkspacePageHero } from "@/components/layout/workspace-page-hero";
-import { FloatingRefreshButton } from "@/components/ui/floating-refresh-button";
 import { MarketActivityLoader } from "@/components/ui/market-activity-loader";
 import { SignalBadge } from "@/components/ui/signal-badge";
 import { useMarketUniverse } from "@/features/market-dashboard/hooks/use-market-universe";
@@ -19,7 +18,7 @@ import {
 } from "@/lib/market/trader-decision";
 
 export function SignalCenterView() {
-  const { universe, isLoading, isError, refetch } = useMarketUniverse({ stockLimit: 500, priceWindowLimit: 90 });
+  const { universe, isLoading, isError } = useMarketUniverse({ stockLimit: 500, priceWindowLimit: 90 });
   const [filter, setFilter] = useState("ALL");
   const [riskFilter, setRiskFilter] = useState("ALL");
   const [sortMode, setSortMode] = useState("CONVICTION");
@@ -126,7 +125,6 @@ export function SignalCenterView() {
           );
         })}
       </div>
-      <FloatingRefreshButton onRefresh={refetch} />
     </section>
   );
 }

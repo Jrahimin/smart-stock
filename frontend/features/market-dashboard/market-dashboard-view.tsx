@@ -8,7 +8,6 @@ import { MarketDashboardHeader, MarketPulsePanel } from "@/features/market-dashb
 import { MarketTimeline } from "@/features/market-dashboard/components/market-timeline";
 import { SmartSignalFeed } from "@/features/market-dashboard/components/smart-signal-feed";
 import { useMarketDashboard } from "@/features/market-dashboard/hooks/use-market-dashboard";
-import { FloatingRefreshButton } from "@/components/ui/floating-refresh-button";
 
 const InstitutionalHeatmap = dynamic(
   () =>
@@ -27,7 +26,7 @@ const InsightSidebar = dynamic(
 );
 
 export function MarketDashboardView() {
-  const { model, isError, isLoading, isDeferredLoading, refetch } = useMarketDashboard();
+  const { model, isError, isLoading, isDeferredLoading } = useMarketDashboard();
 
   return (
     <div className="market-dashboard-view">
@@ -58,11 +57,6 @@ export function MarketDashboardView() {
           <MarketMoversPanel movers={model.movers.turnoverLeaders} title="Liquidity watch" eyebrow="Turnover Leaders" />
         </div>
       </div>
-      <FloatingRefreshButton
-        disabled={model.session.disablesFreshDataActions}
-        disabledReason={model.session.description}
-        onRefresh={refetch}
-      />
     </div>
   );
 }

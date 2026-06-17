@@ -6,11 +6,10 @@ import { MarketPulseHero } from "@/features/market-pulse/components/market-pulse
 import { SinceLastVisitStrip } from "@/features/market-pulse/components/since-last-visit-strip";
 import { StocksInFocusSection } from "@/features/market-pulse/components/stocks-in-focus-section";
 import { useMarketPulse } from "@/features/market-pulse/hooks/use-market-pulse";
-import { FloatingRefreshButton } from "@/components/ui/floating-refresh-button";
 import { MarketActivityLoader } from "@/components/ui/market-activity-loader";
 
 export function MarketPulseView() {
-  const { model, isLoading, isError, refetch } = useMarketPulse();
+  const { model, isLoading, isError } = useMarketPulse();
 
   if (isLoading && !model) {
     return (
@@ -75,11 +74,6 @@ export function MarketPulseView() {
         </div>
       ) : null}
 
-      <FloatingRefreshButton
-        disabled={model.sessionDisablesRefresh}
-        disabledReason={model.sessionDescription}
-        onRefresh={refetch}
-      />
     </div>
   );
 }
