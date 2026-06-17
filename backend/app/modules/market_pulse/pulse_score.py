@@ -243,6 +243,37 @@ def build_pulse_trigger(snapshot: TechnicalSnapshot, decision: TraderDecisionSum
     return "Momentum holds with positive participation"
 
 
+def build_conviction_insight(
+    snapshot: TechnicalSnapshot,
+    decision: TraderDecisionSummaryRead,
+    score: PulseScoreBreakdown,
+    label: PulseFocusLabel,
+) -> str:
+    volume_ratio = get_volume_ratio(snapshot)
+    change = snapshot.price_change_percent or 0
+
+    if label == PulseFocusLabel.VOLUME_BREAKOUT or volume_ratio >= 2.0:
+        if change > 0 and volume_ratio >= 2.5:
+            return "Volume expanding faster than price"
+        return "Participation surge needs price follow-through"
+
+    if label == PulseFocusLabel.NEW_BUY_SETUP:
+        if snapshot.trend == TrendDirection.UPTREND:
+            return "Fresh breakout from consolidation"
+        return "Investigate for entry today"
+
+    if label == PulseFocusLabel.MOMENTUM_BUILDING:
+        return "Sector leadership improving"
+
+    if label == PulseFocusLabel.SIGNAL_UPGRADE:
+        return "Signal strength upgraded today"
+
+    if score.momentum >= 18:
+        return "Momentum building with participation"
+
+    return build_action_summary(label)
+
+
 def build_action_summary(label: PulseFocusLabel) -> str:
     if label == PulseFocusLabel.NEW_BUY_SETUP:
         return "Investigate for entry today"

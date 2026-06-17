@@ -1,15 +1,23 @@
-import type { BackendMarketPulseDto, BackendFocusStockDto, BackendMarketMoverDto } from "@/lib/api/backend-api-types";
+import type { BackendMarketPulseDto, BackendFocusStockDto, BackendMarketMoverDto, BackendMarketBriefingDto } from "@/lib/api/backend-api-types";
 import { getMarketSession } from "@/lib/market/market-session-engine";
 
 import type {
   FocusStockModel,
   MarketAlertModel,
+  MarketBriefingModel,
   MarketMoverModel,
   MarketMoversModel,
   MarketPulseModel,
   PulseBriefingChipModel,
   PulseChangeModel,
 } from "@/features/market-pulse/types/market-pulse-types";
+
+function mapBriefingTone(value: string): "positive" | "warning" | "info" | "negative" | "neutral" {
+  if (value === "positive" || value === "warning" || value === "info" || value === "negative" || value === "neutral") {
+    return value;
+  }
+  return "info";
+}
 
 function mapTone(value: string): "positive" | "warning" | "info" | "negative" {
   if (value === "positive" || value === "warning" || value === "info" || value === "negative") {
@@ -70,6 +78,13 @@ function mapChange(change: BackendMarketPulseDto["changes"][number]): PulseChang
   };
 }
 
+function mapAlertSignificance(value: string): "HIGH" | "MEDIUM" | "WATCH" {
+  if (value === "HIGH" || value === "MEDIUM" || value === "WATCH") {
+    return value;
+  }
+  return "WATCH";
+}
+
 function mapAlert(alert: BackendMarketPulseDto["alerts"][number]): MarketAlertModel {
   return {
     id: alert.id,
@@ -78,6 +93,8 @@ function mapAlert(alert: BackendMarketPulseDto["alerts"][number]): MarketAlertMo
     eventExplanation: alert.event_explanation,
     whyItMatters: alert.why_it_matters,
     metricLabel: alert.metric_label,
+    significance: mapAlertSignificance(alert.significance),
+    timeLabel: alert.time_label,
     symbol: alert.symbol,
     latestPrice: alert.latest_price,
     priceChangePercent: alert.price_change_percent,
@@ -90,12 +107,12 @@ function mapAlert(alert: BackendMarketPulseDto["alerts"][number]): MarketAlertMo
 function buildBriefingChips(dto: BackendMarketPulseDto): PulseBriefingChipModel[] {
   const chips: PulseBriefingChipModel[] = [];
 
-  if (dto.since_last_visit.new_focus_count > 0) {
+  if (dto.hero.session_label) {
     chips.push({
-      id: "new-entries",
-      label: "New Entries",
-      value: String(dto.since_last_visit.new_focus_count),
-      tone: "positive",
+      id: "session",
+      label: "Market",
+      value: dto.hero.session_label.toUpperCase(),
+      tone: "info",
     });
   }
 
@@ -116,26 +133,16 @@ function buildBriefingChips(dto: BackendMarketPulseDto): PulseBriefingChipModel[
       value: sectorAlert.symbol,
       tone: "info",
     });
-  } else if (dto.today_insight?.title.toLowerCase().includes("sector")) {
-    const sectorMatch = dto.today_insight.title.match(/in\s+(.+?)(?:\s+sector)?$/i);
+  } else if (dto.briefing?.money_flow.inflows[0]) {
     chips.push({
       id: "sector-focus",
       label: "Sector In Focus",
-      value: sectorMatch?.[1] ?? "Rotation",
+      value: dto.briefing.money_flow.inflows[0].sector,
       tone: "info",
     });
   }
 
-  if (dto.changes.length > 0) {
-    chips.push({
-      id: "changes",
-      label: "Fresh Changes",
-      value: String(dto.changes.length),
-      tone: "primary",
-    });
-  }
-
-  if (dto.hero.focus_count > 0 && !chips.some((chip) => chip.id === "new-entries")) {
+  if (dto.hero.focus_count > 0) {
     chips.push({
       id: "in-focus",
       label: "In Focus",
@@ -145,6 +152,124 @@ function buildBriefingChips(dto: BackendMarketPulseDto): PulseBriefingChipModel[
   }
 
   return chips.slice(0, 4);
+}
+
+function mapBriefing(briefing: BackendMarketBriefingDto): MarketBriefingModel {
+  return {
+    story: {
+      headline: briefing.story.headline,
+      explanation: briefing.story.explanation,
+      tone: mapBriefingTone(briefing.story.tone),
+      metrics: briefing.story.metrics.map((metric) => ({
+        label: metric.label,
+        value: metric.value,
+        subValue: metric.sub_value,
+        tone: mapBriefingTone(metric.tone),
+      })),
+    },
+    state: {
+      dimensions: briefing.state.dimensions.map((dimension) => ({
+        key: dimension.key,
+        label: dimension.label,
+        value: dimension.value,
+        tone: mapBriefingTone(dimension.tone),
+      })),
+      overallLabel: briefing.state.overall_label,
+      overallTone: mapBriefingTone(briefing.state.overall_tone),
+    },
+    moneyFlow: {
+      inflows: briefing.money_flow.inflows.map((sector) => ({
+        sector: sector.sector,
+        changeLabel: sector.change_label,
+        strength: sector.strength,
+        tone: sector.tone === "negative" ? "negative" : "positive",
+      })),
+      outflows: briefing.money_flow.outflows.map((sector) => ({
+        sector: sector.sector,
+        changeLabel: sector.change_label,
+        strength: sector.strength,
+        tone: sector.tone === "negative" ? "negative" : "positive",
+      })),
+    },
+    opportunityScore: {
+      score: briefing.opportunity_score.score,
+      label: briefing.opportunity_score.label,
+      history: briefing.opportunity_score.history,
+      previousSession:
+        briefing.opportunity_score.previous_session ??
+        (briefing.opportunity_score.history.length >= 2
+          ? briefing.opportunity_score.history[briefing.opportunity_score.history.length - 2]
+          : null),
+      weeklyAverage:
+        briefing.opportunity_score.weekly_average ??
+        (briefing.opportunity_score.history.length > 0
+          ? Math.round(
+              briefing.opportunity_score.history.reduce((sum, value) => sum + value, 0) /
+                briefing.opportunity_score.history.length,
+            )
+          : null),
+      trendLabel: briefing.opportunity_score.trend_label ?? null,
+    },
+    playbook: {
+      question: briefing.playbook.question,
+      items: briefing.playbook.items.map((item) => ({
+        profile: item.profile,
+        summary: item.summary,
+        guidance: item.guidance ?? "",
+        tone: mapBriefingTone(item.tone),
+      })),
+    },
+    highPriority: briefing.high_priority
+      ? {
+          symbol: briefing.high_priority.symbol,
+          name: briefing.high_priority.name,
+          exchange: briefing.high_priority.exchange,
+          href: `/stocks/${briefing.high_priority.exchange}/${briefing.high_priority.symbol}`,
+          reason: briefing.high_priority.reason,
+          triggerLevel: briefing.high_priority.trigger_level,
+          metricLabel: briefing.high_priority.metric_label,
+          latestPrice: briefing.high_priority.latest_price,
+          priceChangePercent: briefing.high_priority.price_change_percent,
+          priceTone: mapPriceTone(briefing.high_priority.price_tone),
+          sparklinePoints: briefing.high_priority.sparkline_points,
+        }
+      : null,
+    leadership: {
+      cards: briefing.leadership.cards.map((card) => ({
+        kind: card.kind,
+        title: card.title,
+        name: card.name,
+        detail: card.detail,
+        subtitle: card.subtitle,
+        tone: mapBriefingTone(card.tone),
+        href: card.href,
+        sparklinePoints: card.sparkline_points,
+      })),
+      freshBuySignals: briefing.leadership.fresh_buy_signals,
+      narrative: briefing.leadership.narrative ?? "",
+      freshNewCount: briefing.leadership.fresh_new_count ?? 0,
+      freshUpgradedCount: briefing.leadership.fresh_upgraded_count ?? 0,
+    },
+    summary: {
+      text: briefing.summary.text,
+      tone: mapBriefingTone(briefing.summary.tone),
+      highlights: (briefing.summary.highlights ?? []).map((item) => ({
+        label: item.label,
+        value: item.value,
+        tone: mapBriefingTone(item.tone),
+      })),
+      tradingEnvironment: briefing.summary.trading_environment
+        ? {
+            signals: briefing.summary.trading_environment.signals.map((signal) => ({
+              text: signal.text,
+              tone: mapBriefingTone(signal.tone),
+            })),
+            overallLabel: briefing.summary.trading_environment.overall_label,
+            overallTone: mapBriefingTone(briefing.summary.trading_environment.overall_tone),
+          }
+        : null,
+    },
+  };
 }
 
 function mapMover(mover: BackendMarketMoverDto): MarketMoverModel {
@@ -244,6 +369,7 @@ export function buildMarketPulseViewModel(dto: BackendMarketPulseDto): MarketPul
       summaryLabel: dto.since_last_visit.summary_label,
     },
     briefingChips: buildBriefingChips(dto),
+    briefing: dto.briefing ? mapBriefing(dto.briefing) : null,
     focusStocks,
     monitorCandidates,
     todayInsight: dto.today_insight

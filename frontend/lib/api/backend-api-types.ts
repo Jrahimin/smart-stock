@@ -316,6 +316,8 @@ export type BackendMarketAlertDto = {
   event_explanation: string;
   why_it_matters: string;
   metric_label: string;
+  significance: string;
+  time_label: string | null;
   symbol: string | null;
   exchange: ExchangeCode | null;
   latest_price: string | null;
@@ -338,9 +340,137 @@ export type BackendMarketMoversDto = {
   losers: BackendMarketMoverDto[];
 };
 
+export type BackendMarketStoryMetricDto = {
+  label: string;
+  value: string;
+  sub_value: string | null;
+  tone: string;
+};
+
+export type BackendMarketStoryDto = {
+  headline: string;
+  explanation: string;
+  tone: string;
+  metrics: BackendMarketStoryMetricDto[];
+};
+
+export type BackendMarketStateDimensionDto = {
+  key: string;
+  label: string;
+  value: string;
+  tone: string;
+};
+
+export type BackendMarketStateDto = {
+  dimensions: BackendMarketStateDimensionDto[];
+  overall_label: string;
+  overall_tone: string;
+};
+
+export type BackendMoneyFlowSectorDto = {
+  sector: string;
+  change_label: string;
+  strength: number;
+  tone: string;
+};
+
+export type BackendMoneyFlowDto = {
+  inflows: BackendMoneyFlowSectorDto[];
+  outflows: BackendMoneyFlowSectorDto[];
+};
+
+export type BackendOpportunityScoreDto = {
+  score: number;
+  label: string;
+  history: number[];
+  previous_session?: number | null;
+  weekly_average?: number | null;
+  trend_label?: string | null;
+};
+
+export type BackendPlaybookItemDto = {
+  profile: string;
+  summary: string;
+  guidance?: string;
+  tone: string;
+};
+
+export type BackendPlaybookDto = {
+  question: string;
+  items: BackendPlaybookItemDto[];
+};
+
+export type BackendHighPriorityDto = {
+  symbol: string;
+  name: string;
+  exchange: ExchangeCode;
+  reason: string;
+  trigger_level: string;
+  metric_label: string;
+  latest_price: string;
+  price_change_percent: string;
+  price_tone: string;
+  sparkline_points: number[];
+};
+
+export type BackendLeadershipCardDto = {
+  kind: string;
+  title: string;
+  name: string;
+  detail: string | null;
+  subtitle: string | null;
+  tone: string;
+  href: string | null;
+  sparkline_points: number[];
+};
+
+export type BackendMarketLeadershipDto = {
+  cards: BackendLeadershipCardDto[];
+  fresh_buy_signals: string[];
+  narrative: string;
+  fresh_new_count: number;
+  fresh_upgraded_count: number;
+};
+
+export type BackendMarketSummaryHighlightDto = {
+  label: string;
+  value: string;
+  tone: string;
+};
+
+export type BackendTradingEnvironmentSignalDto = {
+  text: string;
+  tone: string;
+};
+
+export type BackendTradingEnvironmentDto = {
+  signals: BackendTradingEnvironmentSignalDto[];
+  overall_label: string;
+  overall_tone: string;
+};
+
+export type BackendMarketSummaryDto = {
+  text: string;
+  tone: string;
+  highlights: BackendMarketSummaryHighlightDto[];
+  trading_environment: BackendTradingEnvironmentDto | null;
+};
+
+export type BackendMarketBriefingDto = {
+  story: BackendMarketStoryDto;
+  state: BackendMarketStateDto;
+  money_flow: BackendMoneyFlowDto;
+  opportunity_score: BackendOpportunityScoreDto;
+  playbook: BackendPlaybookDto;
+  high_priority: BackendHighPriorityDto | null;
+  leadership: BackendMarketLeadershipDto;
+  summary: BackendMarketSummaryDto;
+};
+
 export type BackendMarketPulseDto = {
   hero: BackendMarketPulseHeroDto;
   since_last_visit: BackendSinceLastVisitDto;
+  briefing: BackendMarketBriefingDto | null;
   focus_stocks: BackendFocusStockDto[];
   monitor_candidates: BackendFocusStockDto[];
   today_insight: BackendTodayInsightDto | null;

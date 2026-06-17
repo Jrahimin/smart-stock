@@ -1,25 +1,13 @@
 "use client";
 
 import { MarketAlertsSection } from "@/features/market-pulse/components/market-alerts-section";
-import { MarketMoversSection } from "@/features/market-pulse/components/market-movers-section";
+import { MarketBriefingFooter, MarketBriefingSection } from "@/features/market-pulse/components/market-briefing-section";
 import { MarketPulseHero } from "@/features/market-pulse/components/market-pulse-hero";
 import { SinceLastVisitStrip } from "@/features/market-pulse/components/since-last-visit-strip";
 import { StocksInFocusSection } from "@/features/market-pulse/components/stocks-in-focus-section";
-import { TodaysInsightCard } from "@/features/market-pulse/components/todays-insight-card";
-import { WhatsChangedTimeline } from "@/features/market-pulse/components/whats-changed-timeline";
 import { useMarketPulse } from "@/features/market-pulse/hooks/use-market-pulse";
 import { FloatingRefreshButton } from "@/components/ui/floating-refresh-button";
 import { MarketActivityLoader } from "@/components/ui/market-activity-loader";
-
-function getLowerLayoutClass(hasPrimary: boolean, hasMovers: boolean) {
-  if (hasPrimary && hasMovers) {
-    return "pulse-lower-layout pulse-lower-layout-split";
-  }
-  if (hasMovers) {
-    return "pulse-lower-layout pulse-lower-layout-movers-only";
-  }
-  return "pulse-lower-layout pulse-lower-layout-primary-only";
-}
 
 export function MarketPulseView() {
   const { model, isLoading, isError, refetch } = useMarketPulse();
@@ -42,12 +30,8 @@ export function MarketPulseView() {
 
   const focusStocks = model.focusStocks.length > 0 ? model.focusStocks : model.monitorCandidates;
   const showFocusSection = focusStocks.length > 0 || isLoading;
-  const showInsight = Boolean(model.todayInsight);
-  const showChanges = model.changes.length > 0;
   const showAlerts = model.alerts.length > 0;
-  const showMovers = model.marketMovers.gainers.length > 0 || model.marketMovers.losers.length > 0;
-  const showPrimaryLower = showChanges || showAlerts;
-  const showLowerSection = showPrimaryLower || showMovers;
+  const showEvidenceRow = showAlerts || Boolean(model.briefing);
   const showCriticalNotice =
     model.emptyState === "waiting-snapshot" || model.emptyState === "insufficient-history";
 
@@ -71,7 +55,7 @@ export function MarketPulseView() {
         <div className="data-warning pulse-inline-notice">{model.dataQualityNote}</div>
       ) : null}
 
-      {showInsight ? <TodaysInsightCard insight={model.todayInsight!} /> : null}
+      {model.briefing ? <MarketBriefingSection briefing={model.briefing} /> : null}
 
       {showFocusSection ? (
         <StocksInFocusSection
@@ -82,15 +66,12 @@ export function MarketPulseView() {
         />
       ) : null}
 
-      {showLowerSection ? (
-        <div className={getLowerLayoutClass(showPrimaryLower, showMovers)}>
-          {showPrimaryLower ? (
-            <div className="pulse-lower-primary">
-              {showChanges ? <WhatsChangedTimeline changes={model.changes} /> : null}
-              {showAlerts ? <MarketAlertsSection alerts={model.alerts} /> : null}
-            </div>
+      {showEvidenceRow ? (
+        <div className="pulse-evidence-row">
+          {showAlerts ? <MarketAlertsSection alerts={model.alerts} /> : <div />}
+          {model.briefing ? (
+            <MarketBriefingFooter leadership={model.briefing.leadership} summary={model.briefing.summary} />
           ) : null}
-          {showMovers ? <MarketMoversSection movers={model.marketMovers} /> : null}
         </div>
       ) : null}
 

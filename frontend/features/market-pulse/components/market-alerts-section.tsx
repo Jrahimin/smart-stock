@@ -12,21 +12,21 @@ type MarketAlertsSectionProps = {
 
 function AlertIcon({ type }: { type: MarketAlertModel["type"] }) {
   if (type === "unusual-volume") {
-    return <Zap aria-hidden="true" size={15} />;
+    return <Zap aria-hidden="true" size={13} />;
   }
   if (type === "momentum-reversal") {
-    return <RotateCcw aria-hidden="true" size={15} />;
+    return <RotateCcw aria-hidden="true" size={13} />;
   }
   if (type === "liquidity-surge") {
-    return <BarChart3 aria-hidden="true" size={15} />;
+    return <BarChart3 aria-hidden="true" size={13} />;
   }
   if (type === "sector-rotation") {
-    return <TrendingUp aria-hidden="true" size={15} />;
+    return <TrendingUp aria-hidden="true" size={13} />;
   }
   if (type === "pulse-score-jump") {
-    return <Flame aria-hidden="true" size={15} />;
+    return <Flame aria-hidden="true" size={13} />;
   }
-  return <AlertTriangle aria-hidden="true" size={15} />;
+  return <AlertTriangle aria-hidden="true" size={13} />;
 }
 
 export function MarketAlertsSection({ alerts, isLoading = false }: MarketAlertsSectionProps) {
@@ -40,8 +40,11 @@ export function MarketAlertsSection({ alerts, isLoading = false }: MarketAlertsS
         <div className="pulse-section-head pulse-section-head-compact">
           <div>
             <p className="pulse-section-eyebrow">Market Alerts</p>
-            <h2 id="pulse-alerts-heading">Supporting signals</h2>
+            <h2 id="pulse-alerts-heading">High priority signals for today.</h2>
           </div>
+          <Link className="pulse-section-link" href="/signals">
+            View all alerts →
+          </Link>
         </div>
 
         {isLoading ? (
@@ -51,39 +54,49 @@ export function MarketAlertsSection({ alerts, isLoading = false }: MarketAlertsS
             ))}
           </div>
         ) : (
-          <div className="pulse-alerts-stack">
-          {alerts.map((alert) => {
-            const content = (
-              <>
-                <div className="pulse-alert-icon">
-                  <AlertIcon type={alert.type} />
-                </div>
-                <div className="pulse-alert-copy">
-                  <strong>{alert.eventTitle}</strong>
-                  <p>{alert.whyItMatters}</p>
-                  <span className="pulse-alert-metric">{alert.metricLabel}</span>
-                </div>
-                {alert.symbol && alert.latestPrice ? (
-                  <div className="pulse-alert-context">
-                    <span>{alert.symbol}</span>
-                    <span className={`pulse-focus-change pulse-focus-change-${alert.priceTone ?? "neutral"}`}>
-                      {alert.priceChangePercent}
+          <div className="pulse-alerts-feed">
+            {alerts.map((alert, index) => {
+              const row = (
+                <div className="pulse-alert-content">
+                  <div className="pulse-alert-head">
+                    <span className={`pulse-alert-priority pulse-alert-priority-${alert.significance.toLowerCase()}`}>
+                      {alert.significance}
                     </span>
+                    <div className="pulse-alert-title-row">
+                      <div className="pulse-alert-icon">
+                        <AlertIcon type={alert.type} />
+                      </div>
+                      <strong>{alert.eventTitle}</strong>
+                    </div>
                   </div>
-                ) : null}
-              </>
-            );
+                  {alert.symbol ? (
+                    <div className="pulse-alert-target">
+                      <span>{alert.symbol}</span>
+                      {alert.priceChangePercent ? (
+                        <span className={`pulse-focus-change pulse-focus-change-${alert.priceTone ?? "neutral"}`}>
+                          {alert.priceChangePercent}
+                        </span>
+                      ) : null}
+                    </div>
+                  ) : null}
+                    {alert.eventExplanation ? <p className="pulse-alert-context">{alert.eventExplanation}</p> : null}
+                    <div className="pulse-alert-footline">
+                      <p className="pulse-alert-why">{alert.whyItMatters}</p>
+                      {alert.timeLabel ? <time className="pulse-alert-time">{alert.timeLabel}</time> : null}
+                    </div>
+                </div>
+              );
 
-            return alert.href ? (
-              <Link className="pulse-alert-card" href={alert.href} key={alert.id}>
-                {content}
-              </Link>
-            ) : (
-              <article className="pulse-alert-card" key={alert.id}>
-                {content}
-              </article>
-            );
-          })}
+              return alert.href ? (
+                <Link className={`pulse-alert-row pulse-alert-row-rank-${index}`} href={alert.href} key={alert.id}>
+                  {row}
+                </Link>
+              ) : (
+                <article className={`pulse-alert-row pulse-alert-row-rank-${index}`} key={alert.id}>
+                  {row}
+                </article>
+              );
+            })}
           </div>
         )}
       </div>

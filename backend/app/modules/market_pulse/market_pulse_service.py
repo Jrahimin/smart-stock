@@ -22,6 +22,7 @@ from app.models import DailyPrice, Stock
 from app.modules.market_data.market_data_repository import MarketDataRepository, get_market_data_repository
 from app.modules.market_data.market_data_service import MarketDataService, get_market_data_service
 from app.modules.market_data.market_mover_rules import is_eligible_session_mover
+from app.modules.market_pulse.market_pulse_briefing import build_market_briefing
 from app.modules.market_pulse.market_pulse_schemas import (
     FocusStockRead,
     MarketAlertRead,
@@ -36,7 +37,7 @@ from app.modules.market_pulse.market_pulse_schemas import (
     TodayInsightRead,
 )
 from app.modules.market_pulse.pulse_score import (
-    build_action_summary,
+    build_conviction_insight,
     build_pulse_trigger,
     build_why_here,
     compute_pulse_score,
@@ -178,7 +179,7 @@ def _to_focus_stock_read(row: ScoredUniverseRow, rank: int) -> FocusStockRead:
         label_tone=_label_tone(row.label),
         why_here=build_why_here(row.snapshot, row.decision, breakdown, row.label),
         trigger=build_pulse_trigger(row.snapshot, row.decision),
-        action_summary=build_action_summary(row.label),
+        action_summary=build_conviction_insight(row.snapshot, row.decision, breakdown, row.label),
         latest_price=_format_number(row.snapshot.latest_price),
         price_change_percent=_format_percent(change),
         price_tone=_price_tone(change),
@@ -224,6 +225,36 @@ def _build_market_movers(
         gainers=[_to_market_mover_read(row) for row in gainers],
         losers=[_to_market_mover_read(row) for row in losers],
     )
+
+
+def _alert_significance(alert_type: MarketAlertType, metric_value: float) -> str:
+    if alert_type == MarketAlertType.UNUSUAL_VOLUME:
+        if metric_value >= 5:
+            return "HIGH"
+        if metric_value >= 3:
+            return "MEDIUM"
+        return "WATCH"
+    if alert_type == MarketAlertType.MOMENTUM_REVERSAL:
+        if metric_value >= 2.5:
+            return "HIGH"
+        if metric_value >= 1.2:
+            return "MEDIUM"
+        return "WATCH"
+    if alert_type == MarketAlertType.LIQUIDITY_SURGE:
+        return "MEDIUM"
+    if alert_type == MarketAlertType.SECTOR_ROTATION:
+        if metric_value >= 6:
+            return "HIGH"
+        if metric_value >= 4:
+            return "MEDIUM"
+        return "WATCH"
+    if alert_type == MarketAlertType.PULSE_SCORE_JUMP:
+        if metric_value >= 15:
+            return "HIGH"
+        if metric_value >= 12:
+            return "MEDIUM"
+        return "WATCH"
+    return "WATCH"
 
 
 class MarketPulseService:
@@ -307,35 +338,36 @@ class MarketPulseService:
 
         last_synced = freshness.last_synced_at
         changes, new_focus_count = self._build_changes(scored_rows, focus_reads, previous, last_synced)
-        alerts = self._build_alerts(scored_rows, previous)
+        alerts = self._build_alerts(scored_rows, previous, last_synced)
         new_alerts_count = len([alert for alert in alerts if previous and alert.id not in previous.alert_ids])
 
         hero_stocks = focus_reads if focus_reads else monitor_reads
         greeting_name = f", {display_name.strip()}" if display_name and display_name.strip() else ""
-        focus_count = len(hero_stocks)
 
         hero = MarketPulseHeroRead(
             greeting=f"{_greeting()}{greeting_name}",
-            attention_headline=(
-                "1 stock deserves attention today."
-                if focus_count == 1
-                else f"{focus_count} stocks deserve attention today."
-            ),
-            attention_subline=(
-                f"{new_focus_count} entered focus recently."
-                if new_focus_count > 0
-                else "Your curated attention list is ready."
-            ),
+            attention_headline="Market story of today",
+            attention_subline="A quick read on what's moving the market and where the opportunities are.",
             last_updated_label=_format_time_label(last_synced),
             relative_updated_label=_format_relative_updated(last_synced),
             session_label=freshness.market_status.replace("_", " ") if freshness.market_status else None,
-            focus_count=focus_count,
+            focus_count=len(hero_stocks),
             recent_focus_count=new_focus_count,
         )
 
         since_last_visit = self._build_since_last_visit(previous, changes, new_focus_count, new_alerts_count)
         today_insight = self._build_today_insight(scored_rows, focus_reads)
         market_movers = _build_market_movers(scored_rows, session_trade_date=freshness.trade_date)
+        briefing = build_market_briefing(
+            scored_rows,
+            focus_reads,
+            monitor_reads,
+            alerts,
+            format_number=_format_number,
+            format_percent=_format_percent,
+            price_tone=_price_tone,
+            sparkline_points=_sparkline_points,
+        )
 
         suspicious_count = sum(1 for row in scored_rows if row.snapshot.data_quality == DataQualityFlag.SUSPICIOUS)
         empty_state = "none"
@@ -354,6 +386,7 @@ class MarketPulseService:
         return MarketPulseRead(
             hero=hero,
             since_last_visit=since_last_visit,
+            briefing=briefing,
             focus_stocks=focus_reads,
             monitor_candidates=monitor_reads,
             today_insight=today_insight,
@@ -557,8 +590,10 @@ class MarketPulseService:
         self,
         rows: list[ScoredUniverseRow],
         previous: MarketPulsePreviousSnapshot | None,
+        last_synced: datetime | None = None,
     ) -> list[MarketAlertRead]:
         alerts: list[MarketAlertRead] = []
+        time_label = _format_time_label(last_synced)
 
         unusual_volume = max(
             (row for row in rows if get_volume_ratio(row.snapshot) >= VOLUME_EXPANSION_RATIO),
@@ -573,9 +608,11 @@ class MarketPulseService:
                     id=f"alert-volume-{unusual_volume.stock.id}",
                     alert_type=MarketAlertType.UNUSUAL_VOLUME,
                     event_title="Unusual Volume Detected",
-                    event_explanation="Participation is well above normal across the session.",
-                    why_it_matters=f"{unusual_volume.stock.symbol} is trading at {ratio:.1f}x average volume.",
+                    event_explanation=f"{ratio:.1f}x normal volume activity detected.",
+                    why_it_matters="Institutional participation may be building.",
                     metric_label=f"{ratio:.1f}x normal",
+                    significance=_alert_significance(MarketAlertType.UNUSUAL_VOLUME, ratio),
+                    time_label=time_label,
                     symbol=unusual_volume.stock.symbol,
                     exchange=unusual_volume.stock.exchange,
                     latest_price=_format_number(unusual_volume.snapshot.latest_price),
@@ -602,9 +639,11 @@ class MarketPulseService:
                     id=f"alert-reversal-{momentum_reversal.stock.id}",
                     alert_type=MarketAlertType.MOMENTUM_REVERSAL,
                     event_title="Momentum Reversal Forming",
-                    event_explanation="Price is recovering against a weaker prior trend.",
-                    why_it_matters=f"{momentum_reversal.stock.symbol} may be shifting from distribution to recovery.",
+                    event_explanation="Recovery forming against a weaker trend.",
+                    why_it_matters="Distribution may be shifting if volume confirms.",
                     metric_label=_format_percent(change),
+                    significance=_alert_significance(MarketAlertType.MOMENTUM_REVERSAL, abs(change or 0)),
+                    time_label=time_label,
                     symbol=momentum_reversal.stock.symbol,
                     exchange=momentum_reversal.stock.exchange,
                     latest_price=_format_number(momentum_reversal.snapshot.latest_price),
@@ -621,9 +660,11 @@ class MarketPulseService:
                     id=f"alert-liquidity-{liquidity_surge.stock.id}",
                     alert_type=MarketAlertType.LIQUIDITY_SURGE,
                     event_title="Liquidity Surge",
-                    event_explanation="Turnover is leading participation in the loaded universe.",
-                    why_it_matters=f"{liquidity_surge.stock.symbol} is absorbing the most turnover right now.",
+                    event_explanation="Session turnover leader.",
+                    why_it_matters="Heavy turnover can signal institutional interest or exit pressure.",
                     metric_label=_format_number(liquidity_surge.snapshot.turnover),
+                    significance=_alert_significance(MarketAlertType.LIQUIDITY_SURGE, float(liquidity_surge.snapshot.turnover or 0)),
+                    time_label=time_label,
                     symbol=liquidity_surge.stock.symbol,
                     exchange=liquidity_surge.stock.exchange,
                     latest_price=_format_number(liquidity_surge.snapshot.latest_price),
@@ -652,9 +693,11 @@ class MarketPulseService:
                     id=f"alert-sector-{name}",
                     alert_type=MarketAlertType.SECTOR_ROTATION,
                     event_title="Sector Rotation Signal",
-                    event_explanation=f"Multiple {name} stocks are improving together.",
-                    why_it_matters="Broad sector participation can signal rotation rather than a single-name move.",
+                    event_explanation="Broad sector participation detected.",
+                    why_it_matters="Rotation may be broadening beyond a single-name move.",
                     metric_label=f"{len(values)} movers",
+                    significance=_alert_significance(MarketAlertType.SECTOR_ROTATION, float(len(values))),
+                    time_label=time_label,
                     symbol=name,
                     exchange=None,
                     latest_price=_format_percent(avg_change),
@@ -680,9 +723,11 @@ class MarketPulseService:
                         id=f"alert-score-{row.stock.id}",
                         alert_type=MarketAlertType.PULSE_SCORE_JUMP,
                         event_title="Pulse Score Jump",
-                        event_explanation="Attention score moved sharply since the last refresh.",
-                        why_it_matters=f"{row.stock.symbol} deserves a fresh review after a +{delta} point move.",
+                        event_explanation=f"{row.stock.symbol} attention score moved +{delta} points.",
+                        why_it_matters="A sharp score jump often precedes a fresh focus-list review.",
                         metric_label=f"+{delta} points",
+                        significance=_alert_significance(MarketAlertType.PULSE_SCORE_JUMP, float(delta)),
+                        time_label=time_label,
                         symbol=row.stock.symbol,
                         exchange=row.stock.exchange,
                         latest_price=_format_number(row.snapshot.latest_price),

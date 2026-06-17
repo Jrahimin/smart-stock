@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { Eye } from "lucide-react";
+import { Check, Eye } from "lucide-react";
 
 import type { FocusStockModel } from "@/features/market-pulse/types/market-pulse-types";
-import { MiniSparkline, PulseScoreBadge } from "@/features/market-pulse/components/pulse-score-badge";
+import { MiniSparkline, PulseScoreHeaderCluster } from "@/features/market-pulse/components/pulse-score-badge";
 
 type FocusStockCardProps = {
   stock: FocusStockModel;
@@ -21,34 +21,39 @@ export function FocusStockCard({ stock }: FocusStockCardProps) {
             <span title={stock.name}>{stock.name}</span>
           </div>
         </div>
-        <PulseScoreBadge breakdown={stock.scoreBreakdown} compact score={stock.pulseScore} />
+        <PulseScoreHeaderCluster breakdown={stock.scoreBreakdown} score={stock.pulseScore} />
       </div>
 
       <span className={`pulse-focus-label-badge pulse-focus-label-badge-${stock.labelTone}`}>{stock.focusLabel}</span>
 
-      <div className="pulse-focus-quote">
+      <div className="pulse-focus-why-block">
+        <span className="pulse-focus-why-label">Why selected?</span>
+        <ul className="pulse-focus-reasons">
+          {stock.whyHere.map((reason) => (
+            <li key={reason}>
+              <Check aria-hidden="true" size={12} />
+              {reason}
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <p className="pulse-focus-conviction">
+        <span className="pulse-focus-conviction-label">Conviction</span>
+        <strong>{stock.actionSummary}</strong>
+      </p>
+
+      <div className="pulse-focus-trigger-block">
+        <span>Next Trigger</span>
+        <strong>{stock.trigger}</strong>
+      </div>
+
+      <div className="pulse-focus-card-footer">
         <div className="pulse-focus-quote-values">
           <span className="pulse-focus-price">{stock.latestPrice}</span>
           <span className={`pulse-focus-change pulse-focus-change-${stock.priceTone}`}>{stock.priceChangePercent}</span>
         </div>
         <MiniSparkline points={stock.sparklinePoints} tone={stock.priceTone} />
-      </div>
-
-      <ul className="pulse-focus-reasons">
-        {stock.whyHere.map((reason) => (
-          <li key={reason}>{reason}</li>
-        ))}
-      </ul>
-
-      <div className="pulse-focus-card-actions">
-        <div className="pulse-focus-trigger-block">
-          <span>Trigger</span>
-          <strong>{stock.trigger}</strong>
-        </div>
-        <div className="pulse-focus-action-block">
-          <span>Action</span>
-          <strong>{stock.actionSummary}</strong>
-        </div>
       </div>
     </Link>
   );
@@ -83,11 +88,11 @@ export function StocksInFocusSection({
               Stocks In Focus
             </p>
             <h2 id="pulse-focus-heading">
-              {usingMonitorFallback ? "Stocks approaching attention threshold" : "Stocks worth your attention"}
+              {usingMonitorFallback ? "Stocks approaching attention threshold" : "Top opportunities worth investigating"}
             </h2>
           </div>
           <Link className="pulse-section-link" href="/scanner">
-            View all
+            View all stocks →
           </Link>
         </div>
 

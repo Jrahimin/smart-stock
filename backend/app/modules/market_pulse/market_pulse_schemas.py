@@ -86,6 +86,8 @@ class MarketAlertRead(BaseModel):
     event_explanation: str
     why_it_matters: str
     metric_label: str
+    significance: str
+    time_label: str | None = None
     symbol: str | None = None
     exchange: ExchangeCode | None = None
     latest_price: str | None = None
@@ -108,6 +110,133 @@ class MarketMoversRead(BaseModel):
     losers: list[MarketMoverRead] = Field(default_factory=list)
 
 
+class MarketStoryMetricRead(BaseModel):
+    label: str
+    value: str
+    sub_value: str | None = None
+    tone: str
+
+
+class MarketStoryRead(BaseModel):
+    headline: str
+    explanation: str
+    tone: str
+    metrics: list[MarketStoryMetricRead]
+
+
+class MarketStateDimensionRead(BaseModel):
+    key: str
+    label: str
+    value: str
+    tone: str
+
+
+class MarketStateRead(BaseModel):
+    dimensions: list[MarketStateDimensionRead]
+    overall_label: str
+    overall_tone: str
+
+
+class MoneyFlowSectorRead(BaseModel):
+    sector: str
+    change_label: str
+    strength: float
+    tone: str
+
+
+class MoneyFlowRead(BaseModel):
+    inflows: list[MoneyFlowSectorRead]
+    outflows: list[MoneyFlowSectorRead]
+
+
+class OpportunityScoreRead(BaseModel):
+    score: int
+    label: str
+    history: list[int] = Field(default_factory=list)
+    previous_session: int | None = None
+    weekly_average: int | None = None
+    trend_label: str | None = None
+
+
+class PlaybookItemRead(BaseModel):
+    profile: str
+    summary: str
+    guidance: str
+    tone: str
+
+
+class PlaybookRead(BaseModel):
+    question: str
+    items: list[PlaybookItemRead]
+
+
+class HighPriorityRead(BaseModel):
+    symbol: str
+    name: str
+    exchange: ExchangeCode
+    reason: str
+    trigger_level: str
+    metric_label: str
+    latest_price: str
+    price_change_percent: str
+    price_tone: str
+    sparkline_points: list[float]
+
+
+class LeadershipCardRead(BaseModel):
+    kind: str
+    title: str
+    name: str
+    detail: str | None = None
+    subtitle: str | None = None
+    tone: str
+    href: str | None = None
+    sparkline_points: list[float] = Field(default_factory=list)
+
+
+class MarketLeadershipRead(BaseModel):
+    cards: list[LeadershipCardRead]
+    fresh_buy_signals: list[str]
+    narrative: str = ""
+    fresh_new_count: int = 0
+    fresh_upgraded_count: int = 0
+
+
+class MarketSummaryHighlightRead(BaseModel):
+    label: str
+    value: str
+    tone: str
+
+
+class TradingEnvironmentSignalRead(BaseModel):
+    text: str
+    tone: str
+
+
+class TradingEnvironmentRead(BaseModel):
+    signals: list[TradingEnvironmentSignalRead] = Field(default_factory=list)
+    overall_label: str
+    overall_tone: str
+
+
+class MarketSummaryRead(BaseModel):
+    text: str
+    tone: str
+    highlights: list[MarketSummaryHighlightRead] = Field(default_factory=list)
+    trading_environment: TradingEnvironmentRead | None = None
+
+
+class MarketBriefingRead(BaseModel):
+    story: MarketStoryRead
+    state: MarketStateRead
+    money_flow: MoneyFlowRead
+    opportunity_score: OpportunityScoreRead
+    playbook: PlaybookRead
+    high_priority: HighPriorityRead | None
+    leadership: MarketLeadershipRead
+    summary: MarketSummaryRead
+
+
 class MarketPulsePreviousSnapshot(BaseModel):
     last_synced_at: datetime | None = None
     focus_stock_ids: list[UUID] = Field(default_factory=list)
@@ -119,6 +248,7 @@ class MarketPulsePreviousSnapshot(BaseModel):
 class MarketPulseRead(BaseModel):
     hero: MarketPulseHeroRead
     since_last_visit: SinceLastVisitRead
+    briefing: MarketBriefingRead | None
     focus_stocks: list[FocusStockRead]
     monitor_candidates: list[FocusStockRead]
     today_insight: TodayInsightRead | None

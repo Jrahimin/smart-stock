@@ -9,26 +9,16 @@ type MarketPulseHeroProps = {
 };
 
 export function MarketPulseHero({ hero, briefingChips }: MarketPulseHeroProps) {
-  const hasChips = briefingChips.length > 0 || Boolean(hero.sessionLabel);
-
   return (
     <WorkspacePageHero
       className="pulse-page-hero"
       eyebrow="Market Pulse"
       subtitle={
         <div className="pulse-hero-briefing">
-          <p className="pulse-hero-subline">
-            <span className="pulse-page-greeting">{hero.greeting}</span>
-            <span className="pulse-hero-subline-text">{hero.attentionSubline}</span>
-          </p>
+          <p className="pulse-hero-subline pulse-hero-subline-brief">{hero.attentionSubline}</p>
 
-          {hasChips ? (
-            <div className="pulse-briefing-chips" role="list" aria-label="Today's briefing highlights">
-              {hero.sessionLabel ? (
-                <span className="pulse-chip pulse-chip-live" role="listitem">
-                  Market {hero.sessionLabel}
-                </span>
-              ) : null}
+          {briefingChips.length > 0 ? (
+            <div className="pulse-briefing-chips" role="list" aria-label="Today's market context">
               {briefingChips.map((chip) => (
                 <span
                   className={`pulse-briefing-chip pulse-briefing-chip-${chip.tone}`}
@@ -44,6 +34,10 @@ export function MarketPulseHero({ hero, briefingChips }: MarketPulseHeroProps) {
         </div>
       }
       title={hero.attentionHeadline}
-    />
+    >
+      {hero.relativeUpdatedLabel ? (
+        <p className="pulse-hero-updated-top">Last updated: {hero.relativeUpdatedLabel.replace(/^Updated\s+/i, "")}</p>
+      ) : null}
+    </WorkspacePageHero>
   );
 }
