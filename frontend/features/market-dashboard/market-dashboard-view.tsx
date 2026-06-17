@@ -1,7 +1,7 @@
 "use client";
 
-import { InsightSidebar } from "@/features/market-dashboard/components/insight-sidebar";
-import { InstitutionalHeatmap } from "@/features/market-dashboard/components/institutional-heatmap";
+import dynamic from "next/dynamic";
+
 import { MarketBreadthPanel } from "@/features/market-dashboard/components/market-breadth-panel";
 import { MarketMoversPanel } from "@/features/market-dashboard/components/market-movers-panel";
 import { MarketDashboardHeader, MarketPulsePanel } from "@/features/market-dashboard/components/market-pulse-header";
@@ -10,8 +10,24 @@ import { SmartSignalFeed } from "@/features/market-dashboard/components/smart-si
 import { useMarketDashboard } from "@/features/market-dashboard/hooks/use-market-dashboard";
 import { FloatingRefreshButton } from "@/components/ui/floating-refresh-button";
 
+const InstitutionalHeatmap = dynamic(
+  () =>
+    import("@/features/market-dashboard/components/institutional-heatmap").then((module) => ({
+      default: module.InstitutionalHeatmap,
+    })),
+  { loading: () => <div className="data-warning">Loading heatmap...</div> },
+);
+
+const InsightSidebar = dynamic(
+  () =>
+    import("@/features/market-dashboard/components/insight-sidebar").then((module) => ({
+      default: module.InsightSidebar,
+    })),
+  { loading: () => <div className="data-warning">Loading insights...</div> },
+);
+
 export function MarketDashboardView() {
-  const { model, isError, isLoading, refetch } = useMarketDashboard();
+  const { model, isError, isLoading, isDeferredLoading, refetch } = useMarketDashboard();
 
   return (
     <div className="market-dashboard-view">
@@ -23,6 +39,7 @@ export function MarketDashboardView() {
         </div>
       ) : null}
       {isLoading ? <div className="data-warning">Loading latest market intelligence...</div> : null}
+      {isDeferredLoading ? <div className="data-warning">Refreshing heatmap and sentiment panels...</div> : null}
       <div className="dashboard-workspace-grid">
         <div className="dashboard-primary-column">
           <MarketBreadthPanel breadth={model.breadth} />
@@ -31,10 +48,10 @@ export function MarketDashboardView() {
             <MarketMoversPanel movers={model.movers.gainers} title="Top gainers" />
             <MarketMoversPanel movers={model.movers.losers} title="Top losers" />
           </div>
+          <MarketTimeline items={model.timeline} />
         </div>
         <div className="dashboard-secondary-column">
           <SmartSignalFeed signals={model.signals} />
-          <MarketTimeline items={model.timeline} />
         </div>
         <div className="dashboard-tertiary-column">
           <InsightSidebar insights={model.insights} />

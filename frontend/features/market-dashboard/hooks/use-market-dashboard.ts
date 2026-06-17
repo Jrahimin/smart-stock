@@ -5,9 +5,20 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import { buildMarketDashboardModel } from "@/features/market-dashboard/view-models/market-dashboard-view-model";
 import { mapDashboardMoversDto } from "@/features/market-dashboard/view-models/dashboard-movers-mapper";
+import {
+  mapDashboardAlertsDto,
+  mapDashboardHeatmapDto,
+  mapDashboardSectorsToLeadersContext,
+  mapDashboardSentimentDto,
+  mapDashboardSignalsDto,
+} from "@/features/market-dashboard/view-models/dashboard-sections-mapper";
+import { useDashboardHeatmap } from "@/features/market-dashboard/hooks/use-dashboard-heatmap";
+import { useDashboardMarketAlerts } from "@/features/market-dashboard/hooks/use-dashboard-market-alerts";
+import { useDashboardMarketSentiment } from "@/features/market-dashboard/hooks/use-dashboard-market-sentiment";
 import { useDashboardMovers } from "@/features/market-dashboard/hooks/use-dashboard-movers";
 import { useDashboardOverview } from "@/features/market-dashboard/hooks/use-dashboard-overview";
-import { useMarketUniverse } from "@/features/market-dashboard/hooks/use-market-universe";
+import { useDashboardSectors } from "@/features/market-dashboard/hooks/use-dashboard-sectors";
+import { useDashboardStocksInFocus } from "@/features/market-dashboard/hooks/use-dashboard-stocks-in-focus";
 import { useMarketDataFreshness } from "@/hooks/market/use-market-data-freshness";
 import {
   getDashboardRefetchIntervalMs,
@@ -21,60 +32,103 @@ export function useMarketDashboard() {
   const staleTimeMs = getDashboardStaleTimeMs(freshness);
   const refetchIntervalMs = getDashboardRefetchIntervalMs(freshness);
 
-  const overviewQuery = useDashboardOverview({
+  const overviewQuery = useDashboardOverview({ staleTimeMs, refetchIntervalMs });
+  const moversQuery = useDashboardMovers({ staleTimeMs, refetchIntervalMs });
+  const sectorsQuery = useDashboardSectors({ staleTimeMs, refetchIntervalMs });
+  const signalsQuery = useDashboardStocksInFocus({ staleTimeMs, refetchIntervalMs });
+  const alertsQuery = useDashboardMarketAlerts({ staleTimeMs, refetchIntervalMs });
+  const heatmapQuery = useDashboardHeatmap({
     staleTimeMs,
     refetchIntervalMs,
+    enabled: Boolean(overviewQuery.data),
   });
-  const moversQuery = useDashboardMovers({
+  const sentimentQuery = useDashboardMarketSentiment({
     staleTimeMs,
     refetchIntervalMs,
-  });
-  const marketUniverse = useMarketUniverse({
-    stockLimit: 500,
-    priceWindowLimit: 90,
-    staleTimeMs,
-    refetchIntervalMs,
-    loadStockMasterList: false,
+    enabled: Boolean(overviewQuery.data),
   });
 
   const mappedMovers = useMemo(
     () => (moversQuery.data ? mapDashboardMoversDto(moversQuery.data) : undefined),
     [moversQuery.data],
   );
+  const mappedSignals = useMemo(
+    () => (signalsQuery.data ? mapDashboardSignalsDto(signalsQuery.data) : undefined),
+    [signalsQuery.data],
+  );
+  const mappedTimeline = useMemo(
+    () => (alertsQuery.data ? mapDashboardAlertsDto(alertsQuery.data) : undefined),
+    [alertsQuery.data],
+  );
+  const mappedHeatmap = useMemo(
+    () => (heatmapQuery.data ? mapDashboardHeatmapDto(heatmapQuery.data) : undefined),
+    [heatmapQuery.data],
+  );
+  const mappedSentiment = useMemo(
+    () => (sentimentQuery.data ? mapDashboardSentimentDto(sentimentQuery.data) : undefined),
+    [sentimentQuery.data],
+  );
+  const mappedLeadersContext = useMemo(
+    () => (sectorsQuery.data ? mapDashboardSectorsToLeadersContext(sectorsQuery.data) : undefined),
+    [sectorsQuery.data],
+  );
 
   const model = useMemo(
     () =>
       buildMarketDashboardModel(
         overviewQuery.data?.summaries ?? [],
-        marketUniverse.stocks,
-        marketUniverse.universe,
         overviewQuery.data?.dsex_index ?? null,
         freshness ?? null,
         {
           listedStockCount: overviewQuery.data?.listed_stock_count,
           movers: mappedMovers,
+          heatmapTiles: mappedHeatmap,
+          signals: mappedSignals,
+          timeline: mappedTimeline,
+          insights: mappedSentiment?.insights,
+          leadersContext: mappedLeadersContext,
+          marketMood: mappedSentiment?.marketMood,
+          priceBackedCount: mappedSentiment?.priceBackedCount ?? signalsQuery.data?.evaluated_count,
+          turnoverLabel: mappedSentiment?.turnoverLabel,
         },
       ),
     [
       overviewQuery.data,
-      marketUniverse.stocks,
-      marketUniverse.universe,
       freshness,
       mappedMovers,
+      mappedHeatmap,
+      mappedSignals,
+      mappedTimeline,
+      mappedSentiment,
+      mappedLeadersContext,
+      signalsQuery.data?.evaluated_count,
     ],
   );
 
+  const isCoreLoading =
+    overviewQuery.isLoading ||
+    moversQuery.isLoading ||
+    sectorsQuery.isLoading ||
+    signalsQuery.isLoading ||
+    alertsQuery.isLoading;
+
   return {
     model,
-    isLoading: overviewQuery.isLoading || moversQuery.isLoading || marketUniverse.isLoading,
-    isError: overviewQuery.isError || moversQuery.isError || marketUniverse.isError,
-    loadedPriceCount: marketUniverse.loadedPriceCount,
+    isLoading: isCoreLoading,
+    isDeferredLoading: heatmapQuery.isLoading || sentimentQuery.isLoading,
+    isError:
+      overviewQuery.isError ||
+      moversQuery.isError ||
+      sectorsQuery.isError ||
+      signalsQuery.isError ||
+      alertsQuery.isError ||
+      heatmapQuery.isError ||
+      sentimentQuery.isError,
+    priceBackedCount: mappedSentiment?.priceBackedCount ?? signalsQuery.data?.evaluated_count ?? 0,
     refetch: async () => {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["dashboard", "overview", "DSE"] }),
-        queryClient.invalidateQueries({ queryKey: ["dashboard", "movers", "DSE"] }),
+        queryClient.invalidateQueries({ queryKey: ["dashboard"] }),
         freshnessQuery.refetch(),
-        marketUniverse.refetch(),
       ]);
     },
   };

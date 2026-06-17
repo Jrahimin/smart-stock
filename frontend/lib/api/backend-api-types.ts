@@ -169,6 +169,89 @@ export type BackendDashboardOverviewDto = {
   summaries: BackendDailyMarketSummaryDto[];
 };
 
+export type BackendDashboardSectorDto = {
+  name: string;
+  change_percent: string | number;
+  stock_count: number;
+};
+
+export type BackendDashboardSectorsDto = {
+  session_trade_date: string | null;
+  sectors: BackendDashboardSectorDto[];
+  top_gainer: {
+    symbol: string;
+    name: string;
+    change_percent: string | number;
+  } | null;
+};
+
+export type BackendDashboardTimelineItemDto = {
+  time: string;
+  title: string;
+  description: string;
+};
+
+export type BackendDashboardMarketAlertsDto = {
+  session_trade_date: string | null;
+  items: BackendDashboardTimelineItemDto[];
+};
+
+export type BackendDashboardSignalDto = {
+  symbol: string;
+  exchange: ExchangeCode;
+  signal: TraderRecommendation;
+  confidence: number;
+  reason: string;
+  risk: string;
+  priority: string;
+  supporting_context: string[];
+  generated_at: string;
+};
+
+export type BackendDashboardStocksInFocusDto = {
+  session_trade_date: string | null;
+  evaluated_count: number;
+  signals: BackendDashboardSignalDto[];
+};
+
+export type BackendDashboardHeatmapTileDto = {
+  stock_id: string;
+  symbol: string;
+  sector: string;
+  change_percent: string | number;
+  weight: string | number;
+  tone: string;
+  latest_price: string | number;
+  turnover: string | number;
+  turnover_value: string | number;
+  liquidity_score: number;
+};
+
+export type BackendDashboardHeatmapDto = {
+  session_trade_date: string | null;
+  tiles: BackendDashboardHeatmapTileDto[];
+};
+
+export type BackendDashboardInsightDto = {
+  id: string;
+  title: string;
+  description: string;
+  tone: string;
+  category: string;
+  source: string;
+};
+
+export type BackendDashboardMarketSentimentDto = {
+  exchange: ExchangeCode;
+  session_trade_date: string | null;
+  market_mood: string;
+  signal_count: number;
+  price_backed_count: number;
+  turnover_value: string | number | null;
+  has_partial_data: boolean;
+  insights: BackendDashboardInsightDto[];
+};
+
 export type BackendTechnicalIndicatorDto = {
   stock_id: string;
   trade_date: string;

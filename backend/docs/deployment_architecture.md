@@ -64,7 +64,7 @@ flowchart TB
 | **postgres** | Primary database | `postgres:17-alpine` |
 | **redis** | Optional dashboard section cache | `redis:7-alpine` — omit `REDIS_URL` to run without Redis |
 
-Dashboard cache architecture: [market_dashboard.md](market_dashboard.md).
+Dashboard cache architecture: [market_dashboard.md](market_dashboard.md). Phase 3 completes migration off `GET /market/price-windows` for the trader dashboard — seven section endpoints under `/dashboard/*`.
 
 ---
 

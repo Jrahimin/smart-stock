@@ -493,6 +493,64 @@ Return session-eligible gainers, losers, turnover leaders, and volume leaders fr
 
 ---
 
+### GET /api/v1/dashboard/sectors
+
+**Description**
+Return session sector leaders and top gainer for the dashboard pulse leaders widget.
+
+**Query Params**
+
+* exchange: optional enum (default `DSE`)
+
+**Response**
+
+```json
+{
+  "success": true,
+  "message": "Dashboard sectors retrieved",
+  "data": {
+    "session_trade_date": "2026-06-17",
+    "sectors": [{ "name": "Bank", "change_percent": "1.25", "stock_count": 12 }],
+    "top_gainer": { "symbol": "BRACBANK", "name": "BRAC Bank", "change_percent": "4.50" }
+  }
+}
+```
+
+---
+
+### GET /api/v1/dashboard/market-alerts
+
+**Description**
+Return timeline-style market alerts (data quality, top decision highlight, scan summary).
+
+---
+
+### GET /api/v1/dashboard/stocks-in-focus
+
+**Description**
+Return ranked actionable signals from bounded price windows and the trader decision engine.
+
+**Notes**
+
+* Universe limit: 500 stocks × 90-day window.
+* Feed limit: 8 (`DASHBOARD_SIGNAL_FEED_LIMIT`).
+
+---
+
+### GET /api/v1/dashboard/heatmap
+
+**Description**
+Return institutional heatmap tiles (latest daily prices, sorted by size/liquidity).
+
+---
+
+### GET /api/v1/dashboard/market-sentiment
+
+**Description**
+Return market mood, deterministic insight blocks, signal count, and turnover context.
+
+---
+
 ### GET /api/v1/market/pulse
 
 **Description**

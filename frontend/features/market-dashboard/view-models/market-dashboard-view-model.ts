@@ -2,34 +2,29 @@ import type {
   BackendDailyMarketSummaryDto,
   BackendDsexIndexSnapshotDto,
   BackendMarketFreshnessDto,
-  BackendStockDto,
   DataQualityFlag,
 } from "@/lib/api/backend-api-types";
-import { formatCompactNumber, formatNumber, formatPercent, toNumber } from "@/lib/formatters/financial-formatters";
-import { buildMarketInsights } from "@/lib/insights/deterministic-insights";
-import { deriveMarketBreadth, deriveMarketCondition } from "@/lib/market/market-intelligence";
+import { formatCompactNumber, formatNumber, toNumber } from "@/lib/formatters/financial-formatters";
+import type { InsightBlockModel } from "@/lib/insights/insight-types";
+import { deriveMarketCondition } from "@/lib/market/market-intelligence";
 import { buildDashboardMovers } from "@/lib/market/market-movers";
 import {
   buildBreadthPulseContext,
   buildLeadersPulseContext,
   buildTurnoverPulseContext,
   buildVolumePulseContext,
+  type LeadersPulseContext,
 } from "@/lib/market/market-pulse-metrics";
-import type { StockIntelligenceModel } from "@/lib/market/market-intelligence-types";
-import {
-  buildDecisionSupportingContext,
-  getDecisionPriority,
-  isActionableDecision,
-  resolveTraderDecision,
-} from "@/lib/market/trader-decision";
 import { buildMarketIndexContext } from "@/lib/market/market-index-context";
 import { getMarketSession } from "@/lib/market/market-session-engine";
 import type {
   BreadthModel,
+  HeatmapTileModel,
   MarketDashboardModel,
   MarketDirection,
   MarketMood,
   MarketPulseModel,
+  MarketTimelineItemModel,
   SignalFeedItemModel,
 } from "@/features/market-dashboard/types/market-dashboard-types";
 
@@ -69,21 +64,15 @@ function getMoodTone(mood: MarketMood) {
   return "neutral" as const;
 }
 
-function toBreadthModel(
-  summary: BackendDailyMarketSummaryDto | null,
-  universe: StockIntelligenceModel[],
-  listedStockCount: number,
-): BreadthModel {
-  const derived = deriveMarketBreadth(universe);
+function toBreadthModel(summary: BackendDailyMarketSummaryDto | null, listedStockCount: number): BreadthModel {
   const summaryTotal = getSummaryBreadthTotal(summary);
-  const coverageTarget = Math.max(universe.length, listedStockCount);
 
   if (
     summary &&
     summary.index_name !== "SOURCE_VALIDATION" &&
     summaryTotal !== null &&
-    coverageTarget > 0 &&
-    summaryTotal >= coverageTarget * 0.75
+    listedStockCount > 0 &&
+    summaryTotal >= listedStockCount * 0.75
   ) {
     return {
       advancing: summary.advancing_issues!,
@@ -93,81 +82,7 @@ function toBreadthModel(
     };
   }
 
-  return derived;
-}
-
-function buildHeatmapTiles(universe: StockIntelligenceModel[]) {
-  const maxTurnover = Math.max(...universe.map((stock) => stock.turnover ?? 0), 1);
-
-  return [...universe]
-    .sort((a, b) => (b.marketCap ?? b.turnover ?? 0) - (a.marketCap ?? b.turnover ?? 0))
-    .map((stock) => {
-      const change = stock.priceChangePercent ?? 0;
-      const sizeSource = stock.marketCap ?? stock.turnover ?? 1;
-      return {
-        stockId: stock.stock.id,
-        symbol: stock.stock.symbol,
-        label: stock.stock.symbol,
-        sector: stock.sector,
-        value: formatPercent(change),
-        changePercent: change,
-        weight: Math.max(1, Math.min(8, Math.log10(sizeSource + 10) / 1.8)),
-        tone: change > 0 ? ("positive" as const) : change < 0 ? ("negative" as const) : ("neutral" as const),
-        href: `/stocks/${stock.stock.exchange}/${stock.stock.symbol}`,
-        latestPrice: formatNumber(stock.latestPrice),
-        turnover: formatCompactNumber(stock.turnover),
-        turnoverValue: stock.turnover ?? 0,
-        liquidityScore: Math.round(((stock.turnover ?? 0) / maxTurnover) * 100),
-      };
-    });
-}
-
-function toSignalFeedItem(stock: StockIntelligenceModel): SignalFeedItemModel {
-  const decision = resolveTraderDecision(stock);
-  return {
-    symbol: stock.stock.symbol,
-    signal: decision.recommendation,
-    confidence: `${decision.confidence}%`,
-    confidenceValue: decision.confidence,
-    reason: decision.reason,
-    risk: decision.riskLabel,
-    priority: getDecisionPriority(decision.confidence),
-    href: `/stocks/${stock.stock.exchange}/${stock.stock.symbol}`,
-    supportingContext: buildDecisionSupportingContext(stock),
-    generatedAt: stock.latestTradeDate ?? "Awaiting price data",
-  };
-}
-
-function buildSignalFeed(universe: StockIntelligenceModel[]): SignalFeedItemModel[] {
-  const ranked = universe
-    .map((stock) => ({ stock, decision: resolveTraderDecision(stock) }))
-    .filter(
-      ({ decision }) => isActionableDecision(decision.recommendation) || decision.confidence >= 55,
-    )
-    .sort((left, right) => right.decision.confidence - left.decision.confidence)
-    .slice(0, 8);
-
-  return ranked.map(({ stock }) => toSignalFeedItem(stock));
-}
-
-function getDerivedTurnover(universe: StockIntelligenceModel[]) {
-  const values = universe
-    .map((stock) => stock.turnover)
-    .filter((turnover): turnover is number => turnover !== null);
-
-  if (!values.length) {
-    return null;
-  }
-
-  return values.reduce((sum, turnover) => sum + turnover, 0);
-}
-
-function getDerivedVolume(universe: StockIntelligenceModel[]) {
-  if (!universe.length) {
-    return null;
-  }
-
-  return universe.reduce((sum, stock) => sum + stock.volume, 0);
+  return { advancing: 0, declining: 0, unchanged: 0, total: 0 };
 }
 
 function deriveMarketDirection(
@@ -201,24 +116,21 @@ function toBreadthFromSnapshot(snapshot: BackendDsexIndexSnapshotDto): BreadthMo
 function buildMarketPulseModel(input: {
   summaries: BackendDailyMarketSummaryDto[];
   latestSummary: BackendDailyMarketSummaryDto | null;
-  universe: StockIntelligenceModel[];
   breadth: BreadthModel;
   marketMood: MarketMood;
   dsexSnapshot: BackendDsexIndexSnapshotDto | null;
   sessionTradeDate: string | null | undefined;
+  leadersContext?: LeadersPulseContext;
 }): MarketPulseModel {
-  const { summaries, latestSummary, universe, breadth, marketMood, dsexSnapshot, sessionTradeDate } = input;
+  const { summaries, latestSummary, breadth, marketMood, dsexSnapshot, sessionTradeDate, leadersContext } = input;
   const indexContext = buildMarketIndexContext(summaries, latestSummary, dsexSnapshot);
-  const derivedTurnover = getDerivedTurnover(universe);
-  const derivedVolume = getDerivedVolume(universe);
-  const turnoverValue =
-    toNumber(dsexSnapshot?.total_turnover) ?? toNumber(latestSummary?.total_turnover) ?? derivedTurnover;
-  const volumeValue = dsexSnapshot?.total_volume ?? latestSummary?.total_volume ?? derivedVolume;
+  const turnoverValue = toNumber(dsexSnapshot?.total_turnover) ?? toNumber(latestSummary?.total_turnover);
+  const volumeValue = dsexSnapshot?.total_volume ?? latestSummary?.total_volume ?? null;
   const { direction, label } = deriveMarketDirection(breadth, indexContext.indexChangePercent);
   const turnoverLabel = turnoverValue !== null ? `BDT ${formatCompactNumber(turnoverValue)}` : "N/A";
   const volumeLabel = volumeValue !== null ? `${formatCompactNumber(volumeValue)} Shares` : "N/A";
-  const leadersContext = buildLeadersPulseContext(universe, sessionTradeDate);
-  const leadingSector = leadersContext.primary;
+  const leaders = leadersContext ?? buildLeadersPulseContext([], sessionTradeDate);
+  const leadingSector = leaders.primary;
   const hasExchangeTurnover = Boolean(dsexSnapshot?.total_turnover ?? latestSummary?.total_turnover);
   const hasExchangeVolume = Boolean(dsexSnapshot?.total_volume ?? latestSummary?.total_volume);
 
@@ -240,9 +152,9 @@ function buildMarketPulseModel(input: {
     indexPerformance: indexContext.performance,
     marketStatus: indexContext.marketStatus,
     turnoverLabel,
-    turnoverHelper: hasExchangeTurnover ? "Exchange turnover" : "Derived from loaded prices",
+    turnoverHelper: hasExchangeTurnover ? "Exchange turnover" : "Exchange turnover snapshot",
     volumeLabel,
-    volumeHelper: hasExchangeVolume ? "Exchange volume" : "Derived from loaded prices",
+    volumeHelper: hasExchangeVolume ? "Exchange volume" : "Exchange volume snapshot",
     breadthLabel: `${breadth.advancing} / ${breadth.declining}`,
     breadthAdvancing: breadth.advancing,
     breadthDeclining: breadth.declining,
@@ -250,83 +162,55 @@ function buildMarketPulseModel(input: {
     marketDirection: direction,
     marketDirectionLabel: label,
     marketMood,
-    latestTradeDate: dsexSnapshot?.trade_date ?? latestSummary?.trade_date ?? universe[0]?.latestTradeDate ?? "Awaiting market summary",
+    latestTradeDate: dsexSnapshot?.trade_date ?? latestSummary?.trade_date ?? "Awaiting market summary",
     turnoverContext: buildTurnoverPulseContext(summaries, turnoverValue, turnoverLabel),
     volumeContext: buildVolumePulseContext(summaries, volumeValue, volumeLabel),
     breadthContext: buildBreadthPulseContext(breadth, direction),
-    leadersContext,
+    leadersContext: leaders,
   };
-}
-
-function buildTimeline(universe: StockIntelligenceModel[], latestSummary: BackendDailyMarketSummaryDto | null) {
-  const items = [];
-  const suspiciousCount = universe.filter((stock) => stock.dataQuality === "SUSPICIOUS").length;
-  const rankedByConfidence = universe
-    .map((stock) => ({ stock, decision: resolveTraderDecision(stock) }))
-    .sort((left, right) => right.decision.confidence - left.decision.confidence);
-  const highConfidenceDecision = rankedByConfidence[0];
-
-  if (latestSummary?.has_suspicious_prices || suspiciousCount > 0) {
-    items.push({
-      time: "Data quality",
-      title: "Suspicious activity flagged",
-      description: `${suspiciousCount || "Some"} instruments need source validation before acting on signals.`,
-    });
-  }
-
-  if (highConfidenceDecision) {
-    const decision = highConfidenceDecision.decision;
-    items.push({
-      time: highConfidenceDecision.stock.latestTradeDate ?? "Latest",
-      title: `${highConfidenceDecision.stock.stock.symbol} ${decision.recommendation}`,
-      description: decision.reason,
-    });
-  }
-
-  items.push({
-    time: latestSummary?.trade_date ?? "Latest",
-    title: "Market scan complete",
-    description: `${universe.length} active instruments were evaluated with the shared trader decision engine.`,
-  });
-
-  return items;
 }
 
 export function buildMarketDashboardModel(
   summaries: BackendDailyMarketSummaryDto[],
-  stocks: BackendStockDto[],
-  universe: StockIntelligenceModel[] = [],
   dsexSnapshot: BackendDsexIndexSnapshotDto | null = null,
   freshness: BackendMarketFreshnessDto | null = null,
   options?: {
     listedStockCount?: number;
     movers?: MarketDashboardModel["movers"];
+    heatmapTiles?: HeatmapTileModel[];
+    signals?: SignalFeedItemModel[];
+    timeline?: MarketTimelineItemModel[];
+    insights?: InsightBlockModel[];
+    leadersContext?: LeadersPulseContext;
+    marketMood?: MarketMood;
+    priceBackedCount?: number;
+    turnoverLabel?: string;
   },
 ): MarketDashboardModel {
   const latestSummary = getLatestSummary(summaries);
-  const listedStockCount = options?.listedStockCount ?? stocks.length;
+  const listedStockCount = options?.listedStockCount ?? 0;
+  const priceBackedCount = options?.priceBackedCount ?? 0;
   const breadth = dsexSnapshot
     ? toBreadthFromSnapshot(dsexSnapshot)
-    : toBreadthModel(latestSummary, universe, listedStockCount);
-  const marketMood = deriveMarketCondition(universe, breadth);
+    : toBreadthModel(latestSummary, listedStockCount);
+  const fallbackBreadth = { advancing: breadth.advancing, declining: breadth.declining, unchanged: breadth.unchanged, total: breadth.total };
+  const marketMood = options?.marketMood ?? deriveMarketCondition([], fallbackBreadth);
   const dataQuality: DataQualityFlag | "UNKNOWN" = latestSummary?.data_quality_flag ?? "UNKNOWN";
   const session = getMarketSession({
-    latestTradeDate: latestSummary?.trade_date ?? universe[0]?.latestTradeDate ?? freshness?.trade_date,
+    latestTradeDate: latestSummary?.trade_date ?? freshness?.trade_date,
     dataQualityFlag: latestSummary?.data_quality_flag,
     freshness,
   });
-  const derivedTurnover = getDerivedTurnover(universe);
-  const turnoverValue = latestSummary?.total_turnover ?? derivedTurnover;
-  const turnoverLabel = formatCompactNumber(turnoverValue);
-  const sessionTradeDate = dsexSnapshot?.trade_date ?? latestSummary?.trade_date ?? freshness?.trade_date ?? universe[0]?.latestTradeDate;
+  const turnoverLabel = options?.turnoverLabel ?? formatCompactNumber(latestSummary?.total_turnover ?? null);
+  const sessionTradeDate = dsexSnapshot?.trade_date ?? latestSummary?.trade_date ?? freshness?.trade_date;
   const pulse = buildMarketPulseModel({
     summaries,
     latestSummary,
-    universe,
     breadth,
     marketMood,
     dsexSnapshot,
     sessionTradeDate,
+    leadersContext: options?.leadersContext,
   });
 
   return {
@@ -340,38 +224,33 @@ export function buildMarketDashboardModel(
       {
         label: "Market Mood",
         value: marketMood,
-        helper: universe.length ? `${breadth.advancing} advancing, ${breadth.declining} declining` : "Awaiting latest price coverage",
+        helper: priceBackedCount ? `${breadth.advancing} advancing, ${breadth.declining} declining` : "Awaiting latest price coverage",
         tone: getMoodTone(marketMood),
       },
       {
         label: pulse.indexName,
         value: pulse.indexAvailable ? pulse.indexValue : "Index pending",
-        helper: pulse.indexAvailable ? pulse.indexChangeLabel : "Live DSEX feed unavailable",
+        helper: pulse.indexAvailable ? pulse.indexChangeLabel : "Synced DSEX data unavailable",
         tone: pulse.indexTone === "warning" ? "neutral" : pulse.indexTone,
       },
       {
         label: "Turnover",
         value: turnoverLabel,
-        helper: latestSummary?.total_turnover ? "Latest exchange turnover" : "Derived from loaded stock turnover",
-        tone: turnoverValue !== null ? "info" : "warning",
+        helper: latestSummary?.total_turnover ? "Latest exchange turnover" : "Exchange turnover snapshot",
+        tone: turnoverLabel !== "N/A" ? "info" : "warning",
       },
       {
         label: "Listed Stocks",
         value: formatNumber(listedStockCount || 0, { maximumFractionDigits: 0 }),
-        helper: `${universe.length} price-backed names loaded for analytics`,
+        helper: `${priceBackedCount} price-backed names evaluated for analytics`,
         tone: "neutral",
       },
     ],
     breadth,
-    heatmapTiles: buildHeatmapTiles(universe),
-    signals: buildSignalFeed(universe),
-    timeline: buildTimeline(universe, latestSummary),
-    insights: buildMarketInsights({
-      marketMood,
-      hasPartialData: dataQuality !== "OK" && !dsexSnapshot && latestSummary?.index_name === "SOURCE_VALIDATION",
-      signalCount: universe.filter((stock) => isActionableDecision(resolveTraderDecision(stock).recommendation)).length,
-      turnoverLabel,
-    }),
-    movers: options?.movers ?? buildDashboardMovers(universe, sessionTradeDate),
+    heatmapTiles: options?.heatmapTiles ?? [],
+    signals: options?.signals ?? [],
+    timeline: options?.timeline ?? [],
+    insights: options?.insights ?? [],
+    movers: options?.movers ?? buildDashboardMovers([], sessionTradeDate),
   };
 }

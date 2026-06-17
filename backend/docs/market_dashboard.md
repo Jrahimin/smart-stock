@@ -8,6 +8,7 @@ Trader `/dashboard` section endpoints with optional Redis caching. Admin dashboa
 |-------|----------------|
 | `market_dashboard_router.py` | HTTP only — no cache logic |
 | `market_dashboard_service.py` | Compute-on-miss, Redis get/set/delete, orchestration |
+| `market_dashboard_compute.py` | Pure computation helpers (movers, signals, mood, heatmap, sectors) |
 | `market_dashboard_cache.py` | Canonical cache keys + explicit invalidation list |
 | `redis_client.py` | Optional Redis client; failures are logged, never fatal |
 
@@ -17,18 +18,19 @@ Trader `/dashboard` section endpoints with optional Redis caching. Admin dashboa
 - No cache warming — next request rebuilds after invalidation.
 - Redis optional — unset `REDIS_URL` and the API computes on every request.
 - TTL: `max(60, min(600, market_sync_interval_seconds))` (see `dashboard_cache_ttl_seconds` on `GET /market/freshness`).
+- Reuse `MarketDataRepository` + `MarketDataService`; no duplicated SQL outside existing repos.
 
-## Endpoints
+## Endpoints (all phases)
 
-| Endpoint | Phase | Replaces (frontend) |
-|----------|-------|---------------------|
-| `GET /dashboard/overview` | 2 | `GET /market/summaries` + `GET /market/index/dsex` + stock count |
-| `GET /dashboard/movers` | 2 | Client-side movers from `price-windows` universe |
-| `GET /dashboard/sectors` | 3 | Sector pulse |
-| `GET /dashboard/market-alerts` | 3 | Timeline quality items |
-| `GET /dashboard/stocks-in-focus` | 3 | Smart signal feed |
-| `GET /dashboard/heatmap` | 3 | Institutional heatmap |
-| `GET /dashboard/market-sentiment` | 3 | Insight sidebar + mood |
+| Endpoint | Phase | Purpose |
+|----------|-------|---------|
+| `GET /dashboard/overview` | 2 | DSEX snapshot, recent summaries, listed stock count |
+| `GET /dashboard/movers` | 2 | Gainers, losers, turnover/volume leaders |
+| `GET /dashboard/sectors` | 3 | Sector participation + top gainer for pulse leaders widget |
+| `GET /dashboard/market-alerts` | 3 | Timeline items (quality flags, top decision, scan summary) |
+| `GET /dashboard/stocks-in-focus` | 3 | Ranked signal feed (bounded price windows + trader decision) |
+| `GET /dashboard/heatmap` | 3 | Institutional heatmap tiles from latest daily prices |
+| `GET /dashboard/market-sentiment` | 3 | Market mood, deterministic insights, signal/turnover context |
 
 ## Cache keys
 
@@ -47,11 +49,29 @@ All keys are listed in `DASHBOARD_CACHE_KEY_NAMES` and deleted on successful `sy
 ## Request flow
 
 ```
-GET /dashboard/movers
+GET /dashboard/stocks-in-focus
   → service tries Redis GET
   → hit: return cached JSON
-  → miss / Redis down: list_latest_daily_prices + mover rules → SET EX ttl → return
+  → miss / Redis down:
+      list_market_price_windows(limit=500, window=90)
+      → trader decision per stock
+      → rank signals
+      → SET EX ttl
+  → return
 ```
+
+## Computation notes
+
+| Section | Data source | Limits |
+|---------|-------------|--------|
+| Movers | `list_latest_daily_prices` | 5000 rows, top 5 per list |
+| Stocks in focus | `list_market_price_windows` | 500 × 90 + decision engine, top 8 signals |
+| Heatmap | `list_latest_daily_prices` | 500 tiles |
+| Sectors | Price windows (same universe as signals) | Sectors with ≥3 session movers |
+| Market sentiment | Price windows + DSEX summary | Mood derived server-side |
+| Market alerts | Price windows + latest summary | Timeline parity with legacy client |
+
+Mover eligibility mirrors `market_mover_rules.is_eligible_session_mover`.
 
 ## Configuration
 
@@ -59,17 +79,33 @@ GET /dashboard/movers
 |----------|---------|-------|
 | `REDIS_URL` | unset | e.g. `redis://redis:6379/0` in Docker Compose |
 
-## Phase 2 frontend migration
+Constants in `trading_constants.py`:
 
-The dashboard uses:
+- `DASHBOARD_SIGNAL_UNIVERSE_LIMIT = 500`
+- `DASHBOARD_PRICE_WINDOW_LIMIT = 90`
+- `DASHBOARD_SIGNAL_FEED_LIMIT = 8`
+- `DASHBOARD_HEATMAP_LIMIT = 500`
+- `DASHBOARD_MARKET_MOVERS_LIMIT = 5`
 
-- `GET /dashboard/overview` — pulse header (DSEX, breadth, turnover/volume context)
-- `GET /dashboard/movers` — gainers, losers, turnover/volume leaders
-- `GET /market/freshness` — session + cache TTL
-- `GET /market/price-windows` — unmigrated sections (signals, heatmap, timeline)
+## Frontend load tiers
 
-Manual refresh invalidates TanStack Query keys `["dashboard", "overview", …]` and `["dashboard", "movers", …]`.
+| Tier | Hooks | Notes |
+|------|-------|-------|
+| Immediate | `useDashboardOverview`, `useMarketDataFreshness` | Pulse header |
+| Secondary | movers, sectors, stocks-in-focus, market-alerts | Core workspace columns |
+| Deferred | heatmap, market-sentiment | `next/dynamic` imports; enabled after overview loads |
+
+The dashboard **no longer** calls `GET /market/price-windows` on load. Manual refresh invalidates all `["dashboard", …]` TanStack Query keys.
 
 ## DSEX data source
 
-Overview embeds `DsexIndexSnapshotRead` from `MarketDataService.get_dsex_index_snapshot`, which reads synced `daily_market_summaries` (not live AmarStock on the read path). Index may lag up to one sync interval.
+Overview and sentiment embed `DsexIndexSnapshotRead` from synced `daily_market_summaries` (not live AmarStock on the read path). Index may lag up to one sync interval.
+
+## Operational behavior
+
+| Scenario | Behavior |
+|----------|----------|
+| Redis up | Cache hit → fast JSON; miss → compute once per TTL window |
+| Redis down | Every request computes; app remains available |
+| Sync completes | Explicit key delete (best-effort); no warming |
+| Cold cache after sync | First request pays full compute cost (by design) |
