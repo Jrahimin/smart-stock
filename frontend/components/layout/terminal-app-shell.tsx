@@ -5,9 +5,11 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { GlobalCommandPalette } from "@/components/command/global-command-palette";
+import { MobileAppHeader } from "@/components/layout/mobile-app-header";
+import { MobileNavigationDrawer } from "@/components/layout/mobile-navigation-drawer";
 import { SidebarThemeToggle } from "@/components/layout/sidebar-theme-toggle";
 import { TerminalSidebarNav } from "@/components/layout/terminal-sidebar-nav";
 import { useAuth } from "@/features/auth/context/auth-context";
@@ -24,6 +26,8 @@ export function TerminalAppShell({ children }: TerminalAppShellProps) {
   const toggleSidebar = useWorkspaceStore((state) => state.toggleSidebar);
   const theme = useWorkspaceStore((state) => state.theme);
   const [storeHydrated, setStoreHydrated] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     setStoreHydrated(true);
@@ -33,11 +37,26 @@ export function TerminalAppShell({ children }: TerminalAppShellProps) {
     document.documentElement.dataset.theme = theme;
   }, [theme]);
 
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [pathname]);
+
   const isSidebarCollapsed = storeHydrated ? sidebarCollapsed : false;
 
   return (
     <div className={isSidebarCollapsed ? "terminal-shell terminal-shell-collapsed" : "terminal-shell"}>
-      <aside className="terminal-sidebar">
+      <MobileAppHeader
+        isMenuOpen={mobileNavOpen}
+        menuButtonRef={menuButtonRef}
+        onMenuToggle={() => setMobileNavOpen((open) => !open)}
+      />
+      <MobileNavigationDrawer
+        isOpen={mobileNavOpen}
+        menuButtonRef={menuButtonRef}
+        onClose={() => setMobileNavOpen(false)}
+        storeHydrated={storeHydrated}
+      />
+      <aside className="terminal-sidebar terminal-sidebar-desktop">
         <div className="terminal-sidebar-top">
           <Link aria-label="Smart Stock home" className="terminal-brand" href="/dashboard">
             <Image
