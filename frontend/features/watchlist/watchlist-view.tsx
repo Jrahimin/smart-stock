@@ -180,7 +180,9 @@ export function WatchlistView() {
         <div className="watchlist-table" role="table">
           <div className="watchlist-table-head" role="rowgroup">
             <div className="watchlist-row watchlist-header-row" role="row">
-              <div aria-hidden="true" className="watchlist-cell watchlist-actions-header" role="columnheader" />
+              <div className="watchlist-cell watchlist-actions-header" role="columnheader">
+                Operations
+              </div>
               <div className="watchlist-cell watchlist-symbol-header" role="columnheader">
                 Symbol
               </div>
