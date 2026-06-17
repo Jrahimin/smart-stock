@@ -53,6 +53,7 @@ export function listLatestMarketPrices(params: ListMarketSummariesParams = {}) {
   });
 }
 
+/** @deprecated Prefer listUniverseRows — trader UI must use GET /market/universe-rows. */
 export function listMarketPriceWindows(params: ListMarketPriceWindowsParams = {}) {
   return backendApiGet<BackendMarketPriceWindowDto[]>("/market/price-windows", {
     limit: params.limit ?? 100,

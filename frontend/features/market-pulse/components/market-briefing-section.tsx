@@ -13,7 +13,13 @@ import {
 } from "lucide-react";
 
 import { MiniSparkline } from "@/features/market-pulse/components/pulse-score-badge";
+import {
+  MarketBriefingFooterSkeleton,
+  MarketBriefingSectionSkeleton,
+} from "@/features/market-pulse/components/pulse-briefing-skeleton";
 import type { MarketBriefingModel } from "@/features/market-pulse/types/market-pulse-types";
+
+export { MarketBriefingFooterSkeleton, MarketBriefingSectionSkeleton };
 
 type MarketBriefingSectionProps = {
   briefing: MarketBriefingModel;
@@ -85,18 +91,30 @@ function OpportunityGauge({
       </div>
       <div className="pulse-opportunity-history-wrap">
         <span className="pulse-opportunity-history-label">Last 5 sessions</span>
-        {history.length >= 2 ? (
-          <div className="pulse-opportunity-history" aria-label="Last 5 sessions">
-            {history.map((value, index) => (
+        <div className="pulse-opportunity-history" aria-label="Last 5 sessions">
+          {Array.from({ length: 5 }, (_, slotIndex) => {
+            const historyIndex = slotIndex - Math.max(0, 5 - history.length);
+            const value = historyIndex >= 0 ? history[historyIndex] : undefined;
+            const isCurrent = historyIndex === history.length - 1 && value !== undefined;
+            if (value === undefined) {
+              return (
+                <span
+                  className="pulse-opportunity-history-item pulse-opportunity-history-item-placeholder pulse-skeleton"
+                  key={`placeholder-${slotIndex}`}
+                />
+              );
+            }
+
+            return (
               <span
-                className={`pulse-opportunity-history-item${index === history.length - 1 ? " pulse-opportunity-history-item-current" : ""}`}
-                key={`${value}-${index}`}
+                className={`pulse-opportunity-history-item${isCurrent ? " pulse-opportunity-history-item-current" : ""}`}
+                key={`${value}-${slotIndex}`}
               >
                 {value}
               </span>
-            ))}
-          </div>
-        ) : null}
+            );
+          })}
+        </div>
       </div>
       <div className="pulse-opportunity-context">
         {previousSession !== null ? (

@@ -121,6 +121,34 @@ Feature-specific query params, such as `exchange`, `indicator_type`, or date ran
 * Avoid tight coupling between modules
 * Write reusable, testable logic
 
+### Market Universe (`modules/market_universe/`)
+
+`market_universe_service` is the **single exchange-wide compute source**. Dashboard, Pulse, Explorer, Scanner, Signals, and Watchlist consume `ScoredUniverseRow` from `GET /api/v1/market/universe-rows` — they do not run parallel `price-windows` + decision loops.
+
+| File | Responsibility |
+|------|----------------|
+| `market_universe_router.py` | HTTP only |
+| `market_universe_service.py` | Compute-on-miss + Redis `universe:scored:{exchange}` |
+| `market_universe_compute.py` | `build_scored_universe_rows` — only place OHLCV is held in memory for exchange-wide reads |
+| `market_universe_schemas.py` | `ScoredUniverseRow` contract |
+
+Presentation caches (`dashboard:*`, `pulse:*`) layer on scored rows. `invalidate_market_caches()` deletes presentation keys then foundation. See `backend/docs/market_universe.md`.
+
+### Trader Dashboard (`modules/market_dashboard/`)
+
+Section endpoints under `GET /api/v1/dashboard/*` replace the old dashboard `price-windows` fan-out. Compute-on-miss only — no sync-time aggregation, no cache warming.
+
+| Layer | Role |
+|-------|------|
+| `market_dashboard_router.py` | HTTP only |
+| `market_dashboard_service.py` | Orchestration + **all** Redis get/set/delete |
+| `market_dashboard_compute.py` | Pure section logic (movers, signals, heatmap, mood, etc.) |
+| `market_data_repository` | Reused queries — no parallel SQL in dashboard |
+
+**Redis (optional):** `REDIS_URL` unset → compute every request. Keys: `dashboard:{section}:{exchange}` (`overview`, `movers`, `sectors`, `market-alerts`, `stocks-in-focus`, `heatmap`, `market-sentiment`). TTL: `max(60, min(600, market_sync_interval_seconds))`. `sync_market_snapshot` deletes all keys explicitly (best-effort); failures are logged, never fatal.
+
+**Frontend:** TanStack Query per section; `staleTime` / `refetchInterval` from `GET /market/freshness` → `dashboard_cache_ttl_seconds`. See `backend/docs/market_dashboard.md`.
+
 ---
 
 ## Forbidden (Backend)
@@ -227,17 +255,40 @@ Rules:
 * Components should not parse backend decimals, infer trading risk, inspect raw data quality, or call APIs directly.
 * Formatting belongs in `frontend/lib/formatters`; deterministic trading derivations belong in `frontend/lib/market` or `frontend/lib/insights`.
 
+### Shared Market Intelligence (Client)
+
+List views (Explorer, Scanner, Signals, Watchlist) must not derive action, RSI, or trend independently. Use one pipeline:
+
+| Piece | Location | Role |
+|-------|----------|------|
+| Backend source | `GET /api/v1/market/universe-rows` | `ScoredUniverseRow`: `technical_snapshot` + `decision` |
+| Row mapper | `frontend/lib/market/universe-row-mapper.ts` | DTO → `StockIntelligenceModel` |
+| Enrichment | `frontend/lib/market/universe-intelligence.ts` | Merge universe rows + legacy persisted signals (`GET /signals/latest`) for **NEW** badges |
+| Hook | `frontend/hooks/market/use-enriched-universe-intelligence.ts` | TanStack Query wrapper; returns `intelligenceByStockId` map |
+| Decisions | `frontend/lib/market/trader-decision.ts` | `resolveTraderDecision()`, session-change helpers — **only** source for action badges |
+| Trend labels | `frontend/lib/market/trend-display.ts` | Shared Bullish/Bearish/Sideways copy and filter keys |
+
+Watchlist fallback when a symbol is missing from the universe payload: use watchlist item `technical_snapshot` + `trader_decision` (same backend compute path). Stock detail workspace still uses `GET /stock-details/.../decision` for the full decision rail; list-level badges stay on the universe contract above.
+
 ### Market Session And Cache Policy
 
 The market session engine should model `PRE_OPEN`, `OPEN`, `POST_CLOSE`, `HOLIDAY`, `STALE`, `PARTIAL`, and `SYNCING` using Asia/Dhaka context, latest market dates, data quality, and future sync job state.
 
-The product currently uses daily synced data, not live streaming. Default market cache duration is configurable with `NEXT_PUBLIC_MARKET_CACHE_HOURS` and should default to 2 hours. Dashboard, stock list, scanner, and signal views should expose manual refresh controls that invalidate/refetch cached market data after a sync or correction.
+The product uses daily synced data, not live streaming. **Three cache layers** (do not conflate):
+
+| Layer | Where | TTL / behavior |
+|-------|--------|----------------|
+| Redis (optional) | `market_dashboard_service` | `dashboard_cache_ttl_seconds`; invalidated on sync |
+| TanStack Query | Feature hooks | Dashboard: `staleTime` + `refetchInterval` from freshness; other views may use defaults |
+| IndexedDB | `backend-api-client` `backendApiGet` | `NEXT_PUBLIC_MARKET_CACHE_HOURS` (default 2h) |
+
+Dashboard loads via `/dashboard/*` only (no `price-windows`). Market views rely on TanStack Query `staleTime` / `refetchInterval` (dashboard: from `dashboard_cache_ttl_seconds` on freshness) and optional IndexedDB caching in `backendApiGet`.
 
 ### Table And Performance Strategy
 
 Use TanStack Table for stock explorer, signal center, scanner results, and watchlists. Large tables should use sticky headers, aligned tabular financial numerals, clear row dividers, loading/empty/stale states, and virtualization where row count justifies it.
 
-Do not build market-wide pages by issuing one request per stock. Use aggregate backend endpoints such as `GET /api/v1/market/latest-prices` for dashboard/explorer/scanner/signal workflows. Use per-stock historical price endpoints only for detail chart windows.
+Do not build market-wide pages by issuing one request per stock. Use aggregate backend endpoints: trader dashboard → `GET /api/v1/dashboard/*`; explorer/scanner/signals/watchlist → `GET /api/v1/market/universe-rows`. Per-stock historical endpoints only for chart windows (`GET /api/v1/stock-details/{exchange}/{symbol}/workspace`).
 
 ### Visualization Strategy
 

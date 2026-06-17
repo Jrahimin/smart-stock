@@ -258,3 +258,14 @@ class MarketPulseRead(BaseModel):
     empty_state: str
     empty_message: str | None
     data_quality_note: str | None
+
+
+class MarketPulseSummaryRead(BaseModel):
+    hero: MarketPulseHeroRead
+    since_last_visit: SinceLastVisitRead
+    focus_stocks: list[FocusStockRead]
+    monitor_candidates: list[FocusStockRead]
+    alerts: list[MarketAlertRead]
+    empty_state: str
+    empty_message: str | None
+    data_quality_note: str | None

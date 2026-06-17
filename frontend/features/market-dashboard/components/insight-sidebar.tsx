@@ -1,10 +1,12 @@
+import { memo } from "react";
+
 import type { InsightBlockModel } from "@/lib/insights/insight-types";
 
 type InsightSidebarProps = {
   insights: InsightBlockModel[];
 };
 
-export function InsightSidebar({ insights }: InsightSidebarProps) {
+export const InsightSidebar = memo(function InsightSidebar({ insights }: InsightSidebarProps) {
   return (
     <aside className="insight-sidebar">
       <div className="section-heading">
@@ -21,4 +23,4 @@ export function InsightSidebar({ insights }: InsightSidebarProps) {
       ))}
     </aside>
   );
-}
+});

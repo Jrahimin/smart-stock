@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import { WorkspacePageHero } from "@/components/layout/workspace-page-hero";
-import { FloatingRefreshButton } from "@/components/ui/floating-refresh-button";
 import { MarketActivityLoader } from "@/components/ui/market-activity-loader";
 import { SignalBadge } from "@/components/ui/signal-badge";
 import { WatchlistStarToggle } from "@/features/watchlist/components/watchlist-star-toggle";
@@ -16,7 +15,7 @@ import { frontendConfig } from "@/lib/frontend-config";
 import { isBreakdownRiskDecision, resolveTraderDecision } from "@/lib/market/trader-decision";
 
 export function ScannerWorkspaceView() {
-  const { universe, isLoading, isError, refetch } = useMarketUniverse({ stockLimit: 500, priceWindowLimit: 90 });
+  const { universe, isLoading, isError } = useMarketUniverse({ stockLimit: 500 });
   const { watchedStockIds, holdingStockIds } = useUserWatchlist();
   const [symbolFilter, setSymbolFilter] = useState("");
   const [watchlistFilter, setWatchlistFilter] = useState<WatchlistFilterMode>("ALL");
@@ -178,7 +177,6 @@ export function ScannerWorkspaceView() {
           </section>
         ))}
       </div>
-      <FloatingRefreshButton onRefresh={refetch} />
     </section>
   );
 }

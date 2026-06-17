@@ -402,6 +402,8 @@ Return snapshot timing and session metadata so the frontend can show last/next u
     "last_synced_at": "2026-06-11T14:45:00+06:00",
     "next_sync_at": "2026-06-11T15:00:00+06:00",
     "snapshot_interval_minutes": 15,
+    "market_sync_interval_seconds": 900,
+    "dashboard_cache_ttl_seconds": 600,
     "expected_delay_minutes": 15,
     "market_open_time": "10:00",
     "market_close_time": "15:00",
@@ -416,15 +418,176 @@ Return snapshot timing and session metadata so the frontend can show last/next u
 * `last_synced_at` is `max(daily_prices.updated_at)` for the latest trade date with rows.
 * `next_sync_at` is present only when `market_status` is `PRE_OPEN` or `OPEN`; otherwise `null`.
 * `expected_delay_minutes` matches `snapshot_interval_minutes` by default (max staleness between scheduled snapshots).
+* `market_sync_interval_seconds` is `snapshot_interval_minutes * 60`.
+* `dashboard_cache_ttl_seconds` is `max(60, min(600, market_sync_interval_seconds))` — shared TTL for dashboard Redis cache and frontend TanStack Query `staleTime`.
 * `market_status`: `PRE_OPEN` | `OPEN` | `POST_CLOSE` | `HOLIDAY`.
 * No `is_live` field — prices are always snapshot-based.
+
+---
+
+## Market Dashboard
+
+Trader `/dashboard` section endpoints. Optional Redis cache — see [market_dashboard.md](market_dashboard.md).
+
+### GET /api/v1/dashboard/overview
+
+**Description**
+Return DSEX index snapshot, recent market summaries, listed stock count, and session trade date for the dashboard pulse header.
+
+**Query Params**
+
+* exchange: optional enum, one of `DSE`, `CSE` (default `DSE`)
+
+**Response**
+
+```json
+{
+  "success": true,
+  "message": "Dashboard overview retrieved",
+  "data": {
+    "exchange": "DSE",
+    "session_trade_date": "2026-06-17",
+    "listed_stock_count": 398,
+    "dsex_index": { "...": "DsexIndexSnapshotRead — same shape as GET /market/index/dsex" },
+    "summaries": [{ "...": "DailyMarketSummaryRead[] — recent rows for turnover/volume context" }]
+  }
+}
+```
+
+**Notes**
+
+* Cached in Redis when `REDIS_URL` is set; TTL matches `dashboard_cache_ttl_seconds`.
+* Invalidated on successful `sync_market_snapshot`.
+
+---
+
+### GET /api/v1/dashboard/movers
+
+**Description**
+Return session-eligible gainers, losers, turnover leaders, and volume leaders from latest daily prices.
+
+**Query Params**
+
+* exchange: optional enum, one of `DSE`, `CSE` (default `DSE`)
+
+**Response**
+
+```json
+{
+  "success": true,
+  "message": "Dashboard movers retrieved",
+  "data": {
+    "session_trade_date": "2026-06-17",
+    "gainers": [],
+    "losers": [],
+    "turnover_leaders": [],
+    "volume_leaders": []
+  }
+}
+```
+
+**Notes**
+
+* Eligibility mirrors `market_mover_rules.is_eligible_session_mover`.
+* Default limit per list: 5 (`DASHBOARD_MARKET_MOVERS_LIMIT`).
+
+---
+
+### GET /api/v1/dashboard/sectors
+
+**Description**
+Return session sector leaders and top gainer for the dashboard pulse leaders widget.
+
+**Query Params**
+
+* exchange: optional enum (default `DSE`)
+
+**Response**
+
+```json
+{
+  "success": true,
+  "message": "Dashboard sectors retrieved",
+  "data": {
+    "session_trade_date": "2026-06-17",
+    "sectors": [{ "name": "Bank", "change_percent": "1.25", "stock_count": 12 }],
+    "top_gainer": { "symbol": "BRACBANK", "name": "BRAC Bank", "change_percent": "4.50" }
+  }
+}
+```
+
+---
+
+### GET /api/v1/dashboard/market-alerts
+
+**Description**
+Return timeline-style market alerts (data quality, top decision highlight, scan summary).
+
+---
+
+### GET /api/v1/dashboard/stocks-in-focus
+
+**Description**
+Return ranked actionable signals from bounded price windows and the trader decision engine.
+
+**Notes**
+
+* Universe limit: 500 stocks × 90-day window.
+* Feed limit: 8 (`DASHBOARD_SIGNAL_FEED_LIMIT`).
+
+---
+
+### GET /api/v1/dashboard/heatmap
+
+**Description**
+Return institutional heatmap tiles (latest daily prices, sorted by size/liquidity).
+
+---
+
+### GET /api/v1/dashboard/market-sentiment
+
+**Description**
+Return market mood, deterministic insight blocks, signal count, and turnover context.
+
+---
+
+### GET /api/v1/market/universe-rows
+
+**Description**
+Return the shared `ScoredUniverseRow` list for Explorer, Scanner, Signals, and Watchlist. Serves from Redis `universe:scored:{exchange}` on cache hit. This is the preferred list endpoint — do not use `GET /market/price-windows` on trader UI paths.
+
+**Query Params**
+
+* exchange: optional enum (default `DSE`)
+
+**Response**
+
+```json
+{
+  "success": true,
+  "message": "Universe rows retrieved",
+  "data": {
+    "meta": {
+      "exchange": "DSE",
+      "listed_stock_count": 392,
+      "session_trade_date": "2026-06-17"
+    },
+    "rows": []
+  }
+}
+```
 
 ---
 
 ### GET /api/v1/market/pulse
 
 **Description**
-Return the curated Market Pulse briefing: hero attention summary, focus stocks, conditional insight, change timeline, and market alerts. Pulse Score, focus labels, triggers, and ranking are computed server-side from price windows and the trader decision engine.
+Return the curated Market Pulse briefing: hero attention summary, focus stocks, conditional insight, change timeline, and market alerts. Pulse Score, focus labels, triggers, and ranking are computed server-side from `market_universe_service` scored rows (presentation layer).
+
+**Related tiered endpoints**
+
+* `GET /api/v1/market/pulse/summary` — hero, focus stocks, alerts (cached in `pulse:summary:{exchange}`)
+* `GET /api/v1/market/pulse/briefing` — narrative briefing blocks only
 
 **Query Params**
 
@@ -977,6 +1140,38 @@ Run API-only AmarStock stock details ingestion for eligible active stocks. The w
     "latest_price_profile_fill_count": 1,
     "latest_price_shareholding_count": 1,
     "latest_price_valuation_count": 1
+  }
+}
+```
+
+---
+
+### GET /api/v1/stock-details/{exchange}/{symbol}/workspace
+
+**Description**
+Consolidated stock workspace payload: `StockRead`, OHLCV window (260 bars), and full decision-support in one response. Cached in Redis with versioned key `stock-workspace:core:{exchange}:{symbol}:{latest_trade_date}`. TTL follows `market_dashboard_cache_ttl_seconds` as a same-day safety net. **Not** invalidated on exchange-wide sync — eventually consistent by design.
+
+**Lazy section endpoints**
+
+* `GET .../workspace/patterns` — patterns + breakout (`stock-workspace:patterns:...`)
+* `GET .../workspace/events` — ownership, valuation, timeline (`stock-workspace:events:...`)
+
+**Path Params**
+
+* exchange: `DSE` or `CSE`
+* symbol: stock ticker, for example `ACMEPL`
+
+**Response**
+
+```json
+{
+  "success": true,
+  "message": "Stock workspace retrieved",
+  "data": {
+    "stock": {},
+    "prices": [],
+    "latest_trade_date": "2026-06-17",
+    "decision_support": {}
   }
 }
 ```

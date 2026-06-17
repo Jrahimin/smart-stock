@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from dataclasses import dataclass
+from datetime import date
+from decimal import Decimal
 
 from app.core.enums import ExchangeCode, MarketAlertType, PulseFocusLabel, TrendDirection
+from app.models import DailyMarketSummary
 from app.modules.market_pulse.market_pulse_schemas import (
     FocusStockRead,
     HighPriorityRead,
@@ -14,8 +18,8 @@ from app.modules.market_pulse.market_pulse_schemas import (
     MarketStateRead,
     MarketStoryMetricRead,
     MarketStoryRead,
-    MarketSummaryRead,
     MarketSummaryHighlightRead,
+    MarketSummaryRead,
     TradingEnvironmentRead,
     TradingEnvironmentSignalRead,
     MoneyFlowRead,
@@ -24,16 +28,25 @@ from app.modules.market_pulse.market_pulse_schemas import (
     PlaybookItemRead,
     PlaybookRead,
 )
-from app.modules.market_pulse.pulse_score import compute_pulse_score, get_volume_ratio
-from app.modules.stock_details.decision.summary import compute_trader_decision_summary_for_stock
-from app.modules.stock_details.decision.technical import build_technical_snapshot
+from app.modules.market_pulse.pulse_score import get_volume_ratio
+from app.modules.stock_details.decision.technical import TechnicalSnapshot
+
+
+@dataclass(frozen=True)
+class PulseBriefingRow:
+    """Presentation row for briefing — pre-scored in pulse service, no recompute here."""
+
+    stock: object
+    snapshot: TechnicalSnapshot
+    decision: object
+    score: object
 
 
 def _sector_name(stock) -> str:
-    return (stock.sector or stock.category or "Unclassified").strip() or "Unclassified"
+    return (getattr(stock, "sector", None) or getattr(stock, "category", None) or "Unclassified").strip() or "Unclassified"
 
 
-def _compute_breadth(rows) -> dict[str, int]:
+def _compute_breadth(rows: list[PulseBriefingRow]) -> dict[str, int]:
     advancing = sum(1 for row in rows if (row.snapshot.price_change_percent or 0) > 0.05)
     declining = sum(1 for row in rows if (row.snapshot.price_change_percent or 0) < -0.05)
     unchanged = max(0, len(rows) - advancing - declining)
@@ -46,7 +59,7 @@ def _compute_breadth(rows) -> dict[str, int]:
     }
 
 
-def _sector_performance(rows) -> dict[str, list[float]]:
+def _sector_performance(rows: list[PulseBriefingRow]) -> dict[str, list[float]]:
     buckets: dict[str, list[float]] = defaultdict(list)
     for row in rows:
         change = row.snapshot.price_change_percent or 0
@@ -78,23 +91,22 @@ def _state_tone(value: str) -> str:
     return "warning"
 
 
-def _participation_line(rows) -> str:
-    daily_totals: dict[object, float] = defaultdict(float)
-    for row in rows:
-        for price in row.prices:
-            if price.turnover:
-                daily_totals[price.trade_date] += float(price.turnover)
-
-    if len(daily_totals) < 2:
+def _participation_line_from_summaries(summaries: list[DailyMarketSummary]) -> str:
+    filtered = [
+        summary
+        for summary in summaries
+        if summary.index_name != "SOURCE_VALIDATION" and summary.total_turnover is not None
+    ]
+    if len(filtered) < 2:
         return "Participation is being assessed from the latest available session data."
 
-    sorted_dates = sorted(daily_totals)
-    latest_turnover = daily_totals[sorted_dates[-1]]
-    baseline_days = sorted_dates[-21:-1]
-    if not baseline_days:
+    sorted_summaries = sorted(filtered, key=lambda item: item.trade_date)
+    latest_turnover = float(sorted_summaries[-1].total_turnover or 0)
+    baseline = sorted_summaries[-21:-1]
+    if not baseline:
         return "Participation is being assessed from the latest available session data."
 
-    baseline_total = sum(daily_totals[day] for day in baseline_days) / len(baseline_days)
+    baseline_total = sum(float(item.total_turnover or 0) for item in baseline) / len(baseline)
     if baseline_total > 0 and latest_turnover < baseline_total * 0.85:
         return "Participation remains weak while turnover stays below normal levels."
     if baseline_total > 0 and latest_turnover > baseline_total * 1.15:
@@ -109,68 +121,62 @@ def _rotation_line(top_inflow_names: list[str]) -> str:
     return f"Capital continues rotating into {names}."
 
 
-def _compute_opportunity_history(rows, focus_reads: list[FocusStockRead], *, last_n: int = 5) -> list[int]:
-    trade_dates = sorted({price.trade_date for row in rows for price in row.prices})
-    if len(trade_dates) < 2:
+def _opportunity_history_from_summaries(
+    summaries: list[DailyMarketSummary],
+    *,
+    last_n: int = 5,
+) -> list[int]:
+    filtered = [
+        summary
+        for summary in summaries
+        if summary.index_name != "SOURCE_VALIDATION" and summary.index_change_percent is not None
+    ]
+    if not filtered:
         return []
 
-    candidate_ids = {str(stock.stock_id) for stock in focus_reads}
-    if not candidate_ids:
-        ranked = sorted(rows, key=lambda row: row.score.total, reverse=True)[:30]
-        candidate_ids = {str(row.stock.id) for row in ranked}
-
+    sorted_summaries = sorted(filtered, key=lambda item: item.trade_date)[-last_n:]
     history: list[int] = []
-    for trade_date in trade_dates[-last_n:]:
-        session_scores: list[int] = []
-        for row in rows:
-            if str(row.stock.id) not in candidate_ids:
-                continue
-            prices_to_date = [price for price in row.prices if price.trade_date <= trade_date]
-            if len(prices_to_date) < 20:
-                continue
-            snapshot = build_technical_snapshot(prices_to_date)
-            if snapshot is None:
-                continue
-            decision = compute_trader_decision_summary_for_stock(row.stock, prices_to_date)
-            if decision is None:
-                continue
-            session_scores.append(compute_pulse_score(snapshot, decision).total)
-        if session_scores:
-            history.append(int(round(sum(session_scores) / len(session_scores))))
-
+    for summary in sorted_summaries:
+        change = float(summary.index_change_percent or 0)
+        score = int(round(50 + change * 8))
+        history.append(max(0, min(100, score)))
     return history
 
 
-def _sector_sparkline(rows, sector_name: str) -> list[float]:
-    by_date: dict[object, list[float]] = defaultdict(list)
-    for row in rows:
-        if _sector_name(row.stock) != sector_name:
-            continue
-        for price in row.prices:
-            if price.close_price is not None:
-                by_date[price.trade_date].append(float(price.close_price))
-
-    if not by_date:
+def _index_close_sparkline(
+    summaries: list[DailyMarketSummary],
+    *,
+    last_n: int = 8,
+) -> list[float]:
+    filtered = [
+        summary
+        for summary in summaries
+        if summary.index_name != "SOURCE_VALIDATION" and summary.index_close is not None
+    ]
+    if not filtered:
         return []
 
-    averages = [
-        sum(closes) / len(closes)
-        for _, closes in sorted(by_date.items(), key=lambda item: item[0])
-    ]
-    return averages[-8:]
+    sorted_summaries = sorted(filtered, key=lambda item: item.trade_date)[-last_n:]
+    return [float(summary.index_close) for summary in sorted_summaries]
 
 
-def _stock_sparkline(row) -> list[float]:
-    prices = sorted(row.prices, key=lambda item: item.trade_date)
-    return [float(price.close_price) for price in prices[-8:]]
+def _snapshot_sparkline(snapshot: TechnicalSnapshot) -> list[float]:
+    if snapshot.sparkline_closes:
+        return list(snapshot.sparkline_closes)
+    if snapshot.latest_price is not None and snapshot.previous_close is not None:
+        return [float(snapshot.previous_close), float(snapshot.latest_price)]
+    if snapshot.latest_price is not None:
+        return [float(snapshot.latest_price)]
+    return []
 
 
 def build_market_briefing(
-    rows,
+    rows: list[PulseBriefingRow],
     focus_reads: list[FocusStockRead],
     monitor_reads: list[FocusStockRead],
     alerts: list[MarketAlertRead],
     *,
+    market_summaries: list[DailyMarketSummary] | None = None,
     format_number,
     format_percent,
     price_tone,
@@ -179,6 +185,7 @@ def build_market_briefing(
     if not rows:
         return None
 
+    summaries = market_summaries or []
     breadth = _compute_breadth(rows)
     total = breadth["total"]
     adv_pct = breadth["advancing"] / total * 100
@@ -199,7 +206,7 @@ def build_market_briefing(
     )
 
     top_inflow_names = [name for name, _ in inflow_sectors[:2]]
-    briefing_line_one = _participation_line(rows)
+    briefing_line_one = _participation_line_from_summaries(summaries)
     briefing_line_two = _rotation_line(top_inflow_names)
 
     if breadth["declining"] > breadth["advancing"] * 1.15:
@@ -259,7 +266,7 @@ def build_market_briefing(
     participation = "Weak" if avg_volume_ratio < 0.95 else "Strong" if avg_volume_ratio > 1.15 else "Moderate"
     uptrend_count = sum(1 for row in rows if row.snapshot.trend == TrendDirection.UPTREND)
     momentum = "Positive" if uptrend_count / total >= 0.42 else "Negative" if uptrend_count / total <= 0.32 else "Neutral"
-    stock_sector_map = {str(row.stock.id): _sector_name(row.stock) for row in rows}
+    stock_sector_map = {str(getattr(row.stock, "id", "")): _sector_name(row.stock) for row in rows}
     focus_sectors = {stock_sector_map.get(str(stock.stock_id), "Unclassified") for stock in focus_reads}
     leadership = "Narrow" if len(focus_sectors) <= 2 else "Broad"
 
@@ -279,8 +286,18 @@ def build_market_briefing(
     state = MarketStateRead(
         dimensions=[
             MarketStateDimensionRead(key="sentiment", label="Sentiment", value=sentiment, tone=_state_tone(sentiment)),
-            MarketStateDimensionRead(key="participation", label="Participation", value=participation, tone=_state_tone(participation if participation != "Moderate" else "Neutral")),
-            MarketStateDimensionRead(key="momentum", label="Momentum", value=momentum, tone=_state_tone(momentum if momentum != "Neutral" else "Neutral")),
+            MarketStateDimensionRead(
+                key="participation",
+                label="Participation",
+                value=participation,
+                tone=_state_tone(participation if participation != "Moderate" else "Neutral"),
+            ),
+            MarketStateDimensionRead(
+                key="momentum",
+                label="Momentum",
+                value=momentum,
+                tone=_state_tone(momentum if momentum != "Neutral" else "Neutral"),
+            ),
             MarketStateDimensionRead(key="leadership", label="Leadership", value=leadership, tone=_state_tone(leadership)),
         ],
         overall_label=overall,
@@ -313,12 +330,8 @@ def build_market_briefing(
     monitor_scores = [stock.pulse_score for stock in monitor_reads]
     pool_scores = focus_scores or monitor_scores or [row.score.total for row in rows[:20]]
     opportunity = int(round(sum(pool_scores) / len(pool_scores))) if pool_scores else 50
-    history = _compute_opportunity_history(rows, focus_reads)
-    if history and history[-1] != opportunity:
-        history = [*history[:-1], opportunity] if len(history) > 1 else [opportunity]
-    elif not history:
-        history = []
-
+    prior_history = _opportunity_history_from_summaries(summaries, last_n=4)
+    history = (prior_history + [opportunity])[-5:]
     previous_session = history[-2] if len(history) >= 2 else None
     weekly_average = int(round(sum(history) / len(history))) if history else None
     trend_label: str | None = None
@@ -349,7 +362,8 @@ def build_market_briefing(
         1
         for row in rows
         if row.score.total >= 75
-        and row.label in {PulseFocusLabel.NEW_BUY_SETUP, PulseFocusLabel.VOLUME_BREAKOUT}
+        and getattr(row, "label", None)
+        in {PulseFocusLabel.NEW_BUY_SETUP, PulseFocusLabel.VOLUME_BREAKOUT}
     )
     watchlist_count = len(monitor_reads) or len(focus_reads)
     playbook = PlaybookRead(
@@ -380,7 +394,7 @@ def build_market_briefing(
     volume_alert = next((alert for alert in alerts if alert.alert_type == MarketAlertType.UNUSUAL_VOLUME), None)
     top_focus = focus_reads[0] if focus_reads else None
     if volume_alert and volume_alert.symbol:
-        row = next((r for r in rows if r.stock.symbol == volume_alert.symbol), None)
+        row = next((r for r in rows if getattr(r.stock, "symbol", None) == volume_alert.symbol), None)
         focus_match = next((stock for stock in focus_reads if stock.symbol == volume_alert.symbol), None)
         if focus_match:
             trigger_level = focus_match.trigger
@@ -392,7 +406,7 @@ def build_market_briefing(
             trigger_level = volume_alert.latest_price or "N/A"
         high_priority = HighPriorityRead(
             symbol=volume_alert.symbol,
-            name=row.stock.name if row else volume_alert.symbol,
+            name=getattr(row.stock, "name", volume_alert.symbol) if row else volume_alert.symbol,
             exchange=volume_alert.exchange or ExchangeCode.DSE,
             reason=volume_alert.why_it_matters,
             trigger_level=trigger_level,
@@ -400,7 +414,7 @@ def build_market_briefing(
             latest_price=volume_alert.latest_price or "N/A",
             price_change_percent=volume_alert.price_change_percent or "N/A",
             price_tone=volume_alert.price_tone or "neutral",
-            sparkline_points=sparkline_points(row.prices) if row else [],
+            sparkline_points=focus_match.sparkline_points if focus_match else [],
         )
     elif top_focus:
         high_priority = HighPriorityRead(
@@ -422,7 +436,8 @@ def build_market_briefing(
     fresh_signals = [
         stock.symbol
         for stock in focus_reads
-        if stock.recommendation == "BUY" or stock.focus_label in {PulseFocusLabel.NEW_BUY_SETUP, PulseFocusLabel.SIGNAL_UPGRADE}
+        if stock.recommendation == "BUY"
+        or stock.focus_label in {PulseFocusLabel.NEW_BUY_SETUP, PulseFocusLabel.SIGNAL_UPGRADE}
     ][:4]
     fresh_new_count = sum(1 for stock in focus_reads if stock.focus_label == PulseFocusLabel.NEW_BUY_SETUP)
     fresh_upgraded_count = sum(1 for stock in focus_reads if stock.focus_label == PulseFocusLabel.SIGNAL_UPGRADE)
@@ -453,35 +468,45 @@ def build_market_briefing(
                 subtitle=f"Leading sector today · {advancing_in_sector} advancing stocks",
                 tone="positive",
                 href="/scanner",
-                sparkline_points=_sector_sparkline(rows, strongest_sector) if strongest_sector != "N/A" else [],
+                sparkline_points=_index_close_sparkline(summaries),
             ),
             LeadershipCardRead(
                 kind="stock",
                 title="Strongest Stock",
-                name=strongest_stock_row.stock.symbol if strongest_stock_row else "N/A",
-                detail=format_percent(strongest_stock_row.snapshot.price_change_percent) if strongest_stock_row else None,
-                subtitle="Session price leader",
-                tone="positive",
-                href=(
-                    f"/stocks/{strongest_stock_row.stock.exchange}/{strongest_stock_row.stock.symbol}"
+                name=getattr(strongest_stock_row.stock, "symbol", "N/A") if strongest_stock_row else "N/A",
+                detail=(
+                    format_percent(strongest_stock_row.snapshot.price_change_percent)
                     if strongest_stock_row
                     else None
                 ),
-                sparkline_points=_stock_sparkline(strongest_stock_row) if strongest_stock_row else [],
+                subtitle="Session price leader",
+                tone="positive",
+                href=(
+                    f"/stocks/{getattr(strongest_stock_row.stock, 'exchange', ExchangeCode.DSE)}/"
+                    f"{getattr(strongest_stock_row.stock, 'symbol', '')}"
+                    if strongest_stock_row
+                    else None
+                ),
+                sparkline_points=(
+                    _snapshot_sparkline(strongest_stock_row.snapshot) if strongest_stock_row else []
+                ),
             ),
             LeadershipCardRead(
                 kind="accumulation",
                 title="Accumulation Leader",
-                name=accumulation_row.stock.symbol if accumulation_row else "N/A",
+                name=getattr(accumulation_row.stock, "symbol", "N/A") if accumulation_row else "N/A",
                 detail=f"{accumulation_ratio:.1f}x accumulation" if accumulation_ratio is not None else None,
                 subtitle="vs 30D average volume",
                 tone="info",
                 href=(
-                    f"/stocks/{accumulation_row.stock.exchange}/{accumulation_row.stock.symbol}"
+                    f"/stocks/{getattr(accumulation_row.stock, 'exchange', ExchangeCode.DSE)}/"
+                    f"{getattr(accumulation_row.stock, 'symbol', '')}"
                     if accumulation_row
                     else None
                 ),
-                sparkline_points=[],
+                sparkline_points=(
+                    _snapshot_sparkline(accumulation_row.snapshot) if accumulation_row else []
+                ),
             ),
         ],
         fresh_buy_signals=fresh_signals,
@@ -514,7 +539,7 @@ def build_market_briefing(
         trading_signals.append(
             TradingEnvironmentSignalRead(text="Sector rotation active", tone="positive")
         )
-    if breadth["advancing"] < breadth["declining"]:
+    if breadth["declining"] > breadth["advancing"]:
         trading_signals.append(
             TradingEnvironmentSignalRead(text="Breadth remains weak", tone="warning")
         )
@@ -545,7 +570,11 @@ def build_market_briefing(
         tone=overall_tone,
         highlights=[
             MarketSummaryHighlightRead(label="Sentiment", value=sentiment, tone=_state_tone(sentiment)),
-            MarketSummaryHighlightRead(label="Opportunity", value=opportunity_short, tone="positive" if opportunity >= 68 else "warning"),
+            MarketSummaryHighlightRead(
+                label="Opportunity",
+                value=opportunity_short,
+                tone="positive" if opportunity >= 68 else "warning",
+            ),
             MarketSummaryHighlightRead(label="Leadership", value=leadership_highlight, tone=_state_tone(leadership)),
         ],
         trading_environment=TradingEnvironmentRead(

@@ -39,6 +39,10 @@ export function StockCandlestickChart({
   volumeBars,
 }: StockCandlestickChartProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const chartRef = useRef<ReturnType<typeof createChart> | null>(null);
+  const candleSeriesRef = useRef<ReturnType<ReturnType<typeof createChart>["addSeries"]> | null>(null);
+  const volumeSeriesRef = useRef<ReturnType<ReturnType<typeof createChart>["addSeries"]> | null>(null);
+  const previousCandleCountRef = useRef(0);
   const theme = useWorkspaceStore((state) => state.theme);
   const [timeframe, setTimeframe] = useState<"day" | "week" | "month">("day");
   const [selectedPatternIndex, setSelectedPatternIndex] = useState<number | null>(null);
@@ -58,6 +62,40 @@ export function StockCandlestickChart({
 
   useEffect(() => {
     if (!containerRef.current || chartData.candles.length === 0) {
+      return;
+    }
+
+    const canIncrementallyUpdate =
+      chartRef.current &&
+      candleSeriesRef.current &&
+      volumeSeriesRef.current &&
+      chartData.candles.length >= previousCandleCountRef.current &&
+      previousCandleCountRef.current > 0;
+
+    if (canIncrementallyUpdate && chartData.candles.length === previousCandleCountRef.current) {
+      return;
+    }
+
+    if (canIncrementallyUpdate && chartData.candles.length > previousCandleCountRef.current) {
+      const newCandles = chartData.candles.slice(previousCandleCountRef.current);
+      const newVolume = chartData.volumeBars.slice(previousCandleCountRef.current);
+      for (const candle of newCandles) {
+        candleSeriesRef.current?.update(candle);
+      }
+      for (const bar of newVolume) {
+        volumeSeriesRef.current?.update({
+          time: bar.time,
+          value: bar.value,
+          color:
+            bar.tone === "positive"
+              ? "rgba(75, 214, 164, 0.42)"
+              : bar.tone === "negative"
+                ? "rgba(255, 119, 119, 0.42)"
+                : "rgba(174, 181, 197, 0.26)",
+        });
+      }
+      previousCandleCountRef.current = chartData.candles.length;
+      chartRef.current?.timeScale().fitContent();
       return;
     }
 
@@ -167,6 +205,11 @@ export function StockCandlestickChart({
       })),
     );
 
+    chartRef.current = chart;
+    candleSeriesRef.current = candleSeries;
+    volumeSeriesRef.current = volumeSeries;
+    previousCandleCountRef.current = chartData.candles.length;
+
     chart.timeScale().fitContent();
     chart.subscribeCrosshairMove((param) => {
       const time = typeof param.time === "string" ? param.time : null;
@@ -184,6 +227,10 @@ export function StockCandlestickChart({
     return () => {
       resizeObserver.disconnect();
       chart.remove();
+      chartRef.current = null;
+      candleSeriesRef.current = null;
+      volumeSeriesRef.current = null;
+      previousCandleCountRef.current = 0;
     };
   }, [chartData.candles, chartData.volumeBars, ema20, eventMarkers, overlaysEnabled, resistance, smaLine, support, theme]);
 

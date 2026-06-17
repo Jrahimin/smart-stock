@@ -16,6 +16,8 @@ export type BackendMarketFreshnessDto = {
   last_synced_at: string | null;
   next_sync_at: string | null;
   snapshot_interval_minutes: number;
+  market_sync_interval_seconds: number;
+  dashboard_cache_ttl_seconds: number;
   expected_delay_minutes: number;
   market_open_time: string;
   market_close_time: string;
@@ -92,6 +94,55 @@ export type BackendTraderDecisionSummaryDto = {
   risk_label: "LOW" | "MEDIUM" | "HIGH" | "SPECULATIVE";
 };
 
+export type BackendTechnicalSnapshotDto = {
+  latest_price: number | null;
+  previous_close: number | null;
+  price_change: number | null;
+  price_change_percent: number | null;
+  volume: number;
+  average_volume: number | null;
+  turnover: number | null;
+  rsi: number | null;
+  sma20: number | null;
+  ema20: number | null;
+  volatility: number | null;
+  support: number | null;
+  resistance: number | null;
+  trend: string;
+  data_quality: DataQualityFlag;
+  latest_trade_date: string | null;
+  ohlcv_row_count: number;
+};
+
+export type BackendUniverseSessionDto = {
+  latest_trade_date: string;
+  close_price: string | number;
+  open_price: string | number | null;
+  volume: number;
+  turnover: string | number | null;
+  change_percent: string | number | null;
+  data_quality_flag: DataQualityFlag;
+  updated_at: string | null;
+};
+
+export type BackendScoredUniverseRowDto = {
+  stock: BackendStockDto;
+  technical_snapshot: BackendTechnicalSnapshotDto;
+  decision: BackendTraderDecisionSummaryDto | null;
+  session: BackendUniverseSessionDto;
+};
+
+export type BackendUniverseRowsMetaDto = {
+  exchange: ExchangeCode;
+  listed_stock_count: number;
+  session_trade_date: string | null;
+};
+
+export type BackendUniverseRowsDto = {
+  meta: BackendUniverseRowsMetaDto;
+  rows: BackendScoredUniverseRowDto[];
+};
+
 export type BackendDsexIndexSnapshotDto = {
   index_name: string;
   trade_date: string;
@@ -137,6 +188,117 @@ export type BackendDailyMarketSummaryDto = {
   id: string;
   created_at: string;
   updated_at: string;
+};
+
+export type BackendDashboardMoverDto = {
+  stock_id: string;
+  symbol: string;
+  name: string;
+  exchange: ExchangeCode;
+  latest_price: string | number;
+  price_change_percent: string | number | null;
+  turnover: string | number | null;
+  volume: number;
+  trend_direction: string;
+};
+
+export type BackendDashboardMoversDto = {
+  session_trade_date: string | null;
+  gainers: BackendDashboardMoverDto[];
+  losers: BackendDashboardMoverDto[];
+  turnover_leaders: BackendDashboardMoverDto[];
+  volume_leaders: BackendDashboardMoverDto[];
+};
+
+export type BackendDashboardOverviewDto = {
+  exchange: ExchangeCode;
+  session_trade_date: string | null;
+  listed_stock_count: number;
+  dsex_index: BackendDsexIndexSnapshotDto;
+  summaries: BackendDailyMarketSummaryDto[];
+};
+
+export type BackendDashboardSectorDto = {
+  name: string;
+  change_percent: string | number;
+  stock_count: number;
+};
+
+export type BackendDashboardSectorsDto = {
+  session_trade_date: string | null;
+  sectors: BackendDashboardSectorDto[];
+  top_gainer: {
+    symbol: string;
+    name: string;
+    change_percent: string | number;
+  } | null;
+};
+
+export type BackendDashboardTimelineItemDto = {
+  time: string;
+  title: string;
+  description: string;
+};
+
+export type BackendDashboardMarketAlertsDto = {
+  session_trade_date: string | null;
+  items: BackendDashboardTimelineItemDto[];
+};
+
+export type BackendDashboardSignalDto = {
+  symbol: string;
+  exchange: ExchangeCode;
+  signal: TraderRecommendation;
+  confidence: number;
+  reason: string;
+  risk: string;
+  priority: string;
+  supporting_context: string[];
+  generated_at: string;
+};
+
+export type BackendDashboardStocksInFocusDto = {
+  session_trade_date: string | null;
+  evaluated_count: number;
+  signals: BackendDashboardSignalDto[];
+};
+
+export type BackendDashboardHeatmapTileDto = {
+  stock_id: string;
+  symbol: string;
+  sector: string;
+  change_percent: string | number;
+  weight: string | number;
+  tone: string;
+  latest_price: string | number;
+  turnover: string | number;
+  turnover_value: string | number;
+  liquidity_score: number;
+};
+
+export type BackendDashboardHeatmapDto = {
+  session_trade_date: string | null;
+  tiles: BackendDashboardHeatmapTileDto[];
+};
+
+export type BackendDashboardInsightDto = {
+  id: string;
+  title: string;
+  description: string;
+  tone: string;
+  category: string;
+  source: string;
+};
+
+export type BackendDashboardMarketSentimentDto = {
+  exchange: ExchangeCode;
+  session_trade_date: string | null;
+  market_mood: string;
+  signal_count: number;
+  price_backed_count: number;
+  turnover_value: string | number | null;
+  has_partial_data: boolean;
+  insights: BackendDashboardInsightDto[];
 };
 
 export type BackendTechnicalIndicatorDto = {
@@ -204,6 +366,7 @@ export type BackendUserWatchlistDto = {
   watching_label: string;
   current_price: string | number | null;
   trader_decision: BackendTraderDecisionSummaryDto | null;
+  technical_snapshot: BackendTechnicalSnapshotDto | null;
 };
 
 export type BackendUserWatchlistSummaryDto = {

@@ -16,6 +16,7 @@ google-auth
 requests
 httpx
 certifi
+redis>=5.0,<6
 
 # zoneinfo lookups (Asia/Dhaka scheduler/CLI); required on Windows when OS has no IANA data
 tzdata

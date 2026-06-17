@@ -12,25 +12,26 @@ from fastapi import Depends
 from app.core.constants.trading_constants import (
     PULSE_FOCUS_STOCK_LIMIT,
     PULSE_MARKET_MOVERS_LIMIT,
-    PULSE_PRICE_WINDOW_LIMIT,
     PULSE_SCORE_JUMP_THRESHOLD,
-    PULSE_UNIVERSE_LIMIT,
     VOLUME_EXPANSION_RATIO,
 )
+from app.core.core_config import Settings, get_settings
 from app.core.enums import DataQualityFlag, ExchangeCode, MarketAlertType, PulseFocusLabel, TraderRecommendation, TrendDirection
-from app.models import DailyPrice, Stock
-from app.modules.market_data.market_data_repository import MarketDataRepository, get_market_data_repository
+from app.core.market_cache import pulse_cache_key
+from app.core.redis_client import OptionalRedisClient, get_redis_client
 from app.modules.market_data.market_data_service import MarketDataService, get_market_data_service
 from app.modules.market_data.market_mover_rules import is_eligible_session_mover
-from app.modules.market_pulse.market_pulse_briefing import build_market_briefing
+from app.modules.market_pulse.market_pulse_briefing import PulseBriefingRow, build_market_briefing
 from app.modules.market_pulse.market_pulse_schemas import (
     FocusStockRead,
     MarketAlertRead,
+    MarketBriefingRead,
     MarketMoverRead,
     MarketMoversRead,
     MarketPulseHeroRead,
     MarketPulsePreviousSnapshot,
     MarketPulseRead,
+    MarketPulseSummaryRead,
     PulseChangeRead,
     PulseScoreBreakdownRead,
     SinceLastVisitRead,
@@ -45,19 +46,20 @@ from app.modules.market_pulse.pulse_score import (
     get_volume_ratio,
     meets_focus_threshold,
 )
-from app.modules.stock_details.decision.summary import compute_trader_decision_summary_for_stock
-from app.modules.stock_details.decision.technical import TechnicalSnapshot, build_technical_snapshot
+from app.modules.market_universe.market_universe_compute import technical_snapshot_from_read
+from app.modules.market_universe.market_universe_service import MarketUniverseService, get_market_universe_service
+from app.modules.stock_details.decision.technical import TechnicalSnapshot
+from app.modules.stock_details.stock_details_schemas import TraderDecisionSummaryRead
 
 
 DHAKA = ZoneInfo("Asia/Dhaka")
 
 
 @dataclass(frozen=True)
-class ScoredUniverseRow:
-    stock: Stock
-    prices: list[DailyPrice]
+class PulsePresentationRow:
+    stock: object
     snapshot: TechnicalSnapshot
-    decision: object
+    decision: TraderDecisionSummaryRead
     score: object
     label: PulseFocusLabel
 
@@ -123,15 +125,19 @@ def _format_relative_updated(iso: datetime | None) -> str | None:
     return f"Updated {hours} hour{suffix} ago"
 
 
-def _sparkline_points(prices: list[DailyPrice]) -> list[float]:
-    sorted_prices = sorted(prices, key=lambda row: row.trade_date)
-    closes = [float(row.close_price) for row in sorted_prices[-12:]]
-    return closes
+def _sparkline_points(snapshot: TechnicalSnapshot) -> list[float]:
+    if snapshot.sparkline_closes:
+        return list(snapshot.sparkline_closes)
+    if snapshot.latest_price is not None and snapshot.previous_close is not None:
+        return [float(snapshot.previous_close), float(snapshot.latest_price)]
+    if snapshot.latest_price is not None:
+        return [float(snapshot.latest_price)]
+    return []
 
 
-def _diversify_focus_list(rows: list[ScoredUniverseRow], limit: int = PULSE_FOCUS_STOCK_LIMIT) -> list[ScoredUniverseRow]:
+def _diversify_focus_list(rows: list[PulsePresentationRow], limit: int = PULSE_FOCUS_STOCK_LIMIT) -> list[PulsePresentationRow]:
     sorted_rows = sorted(rows, key=lambda row: row.score.total, reverse=True)
-    selected: list[ScoredUniverseRow] = []
+    selected: list[PulsePresentationRow] = []
     sector_counts: dict[str, int] = {}
 
     for row in sorted_rows:
@@ -144,9 +150,9 @@ def _diversify_focus_list(rows: list[ScoredUniverseRow], limit: int = PULSE_FOCU
         sector_counts[sector] = sector_counts.get(sector, 0) + 1
 
     if len(selected) < limit:
-        selected_ids = {str(row.stock.id) for row in selected}
+        selected_ids = {str(getattr(row.stock, "id", "")) for row in selected}
         for row in sorted_rows:
-            if str(row.stock.id) in selected_ids:
+            if str(getattr(row.stock, "id", "")) in selected_ids:
                 continue
             selected.append(row)
             if len(selected) >= limit:
@@ -155,15 +161,15 @@ def _diversify_focus_list(rows: list[ScoredUniverseRow], limit: int = PULSE_FOCU
     return selected
 
 
-def _to_focus_stock_read(row: ScoredUniverseRow, rank: int) -> FocusStockRead:
+def _to_focus_stock_read(row: PulsePresentationRow, rank: int) -> FocusStockRead:
     change = row.snapshot.price_change_percent
     breakdown = row.score
     return FocusStockRead(
         rank=rank,
-        stock_id=row.stock.id,
-        symbol=row.stock.symbol,
-        name=row.stock.name,
-        exchange=row.stock.exchange,
+        stock_id=getattr(row.stock, "id"),
+        symbol=getattr(row.stock, "symbol"),
+        name=getattr(row.stock, "name"),
+        exchange=getattr(row.stock, "exchange"),
         pulse_score=breakdown.total,
         score_breakdown=PulseScoreBreakdownRead(
             trend=breakdown.trend,
@@ -183,18 +189,18 @@ def _to_focus_stock_read(row: ScoredUniverseRow, rank: int) -> FocusStockRead:
         latest_price=_format_number(row.snapshot.latest_price),
         price_change_percent=_format_percent(change),
         price_tone=_price_tone(change),
-        sparkline_points=_sparkline_points(row.prices),
+        sparkline_points=_sparkline_points(row.snapshot),
         recommendation=row.decision.recommendation.value,
     )
 
 
-def _to_market_mover_read(row: ScoredUniverseRow) -> MarketMoverRead:
+def _to_market_mover_read(row: PulsePresentationRow) -> MarketMoverRead:
     change = row.snapshot.price_change_percent
     turnover = row.snapshot.turnover
     return MarketMoverRead(
-        symbol=row.stock.symbol,
-        name=row.stock.name,
-        exchange=row.stock.exchange,
+        symbol=getattr(row.stock, "symbol"),
+        name=getattr(row.stock, "name"),
+        exchange=getattr(row.stock, "exchange"),
         latest_price=_format_number(row.snapshot.latest_price),
         price_change_percent=_format_percent(change),
         price_tone=_price_tone(change),
@@ -202,12 +208,12 @@ def _to_market_mover_read(row: ScoredUniverseRow) -> MarketMoverRead:
     )
 
 
-def _is_eligible_market_mover(row: ScoredUniverseRow, session_trade_date: date | None) -> bool:
+def _is_eligible_market_mover(row: PulsePresentationRow, session_trade_date: date | None) -> bool:
     return is_eligible_session_mover(row.snapshot, session_trade_date)
 
 
 def _build_market_movers(
-    rows: list[ScoredUniverseRow],
+    rows: list[PulsePresentationRow],
     *,
     session_trade_date: date | None,
 ) -> MarketMoversRead:
@@ -260,11 +266,25 @@ def _alert_significance(alert_type: MarketAlertType, metric_value: float) -> str
 class MarketPulseService:
     def __init__(
         self,
-        market_repository: MarketDataRepository,
         market_data_service: MarketDataService,
+        universe_service: MarketUniverseService,
+        redis: OptionalRedisClient,
+        settings: Settings,
     ) -> None:
-        self.market_repository = market_repository
         self.market_data_service = market_data_service
+        self.universe_service = universe_service
+        self.redis = redis
+        self.settings = settings
+
+    @property
+    def cache_ttl_seconds(self) -> int:
+        return self.settings.market_dashboard_cache_ttl_seconds
+
+    async def _cache_get(self, cache_key: str) -> dict | None:
+        return await self.redis.get_json(cache_key)
+
+    async def _cache_set(self, cache_key: str, payload: dict) -> None:
+        await self.redis.set_json(cache_key, payload, ttl_seconds=self.cache_ttl_seconds)
 
     async def get_market_pulse(
         self,
@@ -273,34 +293,91 @@ class MarketPulseService:
         previous: MarketPulsePreviousSnapshot | None,
         display_name: str | None = None,
     ) -> MarketPulseRead:
-        freshness = await self.market_data_service.get_market_freshness(exchange=exchange)
-        rows = await self.market_repository.list_market_price_windows(
+        cache_key = pulse_cache_key("response", exchange)
+        if previous is None:
+            cached = await self._cache_get(cache_key)
+            if cached is not None:
+                return MarketPulseRead.model_validate(cached)
+
+        payload = await self._compute_market_pulse(
             exchange=exchange,
-            limit=PULSE_UNIVERSE_LIMIT,
+            previous=previous,
+            display_name=display_name,
+        )
+        if previous is None:
+            await self._cache_set(cache_key, payload.model_dump(mode="json"))
+        return payload
+
+    async def get_market_pulse_summary(
+        self,
+        *,
+        exchange: ExchangeCode,
+        previous: MarketPulsePreviousSnapshot | None,
+        display_name: str | None = None,
+    ) -> MarketPulseSummaryRead:
+        cache_key = pulse_cache_key("summary", exchange)
+        if previous is None:
+            cached = await self._cache_get(cache_key)
+            if cached is not None:
+                return MarketPulseSummaryRead.model_validate(cached)
+
+        pulse = await self.get_market_pulse(
+            exchange=exchange,
+            previous=previous,
+            display_name=display_name,
+        )
+        summary = MarketPulseSummaryRead(
+            hero=pulse.hero,
+            since_last_visit=pulse.since_last_visit,
+            focus_stocks=pulse.focus_stocks,
+            monitor_candidates=pulse.monitor_candidates,
+            alerts=pulse.alerts,
+            empty_state=pulse.empty_state,
+            empty_message=pulse.empty_message,
+            data_quality_note=pulse.data_quality_note,
+        )
+        if previous is None:
+            await self._cache_set(cache_key, summary.model_dump(mode="json"))
+        return summary
+
+    async def get_market_pulse_briefing(
+        self,
+        *,
+        exchange: ExchangeCode,
+        display_name: str | None = None,
+    ) -> MarketBriefingRead | None:
+        pulse = await self.get_market_pulse(
+            exchange=exchange,
+            previous=None,
+            display_name=display_name,
+        )
+        return pulse.briefing
+
+    async def _compute_market_pulse(
+        self,
+        *,
+        exchange: ExchangeCode,
+        previous: MarketPulsePreviousSnapshot | None,
+        display_name: str | None = None,
+    ) -> MarketPulseRead:
+        freshness = await self.market_data_service.get_market_freshness(exchange=exchange)
+        universe_rows = await self.universe_service.get_scored_universe(exchange=exchange)
+        summaries = await self.market_data_service.list_daily_market_summaries(
+            exchange=exchange,
+            limit=30,
             offset=0,
-            price_window_limit=PULSE_PRICE_WINDOW_LIMIT,
         )
 
-        grouped: dict[str, dict[str, object]] = {}
-        for stock, price in rows:
-            stock_id = str(stock.id)
-            if stock_id not in grouped:
-                grouped[stock_id] = {"stock": stock, "prices": []}
-            grouped[stock_id]["prices"].append(price)
-
-        scored_rows: list[ScoredUniverseRow] = []
+        scored_rows: list[PulsePresentationRow] = []
         previous_recommendations = previous.recommendations if previous else {}
 
-        for entry in grouped.values():
-            stock = entry["stock"]
-            prices = sorted(entry["prices"], key=lambda row: row.trade_date)
-            snapshot = build_technical_snapshot(prices)
-            decision = compute_trader_decision_summary_for_stock(stock, prices)
-            if snapshot is None or decision is None:
+        for universe_row in universe_rows:
+            if universe_row.decision is None:
                 continue
-
+            snapshot = technical_snapshot_from_read(universe_row.technical_snapshot)
+            decision = universe_row.decision
             score = compute_pulse_score(snapshot, decision)
-            prev_rec = previous_recommendations.get(str(stock.id))
+            prev_rec = previous_recommendations.get(str(universe_row.stock.id))
             previous_enum: TraderRecommendation | None = None
             if prev_rec:
                 try:
@@ -315,9 +392,8 @@ class MarketPulseService:
                 previous_recommendation=previous_enum,
             )
             scored_rows.append(
-                ScoredUniverseRow(
-                    stock=stock,
-                    prices=prices,
+                PulsePresentationRow(
+                    stock=universe_row.stock,
                     snapshot=snapshot,
                     decision=decision,
                     score=score,
@@ -346,7 +422,7 @@ class MarketPulseService:
 
         hero = MarketPulseHeroRead(
             greeting=f"{_greeting()}{greeting_name}",
-            attention_headline="Market story of today",
+            attention_headline="Story of the day",
             attention_subline="A quick read on what's moving the market and where the opportunities are.",
             last_updated_label=_format_time_label(last_synced),
             relative_updated_label=_format_relative_updated(last_synced),
@@ -358,11 +434,21 @@ class MarketPulseService:
         since_last_visit = self._build_since_last_visit(previous, changes, new_focus_count, new_alerts_count)
         today_insight = self._build_today_insight(scored_rows, focus_reads)
         market_movers = _build_market_movers(scored_rows, session_trade_date=freshness.trade_date)
+        briefing_rows = [
+            PulseBriefingRow(
+                stock=row.stock,
+                snapshot=row.snapshot,
+                decision=row.decision,
+                score=row.score,
+            )
+            for row in scored_rows
+        ]
         briefing = build_market_briefing(
-            scored_rows,
+            briefing_rows,
             focus_reads,
             monitor_reads,
             alerts,
+            market_summaries=summaries,
             format_number=_format_number,
             format_percent=_format_percent,
             price_tone=_price_tone,
@@ -439,7 +525,7 @@ class MarketPulseService:
 
     def _build_today_insight(
         self,
-        rows: list[ScoredUniverseRow],
+        rows: list[PulsePresentationRow],
         focus_reads: list[FocusStockRead],
     ) -> TodayInsightRead | None:
         sector_volume: dict[str, int] = {}
@@ -494,7 +580,7 @@ class MarketPulseService:
 
     def _build_changes(
         self,
-        rows: list[ScoredUniverseRow],
+        rows: list[PulsePresentationRow],
         focus_reads: list[FocusStockRead],
         previous: MarketPulsePreviousSnapshot | None,
         last_synced: datetime | None,
@@ -588,7 +674,7 @@ class MarketPulseService:
 
     def _build_alerts(
         self,
-        rows: list[ScoredUniverseRow],
+        rows: list[PulsePresentationRow],
         previous: MarketPulsePreviousSnapshot | None,
         last_synced: datetime | None = None,
     ) -> list[MarketAlertRead]:
@@ -740,10 +826,12 @@ class MarketPulseService:
 
 
 def get_market_pulse_service(
-    market_repository: Annotated[MarketDataRepository, Depends(get_market_data_repository)],
     market_data_service: Annotated[MarketDataService, Depends(get_market_data_service)],
+    universe_service: Annotated[MarketUniverseService, Depends(get_market_universe_service)],
+    redis: Annotated[OptionalRedisClient, Depends(get_redis_client)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> MarketPulseService:
-    return MarketPulseService(market_repository, market_data_service)
+    return MarketPulseService(market_data_service, universe_service, redis, settings)
 
 
 def parse_previous_snapshot(raw: str | None) -> MarketPulsePreviousSnapshot | None:

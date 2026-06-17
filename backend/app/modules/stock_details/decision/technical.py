@@ -6,6 +6,7 @@ from decimal import Decimal
 from app.core.constants.trading_constants import (
     DEFAULT_RSI_PERIOD,
     DEFAULT_SHORT_MOVING_AVERAGE_PERIOD,
+    SPARKLINE_CLOSE_LIMIT,
     SUPPORT_RESISTANCE_LOOKBACK,
 )
 from app.core.enums import DataQualityFlag, TrendDirection
@@ -111,6 +112,7 @@ class TechnicalSnapshot:
     data_quality: DataQualityFlag
     latest_trade_date: str | None
     ohlcv_row_count: int
+    sparkline_closes: tuple[float, ...] = ()
 
 
 def build_technical_snapshot(prices: list[DailyPrice]) -> TechnicalSnapshot | None:
@@ -165,4 +167,5 @@ def build_technical_snapshot(prices: list[DailyPrice]) -> TechnicalSnapshot | No
         data_quality=latest.data_quality_flag,
         latest_trade_date=latest.trade_date.isoformat(),
         ohlcv_row_count=len(sorted_prices),
+        sparkline_closes=tuple(closes[-SPARKLINE_CLOSE_LIMIT:]),
     )

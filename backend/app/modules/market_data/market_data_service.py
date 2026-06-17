@@ -15,7 +15,10 @@ from app.jobs.ingestion.amarstock_daily_enrichment import (
     run_daily_news_enrichment,
     run_snapshot_market_enrichment,
 )
-from app.jobs.ingestion.amarstock_index_api_source import AmarStockIndexApiSource
+from app.jobs.ingestion.amarstock_index_api_source import (
+    AmarStockDsexPerformanceMetrics,
+    AmarStockIndexApiSource,
+)
 from app.core.exception_handlers import NotFoundError
 from app.core.security_config import UserContext
 from app.jobs.ingestion.ingestion_source_base import IngestedDailyPrice, MarketDataSource
@@ -40,6 +43,8 @@ LTP_VALIDATION_THRESHOLD_PERCENT = Decimal("1") # 1%
 SOURCE_VALIDATION_SUMMARY_INDEX = "SOURCE_VALIDATION"
 DSEX_SUMMARY_INDEX = "DSEX"
 TRADING_DAYS_1M = 21
+TRADING_DAYS_6M = 126
+TRADING_DAYS_1Y = 252
 
 
 class MarketDataService:
@@ -422,11 +427,13 @@ class MarketDataService:
         )
 
     async def get_dsex_index_snapshot(self, *, exchange: ExchangeCode = ExchangeCode.DSE) -> DsexIndexSnapshotRead:
-        source = AmarStockIndexApiSource.from_settings(get_settings())
-        snapshot = await source.fetch_dsex_snapshot()
+        settings = get_settings()
+        now = datetime.now(ZoneInfo("Asia/Dhaka"))
+        market_status = resolve_market_status(now, settings).value
+
         summaries = await self.repository.list_daily_market_summaries(
             exchange=exchange,
-            limit=40,
+            limit=280,
             offset=0,
         )
         dsex_history = sorted(
@@ -437,39 +444,91 @@ class MarketDataService:
             ),
             key=lambda summary: summary.trade_date,
         )
-        return_1m_percent = self._compute_index_return_percent(
-            snapshot.index_close,
-            dsex_history,
-            trading_days_back=TRADING_DAYS_1M,
+        if not dsex_history:
+            raise NotFoundError("DSEX index snapshot is not available")
+
+        latest = dsex_history[-1]
+        index_close = latest.index_close
+        if index_close is None:
+            raise NotFoundError("DSEX index snapshot is not available")
+
+        index_change = latest.index_change if latest.index_change is not None else Decimal("0")
+        index_change_percent = (
+            latest.index_change_percent if latest.index_change_percent is not None else Decimal("0")
         )
+        day_open = index_close - index_change
+        day_high = max(index_close, day_open)
+        day_low = min(index_close, day_open)
+
+        historical_closes = [summary.index_close for summary in dsex_history if summary.index_close is not None]
+
+        performance_metrics = await self._fetch_dsex_performance_metrics()
+        range_52w_low = performance_metrics.range_52w_low if performance_metrics else None
+        range_52w_high = performance_metrics.range_52w_high if performance_metrics else None
+        if range_52w_low is None or range_52w_high is None:
+            if historical_closes:
+                range_52w_low = min(historical_closes)
+                range_52w_high = max(historical_closes)
+            else:
+                range_52w_low = day_low
+                range_52w_high = day_high
+
         range_position_percent = self._compute_range_position_percent(
-            snapshot.index_close,
-            snapshot.range_52w_low,
-            snapshot.range_52w_high,
+            index_close,
+            range_52w_low,
+            range_52w_high,
+        )
+
+        return_1m_percent = (
+            performance_metrics.return_1m_percent
+            if performance_metrics and performance_metrics.return_1m_percent is not None
+            else self._compute_index_return_percent(
+                index_close,
+                dsex_history,
+                trading_days_back=TRADING_DAYS_1M,
+            )
+        )
+        return_6m_percent = (
+            performance_metrics.return_6m_percent
+            if performance_metrics and performance_metrics.return_6m_percent is not None
+            else self._compute_index_return_percent(
+                index_close,
+                dsex_history,
+                trading_days_back=TRADING_DAYS_6M,
+            )
+        )
+        return_1y_percent = (
+            performance_metrics.return_1y_percent
+            if performance_metrics and performance_metrics.return_1y_percent is not None
+            else self._compute_index_return_percent(
+                index_close,
+                dsex_history,
+                trading_days_back=TRADING_DAYS_1Y,
+            )
         )
 
         return DsexIndexSnapshotRead(
-            trade_date=snapshot.trade_date,
-            market_status=snapshot.market_status,
-            index_close=snapshot.index_close,
-            index_change=snapshot.index_change,
-            index_change_percent=snapshot.index_change_percent,
-            day_open=snapshot.day_open,
-            day_high=snapshot.day_high,
-            day_low=snapshot.day_low,
-            range_52w_low=snapshot.range_52w_low,
-            range_52w_high=snapshot.range_52w_high,
+            trade_date=latest.trade_date,
+            market_status=market_status,
+            index_close=index_close,
+            index_change=index_change,
+            index_change_percent=index_change_percent,
+            day_open=day_open,
+            day_high=day_high,
+            day_low=day_low,
+            range_52w_low=range_52w_low,
+            range_52w_high=range_52w_high,
             range_position_percent=range_position_percent,
             return_1m_percent=return_1m_percent,
-            return_6m_percent=snapshot.return_6m_percent,
-            return_1y_percent=snapshot.return_1y_percent,
-            total_volume=snapshot.total_volume,
-            total_turnover=snapshot.total_turnover,
-            total_trades=snapshot.total_trades,
-            advancing_issues=snapshot.advancing_issues,
-            declining_issues=snapshot.declining_issues,
-            unchanged_issues=snapshot.unchanged_issues,
-            source=source.source_name,
+            return_6m_percent=return_6m_percent,
+            return_1y_percent=return_1y_percent,
+            total_volume=latest.total_volume,
+            total_turnover=latest.total_turnover,
+            total_trades=latest.total_trades,
+            advancing_issues=latest.advancing_issues or 0,
+            declining_issues=latest.declining_issues or 0,
+            unchanged_issues=latest.unchanged_issues or 0,
+            source=latest.source,
         )
 
     async def upsert_dsex_index_summary(
@@ -511,12 +570,23 @@ class MarketDataService:
         if not history:
             return None
 
-        index = max(0, len(history) - 1 - trading_days_back)
-        past_close = history[index].index_close
+        required_index = len(history) - 1 - trading_days_back
+        if required_index < 0:
+            return None
+
+        past_close = history[required_index].index_close
         if past_close is None or past_close == 0:
             return None
 
         return (current_close - past_close) / past_close * Decimal("100")
+
+    async def _fetch_dsex_performance_metrics(self) -> AmarStockDsexPerformanceMetrics | None:
+        try:
+            source = AmarStockIndexApiSource.from_settings(get_settings())
+            return await source.fetch_dsex_performance_metrics()
+        except Exception as exc:
+            logger.warning("DSEX performance metrics unavailable; using stored history only: %s", exc)
+            return None
 
     def _compute_range_position_percent(
         self,
@@ -631,6 +701,8 @@ class MarketDataService:
             last_synced_at=last_synced_at,
             next_sync_at=next_sync,
             snapshot_interval_minutes=interval,
+            market_sync_interval_seconds=settings.market_sync_interval_seconds,
+            dashboard_cache_ttl_seconds=settings.market_dashboard_cache_ttl_seconds,
             expected_delay_minutes=interval,
             market_open_time=settings.market_open_time,
             market_close_time=settings.market_close_time,

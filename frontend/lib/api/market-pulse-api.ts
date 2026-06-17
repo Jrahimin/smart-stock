@@ -1,5 +1,6 @@
 import { backendApiGet } from "@/lib/api/backend-api-client";
 import type {
+  BackendMarketBriefingDto,
   BackendMarketPulseDto,
   BackendMarketPulsePreviousSnapshotDto,
   ExchangeCode,
@@ -11,18 +12,45 @@ export type GetMarketPulseParams = {
   displayName?: string | null;
 };
 
+export type BackendMarketPulseSummaryDto = Pick<
+  BackendMarketPulseDto,
+  | "hero"
+  | "since_last_visit"
+  | "focus_stocks"
+  | "monitor_candidates"
+  | "alerts"
+  | "empty_state"
+  | "empty_message"
+  | "data_quality_note"
+>;
+
 export function getMarketPulse(params: GetMarketPulseParams = {}) {
   const previousSnapshot = params.previousSnapshot
     ? encodeURIComponent(JSON.stringify(params.previousSnapshot))
     : undefined;
 
-  return backendApiGet<BackendMarketPulseDto>(
-    "/market/pulse",
-    {
-      exchange: params.exchange ?? "DSE",
-      previous_snapshot: previousSnapshot,
-      display_name: params.displayName ?? undefined,
-    },
-    { cache: "no-store" },
-  );
+  return backendApiGet<BackendMarketPulseDto>("/market/pulse", {
+    exchange: params.exchange ?? "DSE",
+    previous_snapshot: previousSnapshot,
+    display_name: params.displayName ?? undefined,
+  });
+}
+
+export function getMarketPulseSummary(params: GetMarketPulseParams = {}) {
+  const previousSnapshot = params.previousSnapshot
+    ? encodeURIComponent(JSON.stringify(params.previousSnapshot))
+    : undefined;
+
+  return backendApiGet<BackendMarketPulseSummaryDto>("/market/pulse/summary", {
+    exchange: params.exchange ?? "DSE",
+    previous_snapshot: previousSnapshot,
+    display_name: params.displayName ?? undefined,
+  });
+}
+
+export function getMarketPulseBriefing(params: { exchange?: ExchangeCode; displayName?: string | null } = {}) {
+  return backendApiGet<BackendMarketBriefingDto | null>("/market/pulse/briefing", {
+    exchange: params.exchange ?? "DSE",
+    display_name: params.displayName ?? undefined,
+  });
 }

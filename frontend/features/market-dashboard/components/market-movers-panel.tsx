@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { memo } from "react";
 
 import type { MarketMoverModel } from "@/features/market-dashboard/types/market-dashboard-types";
 
@@ -8,7 +9,11 @@ type MarketMoversPanelProps = {
   eyebrow?: string;
 };
 
-export function MarketMoversPanel({ title, movers, eyebrow = "Market Movers" }: MarketMoversPanelProps) {
+export const MarketMoversPanel = memo(function MarketMoversPanel({
+  title,
+  movers,
+  eyebrow = "Market Movers",
+}: MarketMoversPanelProps) {
   return (
     <section className="workspace-card">
       <div className="section-heading">
@@ -38,4 +43,4 @@ export function MarketMoversPanel({ title, movers, eyebrow = "Market Movers" }: 
       </div>
     </section>
   );
-}
+});

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import date
 
 from fastapi import Depends
 
+from app.core.constants.trading_constants import DECISION_PATTERN_RESPONSE_LIMIT
 from app.core.enums import ExchangeCode
 from app.core.exception_handlers import NotFoundError
 from app.modules.stock_details.decision.breakout import analyze_breakout
@@ -46,7 +48,7 @@ class StockDetailsDecisionService:
         is_sparse = decision_bundle.is_sparse
 
         price_position = compute_price_position(snapshot)
-        patterns = detect_patterns(snapshot, prices)
+        patterns = detect_patterns(snapshot, prices)[:DECISION_PATTERN_RESPONSE_LIMIT]
         primary_pattern = patterns[0] if patterns else None
         pattern_bearish = primary_pattern.direction == "bearish" if primary_pattern else False
         warnings = generate_warnings(
@@ -62,11 +64,19 @@ class StockDetailsDecisionService:
         )
         breakout = analyze_breakout(snapshot, patterns)
 
-        shareholding = await self.repository.get_latest_shareholding_snapshot(stock.id)
-        valuation = await self.repository.get_latest_valuation_snapshot(stock.id)
-        market_events = await self.repository.list_market_events(stock_id=stock.id)
-        dividend_events = await self.repository.list_dividend_events(stock_id=stock.id)
-        corporate_actions = await self.repository.list_corporate_actions(stock_id=stock.id)
+        (
+            shareholding,
+            valuation,
+            market_events,
+            dividend_events,
+            corporate_actions,
+        ) = await asyncio.gather(
+            self.repository.get_latest_shareholding_snapshot(stock.id),
+            self.repository.get_latest_valuation_snapshot(stock.id),
+            self.repository.list_market_events(stock_id=stock.id),
+            self.repository.list_dividend_events(stock_id=stock.id),
+            self.repository.list_corporate_actions(stock_id=stock.id),
+        )
 
         ownership = build_ownership_insights(shareholding)
         valuation_insight = build_valuation_insights(valuation)

@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import { WorkspacePageHero } from "@/components/layout/workspace-page-hero";
-import { FloatingRefreshButton } from "@/components/ui/floating-refresh-button";
 import { MarketActivityLoader } from "@/components/ui/market-activity-loader";
 import { SignalBadge } from "@/components/ui/signal-badge";
 import { WatchlistPriceCell } from "@/features/watchlist/components/watchlist-price-cell";
@@ -22,13 +21,13 @@ import {
   filterWatchlistRows,
   sortWatchlistRows,
 } from "@/features/watchlist/view-models/watchlist-view-model";
-import { useMarketUniverse } from "@/features/market-dashboard/hooks/use-market-universe";
+import { useEnrichedUniverseIntelligence } from "@/hooks/market/use-enriched-universe-intelligence";
+import { resolveWatchlistStockIntelligence } from "@/lib/market/universe-intelligence";
 
 export function WatchlistView() {
-  const { items, summary, isLoading, isError, refetch } = useUserWatchlist();
-  const { universe, isLoading: universeLoading, refetch: refetchUniverse } = useMarketUniverse({
+  const { items, summary, isLoading, isError } = useUserWatchlist();
+  const { intelligenceByStockId, isLoading: universeLoading } = useEnrichedUniverseIntelligence({
     stockLimit: 500,
-    priceWindowLimit: 90,
   });
   const updateMutation = useWatchlistItemUpdate();
   const [filters, setFilters] = useState<WatchlistPageFilters>({
@@ -41,24 +40,12 @@ export function WatchlistView() {
   const [noteDraft, setNoteDraft] = useState("");
   const [buyPriceDraft, setBuyPriceDraft] = useState("");
 
-  const intelligenceByStockId = useMemo(() => {
-    const map = new Map<string, (typeof universe)[number]>();
-    for (const stock of universe) {
-      map.set(stock.stock.id, stock);
-    }
-    return map;
-  }, [universe]);
-
   const rows = useMemo(() => {
     const built = items.map((item) =>
-      buildWatchlistRowViewModel(item, intelligenceByStockId.get(item.stock_id) ?? null),
+      buildWatchlistRowViewModel(item, resolveWatchlistStockIntelligence(item, intelligenceByStockId)),
     );
     return filterWatchlistRows(sortWatchlistRows(built), filters);
   }, [filters, intelligenceByStockId, items]);
-
-  async function handleRefresh() {
-    await Promise.all([refetch(), refetchUniverse()]);
-  }
 
   function openNoteEditor(row: WatchlistRowViewModel) {
     const stockId = row.item.stock_id;
@@ -185,7 +172,9 @@ export function WatchlistView() {
         <div className="watchlist-table" role="table">
           <div className="watchlist-table-head" role="rowgroup">
             <div className="watchlist-row watchlist-header-row" role="row">
-              <div aria-hidden="true" className="watchlist-cell watchlist-actions-header" role="columnheader" />
+              <div className="watchlist-cell watchlist-actions-header" role="columnheader">
+                Operations
+              </div>
               <div className="watchlist-cell watchlist-symbol-header" role="columnheader">
                 Symbol
               </div>
@@ -309,8 +298,6 @@ export function WatchlistView() {
           </div>
         </div>
       </div>
-
-      <FloatingRefreshButton onRefresh={handleRefresh} />
     </section>
   );
 }

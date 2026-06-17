@@ -5,7 +5,7 @@ from uuid import uuid4
 from app.core.enums import DataQualityFlag, ExchangeCode, PulseFocusLabel, TrendDirection
 from app.models import DailyPrice, Stock
 from app.modules.market_data.market_mover_rules import is_eligible_session_mover
-from app.modules.market_pulse.market_pulse_service import ScoredUniverseRow, _build_market_movers
+from app.modules.market_pulse.market_pulse_service import PulsePresentationRow, _build_market_movers
 from app.modules.stock_details.decision.technical import TechnicalSnapshot
 
 
@@ -47,10 +47,9 @@ def _snapshot(
     )
 
 
-def _row(snapshot: TechnicalSnapshot, symbol: str = "TEST") -> ScoredUniverseRow:
-    return ScoredUniverseRow(
+def _row(snapshot: TechnicalSnapshot, symbol: str = "TEST") -> PulsePresentationRow:
+    return PulsePresentationRow(
         stock=_stock(symbol),
-        prices=[],
         snapshot=snapshot,
         decision=object(),
         score=object(),

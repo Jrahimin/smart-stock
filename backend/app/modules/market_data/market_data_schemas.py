@@ -162,6 +162,8 @@ class MarketFreshnessRead(BaseModel):
     last_synced_at: datetime | None
     next_sync_at: datetime | None
     snapshot_interval_minutes: int
+    market_sync_interval_seconds: int
+    dashboard_cache_ttl_seconds: int
     expected_delay_minutes: int
     market_open_time: str
     market_close_time: str

@@ -1,10 +1,11 @@
+import { memo } from "react";
 import type { BreadthModel } from "@/features/market-dashboard/types/market-dashboard-types";
 
 type MarketBreadthPanelProps = {
   breadth: BreadthModel;
 };
 
-export function MarketBreadthPanel({ breadth }: MarketBreadthPanelProps) {
+export const MarketBreadthPanel = memo(function MarketBreadthPanel({ breadth }: MarketBreadthPanelProps) {
   const advancingWidth = breadth.total ? (breadth.advancing / breadth.total) * 100 : 0;
   const decliningWidth = breadth.total ? (breadth.declining / breadth.total) * 100 : 0;
   const unchangedWidth = Math.max(0, 100 - advancingWidth - decliningWidth);
@@ -27,4 +28,4 @@ export function MarketBreadthPanel({ breadth }: MarketBreadthPanelProps) {
       </div>
     </section>
   );
-}
+});

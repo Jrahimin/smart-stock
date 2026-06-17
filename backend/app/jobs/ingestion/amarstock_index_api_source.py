@@ -12,6 +12,9 @@ from app.core.core_config import Settings
 from app.jobs.ingestion.amarstock_http_client import AmarStockHttpClient
 
 DHAKA_TZ = ZoneInfo("Asia/Dhaka")
+DSEX_SYMBOL = "00DSEX"
+TRADING_DAYS_1M = 21
+HISTORICAL_LOOKBACK_CALENDAR_DAYS = 45
 
 
 @dataclass(frozen=True)
@@ -36,6 +39,15 @@ class AmarStockDsexSnapshot:
     unchanged_issues: int
 
 
+@dataclass(frozen=True)
+class AmarStockDsexPerformanceMetrics:
+    return_1m_percent: Decimal | None
+    return_6m_percent: Decimal | None
+    return_1y_percent: Decimal | None
+    range_52w_low: Decimal | None
+    range_52w_high: Decimal | None
+
+
 class AmarStockIndexApiSource:
     source_name = "AMARSTOCK_INDEX_API"
 
@@ -45,8 +57,10 @@ class AmarStockIndexApiSource:
         base_url: str,
         max_retries: int,
         retry_delay_seconds: float,
+        historical_token: str,
     ) -> None:
         self._base_url = base_url.rstrip("/")
+        self._historical_token = historical_token
         self._client = AmarStockHttpClient(
             max_retries=max_retries,
             retry_delay_seconds=retry_delay_seconds,
@@ -58,7 +72,47 @@ class AmarStockIndexApiSource:
             base_url=settings.amarstock_api_base_url,
             max_retries=settings.amarstock_bulk_api_max_retries,
             retry_delay_seconds=settings.amarstock_bulk_api_retry_delay_seconds,
+            historical_token=settings.amarstock_historical_token,
         )
+
+    async def fetch_dsex_performance_metrics(self) -> AmarStockDsexPerformanceMetrics:
+        """Lightweight read for multi-horizon returns and 52-week range (summery endpoint only)."""
+        summery = await self._client.fetch_json(f"{self._base_url}/data/index/summery")
+        if not isinstance(summery, dict):
+            raise RuntimeError("AmarStock DSEX performance metrics returned unexpected payload")
+
+        returns = _as_dict(summery.get("Returns"))
+        range_52w = _as_dict(summery.get("Range52Week"))
+
+        return AmarStockDsexPerformanceMetrics(
+            return_1m_percent=await self._fetch_return_1m_from_index_history(),
+            return_6m_percent=_decimal(returns.get("6Month")),
+            return_1y_percent=_decimal(returns.get("1Year")),
+            range_52w_low=_decimal(range_52w.get("low")),
+            range_52w_high=_decimal(range_52w.get("high")),
+        )
+
+    async def _fetch_return_1m_from_index_history(self) -> Decimal | None:
+        from datetime import timedelta
+
+        from app.jobs.ingestion.amarstock_api_stock_details_source import AmarStockHistoricalSource
+
+        start_date = datetime.now(tz=DHAKA_TZ).date() - timedelta(days=HISTORICAL_LOOKBACK_CALENDAR_DAYS)
+        historical = AmarStockHistoricalSource(
+            base_url=self._base_url,
+            token=self._historical_token,
+            client=self._client,
+        )
+        rows = await historical.fetch(DSEX_SYMBOL, start_date=start_date)
+        if len(rows) <= TRADING_DAYS_1M:
+            return None
+
+        latest_close = _decimal(rows[-1].get("Close"))
+        past_close = _decimal(rows[-1 - TRADING_DAYS_1M].get("Close"))
+        if latest_close is None or past_close is None or past_close == 0:
+            return None
+
+        return (latest_close - past_close) / past_close * Decimal("100")
 
     async def fetch_dsex_snapshot(self) -> AmarStockDsexSnapshot:
         info, summery = await self._fetch_payloads()

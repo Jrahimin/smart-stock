@@ -1,4 +1,6 @@
 import type {
+  BackendDailyPriceDto,
+  BackendStockDto,
   ExchangeCode,
   TraderRecommendation,
   WarningSeverity,
@@ -132,4 +134,11 @@ export type EventTimelineItemDto = {
   title: string;
   summary: string | null;
   source: string | null;
+};
+
+export type StockWorkspaceDto = {
+  stock: BackendStockDto;
+  prices: BackendDailyPriceDto[];
+  latest_trade_date: string;
+  decision_support: StockDecisionSupportDto;
 };

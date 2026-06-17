@@ -35,6 +35,20 @@ class StocksRepository(BaseRepository[Stock]):
         )
         return await self.session.scalar(statement)
 
+    async def count_stocks(
+        self,
+        *,
+        exchange: ExchangeCode | None,
+        is_active: bool | None = True,
+    ) -> int:
+        statement = select(func.count()).select_from(Stock)
+        if exchange is not None:
+            statement = statement.where(Stock.exchange == exchange)
+        if is_active is not None:
+            statement = statement.where(Stock.is_active.is_(is_active))
+        result = await self.session.scalar(statement)
+        return int(result or 0)
+
 
 def get_stocks_repository(session: AsyncSession = Depends(get_db_session)) -> StocksRepository:
     return StocksRepository(session)
