@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import {
+  AlertTriangle,
   ArrowDownRight,
   ArrowUpRight,
+  Check,
   Crosshair,
   Shield,
-  Target,
   TrendingDown,
   Zap,
 } from "lucide-react";
@@ -29,16 +30,6 @@ function StateIcon({ stateKey }: { stateKey: string }) {
     return <ArrowUpRight aria-hidden="true" size={14} />;
   }
   return <Crosshair aria-hidden="true" size={14} />;
-}
-
-function PlaybookIcon({ profile }: { profile: string }) {
-  if (profile === "Aggressive") {
-    return <Target aria-hidden="true" size={18} />;
-  }
-  if (profile === "Balanced") {
-    return <Crosshair aria-hidden="true" size={18} />;
-  }
-  return <Shield aria-hidden="true" size={18} />;
 }
 
 function OpportunityGauge({
@@ -128,21 +119,10 @@ function OpportunityGauge({
   );
 }
 
-function resolveActivePlaybook(briefing: MarketBriefingModel) {
-  if (briefing.state.overallTone === "warning" || briefing.state.overallTone === "negative") {
-    return "Defensive";
-  }
-  if (briefing.opportunityScore.score >= 70) {
-    return "Aggressive";
-  }
-  return "Balanced";
-}
-
 export function MarketBriefingSection({ briefing }: MarketBriefingSectionProps) {
-  const { story, state, moneyFlow, opportunityScore, playbook, highPriority } = briefing;
+  const { story, state, moneyFlow, opportunityScore } = briefing;
   const headlineLines = story.headline.split("\n");
   const briefingLines = story.explanation.split("\n").filter(Boolean);
-  const activePlaybook = resolveActivePlaybook(briefing);
 
   return (
     <>
@@ -257,47 +237,6 @@ export function MarketBriefingSection({ briefing }: MarketBriefingSectionProps) 
           <p className="pulse-opportunity-label">{opportunityScore.label}</p>
         </article>
       </section>
-
-      <section className="pulse-playbook-row" aria-label="Today's playbook">
-        <div className="pulse-playbook-strip">
-          <p className="pulse-playbook-question">{playbook.question}</p>
-          <div className="pulse-playbook-profiles">
-            {playbook.items.map((item) => (
-              <div
-                className={`pulse-playbook-profile pulse-playbook-profile-${item.tone}${activePlaybook === item.profile ? " pulse-playbook-profile-active" : ""}`}
-                key={item.profile}
-              >
-                <div className="pulse-playbook-profile-icon">
-                  <PlaybookIcon profile={item.profile} />
-                </div>
-                <div className="pulse-playbook-profile-copy">
-                  <strong>{item.profile}</strong>
-                  <span className="pulse-playbook-profile-summary">{item.summary}</span>
-                  <span className="pulse-playbook-profile-guidance">{item.guidance}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {highPriority ? (
-          <Link className="pulse-high-priority-card" href={highPriority.href}>
-            <span className="pulse-high-priority-badge">High Priority</span>
-            <strong className="pulse-high-priority-symbol">{highPriority.symbol}</strong>
-            <p className="pulse-high-priority-reason">{highPriority.metricLabel}</p>
-            <div className="pulse-high-priority-trigger">
-              <span>Trigger</span>
-              <strong>{highPriority.triggerLevel}</strong>
-            </div>
-            <div className="pulse-high-priority-footer">
-              <span className={`pulse-focus-change pulse-focus-change-${highPriority.priceTone}`}>
-                {highPriority.priceChangePercent}
-              </span>
-              <MiniSparkline compact points={highPriority.sparklinePoints} tone={highPriority.priceTone} />
-            </div>
-          </Link>
-        ) : null}
-      </section>
     </>
   );
 }
@@ -310,6 +249,8 @@ type MarketBriefingFooterProps = {
 export function MarketBriefingFooter({ leadership, summary }: MarketBriefingFooterProps) {
   const [sectorCard, stockCard, accumulationCard] = leadership.cards;
   const summaryLines = summary.text.split("\n").map((line) => line.trim()).filter(Boolean);
+  const summaryHeadline = summaryLines[0] ?? null;
+  const summaryBodyLines = summaryLines.slice(1);
 
   return (
     <>
@@ -351,41 +292,56 @@ export function MarketBriefingFooter({ leadership, summary }: MarketBriefingFoot
       </article>
 
       <article className={`pulse-summary-card pulse-summary-card-${summary.tone}`}>
-        <p className="pulse-card-kicker">Market State Summary</p>
-        <div className="pulse-summary-main">
-          <div className="pulse-summary-body">
-            <div className="pulse-summary-copy">
-              {summaryLines.map((line) => (
-                <p className="pulse-summary-text" key={line}>
-                  {line}
-                </p>
-              ))}
-              {summary.tradingEnvironment ? (
-                <div className="pulse-summary-trading-env">
-                  <p className="pulse-summary-trading-env-label">Trading Environment</p>
-                  <ul className="pulse-summary-trading-env-list">
-                    {summary.tradingEnvironment.signals.map((signal) => (
-                      <li
-                        className={`pulse-summary-trading-env-item pulse-summary-trading-env-${signal.tone}`}
-                        key={signal.text}
-                      >
-                        <span aria-hidden="true" className="pulse-summary-trading-env-mark">
-                          {signal.tone === "positive" ? "✓" : "⚠"}
-                        </span>
-                        {signal.text}
-                      </li>
-                    ))}
-                  </ul>
-                  <p className={`pulse-summary-trading-env-overall pulse-summary-trading-env-overall-${summary.tradingEnvironment.overallTone}`}>
-                    Overall: <strong>{summary.tradingEnvironment.overallLabel}</strong>
-                  </p>
-                </div>
-              ) : null}
-            </div>
-            <div className="pulse-summary-icon" aria-hidden="true">
-              <Shield size={32} strokeWidth={1.1} />
-            </div>
+        <div className="pulse-summary-head">
+          <p className="pulse-card-kicker">Market State Summary</p>
+          <div className="pulse-summary-icon-watermark" aria-hidden="true">
+            <Shield size={44} strokeWidth={1.1} />
           </div>
+        </div>
+
+        <div className="pulse-summary-main">
+          <section className="pulse-summary-narrative">
+            {summaryHeadline ? <h3 className="pulse-summary-headline">{summaryHeadline}</h3> : null}
+            {summaryBodyLines.map((line) => (
+              <p className="pulse-summary-text" key={line}>
+                {line}
+              </p>
+            ))}
+          </section>
+
+          {summary.tradingEnvironment ? (
+            <section className="pulse-summary-env-panel">
+              <div className="pulse-summary-env-head">
+                <span className="pulse-summary-env-head-icon" aria-hidden="true">
+                  <Zap size={13} strokeWidth={2.2} />
+                </span>
+                <span>Trading Environment</span>
+              </div>
+              <ul className="pulse-summary-trading-env-list">
+                {summary.tradingEnvironment.signals.map((signal) => (
+                  <li
+                    className={`pulse-summary-trading-env-item pulse-summary-trading-env-${signal.tone}`}
+                    key={signal.text}
+                  >
+                    <span aria-hidden="true" className="pulse-summary-trading-env-mark">
+                      {signal.tone === "positive" ? <Check size={12} strokeWidth={2.6} /> : <AlertTriangle size={12} strokeWidth={2.4} />}
+                    </span>
+                    <span>{signal.text}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
+          {summary.tradingEnvironment ? (
+            <div
+              className={`pulse-summary-verdict pulse-summary-verdict-${summary.tradingEnvironment.overallTone}`}
+            >
+              <span className="pulse-summary-verdict-label">Overall</span>
+              <strong className="pulse-summary-verdict-value">{summary.tradingEnvironment.overallLabel}</strong>
+            </div>
+          ) : null}
+
           <Link className="pulse-summary-link" href="/scanner">
             Read full analysis →
           </Link>

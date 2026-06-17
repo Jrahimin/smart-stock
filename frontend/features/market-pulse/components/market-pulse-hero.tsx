@@ -34,10 +34,6 @@ export function MarketPulseHero({ hero, briefingChips }: MarketPulseHeroProps) {
         </div>
       }
       title={hero.attentionHeadline}
-    >
-      {hero.relativeUpdatedLabel ? (
-        <p className="pulse-hero-updated-top">Last updated: {hero.relativeUpdatedLabel.replace(/^Updated\s+/i, "")}</p>
-      ) : null}
-    </WorkspacePageHero>
+    />
   );
 }

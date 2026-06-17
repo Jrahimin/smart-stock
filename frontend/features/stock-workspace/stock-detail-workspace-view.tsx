@@ -6,7 +6,7 @@ import { MarketDataFreshnessBar } from "@/components/layout/market-data-freshnes
 import { StockCandlestickChart } from "@/components/charts/stock-candlestick-chart";
 import { BreakoutAnalysisCard } from "@/features/stock-workspace/components/breakout-analysis-card";
 import { DecisionScoresPanel } from "@/features/stock-workspace/components/decision-scores-panel";
-import { DataFreshnessIndicator, EventTimelinePanel } from "@/features/stock-workspace/components/event-timeline-panel";
+import { EventTimelinePanel } from "@/features/stock-workspace/components/event-timeline-panel";
 import { FundamentalsPanel } from "@/features/stock-workspace/components/fundamentals-panel";
 import { OwnershipInsightsPanel } from "@/features/stock-workspace/components/ownership-valuation-panels";
 import { PricePositionPanel } from "@/features/stock-workspace/components/price-position-panel";
@@ -38,7 +38,6 @@ export function StockDetailWorkspaceView({ exchange, symbol }: StockDetailWorksp
         <div className="trader-workspace-topbar-rail">
           <MarketDataFreshnessBar variant="inline" />
           <WorkspaceCommandSearch filterContextName="stocks" showQuickActions={false} variant="compact" />
-          <DataFreshnessIndicator decision={decisionModel} />
         </div>
       </div>
 

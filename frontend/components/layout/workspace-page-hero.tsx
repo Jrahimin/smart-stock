@@ -12,6 +12,7 @@ type WorkspacePageHeroProps = {
   onFilterTable?: (query: string) => void;
   children?: ReactNode;
   className?: string;
+  freshnessClassName?: string;
 };
 
 export function WorkspacePageHero({
@@ -22,10 +23,11 @@ export function WorkspacePageHero({
   onFilterTable,
   children,
   className,
+  freshnessClassName,
 }: WorkspacePageHeroProps) {
   return (
     <div className={className ? `explorer-hero ${className}` : "explorer-hero"}>
-      <MarketDataFreshnessBar variant="status" />
+      <MarketDataFreshnessBar className={freshnessClassName} variant="status" />
 
       <div className="explorer-hero-head">
         <div className="explorer-hero-copy">

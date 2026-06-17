@@ -964,32 +964,6 @@ button {
   transform: translateY(-1px);
 }
 
-.market-freshness-chip.market-freshness-chip-status {
-  background: color-mix(in srgb, var(--soft-surface) 88%, transparent);
-  border: 1px solid color-mix(in srgb, var(--border) 52%, transparent);
-  box-shadow: none;
-  gap: 5px;
-  padding: 4px 9px;
-}
-
-.market-freshness-chip.market-freshness-chip-status:hover {
-  border-color: color-mix(in srgb, var(--border) 72%, transparent);
-  box-shadow: none;
-  transform: none;
-}
-
-.market-freshness-chip.market-freshness-chip-status .market-freshness-icon {
-  color: color-mix(in srgb, var(--muted) 88%, transparent);
-  opacity: 0.9;
-}
-
-.market-freshness-chip.market-freshness-chip-status .market-freshness-text {
-  color: var(--muted);
-  font-size: 10px;
-  font-weight: 500;
-  letter-spacing: 0;
-}
-
 .market-freshness-chip-loading {
   opacity: 0.86;
 }
@@ -15950,20 +15924,24 @@ button {
   display: grid;
   gap: 0;
   grid-template-columns: minmax(0, 1fr) min(420px, 40%);
+  grid-template-rows: auto auto;
   padding-bottom: 18px;
   row-gap: 0;
 }
 
-.pulse-page-hero .market-freshness-bar,
-.pulse-page-hero .market-freshness-bar-status,
-.pulse-page-hero .market-freshness-inline,
-.pulse-page-hero .market-freshness-status {
-  display: none;
+.pulse-page-hero .market-freshness-bar-status {
+  align-self: end;
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: end;
+  margin-bottom: 10px;
+  pointer-events: auto;
+  position: static;
 }
 
 .pulse-page-hero .explorer-hero-head {
   grid-column: 1;
-  grid-row: 2;
+  grid-row: 1 / span 2;
   padding-right: 0;
 }
 
@@ -15977,17 +15955,7 @@ button {
   grid-column: 2;
   grid-row: 2;
   justify-content: flex-start;
-  padding-top: 28px;
-}
-
-.pulse-hero-updated-top {
-  color: color-mix(in srgb, var(--muted) 90%, transparent);
-  font-size: 0.76rem;
-  font-weight: 600;
-  margin: 0;
-  text-align: right;
-  white-space: nowrap;
-  width: 100%;
+  padding-top: 0;
 }
 
 .pulse-page-hero .explorer-hero-filters {
@@ -16133,12 +16101,6 @@ button {
   font-size: 0.95rem;
   line-height: 1.45;
   max-width: 58ch;
-}
-
-.pulse-hero-updated {
-  color: color-mix(in srgb, var(--muted) 88%, transparent);
-  font-size: 0.76rem;
-  font-weight: 600;
 }
 
 .pulse-briefing-top {
@@ -16747,206 +16709,6 @@ button {
   color: var(--foreground);
 }
 
-.pulse-playbook-row {
-  align-items: stretch;
-  display: grid;
-  gap: 10px;
-  grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
-}
-
-.pulse-playbook-strip {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  box-shadow: var(--card-shadow);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  height: 96%;
-  padding: 10px 12px;
-}
-
-.pulse-playbook-question {
-  color: var(--muted);
-  font-size: 0.78rem;
-  font-weight: 700;
-}
-
-.pulse-playbook-profiles {
-  align-items: stretch;
-  display: grid;
-  flex: 1;
-  gap: 10px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.pulse-playbook-profile {
-  align-items: flex-start;
-  border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
-  border-radius: 12px;
-  display: flex;
-  gap: 8px;
-  height: 100%;
-  padding: 8px 10px;
-}
-
-.pulse-playbook-profile-icon {
-  align-items: center;
-  border-radius: 10px;
-  display: inline-flex;
-  flex: 0 0 auto;
-  height: 30px;
-  justify-content: center;
-  width: 30px;
-}
-
-.pulse-playbook-profile-positive .pulse-playbook-profile-icon {
-  background: color-mix(in srgb, var(--positive) 12%, transparent);
-  color: var(--positive);
-}
-
-.pulse-playbook-profile-warning .pulse-playbook-profile-icon {
-  background: color-mix(in srgb, var(--warning) 12%, transparent);
-  color: var(--warning);
-}
-
-.pulse-playbook-profile-negative .pulse-playbook-profile-icon {
-  background: color-mix(in srgb, var(--negative) 10%, transparent);
-  color: var(--negative);
-}
-
-.pulse-playbook-profile-copy {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-}
-
-.pulse-playbook-profile-copy strong {
-  font-size: 0.82rem;
-  letter-spacing: -0.02em;
-}
-
-.pulse-playbook-profile-summary {
-  color: var(--foreground);
-  font-size: 0.78rem;
-  font-weight: 700;
-  line-height: 1.3;
-}
-
-.pulse-playbook-profile-guidance {
-  color: var(--muted);
-  font-size: 0.72rem;
-  line-height: 1.3;
-}
-
-.pulse-playbook-profile-active {
-  background: color-mix(in srgb, var(--primary) 6%, var(--panel));
-  border-color: color-mix(in srgb, var(--primary) 28%, var(--border));
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 8%, transparent);
-}
-
-.pulse-playbook-profile-negative.pulse-playbook-profile-active {
-  background: color-mix(in srgb, var(--negative) 6%, var(--panel));
-  border-color: color-mix(in srgb, var(--negative) 28%, var(--border));
-}
-
-.pulse-high-priority-card {
-  background: linear-gradient(160deg, color-mix(in srgb, var(--negative) 8%, var(--panel)), var(--panel));
-  border: 1px solid color-mix(in srgb, var(--negative) 24%, var(--border));
-  border-radius: 16px;
-  box-shadow: 0 8px 22px color-mix(in srgb, var(--negative) 8%, transparent);
-  color: inherit;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  height: 96%;
-  padding: 8px 12px;
-  text-decoration: none;
-  transition: border-color 0.18s ease, transform 0.18s ease;
-}
-
-.pulse-high-priority-symbol {
-  font-size: 1.35rem;
-  font-weight: 800;
-  letter-spacing: -0.04em;
-  line-height: 1;
-  margin-top: 2px;
-}
-
-.pulse-high-priority-card:hover {
-  border-color: color-mix(in srgb, var(--negative) 36%, var(--border));
-  transform: translateY(-1px);
-}
-
-.pulse-high-priority-head {
-  align-items: center;
-  display: flex;
-  gap: 10px;
-  justify-content: space-between;
-}
-
-.pulse-high-priority-badge {
-  background: transparent;
-  border-radius: 0;
-  color: var(--negative);
-  font-size: 0.62rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  padding: 0;
-  text-transform: uppercase;
-  width: fit-content;
-}
-
-.pulse-high-priority-reason {
-  color: var(--muted);
-  font-size: 0.72rem;
-  font-weight: 600;
-  line-height: 1.3;
-}
-
-.pulse-high-priority-trigger {
-  background: color-mix(in srgb, var(--panel) 88%, var(--negative) 12%);
-  border: 1px solid color-mix(in srgb, var(--negative) 18%, var(--border));
-  border-radius: 10px;
-  display: grid;
-  gap: 2px;
-  margin-top: 4px;
-  padding: 6px 8px;
-}
-
-.pulse-high-priority-trigger span {
-  color: var(--muted);
-  font-size: 0.58rem;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.pulse-high-priority-trigger strong {
-  font-size: 0.82rem;
-  font-weight: 800;
-}
-
-.pulse-high-priority-footer {
-  align-items: center;
-  display: flex;
-  gap: 8px;
-  justify-content: space-between;
-  margin-top: auto;
-  padding-top: 6px;
-}
-
-.pulse-high-priority-quote {
-  display: grid;
-  gap: 2px;
-}
-
-.pulse-high-priority-metric {
-  color: var(--muted);
-  font-size: 0.72rem;
-  font-weight: 700;
-}
-
 .pulse-score-badge-compact .pulse-score-band-hidden {
   display: none;
 }
@@ -17101,83 +16863,51 @@ button {
 /* Summary — distribute vertical rhythm to match row height */
 .pulse-evidence-row .pulse-summary-main {
   flex: 1;
-  gap: 0;
-  min-height: 0;
-}
-
-.pulse-evidence-row .pulse-summary-body {
-  align-items: stretch;
-  display: grid;
-  flex: 1;
   gap: 12px;
-  grid-template-columns: minmax(0, 1fr) auto;
   min-height: 0;
 }
 
-.pulse-evidence-row .pulse-summary-copy {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: 0;
-  min-height: 0;
+.pulse-evidence-row .pulse-summary-narrative {
+  flex: 0 0 auto;
+  padding-bottom: 10px;
+}
+
+.pulse-evidence-row .pulse-summary-headline {
+  font-size: 0.88rem;
 }
 
 .pulse-evidence-row .pulse-summary-text {
-  font-size: 0.78rem;
+  font-size: 0.76rem;
   line-height: 1.48;
 }
 
-.pulse-evidence-row .pulse-summary-text:first-of-type {
-  font-weight: 600;
-  margin-bottom: 10px;
-}
-
-.pulse-evidence-row .pulse-summary-text + .pulse-summary-text {
-  margin-bottom: 12px;
-}
-
-.pulse-evidence-row .pulse-summary-trading-env {
-  border-top: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
-  display: flex;
+.pulse-evidence-row .pulse-summary-env-panel {
   flex: 1;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 4px;
   min-height: 0;
-  padding-top: 10px;
-}
-
-.pulse-evidence-row .pulse-summary-trading-env-label {
-  margin-bottom: 2px;
 }
 
 .pulse-evidence-row .pulse-summary-trading-env-list {
-  gap: 7px;
+  gap: 6px;
 }
 
 .pulse-evidence-row .pulse-summary-trading-env-item {
-  line-height: 1.42;
-  padding: 1px 0;
+  font-size: 0.72rem;
+  padding: 6px 8px;
 }
 
-.pulse-evidence-row .pulse-summary-trading-env-overall {
+.pulse-evidence-row .pulse-summary-verdict {
   margin-top: auto;
-  padding-top: 8px;
+  padding: 12px 10px 10px;
 }
 
-.pulse-evidence-row .pulse-summary-icon {
-  align-items: center;
-  align-self: stretch;
-  display: flex;
-  justify-content: center;
-  opacity: 0.22;
-  padding-top: 4px;
+.pulse-evidence-row .pulse-summary-verdict-value {
+  font-size: 1.05rem;
 }
 
 .pulse-evidence-row .pulse-summary-link {
   flex: 0 0 auto;
-  margin-top: auto;
-  padding-top: 10px;
+  margin-top: 0;
+  padding-top: 8px;
 }
 
 .pulse-evidence-row .pulse-alerts-section {
@@ -17492,109 +17222,221 @@ button {
 }
 
 .pulse-summary-card {
+  background: linear-gradient(165deg, color-mix(in srgb, var(--panel) 92%, var(--primary) 8%), var(--panel));
+  border: 1px solid color-mix(in srgb, var(--border) 70%, var(--primary) 30%);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
+  overflow: hidden;
+  position: relative;
+}
+
+.pulse-summary-card-warning {
+  border-color: color-mix(in srgb, var(--warning) 28%, var(--border));
+}
+
+.pulse-summary-card-positive {
+  border-color: color-mix(in srgb, var(--positive) 24%, var(--border));
+}
+
+.pulse-summary-head {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  position: relative;
+  z-index: 1;
+}
+
+.pulse-summary-icon-watermark {
+  align-items: center;
+  color: color-mix(in srgb, var(--primary) 55%, transparent);
+  display: flex;
+  filter: drop-shadow(0 0 18px color-mix(in srgb, var(--primary) 18%, transparent));
+  justify-content: center;
+  opacity: 0.2;
 }
 
 .pulse-summary-main {
   display: flex;
+  flex: 1;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
   min-height: 0;
+  position: relative;
+  z-index: 1;
 }
 
-.pulse-summary-body {
-  align-items: start;
+.pulse-summary-narrative {
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
   display: grid;
-  gap: 10px;
-  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  padding-bottom: 12px;
 }
 
-.pulse-summary-copy {
-  display: grid;
-  gap: 6px;
+.pulse-summary-headline {
+  color: var(--foreground);
+  font-size: 0.92rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.35;
+  margin: 0;
 }
 
 .pulse-summary-text {
-  font-size: 0.8rem;
-  line-height: 1.4;
+  color: color-mix(in srgb, var(--foreground) 88%, var(--muted));
+  font-size: 0.78rem;
+  line-height: 1.5;
+  margin: 0;
 }
 
-.pulse-summary-trading-env {
-  border-top: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+.pulse-summary-env-panel {
+  background: color-mix(in srgb, var(--soft-surface) 88%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  border-radius: 12px;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 6%, transparent);
   display: grid;
-  gap: 6px;
-  margin-top: 6px;
-  padding-top: 8px;
+  flex: 1;
+  gap: 10px;
+  min-height: 0;
+  padding: 10px 11px;
 }
 
-.pulse-summary-trading-env-label {
+.pulse-summary-env-head {
+  align-items: center;
+  border-bottom: 1px dashed color-mix(in srgb, var(--border) 80%, transparent);
   color: var(--muted);
-  font-size: 0.62rem;
+  display: inline-flex;
+  font-size: 0.64rem;
   font-weight: 800;
-  letter-spacing: 0.06em;
+  gap: 6px;
+  letter-spacing: 0.07em;
+  padding-bottom: 8px;
   text-transform: uppercase;
+  width: 100%;
+}
+
+.pulse-summary-env-head-icon {
+  align-items: center;
+  background: color-mix(in srgb, var(--primary) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--primary) 24%, var(--border));
+  border-radius: 8px;
+  color: var(--primary);
+  display: inline-flex;
+  height: 22px;
+  justify-content: center;
+  width: 22px;
 }
 
 .pulse-summary-trading-env-list {
   display: grid;
-  gap: 4px;
+  flex: 1;
+  gap: 7px;
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
 .pulse-summary-trading-env-item {
-  align-items: start;
-  color: color-mix(in srgb, var(--foreground) 90%, var(--muted));
+  align-items: center;
+  background: color-mix(in srgb, var(--panel) 90%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  border-radius: 10px;
+  color: color-mix(in srgb, var(--foreground) 92%, var(--muted));
   display: grid;
   font-size: 0.74rem;
-  gap: 6px;
-  grid-template-columns: 14px minmax(0, 1fr);
+  gap: 8px;
+  grid-template-columns: 22px minmax(0, 1fr);
   line-height: 1.35;
+  padding: 7px 9px;
+}
+
+.pulse-summary-trading-env-positive {
+  border-color: color-mix(in srgb, var(--positive) 22%, var(--border));
+}
+
+.pulse-summary-trading-env-warning {
+  border-color: color-mix(in srgb, var(--warning) 22%, var(--border));
 }
 
 .pulse-summary-trading-env-mark {
-  font-size: 0.72rem;
-  font-weight: 800;
-  line-height: 1.35;
+  align-items: center;
+  border-radius: 999px;
+  display: inline-flex;
+  height: 22px;
+  justify-content: center;
+  width: 22px;
 }
 
 .pulse-summary-trading-env-positive .pulse-summary-trading-env-mark {
+  background: color-mix(in srgb, var(--positive) 14%, transparent);
   color: var(--positive);
 }
 
 .pulse-summary-trading-env-warning .pulse-summary-trading-env-mark {
+  background: color-mix(in srgb, var(--warning) 14%, transparent);
   color: var(--warning);
 }
 
-.pulse-summary-trading-env-overall {
+.pulse-summary-verdict {
+  align-items: center;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--panel-strong) 88%, transparent), color-mix(in srgb, var(--panel) 92%, transparent));
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  border-radius: 14px;
+  display: grid;
+  gap: 4px;
+  justify-items: center;
+  margin-top: auto;
+  padding: 14px 12px 12px;
+  text-align: center;
+}
+
+.pulse-summary-verdict-label {
   color: var(--muted);
-  font-size: 0.72rem;
-  margin-top: 2px;
-}
-
-.pulse-summary-trading-env-overall strong {
-  color: var(--foreground);
+  font-size: 0.64rem;
   font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
 }
 
-.pulse-summary-trading-env-overall-positive strong {
+.pulse-summary-verdict-value {
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1.1;
+}
+
+.pulse-summary-verdict-positive {
+  background: linear-gradient(135deg, rgb(75 214 164 / 14%), rgb(75 214 164 / 4%));
+  border-color: rgb(75 214 164 / 28%);
+  box-shadow: 0 10px 24px rgb(75 214 164 / 8%);
+}
+
+.pulse-summary-verdict-positive .pulse-summary-verdict-value {
   color: var(--positive);
 }
 
-.pulse-summary-trading-env-overall-warning strong {
+.pulse-summary-verdict-warning {
+  background: linear-gradient(135deg, rgb(240 195 106 / 16%), rgb(240 195 106 / 5%));
+  border-color: rgb(240 195 106 / 30%);
+  box-shadow: 0 10px 24px rgb(240 195 106 / 8%);
+}
+
+.pulse-summary-verdict-warning .pulse-summary-verdict-value {
   color: var(--warning);
 }
 
-.pulse-summary-icon {
-  align-items: flex-start;
-  color: color-mix(in srgb, var(--primary) 70%, transparent);
-  display: flex;
-  justify-content: center;
-  opacity: 0.24;
-  padding-top: 1px;
+.pulse-summary-verdict-negative {
+  background: linear-gradient(135deg, rgb(255 119 119 / 14%), rgb(255 119 119 / 4%));
+  border-color: rgb(255 119 119 / 28%);
+}
+
+.pulse-summary-verdict-negative .pulse-summary-verdict-value {
+  color: var(--negative);
+}
+
+.pulse-summary-verdict-neutral .pulse-summary-verdict-value,
+.pulse-summary-verdict-info .pulse-summary-verdict-value {
+  color: var(--foreground);
 }
 
 .pulse-summary-link {
@@ -17602,7 +17444,15 @@ button {
   color: var(--primary);
   font-size: 0.78rem;
   font-weight: 700;
-  padding-top: 6px;
+  margin-top: 2px;
+  padding-top: 10px;
+  text-align: center;
+  transition: color 0.18s ease, letter-spacing 0.18s ease;
+}
+
+.pulse-summary-link:hover {
+  color: color-mix(in srgb, var(--primary) 82%, white);
+  letter-spacing: 0.01em;
 }
 
 .pulse-focus-identity span {
@@ -17895,12 +17745,7 @@ button {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .pulse-playbook-row,
   .pulse-evidence-row {
-    grid-template-columns: 1fr;
-  }
-
-  .pulse-playbook-profiles {
     grid-template-columns: 1fr;
   }
 
@@ -18502,6 +18347,14 @@ button {
 @media (max-width: 900px) {
   .pulse-page-hero.explorer-hero {
     grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto;
+  }
+
+  .pulse-page-hero .market-freshness-bar-status {
+    grid-column: 1;
+    grid-row: 1;
+    justify-self: end;
+    margin-bottom: 8px;
   }
 
   .pulse-page-hero .explorer-hero-head {
