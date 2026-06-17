@@ -13,11 +13,14 @@ const DEFAULT_MARKET_UNIVERSE_LIMIT = 500;
 
 type UseMarketUniverseOptions = {
   stockLimit?: number;
-  priceWindowLimit?: number;
   staleTimeMs?: number;
   refetchIntervalMs?: number | false;
-  loadStockMasterList?: boolean;
 };
+
+/** Loads `ScoredUniverseRow` list via GET /market/universe-rows (shared foundation cache). */
+export function useScoredUniverseRows(options: UseMarketUniverseOptions = {}) {
+  return useMarketUniverse(options);
+}
 
 export function useMarketUniverse(options: UseMarketUniverseOptions = {}) {
   const stockLimit = options.stockLimit ?? DEFAULT_MARKET_UNIVERSE_LIMIT;

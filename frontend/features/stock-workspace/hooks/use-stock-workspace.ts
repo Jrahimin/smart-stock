@@ -4,47 +4,39 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import type { ExchangeCode } from "@/lib/api/backend-api-types";
-import { listDailyPrices } from "@/lib/api/market-data-api";
-import { getStockDecisionSupport } from "@/lib/api/stock-details-api";
-import { getStockByLookup } from "@/lib/api/stocks-api";
+import { getStockWorkspace } from "@/lib/api/stock-details-api";
 import { buildStockDecisionViewModel } from "@/features/stock-workspace/view-models/stock-decision-view-model";
 import { buildStockWorkspaceModel } from "@/features/stock-workspace/view-models/stock-workspace-view-model";
+import { useMarketDataFreshness } from "@/hooks/market/use-market-data-freshness";
+import { getMarketStaleTimeMs } from "@/lib/market/market-cache-policy";
 
 export function useStockWorkspace(exchange: ExchangeCode, symbol: string) {
-  const stockQuery = useQuery({
-    queryKey: ["stock-lookup", exchange, symbol],
-    queryFn: () => getStockByLookup(exchange, symbol),
-  });
+  const freshnessQuery = useMarketDataFreshness(exchange);
+  const staleTimeMs = getMarketStaleTimeMs(freshnessQuery.data);
 
-  const pricesQuery = useQuery({
-    queryKey: ["daily-prices", "workspace", stockQuery.data?.id],
-    queryFn: () => listDailyPrices(stockQuery.data?.id ?? "", { limit: 260 }),
-    enabled: Boolean(stockQuery.data?.id),
-  });
-
-  const decisionQuery = useQuery({
-    queryKey: ["stock-decision-support", exchange, symbol],
-    queryFn: () => getStockDecisionSupport(exchange, symbol),
-    enabled: Boolean(stockQuery.data?.id),
+  const workspaceQuery = useQuery({
+    queryKey: ["stock-workspace", exchange, symbol],
+    queryFn: () => getStockWorkspace(exchange, symbol),
+    staleTime: staleTimeMs,
     retry: false,
   });
 
   const model = useMemo(
-    () => buildStockWorkspaceModel(stockQuery.data ?? null, pricesQuery.data ?? []),
-    [pricesQuery.data, stockQuery.data],
+    () => buildStockWorkspaceModel(workspaceQuery.data?.stock ?? null, workspaceQuery.data?.prices ?? []),
+    [workspaceQuery.data],
   );
   const decisionModel = useMemo(
-    () => buildStockDecisionViewModel(decisionQuery.data),
-    [decisionQuery.data],
+    () => buildStockDecisionViewModel(workspaceQuery.data?.decision_support),
+    [workspaceQuery.data?.decision_support],
   );
 
   return {
     model,
     decisionModel,
-    decisionRaw: decisionQuery.data ?? null,
-    isLoading: stockQuery.isLoading || pricesQuery.isLoading,
-    isDecisionLoading: decisionQuery.isLoading,
-    isError: stockQuery.isError || pricesQuery.isError,
-    isDecisionError: decisionQuery.isError,
+    decisionRaw: workspaceQuery.data?.decision_support ?? null,
+    isLoading: workspaceQuery.isLoading,
+    isDecisionLoading: workspaceQuery.isLoading,
+    isError: workspaceQuery.isError,
+    isDecisionError: workspaceQuery.isError,
   };
 }

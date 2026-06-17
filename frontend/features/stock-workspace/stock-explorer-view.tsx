@@ -31,7 +31,6 @@ export function StockExplorerView() {
   const searchParams = useSearchParams();
   const { universe, isLoading, isError, listedStockCount, loadedPriceCount } = useMarketUniverse({
     stockLimit: 500,
-    loadStockMasterList: false,
   });
   const { watchedStockIds, holdingStockIds } = useUserWatchlist();
   const decisionByStockId = useMemo(

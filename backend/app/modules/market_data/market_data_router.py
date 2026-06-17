@@ -21,9 +21,9 @@ from app.modules.market_data.market_data_schemas import (
     MarketFreshnessRead,
     MarketPriceWindowRead,
 )
-from app.modules.stock_details.decision.summary import compute_trader_decision_summary_for_stock
-from app.modules.stocks.stocks_schemas import StockRead
 from app.modules.market_data.market_data_service import MarketDataService, get_market_data_service
+from app.modules.market_universe.market_universe_service import MarketUniverseService, get_market_universe_service
+from app.modules.stocks.stocks_schemas import StockRead
 
 router = APIRouter(tags=["market data"])
 
@@ -85,13 +85,18 @@ async def list_latest_market_prices(
     return success_response(data=items, message="Latest market prices retrieved")
 
 
-@router.get("/market/price-windows", response_model=ApiResponse[list[MarketPriceWindowRead]])
+@router.get("/market/price-windows", response_model=ApiResponse[list[MarketPriceWindowRead]], deprecated=True)
 async def list_market_price_windows(
     pagination: Annotated[PaginationParams, Depends(get_pagination_params)],
     service: Annotated[MarketDataService, Depends(get_market_data_service)],
+    universe_service: Annotated[MarketUniverseService, Depends(get_market_universe_service)],
     exchange: ExchangeCode | None = None,
     price_window_limit: Annotated[int, Query(ge=1, le=260)] = 90,
 ) -> ApiResponse[list[MarketPriceWindowRead]]:
+    resolved_exchange = exchange or ExchangeCode.DSE
+    scored_rows = await universe_service.get_scored_universe(exchange=resolved_exchange)
+    decisions_by_stock_id = {str(row.stock.id): row.decision for row in scored_rows}
+
     rows = await service.list_market_price_windows(
         exchange=exchange,
         limit=pagination.limit,
@@ -109,16 +114,18 @@ async def list_market_price_windows(
     for entry in stock_windows.values():
         stock = entry["stock"]
         prices = entry["prices"]
-        decision = compute_trader_decision_summary_for_stock(stock, prices)
         items.append(
             MarketPriceWindowRead(
                 stock=StockRead.model_validate(stock),
                 prices=[DailyPriceRead.model_validate(price) for price in prices],
-                trader_decision=decision,
+                trader_decision=decisions_by_stock_id.get(str(stock.id)),
             )
         )
 
-    return success_response(data=items, message="Market price windows retrieved")
+    return success_response(
+        data=items,
+        message="Market price windows retrieved (deprecated — use GET /market/universe-rows for trader UI)",
+    )
 
 
 @router.post("/stocks/{stock_id}/prices", response_model=ApiResponse[DailyPriceRead])

@@ -15,7 +15,7 @@ import { frontendConfig } from "@/lib/frontend-config";
 import { isBreakdownRiskDecision, resolveTraderDecision } from "@/lib/market/trader-decision";
 
 export function ScannerWorkspaceView() {
-  const { universe, isLoading, isError } = useMarketUniverse({ stockLimit: 500, priceWindowLimit: 90 });
+  const { universe, isLoading, isError } = useMarketUniverse({ stockLimit: 500 });
   const { watchedStockIds, holdingStockIds } = useUserWatchlist();
   const [symbolFilter, setSymbolFilter] = useState("");
   const [watchlistFilter, setWatchlistFilter] = useState<WatchlistFilterMode>("ALL");

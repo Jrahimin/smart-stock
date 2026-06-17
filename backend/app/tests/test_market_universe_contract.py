@@ -21,6 +21,7 @@ from app.modules.market_universe.market_universe_compute import (
     group_price_window_rows,
     technical_snapshot_to_read,
 )
+from app.modules.market_universe.market_universe_service import MarketUniverseService
 from app.modules.market_universe.market_universe_schemas import ScoredUniverseRow, UniverseSessionRead
 from app.modules.stock_details.decision.summary import TraderDecisionSummaryRead
 from app.modules.stock_details.decision.technical import TechnicalSnapshot, build_technical_snapshot
@@ -141,6 +142,69 @@ def test_scored_universe_row_serialization_has_only_allowed_keys() -> None:
     assert_no_forbidden_universe_fields(payload)
 
 
+@pytest.mark.asyncio
+async def test_scored_universe_redis_cache_payload_is_lightweight() -> None:
+    class FakeRedis:
+        def __init__(self) -> None:
+            self.is_available = True
+            self.storage: dict[str, dict] = {}
+            self.deleted: list[str] = []
+
+        async def get_json(self, key: str) -> dict | None:
+            return self.storage.get(key)
+
+        async def set_json(self, key: str, value: dict, *, ttl_seconds: int) -> None:
+            self.storage[key] = value
+
+        async def delete(self, key: str) -> None:
+            self.deleted.append(key)
+            self.storage.pop(key, None)
+
+    stock = _stock("CACHE")
+    prices = [
+        DailyPrice(
+            stock_id=stock.id,
+            trade_date=date(2026, 6, 1) + timedelta(days=index),
+            open_price=100 + index,
+            high_price=105 + index,
+            low_price=95 + index,
+            close_price=100 + index,
+            volume=1_000 + index * 10,
+            turnover=100_000,
+            source="TEST",
+            data_quality_flag=DataQualityFlag.OK,
+        )
+        for index in range(25)
+    ]
+
+    class FakeMarketRepository:
+        async def list_market_price_windows(self, **kwargs):
+            return [(stock, price) for price in prices]
+
+    class FakeStocksRepository:
+        async def count_stocks(self, **kwargs):
+            return 1
+
+    class FakeSettings:
+        market_dashboard_cache_ttl_seconds = 600
+
+    redis = FakeRedis()
+    service = MarketUniverseService(
+        FakeMarketRepository(),
+        FakeStocksRepository(),
+        redis,
+        FakeSettings(),
+    )
+
+    await service.get_scored_universe(exchange=ExchangeCode.DSE)
+
+    cache_key = universe_cache_key("scored", ExchangeCode.DSE)
+    cached = redis.storage[cache_key]
+    assert_no_forbidden_universe_fields(cached)
+    for row in cached["rows"]:
+        assert_no_forbidden_universe_fields(row)
+
+
 def test_build_scored_universe_rows_omits_prices_attribute() -> None:
     stock = _stock("GROUP")
     prices = [
@@ -218,4 +282,22 @@ def test_briefing_module_has_no_forbidden_imports() -> None:
     contents = open(source, encoding="utf-8").read()
     assert "compute_trader_decision" not in contents
     assert "build_technical_snapshot" not in contents
+    assert "list_market_price_windows" not in contents
+
+
+def test_dashboard_service_has_no_forbidden_price_window_imports() -> None:
+    import app.modules.market_dashboard.market_dashboard_service as module
+
+    source = module.__file__
+    assert source is not None
+    contents = open(source, encoding="utf-8").read()
+    assert "list_market_price_windows" not in contents
+
+
+def test_pulse_service_has_no_forbidden_price_window_imports() -> None:
+    import app.modules.market_pulse.market_pulse_service as module
+
+    source = module.__file__
+    assert source is not None
+    contents = open(source, encoding="utf-8").read()
     assert "list_market_price_windows" not in contents

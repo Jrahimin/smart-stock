@@ -18,7 +18,7 @@ import {
 } from "@/lib/market/trader-decision";
 
 export function SignalCenterView() {
-  const { universe, isLoading, isError } = useMarketUniverse({ stockLimit: 500, priceWindowLimit: 90 });
+  const { universe, isLoading, isError } = useMarketUniverse({ stockLimit: 500 });
   const [filter, setFilter] = useState("ALL");
   const [riskFilter, setRiskFilter] = useState("ALL");
   const [sortMode, setSortMode] = useState("CONVICTION");
