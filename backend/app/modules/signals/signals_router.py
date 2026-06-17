@@ -29,9 +29,9 @@ async def list_latest_trader_decisions(
     )
     items = [
         StockTraderDecisionRead(
-            stock=StockRead.model_validate(row.stock),
+            stock=row.stock,
             decision=row.decision,
-            latest_trade_date=row.prices[-1].trade_date if row.prices else None,
+            latest_trade_date=row.latest_trade_date,
         )
         for row in rows
     ]

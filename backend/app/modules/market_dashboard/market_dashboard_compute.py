@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 
@@ -9,47 +8,16 @@ from app.core.constants.trading_constants import (
     DASHBOARD_SECTOR_MIN_STOCKS,
     DASHBOARD_SIGNAL_FEED_LIMIT,
 )
-from app.core.enums import DataQualityFlag, ExchangeCode, TraderRecommendation, TrendDirection
-from app.models import DailyMarketSummary, DailyPrice, Stock
+from app.core.enums import DataQualityFlag, TraderRecommendation, TrendDirection
+from app.models import DailyMarketSummary, Stock
 from app.modules.market_data.market_mover_rules import is_eligible_session_mover
-from app.modules.stock_details.decision.summary import compute_trader_decision_summary_for_stock
+from app.modules.market_universe.market_universe_compute import technical_snapshot_from_read
+from app.modules.market_universe.market_universe_schemas import ScoredUniverseRow
 from app.modules.stock_details.decision.technical import TechnicalSnapshot, build_technical_snapshot
-from app.modules.stock_details.stock_details_schemas import TraderDecisionSummaryRead
 
 
-@dataclass(frozen=True)
-class ScoredDashboardRow:
-    stock: Stock
-    prices: list[DailyPrice]
-    snapshot: TechnicalSnapshot
-    decision: TraderDecisionSummaryRead | None
-
-
-def group_price_window_rows(
-    rows: list[tuple[Stock, DailyPrice]],
-) -> dict[str, dict[str, object]]:
-    grouped: dict[str, dict[str, object]] = {}
-    for stock, price in rows:
-        stock_id = str(stock.id)
-        if stock_id not in grouped:
-            grouped[stock_id] = {"stock": stock, "prices": []}
-        grouped[stock_id]["prices"].append(price)
-    return grouped
-
-
-def build_scored_rows(grouped: dict[str, dict[str, object]]) -> list[ScoredDashboardRow]:
-    scored: list[ScoredDashboardRow] = []
-    for entry in grouped.values():
-        stock = entry["stock"]
-        prices = entry["prices"]
-        if not isinstance(stock, Stock) or not isinstance(prices, list):
-            continue
-        snapshot = build_technical_snapshot(prices)
-        if snapshot is None:
-            continue
-        decision = compute_trader_decision_summary_for_stock(stock, prices)
-        scored.append(ScoredDashboardRow(stock=stock, prices=prices, snapshot=snapshot, decision=decision))
-    return scored
+def _snapshot_for_row(row: ScoredUniverseRow) -> TechnicalSnapshot:
+    return technical_snapshot_from_read(row.technical_snapshot)
 
 
 def _average(values: list[float]) -> float | None:
@@ -58,25 +26,25 @@ def _average(values: list[float]) -> float | None:
     return sum(values) / len(values)
 
 
-def derive_market_breadth(rows: list[ScoredDashboardRow]) -> tuple[int, int, int, int]:
-    advancing = sum(1 for row in rows if (row.snapshot.price_change_percent or 0) > 0)
-    declining = sum(1 for row in rows if (row.snapshot.price_change_percent or 0) < 0)
-    unchanged = sum(1 for row in rows if (row.snapshot.price_change_percent or 0) == 0)
+def derive_market_breadth(rows: list[ScoredUniverseRow]) -> tuple[int, int, int, int]:
+    advancing = sum(1 for row in rows if (row.technical_snapshot.price_change_percent or 0) > 0)
+    declining = sum(1 for row in rows if (row.technical_snapshot.price_change_percent or 0) < 0)
+    unchanged = sum(1 for row in rows if (row.technical_snapshot.price_change_percent or 0) == 0)
     return advancing, declining, unchanged, len(rows)
 
 
-def derive_market_mood(rows: list[ScoredDashboardRow], *, advancing: int, declining: int) -> str:
+def derive_market_mood(rows: list[ScoredUniverseRow], *, advancing: int, declining: int) -> str:
     if not rows:
         return "Unknown"
 
-    average_move = _average([row.snapshot.price_change_percent or 0 for row in rows]) or 0
-    average_volatility = _average([row.snapshot.volatility or 0 for row in rows]) or 0
+    average_move = _average([row.technical_snapshot.price_change_percent or 0 for row in rows]) or 0
+    average_volatility = _average([row.technical_snapshot.volatility or 0 for row in rows]) or 0
     volume_expansion = sum(
         1
         for row in rows
-        if row.snapshot.average_volume
-        and row.snapshot.average_volume > 0
-        and row.snapshot.volume > row.snapshot.average_volume * 1.5
+        if row.technical_snapshot.average_volume
+        and row.technical_snapshot.average_volume > 0
+        and row.technical_snapshot.volume > row.technical_snapshot.average_volume * 1.5
     )
 
     if average_volatility >= 3.2:
@@ -104,20 +72,21 @@ def _is_actionable(recommendation: TraderRecommendation) -> bool:
     return recommendation in {TraderRecommendation.BUY, TraderRecommendation.SELL}
 
 
-def _supporting_context(row: ScoredDashboardRow) -> list[str]:
+def _supporting_context(row: ScoredUniverseRow) -> list[str]:
+    snapshot = row.technical_snapshot
     context: list[str] = []
-    if row.snapshot.rsi is not None:
-        context.append(f"RSI {row.snapshot.rsi:.1f}")
-    if row.snapshot.average_volume and row.snapshot.average_volume > 0:
-        ratio = row.snapshot.volume / row.snapshot.average_volume
+    if snapshot.rsi is not None:
+        context.append(f"RSI {snapshot.rsi:.1f}")
+    if snapshot.average_volume and snapshot.average_volume > 0:
+        ratio = snapshot.volume / snapshot.average_volume
         context.append(f"Volume {ratio:.1f}x avg")
-    context.append(f"Trend {row.snapshot.trend.value.replace('_', ' ').lower()}")
+    context.append(f"Trend {snapshot.trend.value.replace('_', ' ').lower()}")
     if row.decision is not None:
         context.append(f"Opportunity {row.decision.opportunity_score}")
     return context
 
 
-def build_signal_feed(rows: list[ScoredDashboardRow], *, limit: int = DASHBOARD_SIGNAL_FEED_LIMIT) -> list[dict[str, object]]:
+def build_signal_feed(rows: list[ScoredUniverseRow], *, limit: int = DASHBOARD_SIGNAL_FEED_LIMIT) -> list[dict[str, object]]:
     ranked = [
         row
         for row in rows
@@ -141,20 +110,22 @@ def build_signal_feed(rows: list[ScoredDashboardRow], *, limit: int = DASHBOARD_
                 "risk": decision.risk_label.value,
                 "priority": _decision_priority(decision.confidence),
                 "supporting_context": _supporting_context(row),
-                "generated_at": row.snapshot.latest_trade_date or "Awaiting price data",
+                "generated_at": row.technical_snapshot.latest_trade_date or "Awaiting price data",
             }
         )
     return feed
 
 
 def build_market_alerts(
-    rows: list[ScoredDashboardRow],
+    rows: list[ScoredUniverseRow],
     *,
     latest_summary: DailyMarketSummary | None,
     session_trade_date: date | None,
 ) -> list[dict[str, str]]:
     items: list[dict[str, str]] = []
-    suspicious_count = sum(1 for row in rows if row.snapshot.data_quality == DataQualityFlag.SUSPICIOUS)
+    suspicious_count = sum(
+        1 for row in rows if row.technical_snapshot.data_quality == DataQualityFlag.SUSPICIOUS
+    )
 
     if latest_summary is not None and (
         latest_summary.has_suspicious_prices or suspicious_count > 0
@@ -174,7 +145,7 @@ def build_market_alerts(
         decision = top.decision
         items.append(
             {
-                "time": top.snapshot.latest_trade_date or "Latest",
+                "time": top.technical_snapshot.latest_trade_date or "Latest",
                 "title": f"{top.stock.symbol} {decision.recommendation.value}",
                 "description": decision.reason,
             }
@@ -198,15 +169,19 @@ def build_market_alerts(
 
 
 def build_sector_snapshots(
-    rows: list[ScoredDashboardRow],
+    rows: list[ScoredUniverseRow],
     *,
     session_trade_date: date | None,
 ) -> tuple[list[dict[str, object]], dict[str, object] | None]:
-    eligible = [row for row in rows if is_eligible_session_mover(row.snapshot, session_trade_date)]
+    eligible = [
+        row
+        for row in rows
+        if is_eligible_session_mover(_snapshot_for_row(row), session_trade_date)
+    ]
     sector_buckets: dict[str, list[float]] = {}
     for row in eligible:
         sector = (row.stock.sector or row.stock.category or "Unclassified").strip() or "Unclassified"
-        sector_buckets.setdefault(sector, []).append(row.snapshot.price_change_percent or 0)
+        sector_buckets.setdefault(sector, []).append(row.technical_snapshot.price_change_percent or 0)
 
     sectors = [
         {
@@ -221,8 +196,8 @@ def build_sector_snapshots(
 
     top_gainer = None
     if eligible:
-        leader = max(eligible, key=lambda row: row.snapshot.price_change_percent or 0)
-        change = leader.snapshot.price_change_percent or 0
+        leader = max(eligible, key=lambda row: row.technical_snapshot.price_change_percent or 0)
+        change = leader.technical_snapshot.price_change_percent or 0
         top_gainer = {
             "symbol": leader.stock.symbol,
             "name": leader.stock.name,

@@ -7,12 +7,15 @@ import type { BackendMarketFreshnessDto, ExchangeCode } from "@/lib/api/backend-
 
 const FRESHNESS_POLL_MS = 2 * 60 * 1000;
 
-export function useMarketDataFreshness(exchange: ExchangeCode = "DSE") {
+export function useMarketDataFreshness(
+  exchange: ExchangeCode = "DSE",
+  options?: { refetchInterval?: number | false },
+) {
   return useQuery({
     queryKey: ["market-freshness", exchange],
     queryFn: () => getMarketFreshness(exchange),
     staleTime: 60_000,
-    refetchInterval: FRESHNESS_POLL_MS,
+    refetchInterval: options?.refetchInterval ?? FRESHNESS_POLL_MS,
   });
 }
 

@@ -372,17 +372,10 @@ export function buildMarketPulseViewModel(dto: BackendMarketPulseDto): MarketPul
     briefing: dto.briefing ? mapBriefing(dto.briefing) : null,
     focusStocks,
     monitorCandidates,
-    todayInsight: dto.today_insight
-      ? {
-          title: dto.today_insight.title,
-          explanation: dto.today_insight.explanation,
-          whyItMatters: dto.today_insight.supporting_fact,
-          tone: mapTone(dto.today_insight.tone),
-        }
-      : null,
-    changes: dto.changes.map(mapChange),
+    todayInsight: null,
+    changes: [],
     alerts: dto.alerts.map(mapAlert),
-    marketMovers: resolveMarketMovers(dto, focusStocks),
+    marketMovers: { gainers: [], losers: [] },
     emptyState: dto.empty_state as MarketPulseModel["emptyState"],
     emptyMessage: dto.empty_message,
     dataQualityNote: dto.data_quality_note,

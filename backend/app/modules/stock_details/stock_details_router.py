@@ -15,9 +15,18 @@ from app.modules.stock_details.stock_details_schemas import (
     StockDetailsSyncRequest,
     StockDetailsSyncResult,
 )
+from app.modules.stock_details.stock_details_workspace_schemas import (
+    StockWorkspaceEventsRead,
+    StockWorkspacePatternsRead,
+    StockWorkspaceRead,
+)
 from app.modules.stock_details.stock_details_service import (
     StockDetailsService,
     get_stock_details_service,
+)
+from app.modules.stock_details.stock_details_workspace_service import (
+    StockDetailsWorkspaceService,
+    get_stock_details_workspace_service,
 )
 
 router = APIRouter(prefix="/stock-details", tags=["stock details"])
@@ -31,6 +40,36 @@ async def get_stock_decision_support(
 ) -> ApiResponse[StockDecisionSupportRead]:
     result = await service.get_decision_support(exchange=exchange, symbol=symbol.upper())
     return success_response(data=result, message="Stock decision support retrieved")
+
+
+@router.get("/{exchange}/{symbol}/workspace", response_model=ApiResponse[StockWorkspaceRead])
+async def get_stock_workspace(
+    exchange: ExchangeCode,
+    symbol: str,
+    service: Annotated[StockDetailsWorkspaceService, Depends(get_stock_details_workspace_service)],
+) -> ApiResponse[StockWorkspaceRead]:
+    result = await service.get_workspace(exchange=exchange, symbol=symbol.upper())
+    return success_response(data=result, message="Stock workspace retrieved")
+
+
+@router.get("/{exchange}/{symbol}/workspace/patterns", response_model=ApiResponse[StockWorkspacePatternsRead])
+async def get_stock_workspace_patterns(
+    exchange: ExchangeCode,
+    symbol: str,
+    service: Annotated[StockDetailsWorkspaceService, Depends(get_stock_details_workspace_service)],
+) -> ApiResponse[StockWorkspacePatternsRead]:
+    result = await service.get_workspace_patterns(exchange=exchange, symbol=symbol.upper())
+    return success_response(data=result, message="Stock workspace patterns retrieved")
+
+
+@router.get("/{exchange}/{symbol}/workspace/events", response_model=ApiResponse[StockWorkspaceEventsRead])
+async def get_stock_workspace_events(
+    exchange: ExchangeCode,
+    symbol: str,
+    service: Annotated[StockDetailsWorkspaceService, Depends(get_stock_details_workspace_service)],
+) -> ApiResponse[StockWorkspaceEventsRead]:
+    result = await service.get_workspace_events(exchange=exchange, symbol=symbol.upper())
+    return success_response(data=result, message="Stock workspace events retrieved")
 
 
 @router.post("/sync", response_model=ApiResponse[StockDetailsSyncResult])

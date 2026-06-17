@@ -551,10 +551,43 @@ Return market mood, deterministic insight blocks, signal count, and turnover con
 
 ---
 
+### GET /api/v1/market/universe-rows
+
+**Description**
+Return the shared `ScoredUniverseRow` list for Explorer, Scanner, Signals, and Watchlist. Serves from Redis `universe:scored:{exchange}` on cache hit. This is the preferred list endpoint — do not use `GET /market/price-windows` on trader UI paths.
+
+**Query Params**
+
+* exchange: optional enum (default `DSE`)
+
+**Response**
+
+```json
+{
+  "success": true,
+  "message": "Universe rows retrieved",
+  "data": {
+    "meta": {
+      "exchange": "DSE",
+      "listed_stock_count": 392,
+      "session_trade_date": "2026-06-17"
+    },
+    "rows": []
+  }
+}
+```
+
+---
+
 ### GET /api/v1/market/pulse
 
 **Description**
-Return the curated Market Pulse briefing: hero attention summary, focus stocks, conditional insight, change timeline, and market alerts. Pulse Score, focus labels, triggers, and ranking are computed server-side from price windows and the trader decision engine.
+Return the curated Market Pulse briefing: hero attention summary, focus stocks, conditional insight, change timeline, and market alerts. Pulse Score, focus labels, triggers, and ranking are computed server-side from `market_universe_service` scored rows (presentation layer).
+
+**Related tiered endpoints**
+
+* `GET /api/v1/market/pulse/summary` — hero, focus stocks, alerts (cached in `pulse:summary:{exchange}`)
+* `GET /api/v1/market/pulse/briefing` — narrative briefing blocks only
 
 **Query Params**
 
@@ -1107,6 +1140,38 @@ Run API-only AmarStock stock details ingestion for eligible active stocks. The w
     "latest_price_profile_fill_count": 1,
     "latest_price_shareholding_count": 1,
     "latest_price_valuation_count": 1
+  }
+}
+```
+
+---
+
+### GET /api/v1/stock-details/{exchange}/{symbol}/workspace
+
+**Description**
+Consolidated stock workspace payload: `StockRead`, OHLCV window (260 bars), and full decision-support in one response. Cached in Redis with versioned key `stock-workspace:core:{exchange}:{symbol}:{latest_trade_date}`. TTL follows `market_dashboard_cache_ttl_seconds` as a same-day safety net. **Not** invalidated on exchange-wide sync — eventually consistent by design.
+
+**Lazy section endpoints**
+
+* `GET .../workspace/patterns` — patterns + breakout (`stock-workspace:patterns:...`)
+* `GET .../workspace/events` — ownership, valuation, timeline (`stock-workspace:events:...`)
+
+**Path Params**
+
+* exchange: `DSE` or `CSE`
+* symbol: stock ticker, for example `ACMEPL`
+
+**Response**
+
+```json
+{
+  "success": true,
+  "message": "Stock workspace retrieved",
+  "data": {
+    "stock": {},
+    "prices": [],
+    "latest_trade_date": "2026-06-17",
+    "decision_support": {}
   }
 }
 ```

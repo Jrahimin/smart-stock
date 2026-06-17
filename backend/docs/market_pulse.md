@@ -11,6 +11,8 @@ Unlike the Dashboard or Scanner, Market Pulse is editorial and attention-focused
 | Endpoint | Purpose |
 |----------|---------|
 | `GET /api/v1/market/pulse` | Full Market Pulse briefing payload |
+| `GET /api/v1/market/pulse/summary` | Hero, focus stocks, alerts — tier-1 load |
+| `GET /api/v1/market/pulse/briefing` | Market briefing narrative — tier-2 load |
 
 ### Query parameters
 
@@ -43,12 +45,31 @@ When provided, the backend computes:
 ```text
 market_pulse_router
   -> market_pulse_service
-      -> market_data_repository.list_market_price_windows
+      -> market_universe_service.get_scored_universe()
       -> market_data_service.get_market_freshness
-      -> build_technical_snapshot
-      -> compute_trader_decision_summary_for_stock
-      -> pulse_score.compute_pulse_score
+      -> market_data_service.list_daily_market_summaries
+      -> pulse_score.compute_pulse_score (presentation only)
+      -> market_pulse_briefing.build_market_briefing (presentation only)
 ```
+
+### Briefing = presentation only
+
+`market_pulse_briefing.py` aggregates existing `ScoredUniverseRow` data and `daily_market_summaries`. It **must not**:
+
+- Recompute trader decisions
+- Rebuild technical snapshots
+- Call `list_market_price_windows`
+
+Opportunity history sparklines use session-level aggregates from `daily_market_summaries`, not per-stock multi-date engine runs.
+
+### Redis caches
+
+| Key | Contents |
+|-----|----------|
+| `pulse:response:{exchange}` | Full `MarketPulseRead` |
+| `pulse:summary:{exchange}` | `MarketPulseSummaryRead` |
+
+Both are invalidated with exchange-wide keys on sync via `invalidate_market_caches()`.
 
 ### Module files
 

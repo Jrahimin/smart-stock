@@ -11,8 +11,6 @@ from app.core.constants.trading_constants import (
     DASHBOARD_HEATMAP_LIMIT,
     DASHBOARD_MARKET_MOVERS_LIMIT,
     DASHBOARD_OVERVIEW_SUMMARIES_LIMIT,
-    DASHBOARD_PRICE_WINDOW_LIMIT,
-    DASHBOARD_SIGNAL_UNIVERSE_LIMIT,
 )
 from app.core.core_config import Settings, get_settings
 from app.core.enums import ExchangeCode, TraderRecommendation, TrendDirection
@@ -23,18 +21,18 @@ from app.modules.market_data.market_data_schemas import DailyMarketSummaryRead
 from app.modules.market_data.market_data_service import MarketDataService, get_market_data_service
 from app.modules.market_data.market_mover_rules import is_eligible_session_mover
 from app.modules.market_dashboard.market_dashboard_cache import dashboard_cache_key
+from app.core.market_cache import DASHBOARD_CACHE_KEY_NAMES
 from app.modules.market_dashboard.market_dashboard_compute import (
-    ScoredDashboardRow,
     build_heatmap_tiles,
     build_market_alerts,
     build_market_insights,
-    build_scored_rows,
     build_sector_snapshots,
     build_signal_feed,
     derive_market_breadth,
     derive_market_mood,
-    group_price_window_rows,
 )
+from app.modules.market_universe.market_universe_schemas import ScoredUniverseRow
+from app.modules.market_universe.market_universe_service import MarketUniverseService, get_market_universe_service
 from app.modules.market_dashboard.market_dashboard_schemas import (
     DashboardHeatmapRead,
     DashboardHeatmapTileRead,
@@ -138,12 +136,14 @@ class MarketDashboardService:
         market_repository: MarketDataRepository,
         market_data_service: MarketDataService,
         stocks_repository: StocksRepository,
+        universe_service: MarketUniverseService,
         redis: OptionalRedisClient,
         settings: Settings,
     ) -> None:
         self.market_repository = market_repository
         self.market_data_service = market_data_service
         self.stocks_repository = stocks_repository
+        self.universe_service = universe_service
         self.redis = redis
         self.settings = settings
 
@@ -203,16 +203,10 @@ class MarketDashboardService:
             lambda: self._compute_market_sentiment(exchange),
         )
 
-    async def _load_scored_rows(self, exchange: ExchangeCode) -> tuple[date | None, list[ScoredDashboardRow]]:
+    async def _load_scored_rows(self, exchange: ExchangeCode) -> tuple[date | None, list[ScoredUniverseRow]]:
         session_trade_date, _ = await self.market_repository.get_market_price_freshness(exchange=exchange)
-        rows = await self.market_repository.list_market_price_windows(
-            exchange=exchange,
-            limit=DASHBOARD_SIGNAL_UNIVERSE_LIMIT,
-            offset=0,
-            price_window_limit=DASHBOARD_PRICE_WINDOW_LIMIT,
-        )
-        grouped = group_price_window_rows(rows)
-        return session_trade_date, build_scored_rows(grouped)
+        scored_rows = await self.universe_service.get_scored_universe(exchange=exchange)
+        return session_trade_date, scored_rows
 
     async def _compute_overview(self, exchange: ExchangeCode) -> DashboardOverviewRead:
         session_trade_date, _ = await self.market_repository.get_market_price_freshness(exchange=exchange)
@@ -333,7 +327,7 @@ class MarketDashboardService:
             turnover_value = latest_summary.total_turnover
         if turnover_value is None:
             turnover_value = Decimal(
-                str(sum((row.snapshot.turnover or 0) for row in scored_rows)),
+                str(sum((row.technical_snapshot.turnover or 0) for row in scored_rows)),
             )
 
         turnover_label = "N/A" if turnover_value is None else str(turnover_value)
@@ -366,6 +360,7 @@ def get_market_dashboard_service(
     market_repository: Annotated[MarketDataRepository, Depends(get_market_data_repository)],
     market_data_service: Annotated[MarketDataService, Depends(get_market_data_service)],
     stocks_repository: Annotated[StocksRepository, Depends(get_stocks_repository)],
+    universe_service: Annotated[MarketUniverseService, Depends(get_market_universe_service)],
     redis: Annotated[OptionalRedisClient, Depends(get_redis_client)],
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> MarketDashboardService:
@@ -373,6 +368,7 @@ def get_market_dashboard_service(
         market_repository,
         market_data_service,
         stocks_repository,
+        universe_service,
         redis,
         settings,
     )

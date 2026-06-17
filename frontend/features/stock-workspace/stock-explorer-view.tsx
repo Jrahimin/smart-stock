@@ -28,8 +28,15 @@ const NUMERIC_EXPLORER_COLUMNS = new Set(["latestPrice", "change", "turnover", "
 
 export function StockExplorerView() {
   const searchParams = useSearchParams();
-  const { universe, isLoading, isError, stocks } = useMarketUniverse({ stockLimit: 500, priceWindowLimit: 90 });
+  const { universe, isLoading, isError, listedStockCount, loadedPriceCount } = useMarketUniverse({
+    stockLimit: 500,
+    loadStockMasterList: false,
+  });
   const { watchedStockIds, holdingStockIds } = useUserWatchlist();
+  const decisionByStockId = useMemo(
+    () => new Map(universe.map((row) => [row.stock.id, resolveTraderDecision(row)] as const)),
+    [universe],
+  );
   const [search, setSearch] = useState("");
   const [watchlistFilter, setWatchlistFilter] = useState<WatchlistFilterMode>("ALL");
   const deferredSearch = useDeferredValue(search);
@@ -46,13 +53,13 @@ export function StockExplorerView() {
   const filteredUniverse = useMemo(() => {
     const query = deferredSearch.trim().toLowerCase();
     return universe.filter((stock) => {
+      const decision = decisionByStockId.get(stock.stock.id)!;
       const matchesSearch =
         !query ||
         stock.stock.symbol.toLowerCase().includes(query) ||
         stock.stock.name.toLowerCase().includes(query) ||
         (stock.stock.category ?? "").toLowerCase().includes(query) ||
         stock.sector.toLowerCase().includes(query);
-      const decision = resolveTraderDecision(stock);
       const matchesSignal = signalFilter === "ALL" || decision.recommendation === signalFilter;
       const matchesRisk = riskFilter === "ALL" || decision.riskLabel === riskFilter;
       const matchesDataQuality = dataQualityFilter === "ALL" || stock.dataQuality === dataQualityFilter;
@@ -67,7 +74,7 @@ export function StockExplorerView() {
         (watchlistFilter === "HOLDINGS" && isHolding);
       return matchesSearch && matchesSignal && matchesRisk && matchesDataQuality && matchesVolume && matchesWatchlist;
     });
-  }, [dataQualityFilter, deferredSearch, holdingStockIds, riskFilter, signalFilter, universe, volumeFilter, watchlistFilter, watchedStockIds]);
+  }, [dataQualityFilter, decisionByStockId, deferredSearch, holdingStockIds, riskFilter, signalFilter, universe, volumeFilter, watchlistFilter, watchedStockIds]);
   const visibleUniverse = useMemo(() => filteredUniverse.slice(0, visibleCount), [filteredUniverse, visibleCount]);
 
   useEffect(() => {
@@ -121,7 +128,7 @@ export function StockExplorerView() {
         cell: (info) => (
           <Link href={`/stocks/${info.row.original.stock.exchange}/${info.row.original.stock.symbol}`}>
             <strong>
-              <span className={`signal-dot signal-dot-${resolveTraderDecision(info.row.original).recommendation.toLowerCase()}`} />
+              <span className={`signal-dot signal-dot-${decisionByStockId.get(info.row.original.stock.id)?.recommendation.toLowerCase() ?? "hold"}`} />
               {info.getValue()}
               <span
                 className={`trend-icon trend-icon-${info.row.original.trend.toLowerCase()}`}
@@ -175,11 +182,11 @@ export function StockExplorerView() {
           </div>
         ),
       }),
-      columnHelper.accessor((row) => resolveTraderDecision(row).recommendation, {
+      columnHelper.accessor((row) => decisionByStockId.get(row.stock.id)?.recommendation ?? "WAIT", {
         id: "signal",
         header: "Action",
         cell: (info) => {
-          const decision = resolveTraderDecision(info.row.original);
+          const decision = decisionByStockId.get(info.row.original.stock.id)!;
           return (
             <span className={`signal-chip signal-chip-${decision.recommendation.toLowerCase()}`} title={decision.reason}>
               <span className={`signal-dot signal-dot-${decision.recommendation.toLowerCase()}`} />
@@ -188,7 +195,7 @@ export function StockExplorerView() {
           );
         },
       }),
-      columnHelper.accessor((row) => resolveTraderDecision(row).confidence, {
+      columnHelper.accessor((row) => decisionByStockId.get(row.stock.id)?.confidence ?? 0, {
         id: "confidence",
         header: "Conf.",
         cell: (info) => (
@@ -211,7 +218,7 @@ export function StockExplorerView() {
         cell: (info) => <span className="stock-category-value">{info.getValue()}</span>,
       }),
     ],
-    [],
+    [decisionByStockId],
   );
 
   const table = useReactTable({
@@ -238,7 +245,7 @@ export function StockExplorerView() {
         onFilterTable={setSearch}
         subtitle={
           <>
-            {filteredUniverse.length} price-backed instruments from {stocks.length} active stocks. Showing {visibleUniverse.length}.
+            {filteredUniverse.length} price-backed instruments from {listedStockCount} listed stocks ({loadedPriceCount} with session data). Showing {visibleUniverse.length}.
           </>
         }
         title="High-speed stock discovery"

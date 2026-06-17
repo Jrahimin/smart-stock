@@ -3,14 +3,13 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
-import { listMarketPriceWindows } from "@/lib/api/market-data-api";
 import { clearBackendApiCache } from "@/lib/api/backend-api-client";
-import { listStocks } from "@/lib/api/stocks-api";
-import { frontendConfig } from "@/lib/frontend-config";
-import { buildStockIntelligence } from "@/lib/market/market-intelligence";
+import { listUniverseRows } from "@/lib/api/market-universe-api";
+import { useMarketDataFreshness } from "@/hooks/market/use-market-data-freshness";
+import { getMarketRefetchIntervalMs, getMarketStaleTimeMs } from "@/lib/market/market-cache-policy";
+import { mapUniverseRowToListRow } from "@/lib/market/universe-row-mapper";
 
-const DEFAULT_MARKET_UNIVERSE_LIMIT = 80;
-const DEFAULT_PRICE_WINDOW_LIMIT = 90;
+const DEFAULT_MARKET_UNIVERSE_LIMIT = 500;
 
 type UseMarketUniverseOptions = {
   stockLimit?: number;
@@ -22,55 +21,36 @@ type UseMarketUniverseOptions = {
 
 export function useMarketUniverse(options: UseMarketUniverseOptions = {}) {
   const stockLimit = options.stockLimit ?? DEFAULT_MARKET_UNIVERSE_LIMIT;
-  const priceWindowLimit = options.priceWindowLimit ?? DEFAULT_PRICE_WINDOW_LIMIT;
-  const cacheMs = options.staleTimeMs ?? frontendConfig.cacheHours * 60 * 60 * 1000;
-  const refetchInterval = options.refetchIntervalMs ?? false;
-  const loadStockMasterList = options.loadStockMasterList ?? true;
+  const freshnessQuery = useMarketDataFreshness("DSE");
+  const cacheMs = options.staleTimeMs ?? getMarketStaleTimeMs(freshnessQuery.data);
+  const refetchInterval = options.refetchIntervalMs ?? getMarketRefetchIntervalMs(freshnessQuery.data);
 
-  const stocksQuery = useQuery({
-    queryKey: ["stocks", "market-universe-count", "DSE"],
-    queryFn: () => listStocks({ exchange: "DSE", is_active: true, limit: 500 }),
-    staleTime: cacheMs,
-    refetchInterval,
-    enabled: loadStockMasterList,
-  });
-  const priceWindowsQuery = useQuery({
-    queryKey: ["market-price-windows", "DSE", stockLimit, priceWindowLimit, "decision-v2"],
-    queryFn: () => listMarketPriceWindows({ exchange: "DSE", limit: stockLimit, price_window_limit: priceWindowLimit }),
+  const universeQuery = useQuery({
+    queryKey: ["market-universe-rows", "DSE", stockLimit],
+    queryFn: () => listUniverseRows("DSE"),
     staleTime: cacheMs,
     refetchInterval,
   });
 
-  const priceWindows = priceWindowsQuery.data ?? [];
-  const stocks = stocksQuery.data ?? priceWindows.map((item) => item.stock);
+  const rows = universeQuery.data?.rows ?? [];
+  const stocks = useMemo(() => rows.map((row) => row.stock), [rows]);
 
   const universe = useMemo(
-    () =>
-      priceWindows
-        .map((item) => {
-          const intelligence = buildStockIntelligence(item.stock, item.prices);
-          if (!intelligence) {
-            return null;
-          }
-          return { ...intelligence, traderDecision: item.trader_decision ?? null };
-        })
-        .filter((stock) => stock !== null),
-    [priceWindows],
+    () => rows.slice(0, stockLimit).map((row) => mapUniverseRowToListRow(row)),
+    [rows, stockLimit],
   );
 
   return {
     stocks,
+    listedStockCount: universeQuery.data?.meta.listed_stock_count ?? stocks.length,
     universe,
-    isLoading: (loadStockMasterList && stocksQuery.isLoading) || priceWindowsQuery.isLoading,
-    isError: (loadStockMasterList && stocksQuery.isError) || priceWindowsQuery.isError,
-    loadedPriceCount: priceWindows.length,
+    isLoading: universeQuery.isLoading,
+    isError: universeQuery.isError,
+    loadedPriceCount: rows.length,
     refetch: async () => {
       await clearBackendApiCache();
-      if (loadStockMasterList) {
-        await Promise.all([stocksQuery.refetch(), priceWindowsQuery.refetch()]);
-        return;
-      }
-      await priceWindowsQuery.refetch();
+      await universeQuery.refetch();
+      await freshnessQuery.refetch();
     },
   };
 }

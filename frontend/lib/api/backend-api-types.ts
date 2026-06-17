@@ -94,6 +94,55 @@ export type BackendTraderDecisionSummaryDto = {
   risk_label: "LOW" | "MEDIUM" | "HIGH" | "SPECULATIVE";
 };
 
+export type BackendTechnicalSnapshotDto = {
+  latest_price: number | null;
+  previous_close: number | null;
+  price_change: number | null;
+  price_change_percent: number | null;
+  volume: number;
+  average_volume: number | null;
+  turnover: number | null;
+  rsi: number | null;
+  sma20: number | null;
+  ema20: number | null;
+  volatility: number | null;
+  support: number | null;
+  resistance: number | null;
+  trend: string;
+  data_quality: DataQualityFlag;
+  latest_trade_date: string | null;
+  ohlcv_row_count: number;
+};
+
+export type BackendUniverseSessionDto = {
+  latest_trade_date: string;
+  close_price: string | number;
+  open_price: string | number | null;
+  volume: number;
+  turnover: string | number | null;
+  change_percent: string | number | null;
+  data_quality_flag: DataQualityFlag;
+  updated_at: string | null;
+};
+
+export type BackendScoredUniverseRowDto = {
+  stock: BackendStockDto;
+  technical_snapshot: BackendTechnicalSnapshotDto;
+  decision: BackendTraderDecisionSummaryDto | null;
+  session: BackendUniverseSessionDto;
+};
+
+export type BackendUniverseRowsMetaDto = {
+  exchange: ExchangeCode;
+  listed_stock_count: number;
+  session_trade_date: string | null;
+};
+
+export type BackendUniverseRowsDto = {
+  meta: BackendUniverseRowsMetaDto;
+  rows: BackendScoredUniverseRowDto[];
+};
+
 export type BackendDsexIndexSnapshotDto = {
   index_name: string;
   trade_date: string;

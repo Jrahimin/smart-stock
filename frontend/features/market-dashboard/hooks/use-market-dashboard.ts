@@ -24,6 +24,7 @@ import {
   getDashboardRefetchIntervalMs,
   getDashboardStaleTimeMs,
 } from "@/lib/market/market-cache-policy";
+import { isSectionLoading } from "@/lib/ui/section-loading";
 
 export function useMarketDashboard() {
   const queryClient = useQueryClient();
@@ -105,17 +106,29 @@ export function useMarketDashboard() {
     ],
   );
 
+  const sectionLoading = {
+    pulse:
+      isSectionLoading(overviewQuery.isLoading, overviewQuery.data) ||
+      (overviewQuery.data !== undefined && isSectionLoading(sectorsQuery.isLoading, sectorsQuery.data)),
+    breadth: isSectionLoading(overviewQuery.isLoading, overviewQuery.data),
+    movers: isSectionLoading(moversQuery.isLoading, moversQuery.data),
+    signals: isSectionLoading(signalsQuery.isLoading, signalsQuery.data),
+    timeline: isSectionLoading(alertsQuery.isLoading, alertsQuery.data),
+    heatmap: isSectionLoading(heatmapQuery.isLoading, heatmapQuery.data),
+    insights: isSectionLoading(sentimentQuery.isLoading, sentimentQuery.data),
+  };
+
   const isCoreLoading =
-    overviewQuery.isLoading ||
-    moversQuery.isLoading ||
-    sectorsQuery.isLoading ||
-    signalsQuery.isLoading ||
-    alertsQuery.isLoading;
+    sectionLoading.pulse ||
+    sectionLoading.movers ||
+    sectionLoading.signals ||
+    sectionLoading.timeline;
 
   return {
     model,
+    sectionLoading,
     isLoading: isCoreLoading,
-    isDeferredLoading: heatmapQuery.isLoading || sentimentQuery.isLoading,
+    isDeferredLoading: sectionLoading.heatmap || sectionLoading.insights,
     isError:
       overviewQuery.isError ||
       moversQuery.isError ||

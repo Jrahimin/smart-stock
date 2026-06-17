@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import type { ExchangeCode } from "@/lib/api/backend-api-types";
@@ -28,8 +29,14 @@ export function useStockWorkspace(exchange: ExchangeCode, symbol: string) {
     retry: false,
   });
 
-  const model = buildStockWorkspaceModel(stockQuery.data ?? null, pricesQuery.data ?? []);
-  const decisionModel = buildStockDecisionViewModel(decisionQuery.data);
+  const model = useMemo(
+    () => buildStockWorkspaceModel(stockQuery.data ?? null, pricesQuery.data ?? []),
+    [pricesQuery.data, stockQuery.data],
+  );
+  const decisionModel = useMemo(
+    () => buildStockDecisionViewModel(decisionQuery.data),
+    [decisionQuery.data],
+  );
 
   return {
     model,

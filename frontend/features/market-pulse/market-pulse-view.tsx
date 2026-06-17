@@ -1,7 +1,7 @@
 "use client";
 
 import { MarketAlertsSection } from "@/features/market-pulse/components/market-alerts-section";
-import { MarketBriefingFooter, MarketBriefingSection } from "@/features/market-pulse/components/market-briefing-section";
+import { MarketBriefingFooter, MarketBriefingFooterSkeleton, MarketBriefingSection, MarketBriefingSectionSkeleton } from "@/features/market-pulse/components/market-briefing-section";
 import { MarketPulseHero } from "@/features/market-pulse/components/market-pulse-hero";
 import { SinceLastVisitStrip } from "@/features/market-pulse/components/since-last-visit-strip";
 import { StocksInFocusSection } from "@/features/market-pulse/components/stocks-in-focus-section";
@@ -9,7 +9,7 @@ import { useMarketPulse } from "@/features/market-pulse/hooks/use-market-pulse";
 import { MarketActivityLoader } from "@/components/ui/market-activity-loader";
 
 export function MarketPulseView() {
-  const { model, isLoading, isError } = useMarketPulse();
+  const { model, isLoading, isBriefingLoading, isError } = useMarketPulse();
 
   if (isLoading && !model) {
     return (
@@ -30,7 +30,7 @@ export function MarketPulseView() {
   const focusStocks = model.focusStocks.length > 0 ? model.focusStocks : model.monitorCandidates;
   const showFocusSection = focusStocks.length > 0 || isLoading;
   const showAlerts = model.alerts.length > 0;
-  const showEvidenceRow = showAlerts || Boolean(model.briefing);
+  const showEvidenceRow = showAlerts || Boolean(model.briefing) || isBriefingLoading;
   const showCriticalNotice =
     model.emptyState === "waiting-snapshot" || model.emptyState === "insufficient-history";
 
@@ -54,7 +54,11 @@ export function MarketPulseView() {
         <div className="data-warning pulse-inline-notice">{model.dataQualityNote}</div>
       ) : null}
 
-      {model.briefing ? <MarketBriefingSection briefing={model.briefing} /> : null}
+      {isBriefingLoading && !model.briefing ? (
+        <MarketBriefingSectionSkeleton />
+      ) : model.briefing ? (
+        <MarketBriefingSection briefing={model.briefing} />
+      ) : null}
 
       {showFocusSection ? (
         <StocksInFocusSection
@@ -68,7 +72,9 @@ export function MarketPulseView() {
       {showEvidenceRow ? (
         <div className="pulse-evidence-row">
           {showAlerts ? <MarketAlertsSection alerts={model.alerts} /> : <div />}
-          {model.briefing ? (
+          {isBriefingLoading && !model.briefing ? (
+            <MarketBriefingFooterSkeleton />
+          ) : model.briefing ? (
             <MarketBriefingFooter leadership={model.briefing.leadership} summary={model.briefing.summary} />
           ) : null}
         </div>

@@ -1,27 +1,26 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
 
 from fastapi import Depends
 
 from app.core.enums import ExchangeCode
-from app.models import DailyPrice, Stock
-from app.modules.market_data.market_data_repository import MarketDataRepository, get_market_data_repository
-from app.modules.stock_details.decision.summary import compute_trader_decision_summary_for_stock
+from app.modules.market_universe.market_universe_service import MarketUniverseService, get_market_universe_service
 from app.modules.stock_details.stock_details_schemas import TraderDecisionSummaryRead
 from app.modules.stocks.stocks_schemas import StockRead
 
 
 @dataclass(frozen=True)
 class StockTraderDecisionRow:
-    stock: Stock
-    prices: list[DailyPrice]
+    stock: StockRead
     decision: TraderDecisionSummaryRead
+    latest_trade_date: date | None
 
 
 class TraderDecisionsService:
-    def __init__(self, market_repository: MarketDataRepository) -> None:
-        self.market_repository = market_repository
+    def __init__(self, universe_service: MarketUniverseService) -> None:
+        self.universe_service = universe_service
 
     async def list_latest_trader_decisions(
         self,
@@ -31,31 +30,26 @@ class TraderDecisionsService:
         offset: int,
         price_window_limit: int,
     ) -> list[StockTraderDecisionRow]:
-        rows = await self.market_repository.list_market_price_windows(
-            exchange=exchange,
-            limit=limit,
-            offset=offset,
-            price_window_limit=price_window_limit,
-        )
-        grouped: dict[str, dict[str, object]] = {}
-        for stock, price in rows:
-            stock_id = str(stock.id)
-            if stock_id not in grouped:
-                grouped[stock_id] = {"stock": stock, "prices": []}
-            grouped[stock_id]["prices"].append(price)
+        del price_window_limit  # universe service uses canonical window from trading_constants
+        resolved_exchange = exchange or ExchangeCode.DSE
+        rows = await self.universe_service.get_scored_universe(exchange=resolved_exchange)
+        sliced = rows[offset : offset + limit]
 
         results: list[StockTraderDecisionRow] = []
-        for entry in grouped.values():
-            stock = entry["stock"]
-            prices = entry["prices"]
-            decision = compute_trader_decision_summary_for_stock(stock, prices)
-            if decision is None:
+        for row in sliced:
+            if row.decision is None:
                 continue
-            results.append(StockTraderDecisionRow(stock=stock, prices=prices, decision=decision))
+            results.append(
+                StockTraderDecisionRow(
+                    stock=row.stock,
+                    decision=row.decision,
+                    latest_trade_date=row.session.latest_trade_date,
+                )
+            )
         return results
 
 
 def get_trader_decisions_service(
-    market_repository: MarketDataRepository = Depends(get_market_data_repository),
+    universe_service: MarketUniverseService = Depends(get_market_universe_service),
 ) -> TraderDecisionsService:
-    return TraderDecisionsService(market_repository)
+    return TraderDecisionsService(universe_service)

@@ -121,6 +121,19 @@ Feature-specific query params, such as `exchange`, `indicator_type`, or date ran
 * Avoid tight coupling between modules
 * Write reusable, testable logic
 
+### Market Universe (`modules/market_universe/`)
+
+`market_universe_service` is the **single exchange-wide compute source**. Dashboard, Pulse, Explorer, Scanner, Signals, and Watchlist consume `ScoredUniverseRow` from `GET /api/v1/market/universe-rows` — they do not run parallel `price-windows` + decision loops.
+
+| File | Responsibility |
+|------|----------------|
+| `market_universe_router.py` | HTTP only |
+| `market_universe_service.py` | Compute-on-miss + Redis `universe:scored:{exchange}` |
+| `market_universe_compute.py` | `build_scored_universe_rows` — only place OHLCV is held in memory for exchange-wide reads |
+| `market_universe_schemas.py` | `ScoredUniverseRow` contract |
+
+Presentation caches (`dashboard:*`, `pulse:*`) layer on scored rows. `invalidate_market_caches()` deletes presentation keys then foundation. See `backend/docs/market_universe.md`.
+
 ### Trader Dashboard (`modules/market_dashboard/`)
 
 Section endpoints under `GET /api/v1/dashboard/*` replace the old dashboard `price-windows` fan-out. Compute-on-miss only — no sync-time aggregation, no cache warming.
@@ -260,7 +273,7 @@ Dashboard loads via `/dashboard/*` only (no `price-windows`). Market views rely 
 
 Use TanStack Table for stock explorer, signal center, scanner results, and watchlists. Large tables should use sticky headers, aligned tabular financial numerals, clear row dividers, loading/empty/stale states, and virtualization where row count justifies it.
 
-Do not build market-wide pages by issuing one request per stock. Use aggregate backend endpoints: trader dashboard → `GET /api/v1/dashboard/*`; explorer/scanner/signals → `GET /api/v1/market/latest-prices` or bounded `price-windows` where detail/decisions require history. Per-stock historical endpoints only for chart windows.
+Do not build market-wide pages by issuing one request per stock. Use aggregate backend endpoints: trader dashboard → `GET /api/v1/dashboard/*`; explorer/scanner/signals/watchlist → `GET /api/v1/market/universe-rows`. Per-stock historical endpoints only for chart windows (`GET /api/v1/stock-details/{exchange}/{symbol}/workspace`).
 
 ### Visualization Strategy
 

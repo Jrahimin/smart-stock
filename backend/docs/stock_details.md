@@ -139,6 +139,20 @@ Omit `scope` or set `"full"` for the default. Use `"stocks"` for stocks-table-on
 
 `GET /api/v1/stock-details/sync-jobs/{job_id}` returns job status and diagnostics.
 
+## Stock workspace cache
+
+Per-symbol workspace keys are versioned by `latest_trade_date` from OHLCV:
+
+```text
+stock-workspace:core:{exchange}:{symbol}:{latest_trade_date}
+stock-workspace:patterns:{exchange}:{symbol}:{latest_trade_date}
+stock-workspace:events:{exchange}:{symbol}:{latest_trade_date}
+```
+
+* **Invalidation:** no per-stock fan-out on `sync_market_snapshot` (intentional).
+* **Freshness:** keys miss naturally when trade date advances; TTL is a same-day intraday safety net.
+* **Consistency:** eventually consistent within one sync interval on the same trade date.
+
 CLI (manual — no cadence check; fills missing `daily_prices` only):
 
 ```bash

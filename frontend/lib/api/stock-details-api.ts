@@ -5,7 +5,5 @@ import type { StockDecisionSupportDto } from "@/lib/api/stock-decision-support-t
 export function getStockDecisionSupport(exchange: ExchangeCode, symbol: string) {
   return backendApiGet<StockDecisionSupportDto>(
     `/stock-details/${exchange}/${symbol.toUpperCase()}/decision-support`,
-    undefined,
-    { cache: "no-store" },
   );
 }

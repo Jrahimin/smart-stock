@@ -129,9 +129,9 @@ async def sync_market_snapshot(
         )
 
     from app.core.redis_client import build_redis_client
-    from app.modules.market_dashboard.market_dashboard_cache import invalidate_dashboard_cache
+    from app.core.market_cache import invalidate_market_caches
 
-    await invalidate_dashboard_cache(
+    await invalidate_market_caches(
         build_redis_client(resolved_settings),
         exchange,
     )

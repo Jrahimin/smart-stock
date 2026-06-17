@@ -27,3 +27,6 @@ export function getDashboardRefetchIntervalMs(
 
   return getDashboardStaleTimeMs(freshness);
 }
+
+export const getMarketStaleTimeMs = getDashboardStaleTimeMs;
+export const getMarketRefetchIntervalMs = getDashboardRefetchIntervalMs;

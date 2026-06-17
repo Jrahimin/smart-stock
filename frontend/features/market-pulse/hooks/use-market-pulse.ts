@@ -9,10 +9,10 @@ import {
   buildMarketPulseSnapshotFromDto,
   buildMarketPulseViewModel,
 } from "@/features/market-pulse/view-models/market-pulse-view-model";
-import { getMarketPulse } from "@/lib/api/market-pulse-api";
-import type { BackendMarketPulsePreviousSnapshotDto } from "@/lib/api/backend-api-types";
+import { getMarketPulseBriefing, getMarketPulseSummary } from "@/lib/api/market-pulse-api";
+import type { BackendMarketPulseDto, BackendMarketPulsePreviousSnapshotDto } from "@/lib/api/backend-api-types";
 import { useMarketDataFreshness } from "@/hooks/market/use-market-data-freshness";
-import { frontendConfig } from "@/lib/frontend-config";
+import { getMarketRefetchIntervalMs, getMarketStaleTimeMs } from "@/lib/market/market-cache-policy";
 
 function toApiPreviousSnapshot(stored: ReturnType<typeof readMarketPulseSnapshot>): BackendMarketPulsePreviousSnapshotDto | null {
   if (!stored.lastSyncedAt) {
@@ -30,62 +30,72 @@ function toApiPreviousSnapshot(stored: ReturnType<typeof readMarketPulseSnapshot
 
 export function useMarketPulse() {
   const { user } = useAuth();
-  const freshnessQuery = useMarketDataFreshness("DSE");
-  const cacheMs = frontendConfig.cacheHours * 60 * 60 * 1000;
-  const snapshotStaleMs = freshnessQuery.data?.snapshot_interval_minutes
-    ? freshnessQuery.data.snapshot_interval_minutes * 60 * 1000
-    : cacheMs;
+  const freshnessQuery = useMarketDataFreshness("DSE", { refetchInterval: false });
+  const staleTime = getMarketStaleTimeMs(freshnessQuery.data);
+  const refetchInterval = getMarketRefetchIntervalMs(freshnessQuery.data);
 
   const [storedSnapshot] = useState(readMarketPulseSnapshot);
   const previousSnapshot = useMemo(() => toApiPreviousSnapshot(storedSnapshot), [storedSnapshot]);
 
-  const pulseQuery = useQuery({
-    queryKey: ["market-pulse", "v2", "DSE", user?.display_name ?? null, previousSnapshot?.last_synced_at ?? null],
+  const summaryQuery = useQuery({
+    queryKey: ["market-pulse-summary", "DSE", user?.display_name ?? null, previousSnapshot?.last_synced_at ?? null],
     queryFn: () =>
-      getMarketPulse({
+      getMarketPulseSummary({
         exchange: "DSE",
         previousSnapshot,
         displayName: user?.display_name ?? null,
       }),
-    staleTime: snapshotStaleMs,
+    staleTime,
+    refetchInterval,
   });
 
-  const model = useMemo(
-    () => (pulseQuery.data ? buildMarketPulseViewModel(pulseQuery.data) : null),
-    [pulseQuery.data],
-  );
+  const briefingQuery = useQuery({
+    queryKey: ["market-pulse-briefing", "DSE", user?.display_name ?? null],
+    queryFn: () =>
+      getMarketPulseBriefing({
+        exchange: "DSE",
+        displayName: user?.display_name ?? null,
+      }),
+    staleTime,
+    refetchInterval,
+    enabled: Boolean(summaryQuery.data),
+  });
+
+  const pulseDto = useMemo<BackendMarketPulseDto | null>(() => {
+    if (!summaryQuery.data) {
+      return null;
+    }
+
+    return {
+      ...summaryQuery.data,
+      briefing: briefingQuery.data ?? null,
+      today_insight: null,
+      changes: [],
+      market_movers: { gainers: [], losers: [] },
+    };
+  }, [briefingQuery.data, summaryQuery.data]);
+
+  const model = useMemo(() => (pulseDto ? buildMarketPulseViewModel(pulseDto) : null), [pulseDto]);
 
   useEffect(() => {
-    if (!pulseQuery.data) {
+    if (!pulseDto) {
       return;
     }
 
     writeMarketPulseSnapshot({
-      ...buildMarketPulseSnapshotFromDto(pulseQuery.data),
+      ...buildMarketPulseSnapshotFromDto(pulseDto),
       lastSyncedAt: freshnessQuery.data?.last_synced_at ?? new Date().toISOString(),
     });
-  }, [freshnessQuery.data?.last_synced_at, pulseQuery.data]);
-
-  useEffect(() => {
-    if (!freshnessQuery.data?.snapshot_interval_minutes) {
-      return;
-    }
-
-    const intervalMs = freshnessQuery.data.snapshot_interval_minutes * 60 * 1000;
-    const timer = window.setInterval(() => {
-      void pulseQuery.refetch();
-      void freshnessQuery.refetch();
-    }, intervalMs);
-
-    return () => window.clearInterval(timer);
-  }, [freshnessQuery, pulseQuery]);
+  }, [freshnessQuery.data?.last_synced_at, pulseDto]);
 
   return {
     model,
-    isLoading: pulseQuery.isLoading,
-    isError: pulseQuery.isError,
+    isLoading: summaryQuery.isLoading,
+    isBriefingLoading: briefingQuery.isLoading,
+    isError: summaryQuery.isError || briefingQuery.isError,
     refetch: async () => {
-      await pulseQuery.refetch();
+      await summaryQuery.refetch();
+      await briefingQuery.refetch();
       await freshnessQuery.refetch();
     },
   };
