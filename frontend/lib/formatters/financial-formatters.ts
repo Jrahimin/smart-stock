@@ -43,6 +43,32 @@ export function formatCompactNumber(value: NullableNumber) {
   }).format(parsed);
 }
 
+/** Missing or non-meaningful stored values (null, undefined, zero). */
+export function isMissingFinancialValue(value: NullableNumber, options: { allowZero?: boolean } = {}) {
+  const parsed = toNumber(value);
+  if (parsed === null) {
+    return true;
+  }
+
+  if (!options.allowZero && parsed === 0) {
+    return true;
+  }
+
+  return false;
+}
+
+export function formatFinancialDisplay(
+  value: NullableNumber,
+  formatter: (parsed: number) => string,
+  options: { allowZero?: boolean; emptyLabel?: string } = {},
+) {
+  if (isMissingFinancialValue(value, { allowZero: options.allowZero })) {
+    return options.emptyLabel ?? "—";
+  }
+
+  return formatter(toNumber(value)!);
+}
+
 export function formatBdt(value: NullableNumber) {
   const parsed = toNumber(value);
   if (parsed === null) {

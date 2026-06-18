@@ -1,32 +1,49 @@
-"use client";
-
-import { useState } from "react";
-
-import type { StockWorkspaceModel } from "@/features/stock-workspace/view-models/stock-workspace-view-model";
+import type { FundamentalsMetricCell, FundamentalsViewModel } from "@/features/stock-workspace/view-models/fundamentals-view-model";
 
 type FundamentalsPanelProps = {
-  model: StockWorkspaceModel;
+  fundamentals: FundamentalsViewModel;
 };
 
-export function FundamentalsPanel({ model }: FundamentalsPanelProps) {
-  const [expanded, setExpanded] = useState(true);
+function hasComparison(item: FundamentalsMetricCell) {
+  return item.sector !== "—" || item.market !== "—";
+}
+
+function ComparisonColumn({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="fundamentals-comparison-col">
+      <span className="fundamentals-comparison-col-label">{label}</span>
+      <strong className="fundamentals-comparison-col-value">{value}</strong>
+    </div>
+  );
+}
+
+export function FundamentalsPanel({ fundamentals }: FundamentalsPanelProps) {
+  if (!fundamentals.metrics.length) {
+    return null;
+  }
 
   return (
-    <section className="trader-workspace-strip fundamentals-strip">
-      <button className="collapsible-strip-toggle" onClick={() => setExpanded((value) => !value)} type="button">
-        <span>{expanded ? "▼" : "▶"} Fundamentals</span>
-        <small>Market cap, capital, category, listing</small>
-      </button>
-      {expanded ? (
-        <div className="fundamentals-grid fundamentals-compact">
-          {model.fundamentals.map((item) => (
-            <article className="technical-summary-card" key={item.label}>
-              <span>{item.label}</span>
-              <strong>{item.value}</strong>
-            </article>
-          ))}
-        </div>
-      ) : null}
-    </section>
+    <div className="fundamentals-panel">
+      {fundamentals.fiscalPeriodNote ? <p className="fundamentals-fiscal-note">{fundamentals.fiscalPeriodNote}</p> : null}
+      <div className="fundamentals-grid fundamentals-compact fundamentals-comparison-grid">
+        {fundamentals.metrics.map((item) => (
+          <article className="technical-summary-card fundamentals-metric-card fundamentals-comparison-card" key={item.key}>
+            <span className="fundamentals-metric-title">{item.label}</span>
+            {hasComparison(item) ? (
+              <div className="fundamentals-comparison-row">
+                <ComparisonColumn label="Stock" value={item.stock} />
+                <span aria-hidden className="fundamentals-comparison-divider" />
+                <ComparisonColumn label="Sector" value={item.sector} />
+                <span aria-hidden className="fundamentals-comparison-divider" />
+                <ComparisonColumn label="Market" value={item.market} />
+              </div>
+            ) : (
+              <strong className="fundamentals-single-value">{item.stock}</strong>
+            )}
+            {item.helper ? <small>{item.helper}</small> : null}
+          </article>
+        ))}
+      </div>
+    </div>
   );
 }

@@ -4,6 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends
 
 from app.core.enums import ExchangeCode
+from app.core.exception_handlers import NotFoundError
 from app.core.response_handler import ApiResponse, success_response
 from app.modules.stock_details.stock_details_decision_service import (
     StockDetailsDecisionService,
@@ -15,7 +16,12 @@ from app.modules.stock_details.stock_details_schemas import (
     StockDetailsSyncRequest,
     StockDetailsSyncResult,
 )
+from app.modules.stock_details.sector_intelligence_service import (
+    SectorIntelligenceService,
+    get_sector_intelligence_service,
+)
 from app.modules.stock_details.stock_details_workspace_schemas import (
+    SectorContextRead,
     StockWorkspaceEventsRead,
     StockWorkspacePatternsRead,
     StockWorkspaceRead,
@@ -70,6 +76,18 @@ async def get_stock_workspace_events(
 ) -> ApiResponse[StockWorkspaceEventsRead]:
     result = await service.get_workspace_events(exchange=exchange, symbol=symbol.upper())
     return success_response(data=result, message="Stock workspace events retrieved")
+
+
+@router.get("/{exchange}/{symbol}/sector-context", response_model=ApiResponse[SectorContextRead])
+async def get_stock_sector_context(
+    exchange: ExchangeCode,
+    symbol: str,
+    service: Annotated[SectorIntelligenceService, Depends(get_sector_intelligence_service)],
+) -> ApiResponse[SectorContextRead]:
+    result = await service.get_sector_context(exchange=exchange, symbol=symbol.upper())
+    if result is None:
+        raise NotFoundError("Sector context is unavailable for this stock")
+    return success_response(data=result, message="Sector context retrieved")
 
 
 @router.post("/sync", response_model=ApiResponse[StockDetailsSyncResult])

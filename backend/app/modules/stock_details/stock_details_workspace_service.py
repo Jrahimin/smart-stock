@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from typing import Annotated
 
 from fastapi import Depends
@@ -19,11 +20,25 @@ from app.modules.stock_details.stock_details_repository import (
     get_stock_details_repository,
 )
 from app.modules.stock_details.stock_details_workspace_schemas import (
+    DividendIntelligenceRead,
+    FinancialMetricSnapshotRead,
+    FinancialTrendPointRead,
+    FinancialTrendRead,
+    FundamentalsSnapshotRead,
     StockWorkspaceEventsRead,
     StockWorkspacePatternsRead,
     StockWorkspaceRead,
+    ValuationContextRead,
+    ValuationMetricContextRead,
 )
 from app.modules.stocks.stocks_schemas import StockRead
+from app.modules.stock_details.decision.dividend_intelligence import build_dividend_intelligence
+from app.modules.stock_details.decision.financial_trends import build_financial_trends
+from app.modules.stock_details.decision.fundamentals_snapshot import (
+    FUNDAMENTALS_PERFORMANCE_METRIC_CODES,
+    build_fundamentals_snapshot,
+)
+from app.modules.stock_details.decision.valuation_context import build_valuation_context
 
 
 class StockDetailsWorkspaceService:
@@ -70,15 +85,130 @@ class StockDetailsWorkspaceService:
             raise NotFoundError("Stock was not found")
 
         prices = await self.repository.list_daily_prices_window(stock_id=stock.id)
-        decision_support = await self.decision_service.get_decision_support(exchange=exchange, symbol=symbol)
+        (
+            decision_support,
+            metric_rows,
+            metric_histories,
+            dividend_events,
+            market_events,
+        ) = await asyncio.gather(
+            self.decision_service.get_decision_support(exchange=exchange, symbol=symbol),
+            self.repository.list_latest_metric_values(
+                stock_id=stock.id,
+                metric_codes=list(FUNDAMENTALS_PERFORMANCE_METRIC_CODES),
+            ),
+            self.repository.list_metric_histories(
+                stock_id=stock.id,
+                metric_codes=list(FUNDAMENTALS_PERFORMANCE_METRIC_CODES),
+                limit_per_code=5,
+            ),
+            self.repository.list_dividend_events(stock_id=stock.id, limit=10),
+            self.repository.list_market_events(stock_id=stock.id, limit=20),
+        )
+        fundamentals_result = build_fundamentals_snapshot(metric_rows)
+        fundamentals_snapshot = FundamentalsSnapshotRead(
+            metrics=[
+                FinancialMetricSnapshotRead(
+                    metric_code=metric.metric_code,
+                    label=metric.label,
+                    value=metric.value,
+                    as_of_date=metric.as_of_date,
+                    fiscal_year=metric.fiscal_year,
+                )
+                for metric in fundamentals_result.metrics
+            ],
+            latest_fiscal_year=fundamentals_result.latest_fiscal_year,
+            latest_as_of_date=fundamentals_result.latest_as_of_date,
+        )
+        financial_trends_result = build_financial_trends(metric_histories)
+        financial_trends = [
+            FinancialTrendRead(
+                metric_code=trend.metric_code,
+                label=trend.label,
+                latest_value=trend.latest_value,
+                points=[
+                    FinancialTrendPointRead(fiscal_year=point.fiscal_year, value=point.value)
+                    for point in trend.points
+                ],
+                coverage_status=trend.coverage_status,
+                direction=trend.direction,
+            )
+            for trend in financial_trends_result
+        ]
+
+        valuation_context = await self._build_valuation_context(stock=stock, decision_support=decision_support)
+
+        dividend_result = build_dividend_intelligence(
+            dividend_events=dividend_events,
+            market_events=market_events,
+        )
+        dividend_intelligence = (
+            DividendIntelligenceRead(
+                last_dividend_year=dividend_result.last_dividend_year,
+                last_dividend_value=dividend_result.last_dividend_value,
+            )
+            if dividend_result
+            else None
+        )
+
         payload = StockWorkspaceRead(
             stock=stock_read,
             prices=[DailyPriceRead.model_validate(price) for price in prices],
             latest_trade_date=latest_trade_date,
             decision_support=decision_support,
+            fundamentals_snapshot=fundamentals_snapshot,
+            financial_trends=financial_trends,
+            valuation_context=valuation_context,
+            dividend_intelligence=dividend_intelligence,
         )
         await self._cache_set(cache_key, payload.model_dump(mode="json"))
         return payload
+
+    async def _build_valuation_context(self, *, stock, decision_support) -> ValuationContextRead | None:
+        sector = (stock.sector or "").strip()
+        valuation = decision_support.valuation
+        if not sector or valuation is None:
+            return None
+
+        peer_stocks = await self.repository.list_active_stocks_in_sector(
+            exchange=stock.exchange,
+            sector=sector,
+            exclude_stock_id=stock.id,
+        )
+        if not peer_stocks:
+            return None
+
+        peer_snapshots = await self.repository.list_latest_valuation_snapshots_for_stocks(
+            [peer.id for peer in peer_stocks]
+        )
+        peer_pe_values: list[float] = []
+        peer_pb_values: list[float] = []
+        for snapshot in peer_snapshots.values():
+            if snapshot.pe_ratio is not None and float(snapshot.pe_ratio) > 0:
+                peer_pe_values.append(float(snapshot.pe_ratio))
+            if snapshot.pb_ratio is not None and float(snapshot.pb_ratio) > 0:
+                peer_pb_values.append(float(snapshot.pb_ratio))
+
+        stock_pe = valuation.pe_ratio if valuation.pe_ratio and valuation.pe_ratio > 0 else None
+        stock_pb = valuation.pb_ratio if valuation.pb_ratio and valuation.pb_ratio > 0 else None
+        context = build_valuation_context(
+            stock_pe=stock_pe,
+            stock_pb=stock_pb,
+            peer_pe_values=peer_pe_values,
+            peer_pb_values=peer_pb_values,
+        )
+
+        def to_read(metric) -> ValuationMetricContextRead:
+            return ValuationMetricContextRead(
+                metric_key=metric.metric_key,
+                stock_value=metric.stock_value,
+                sector_median=metric.sector_median,
+                relative_label=metric.relative_label,
+                peer_count=metric.peer_count,
+                has_sufficient_peers=metric.has_sufficient_peers,
+            )
+
+        return ValuationContextRead(pe=to_read(context.pe), pb=to_read(context.pb))
 
     async def get_workspace_patterns(self, *, exchange: ExchangeCode, symbol: str) -> StockWorkspacePatternsRead:
         workspace = await self.get_workspace(exchange=exchange, symbol=symbol)

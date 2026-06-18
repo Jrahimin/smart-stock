@@ -388,6 +388,16 @@ class AmarStockApiStockDetailsSource:
                 if match is None:
                     continue
                 grouped.setdefault(match.group(1), {})[source_field] = value
+
+        date_pattern = re.compile(r"^ShareHoldingPercentage(\d+)$", re.IGNORECASE)
+        for key, value in snapshot.items():
+            match = date_pattern.match(key)
+            if match is None:
+                continue
+            label = self._clean_text(value)
+            if label:
+                grouped.setdefault(match.group(1), {})["snapshot_label"] = label
+
         return [grouped[index] for index in sorted(grouped, key=int)]
 
     def _map_news(self, snapshot: dict[str, Any], scrape_date: date) -> list[ApiMarketEvent]:

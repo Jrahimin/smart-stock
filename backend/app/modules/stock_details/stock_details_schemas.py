@@ -191,6 +191,19 @@ class BreakoutAnalysisRead(BaseModel):
     explanation: str
 
 
+class OwnershipTrendPointRead(BaseModel):
+    snapshot_label: str | None = None
+    value: float
+
+
+class OwnershipTrendRead(BaseModel):
+    segment_key: str
+    label: str
+    points: list[OwnershipTrendPointRead] = Field(default_factory=list)
+    coverage_status: str
+    direction: str | None = None
+
+
 class OwnershipInsightRead(BaseModel):
     sponsor_percent: float | None
     institution_percent: float | None
@@ -200,6 +213,7 @@ class OwnershipInsightRead(BaseModel):
     interpretations: list[str]
     snapshot_date: str | None
     source: str | None
+    trends: list[OwnershipTrendRead] = Field(default_factory=list)
 
 
 class ValuationInsightRead(BaseModel):
@@ -386,6 +400,22 @@ class StockDecisionSupportRead(BaseModel):
                     interpretations=ownership.interpretations,
                     snapshot_date=ownership.snapshot_date,
                     source=ownership.source,
+                    trends=[
+                        OwnershipTrendRead(
+                            segment_key=trend.segment_key,
+                            label=trend.label,
+                            points=[
+                                OwnershipTrendPointRead(
+                                    snapshot_label=point.snapshot_label,
+                                    value=point.value,
+                                )
+                                for point in trend.points
+                            ],
+                            coverage_status=trend.coverage_status,
+                            direction=trend.direction,
+                        )
+                        for trend in ownership.trends
+                    ],
                 )
                 if ownership
                 else None

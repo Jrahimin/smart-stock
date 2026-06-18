@@ -46,10 +46,7 @@ export function OwnershipInsightsPanel({ decision }: OwnershipInsightsPanelProps
     .join(", ");
 
   return (
-    <section className="trader-workspace-strip ownership-strip">
-      <div className="strip-heading">
-        <span>Ownership</span>
-      </div>
+    <div className="trader-workspace-strip ownership-strip">
       <div className="ownership-donut-wrap">
         <div
           className="ownership-donut"
@@ -71,6 +68,6 @@ export function OwnershipInsightsPanel({ decision }: OwnershipInsightsPanelProps
         </ul>
       </div>
       <p className="ownership-interpretation">{ownership.interpretations[0] ?? "Ownership mix available from latest snapshot."}</p>
-    </section>
+    </div>
   );
 }

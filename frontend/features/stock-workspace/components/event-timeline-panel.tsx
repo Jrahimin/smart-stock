@@ -27,10 +27,7 @@ export function EventTimelinePanel({ decision }: EventTimelinePanelProps) {
 
   return (
     <>
-      <section className="trader-workspace-strip event-strip">
-        <div className="strip-heading">
-          <span>Events</span>
-        </div>
+      <div className="trader-workspace-strip event-strip">
         <div className="event-timeline-horizontal">
           {decision.events.map((event, index) => (
             <button
@@ -47,7 +44,7 @@ export function EventTimelinePanel({ decision }: EventTimelinePanelProps) {
             </button>
           ))}
         </div>
-      </section>
+      </div>
       <WorkspaceModal isOpen={selectedEvent !== null} onClose={() => setSelectedEventIndex(null)} title="Event Details">
         {selectedEvent ? (
           <div className="event-detail-modal">

@@ -153,6 +153,60 @@ stock-workspace:events:{exchange}:{symbol}:{latest_trade_date}
 * **Freshness:** keys miss naturally when trade date advances; TTL is a same-day intraday safety net.
 * **Consistency:** eventually consistent within one sync interval on the same trade date.
 
+## Workspace fundamentals snapshot
+
+`GET /api/v1/stock-details/{exchange}/{symbol}/workspace` includes `fundamentals_snapshot` alongside `decision_support`.
+
+* **Performance metrics** (from `financial_metric_values`): latest row per code for `EPS`, `NAV_PER_SHARE`, `REVENUE`, `NET_PROFIT_AFTER_TAX`.
+* **Valuation metrics** (P/E, P/B, dividend yield, earnings yield) remain on `decision_support.valuation` — not duplicated in `fundamentals_snapshot`.
+* `latest_fiscal_year` / `latest_as_of_date` summarize the newest fiscal period across the performance metrics.
+* Zero stored values are treated as missing in the snapshot builder.
+
+Repository: `StockDetailsRepository.list_latest_metric_values`. Builder: `decision/fundamentals_snapshot.py`.
+
+## Workspace research intelligence (Phase 4)
+
+`GET /api/v1/stock-details/{exchange}/{symbol}/workspace` additionally includes:
+
+* `financial_trends` — batched 5-year history per performance metric with `coverage_status` (`full` | `partial` | `none`) and optional `direction`.
+* `valuation_context` — sector median P/E and P/B with relative labels (`Discount to Sector`, `Near Sector Average`, `Premium to Sector`) when ≥3 sector peers have data.
+* `dividend_intelligence` — v1 fields `last_dividend_year` and `last_dividend_value` from `dividend_events` and dividend-classified `market_events`.
+* `decision_support.ownership.trends` — ownership history strips from `shareholding_snapshots.metadata_json.indexed_history` with the same coverage labels.
+
+Coverage audit CLI:
+
+```bash
+python -m app.scripts.audit_stock_details_coverage --write-docs
+```
+
+Writes `backend/docs/stock_details_coverage.md` when `--write-docs` is passed.
+
+## Sector context (Phase 5)
+
+Lazy endpoint:
+
+```text
+GET /api/v1/stock-details/{exchange}/{symbol}/sector-context
+```
+
+Returns `sector_name`, `stock_count`, `median_pe`, `median_pb`, `sector_trend_percent`, `sector_trend_window` (`5d` or `20d`), `top_performer`, `worst_performer`, up to three `ranks` (Market Cap, Dividend Yield, Valuation), and a four-row `comparative_snapshot` (P/E, P/B, Dividend Yield, EPS Growth) with stock vs sector vs market medians.
+
+Cached per `(exchange, symbol, latest_trade_date)` in Redis (`stock-sector-context:...`).
+
+## Future: related stocks endpoint
+
+Stock detail **Related Stocks** (Phase 3) filters client-side from `GET /api/v1/market/universe-rows` with lazy loading on the detail page. This reuses the TanStack Query cache when the user has already visited dashboard, explorer, scanner, or watchlist.
+
+If listed count or mobile cold-load cost grows, add:
+
+```text
+GET /api/v1/stock-details/{exchange}/{symbol}/related
+```
+
+* Filter from existing `universe:scored:{exchange}` Redis cache (same source as `market_universe_service`).
+* Return four groups (Sector Peers, Similar Setup, Similar Size, Top Opportunities) with ~4 symbols each (~2 KB response).
+* Move filter logic from `frontend/lib/market/related-stocks.ts` into `stock_details_workspace_service` or a dedicated builder module.
+
 CLI (manual — no cadence check; fills missing `daily_prices` only):
 
 ```bash

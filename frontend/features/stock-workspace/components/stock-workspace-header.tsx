@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { SignalBadge } from "@/components/ui/signal-badge";
 import { WatchlistStarToggle } from "@/features/watchlist/components/watchlist-star-toggle";
 import type { StockDecisionViewModel } from "@/features/stock-workspace/view-models/stock-decision-view-model";
@@ -26,12 +28,23 @@ export function StockWorkspaceHeader({ model, decision, stockId }: StockWorkspac
     : (model.header.signal as SignalType);
   const confidence = decision?.available ? decision.confidenceLabel : model.header.confidence;
   const actionLabel = "Action";
+  const sector = model.header.sector;
+  const sectorHref =
+    sector && sector !== "Unclassified" ? `/stocks?search=${encodeURIComponent(sector)}` : null;
 
   return (
     <section className="stock-workspace-header">
       <div>
         <p className="eyebrow">
-          {model.header.exchange} / {model.header.sector} / Category {model.header.category}
+          {model.header.exchange} /{" "}
+          {sectorHref ? (
+            <Link className="stock-header-sector-link" href={sectorHref}>
+              {sector}
+            </Link>
+          ) : (
+            sector
+          )}{" "}
+          / Category {model.header.category}
         </p>
         <div className="stock-header-title-row">
           <h1>{model.header.symbol}</h1>

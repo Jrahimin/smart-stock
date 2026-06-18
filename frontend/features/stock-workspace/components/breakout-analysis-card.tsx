@@ -24,14 +24,14 @@ export function BreakoutAnalysisCard({ decision }: BreakoutAnalysisCardProps) {
     <>
       <button className="trader-workspace-strip breakout-strip breakout-strip-clickable" onClick={() => setIsOpen(true)} type="button">
         <div className="breakout-strip-main">
-          <div>
+          <div className="breakout-strip-copy">
             <span className="breakout-strip-title">🚀 Breakout Probability</span>
             <div className="breakout-strip-levels">
               <span>Breakout {formatNumber(breakout.breakout_level)}</span>
               <span>Target {formatNumber(breakout.projected_target)}</span>
             </div>
           </div>
-          <CircularProgressRing icon="🚀" label="" score={breakout.probability} size={72} tone="breakout" />
+          <CircularProgressRing icon="🚀" label="" score={breakout.probability} size={64} tone="breakout" />
         </div>
         <ul className="breakout-factor-compact">
           {compactFactors.map((factor) => (

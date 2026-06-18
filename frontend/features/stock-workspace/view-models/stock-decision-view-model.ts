@@ -1,5 +1,10 @@
 import type { PatternDetectionDto, StockDecisionSupportDto } from "@/lib/api/stock-decision-support-types";
-import { formatCompactNumber, formatNumber, formatPercent } from "@/lib/formatters/financial-formatters";
+import {
+  formatCompactNumber,
+  formatFinancialDisplay,
+  formatNumber,
+  formatPercent,
+} from "@/lib/formatters/financial-formatters";
 
 export type DecisionSignal = {
   tone: "positive" | "warning";
@@ -205,15 +210,15 @@ export function buildStockDecisionViewModel(decision: StockDecisionSupportDto | 
 }
 
 export function formatOwnershipPercent(value: number | null | undefined) {
-  return value !== null && value !== undefined ? `${value.toFixed(1)}%` : "N/A";
+  return formatFinancialDisplay(value, (parsed) => `${parsed.toFixed(1)}%`);
 }
 
 export function formatValuationMetric(value: number | null | undefined) {
-  return value !== null && value !== undefined ? formatNumber(value) : "N/A";
+  return formatFinancialDisplay(value, (parsed) => formatNumber(parsed));
 }
 
 export function formatMarketCap(value: number | null | undefined) {
-  return value !== null && value !== undefined ? formatCompactNumber(value) : "N/A";
+  return formatFinancialDisplay(value, (parsed) => formatCompactNumber(parsed));
 }
 
 

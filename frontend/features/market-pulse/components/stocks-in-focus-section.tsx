@@ -88,7 +88,7 @@ export function StocksInFocusSection({
               Stocks In Focus
             </p>
             <h2 id="pulse-focus-heading">
-              {usingMonitorFallback ? "Stocks approaching attention threshold" : "Top opportunities worth investigating"}
+              {usingMonitorFallback ? "Stocks approaching attention threshold" : "Top opportunities worth attention"}
             </h2>
           </div>
           <Link className="pulse-section-link" href="/scanner">

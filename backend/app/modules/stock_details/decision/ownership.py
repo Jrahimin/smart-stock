@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 
 from app.models import ShareholdingSnapshot
+from app.modules.stock_details.decision.ownership_trends import OwnershipTrendResult, build_ownership_trends
 
 
 def _to_float(value: Decimal | float | int | None) -> float | None:
@@ -22,6 +23,7 @@ class OwnershipInsightResult:
     interpretations: list[str]
     snapshot_date: str | None
     source: str | None
+    trends: list[OwnershipTrendResult]
 
 
 def build_ownership_insights(snapshot: ShareholdingSnapshot | None) -> OwnershipInsightResult | None:
@@ -56,4 +58,5 @@ def build_ownership_insights(snapshot: ShareholdingSnapshot | None) -> Ownership
         interpretations=interpretations,
         snapshot_date=snapshot.snapshot_date.isoformat(),
         source=snapshot.source,
+        trends=build_ownership_trends(snapshot),
     )

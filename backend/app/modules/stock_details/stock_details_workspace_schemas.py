@@ -12,11 +12,95 @@ from app.modules.stock_details.stock_details_schemas import (
 from app.modules.stocks.stocks_schemas import StockRead
 
 
+class FinancialMetricSnapshotRead(BaseModel):
+    metric_code: str
+    label: str
+    value: float | None
+    as_of_date: str | None
+    fiscal_year: int | None
+
+
+class FundamentalsSnapshotRead(BaseModel):
+    metrics: list[FinancialMetricSnapshotRead] = Field(default_factory=list)
+    latest_fiscal_year: int | None = None
+    latest_as_of_date: str | None = None
+
+
+class FinancialTrendPointRead(BaseModel):
+    fiscal_year: int
+    value: float
+
+
+class FinancialTrendRead(BaseModel):
+    metric_code: str
+    label: str
+    latest_value: float | None
+    points: list[FinancialTrendPointRead] = Field(default_factory=list)
+    coverage_status: str
+    direction: str | None = None
+
+
+class ValuationMetricContextRead(BaseModel):
+    metric_key: str
+    stock_value: float | None
+    sector_median: float | None
+    relative_label: str | None
+    peer_count: int
+    has_sufficient_peers: bool
+
+
+class ValuationContextRead(BaseModel):
+    pe: ValuationMetricContextRead | None = None
+    pb: ValuationMetricContextRead | None = None
+
+
+class DividendIntelligenceRead(BaseModel):
+    last_dividend_year: int | None = None
+    last_dividend_value: str | None = None
+
+
+class SectorPerformerRead(BaseModel):
+    symbol: str
+    change_percent: float
+
+
+class SectorRankRead(BaseModel):
+    key: str
+    label: str
+    rank: int
+    total: int
+
+
+class ComparativeMetricRead(BaseModel):
+    key: str
+    label: str
+    stock_value: float | None
+    sector_median: float | None
+    market_median: float | None
+
+
+class SectorContextRead(BaseModel):
+    sector_name: str
+    stock_count: int
+    median_pe: float | None = None
+    median_pb: float | None = None
+    sector_trend_percent: float | None = None
+    sector_trend_window: str | None = None
+    top_performer: SectorPerformerRead | None = None
+    worst_performer: SectorPerformerRead | None = None
+    ranks: list[SectorRankRead] = Field(default_factory=list)
+    comparative_snapshot: list[ComparativeMetricRead] = Field(default_factory=list)
+
+
 class StockWorkspaceRead(BaseModel):
     stock: StockRead
     prices: list[DailyPriceRead]
     latest_trade_date: str
     decision_support: StockDecisionSupportRead
+    fundamentals_snapshot: FundamentalsSnapshotRead | None = None
+    financial_trends: list[FinancialTrendRead] = Field(default_factory=list)
+    valuation_context: ValuationContextRead | None = None
+    dividend_intelligence: DividendIntelligenceRead | None = None
 
 
 class StockWorkspacePatternsRead(BaseModel):

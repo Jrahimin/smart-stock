@@ -37,6 +37,8 @@ Stock lists can be filtered by:
 
 Results are ordered by exchange, symbol, and id to keep pagination deterministic.
 
+`GET /api/v1/stocks/active-symbols` returns a lean `{ exchange, symbol }[]` index of all `is_active=true` stocks. Used by the frontend sitemap generator for stock detail URLs. Optional `exchange` query filter is supported.
+
 The shared repository helpers apply common exact filters, active filters, search filters, ordering, pagination, and boolean toggles. Feature repositories should still declare the columns involved so domain-specific query intent remains visible in the module.
 
 `PATCH /api/v1/stocks/{stock_id}/details-fetch/toggle` toggles the stock-level `should_fetch_details` flag. This endpoint only controls eligibility; it does not run a details sync while the source implementation is removed.
