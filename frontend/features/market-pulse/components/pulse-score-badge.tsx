@@ -1,6 +1,9 @@
 "use client";
 
+import { MiniSparkline } from "@/components/charts/mini-sparkline";
 import type { PulseScoreBreakdownModel } from "@/features/market-pulse/types/market-pulse-types";
+
+export { MiniSparkline };
 
 type PulseScoreBadgeProps = {
   score: number;
@@ -114,36 +117,3 @@ export function PulseScoreHeaderCluster({ score, breakdown }: PulseScoreBadgePro
 export function PulseScoreBadge({ score, breakdown, compact = false }: PulseScoreBadgeProps) {
   return <ScoreRing breakdown={breakdown} compact={compact} score={score} />;
 }
-
-function MiniSparkline({ points, tone, compact = false }: { points: number[]; tone: "positive" | "negative" | "neutral"; compact?: boolean }) {
-  if (points.length < 2) {
-    return null;
-  }
-
-  const min = Math.min(...points);
-  const max = Math.max(...points);
-  const range = max - min || 1;
-  const width = compact ? 64 : 88;
-  const height = compact ? 22 : 28;
-  const polyline = points
-    .map((point, index) => {
-      const x = (index / (points.length - 1)) * width;
-      const y = height - ((point - min) / range) * height;
-      return `${x},${y}`;
-    })
-    .join(" ");
-
-  return (
-    <svg
-      aria-hidden="true"
-      className={`pulse-sparkline pulse-sparkline-${tone}${compact ? " pulse-sparkline-compact" : ""}`}
-      height={height}
-      viewBox={`0 0 ${width} ${height}`}
-      width={width}
-    >
-      <polyline fill="none" points={polyline} stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
-    </svg>
-  );
-}
-
-export { MiniSparkline };

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { ExchangeCode } from "@/lib/api/backend-api-types";
 import { WorkspaceCommandSearch } from "@/components/command/workspace-command-search";
@@ -13,6 +13,7 @@ import { EventTimelinePanel } from "@/features/stock-workspace/components/event-
 import { FundamentalsPanel } from "@/features/stock-workspace/components/fundamentals-panel";
 import { OwnershipInsightsPanel } from "@/features/stock-workspace/components/ownership-valuation-panels";
 import { PricePositionPanel } from "@/features/stock-workspace/components/price-position-panel";
+import { SectorIntelligenceCard } from "@/features/stock-workspace/components/sector-intelligence-card";
 import { RelatedStocksSection } from "@/features/stock-workspace/components/related-stocks-section";
 import { SmartWarningsPanel } from "@/features/stock-workspace/components/smart-warnings-panel";
 import { StockResearchSection } from "@/features/stock-workspace/components/stock-research-section";
@@ -22,10 +23,12 @@ import { TechnicalSummaryPanel } from "@/features/stock-workspace/components/tec
 import { TradePlanPanel } from "@/features/stock-workspace/components/trade-plan-panel";
 import { TraderDecisionCard } from "@/features/stock-workspace/components/trader-decision-card";
 import { useRelatedStocks } from "@/features/stock-workspace/hooks/use-related-stocks";
+import { useSectorContext } from "@/features/stock-workspace/hooks/use-sector-context";
 import { useStockSectionNav } from "@/features/stock-workspace/hooks/use-stock-section-nav";
 import { useStockWorkspace } from "@/features/stock-workspace/hooks/use-stock-workspace";
 import { STOCK_SECTION_DEFINITIONS, type StockSectionId } from "@/features/stock-workspace/types/stock-section-types";
 import { buildCompanySnapshotStrip } from "@/features/stock-workspace/view-models/company-snapshot-view-model";
+import { buildSectorIntelligenceViewModel } from "@/features/stock-workspace/view-models/sector-context-view-model";
 import { buildStockSemanticSummary } from "@/features/stock-workspace/view-models/stock-semantic-summary-view-model";
 import { frontendConfig } from "@/lib/frontend-config";
 
@@ -50,9 +53,22 @@ function resolveEnabledSections(decisionAvailable: boolean, hasOwnership: boolea
 }
 
 export function StockDetailWorkspaceView({ exchange, symbol }: StockDetailWorkspaceViewProps) {
-  const { model, decisionModel, fundamentalsModel, decisionRaw, isError, isLoading, isDecisionLoading, isDecisionError } = useStockWorkspace(exchange, symbol);
-  const intelligence = model.intelligence;
   const [relatedLoadEnabled, setRelatedLoadEnabled] = useState(false);
+  const [sectorContextEnabled, setSectorContextEnabled] = useState(false);
+
+  const sectorContextQuery = useSectorContext({
+    exchange,
+    symbol,
+    enabled: sectorContextEnabled,
+  });
+
+  const { model, decisionModel, fundamentalsModel, decisionRaw, isError, isLoading, isDecisionLoading, isDecisionError } =
+    useStockWorkspace(exchange, symbol, sectorContextQuery.sectorContext);
+  const intelligence = model.intelligence;
+
+  const enableSectorContext = useCallback(() => {
+    setSectorContextEnabled(true);
+  }, []);
 
   const hasOwnership = Boolean(decisionModel.available && decisionModel.ownership);
   const hasEvents = Boolean(decisionModel.available && decisionModel.events.length > 0);
@@ -71,16 +87,20 @@ export function StockDetailWorkspaceView({ exchange, symbol }: StockDetailWorksp
 
   const requestRelatedLoad = useCallback(() => {
     setRelatedLoadEnabled(true);
-  }, []);
+    enableSectorContext();
+  }, [enableSectorContext]);
 
   const handleNavigate = useCallback(
     (sectionId: StockSectionId) => {
-      if (sectionId === "related") {
+      if (sectionId === "related" || sectionId === "fundamentals") {
         requestRelatedLoad();
+        if (sectionId === "fundamentals") {
+          enableSectorContext();
+        }
       }
       scrollToSection(sectionId);
     },
-    [requestRelatedLoad, scrollToSection],
+    [enableSectorContext, requestRelatedLoad, scrollToSection],
   );
 
   const relatedStocks = useRelatedStocks({
@@ -89,6 +109,30 @@ export function StockDetailWorkspaceView({ exchange, symbol }: StockDetailWorksp
     sectorLabel: model.header.sector,
     enabled: relatedLoadEnabled,
   });
+
+  const sectorIntelligence = useMemo(
+    () => buildSectorIntelligenceViewModel(sectorContextQuery.sectorContext),
+    [sectorContextQuery.sectorContext],
+  );
+
+  useEffect(() => {
+    const section = document.getElementById("fundamentals");
+    if (!section) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          enableSectorContext();
+        }
+      },
+      { rootMargin: "240px 0px" },
+    );
+
+    observer.observe(section);
+    return () => observer.disconnect();
+  }, [enableSectorContext]);
 
   const companySnapshotCells = useMemo(() => buildCompanySnapshotStrip(model, decisionModel), [decisionModel, model]);
   const semanticSummary = useMemo(() => buildStockSemanticSummary(model, decisionModel), [decisionModel, model]);
@@ -150,7 +194,17 @@ export function StockDetailWorkspaceView({ exchange, symbol }: StockDetailWorksp
             <EventTimelinePanel decision={decisionModel} />
           </StockResearchSection>
 
-          <StockResearchSection divided id="related" showHeader title="Related Stocks">
+          <StockResearchSection divided id="related">
+            {sectorContextEnabled && sectorIntelligence ? (
+              <>
+                <h2 className="stock-research-subsection-heading">Sector Intelligence</h2>
+                <SectorIntelligenceCard sector={sectorIntelligence} />
+              </>
+            ) : null}
+            {sectorContextEnabled && sectorContextQuery.isError ? (
+              <div className="data-warning data-warning-compact">Sector context unavailable.</div>
+            ) : null}
+            <h2 className="stock-research-subsection-heading stock-research-subsection-heading-spaced">Related Stocks</h2>
             <RelatedStocksSection
               cta={relatedStocks.cta}
               groups={relatedStocks.groups}

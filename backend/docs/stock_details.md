@@ -164,6 +164,35 @@ stock-workspace:events:{exchange}:{symbol}:{latest_trade_date}
 
 Repository: `StockDetailsRepository.list_latest_metric_values`. Builder: `decision/fundamentals_snapshot.py`.
 
+## Workspace research intelligence (Phase 4)
+
+`GET /api/v1/stock-details/{exchange}/{symbol}/workspace` additionally includes:
+
+* `financial_trends` — batched 5-year history per performance metric with `coverage_status` (`full` | `partial` | `none`) and optional `direction`.
+* `valuation_context` — sector median P/E and P/B with relative labels (`Discount to Sector`, `Near Sector Average`, `Premium to Sector`) when ≥3 sector peers have data.
+* `dividend_intelligence` — v1 fields `last_dividend_year` and `last_dividend_value` from `dividend_events` and dividend-classified `market_events`.
+* `decision_support.ownership.trends` — ownership history strips from `shareholding_snapshots.metadata_json.indexed_history` with the same coverage labels.
+
+Coverage audit CLI:
+
+```bash
+python -m app.scripts.audit_stock_details_coverage --write-docs
+```
+
+Writes `backend/docs/stock_details_coverage.md` when `--write-docs` is passed.
+
+## Sector context (Phase 5)
+
+Lazy endpoint:
+
+```text
+GET /api/v1/stock-details/{exchange}/{symbol}/sector-context
+```
+
+Returns `sector_name`, `stock_count`, `median_pe`, `median_pb`, `sector_trend_percent`, `sector_trend_window` (`5d` or `20d`), `top_performer`, `worst_performer`, up to three `ranks` (Market Cap, Dividend Yield, Valuation), and a four-row `comparative_snapshot` (P/E, P/B, Dividend Yield, EPS Growth) with stock vs sector vs market medians.
+
+Cached per `(exchange, symbol, latest_trade_date)` in Redis (`stock-sector-context:...`).
+
 ## Future: related stocks endpoint
 
 Stock detail **Related Stocks** (Phase 3) filters client-side from `GET /api/v1/market/universe-rows` with lazy loading on the detail page. This reuses the TanStack Query cache when the user has already visited dashboard, explorer, scanner, or watchlist.

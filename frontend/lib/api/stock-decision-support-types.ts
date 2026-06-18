@@ -104,6 +104,19 @@ export type BreakoutAnalysisDto = {
   explanation: string;
 };
 
+export type OwnershipTrendPointDto = {
+  snapshot_label: string | null;
+  value: number;
+};
+
+export type OwnershipTrendDto = {
+  segment_key: string;
+  label: string;
+  points: OwnershipTrendPointDto[];
+  coverage_status: "full" | "partial" | "none";
+  direction: "accumulation" | "distribution" | "stable" | null;
+};
+
 export type OwnershipInsightDto = {
   sponsor_percent: number | null;
   institution_percent: number | null;
@@ -113,6 +126,7 @@ export type OwnershipInsightDto = {
   interpretations: string[];
   snapshot_date: string | null;
   source: string | null;
+  trends: OwnershipTrendDto[];
 };
 
 export type ValuationInsightDto = {
@@ -150,10 +164,46 @@ export type FundamentalsSnapshotDto = {
   latest_as_of_date: string | null;
 };
 
+export type FinancialTrendPointDto = {
+  fiscal_year: number;
+  value: number;
+};
+
+export type FinancialTrendDto = {
+  metric_code: string;
+  label: string;
+  latest_value: number | null;
+  points: FinancialTrendPointDto[];
+  coverage_status: "full" | "partial" | "none";
+  direction: "improving" | "deteriorating" | "flat" | null;
+};
+
+export type ValuationMetricContextDto = {
+  metric_key: string;
+  stock_value: number | null;
+  sector_median: number | null;
+  relative_label: string | null;
+  peer_count: number;
+  has_sufficient_peers: boolean;
+};
+
+export type ValuationContextDto = {
+  pe: ValuationMetricContextDto | null;
+  pb: ValuationMetricContextDto | null;
+};
+
+export type DividendIntelligenceDto = {
+  last_dividend_year: number | null;
+  last_dividend_value: string | null;
+};
+
 export type StockWorkspaceDto = {
   stock: BackendStockDto;
   prices: BackendDailyPriceDto[];
   latest_trade_date: string;
   decision_support: StockDecisionSupportDto;
   fundamentals_snapshot: FundamentalsSnapshotDto | null;
+  financial_trends: FinancialTrendDto[];
+  valuation_context: ValuationContextDto | null;
+  dividend_intelligence: DividendIntelligenceDto | null;
 };

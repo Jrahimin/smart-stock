@@ -4,6 +4,7 @@ import {
   filterSimilarSetup,
   filterSimilarSize,
   filterTopOpportunities,
+  resolveRelatedStockReasons,
   type RelatedStocksGroupId,
 } from "@/lib/market/related-stocks";
 import type { StockIntelligenceModel } from "@/lib/market/market-intelligence-types";
@@ -18,6 +19,7 @@ export type RelatedStockCard = {
   price: string;
   changePercent: string;
   recommendation: string;
+  reasons: string[];
 };
 
 export type RelatedStocksGroup = {
@@ -31,7 +33,11 @@ export type RelatedStocksCta = {
   href: string;
 };
 
-function mapStockToCard(stock: StockIntelligenceModel): RelatedStockCard {
+function mapStockToCard(
+  stock: StockIntelligenceModel,
+  groupId: RelatedStocksGroupId,
+  current: StockIntelligenceModel,
+): RelatedStockCard {
   const decision = resolveTraderDecision(stock);
 
   return {
@@ -42,6 +48,7 @@ function mapStockToCard(stock: StockIntelligenceModel): RelatedStockCard {
     price: formatNumber(stock.latestPrice),
     changePercent: formatPercent(stock.priceChangePercent),
     recommendation: decision.recommendation,
+    reasons: resolveRelatedStockReasons(groupId, current, stock),
   };
 }
 
@@ -53,22 +60,24 @@ export function buildRelatedStocksGroups(
     {
       id: "sector-peers",
       title: "Sector Peers",
-      items: filterSectorPeers(current, universe).map(mapStockToCard),
+      items: filterSectorPeers(current, universe).map((stock) => mapStockToCard(stock, "sector-peers", current)),
     },
     {
       id: "similar-setup",
       title: "Similar Setup",
-      items: filterSimilarSetup(current, universe).map(mapStockToCard),
+      items: filterSimilarSetup(current, universe).map((stock) => mapStockToCard(stock, "similar-setup", current)),
     },
     {
       id: "similar-size",
       title: "Similar Size",
-      items: filterSimilarSize(current, universe).map(mapStockToCard),
+      items: filterSimilarSize(current, universe).map((stock) => mapStockToCard(stock, "similar-size", current)),
     },
     {
       id: "top-opportunities",
       title: "Top Opportunities",
-      items: filterTopOpportunities(current, universe).map(mapStockToCard),
+      items: filterTopOpportunities(current, universe).map((stock) =>
+        mapStockToCard(stock, "top-opportunities", current),
+      ),
     },
   ];
 }

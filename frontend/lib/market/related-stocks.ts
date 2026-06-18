@@ -91,3 +91,30 @@ export function filterTopOpportunities(
     .sort((left, right) => getOpportunityScore(right) - getOpportunityScore(left))
     .slice(0, limit);
 }
+
+export function resolveRelatedStockReasons(
+  groupId: RelatedStocksGroupId,
+  current: StockIntelligenceModel,
+  candidate: StockIntelligenceModel,
+): string[] {
+  switch (groupId) {
+    case "sector-peers":
+      return ["Same sector"];
+    case "similar-setup": {
+      const reasons: string[] = [];
+      if (current.traderDecision?.recommendation === candidate.traderDecision?.recommendation) {
+        reasons.push("Similar momentum");
+      }
+      if (current.trend !== "UNKNOWN" && current.trend === candidate.trend) {
+        reasons.push("Similar trend");
+      }
+      return reasons.length ? reasons : ["Similar setup"];
+    }
+    case "similar-size":
+      return ["Similar size"];
+    case "top-opportunities":
+      return ["High opportunity score"];
+    default:
+      return [];
+  }
+}

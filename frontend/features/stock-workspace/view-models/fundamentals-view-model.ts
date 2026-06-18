@@ -1,12 +1,16 @@
+import type { SectorContextDto } from "@/lib/api/stock-details-api";
 import type { FundamentalsSnapshotDto } from "@/lib/api/stock-decision-support-types";
 import type { StockDecisionViewModel } from "@/features/stock-workspace/view-models/stock-decision-view-model";
 import { formatValuationMetric } from "@/features/stock-workspace/view-models/stock-decision-view-model";
+import { formatComparativeMetricValue } from "@/features/stock-workspace/view-models/sector-context-view-model";
 import { formatCompactNumber, formatFinancialDisplay, formatNumber } from "@/lib/formatters/financial-formatters";
 
 export type FundamentalsMetricCell = {
   key: string;
   label: string;
-  value: string;
+  stock: string;
+  sector: string;
+  market: string;
   helper?: string;
 };
 
@@ -68,9 +72,37 @@ function lookupPerformanceMetric(snapshot: FundamentalsSnapshotDto | null | unde
   return snapshot?.metrics.find((metric) => metric.metric_code === metricCode);
 }
 
+function findComparativeMetric(sectorContext: SectorContextDto | null | undefined, key: string) {
+  return sectorContext?.comparative_snapshot.find((metric) => metric.key === key);
+}
+
+function buildComparisonColumns(
+  sectorContext: SectorContextDto | null | undefined,
+  comparativeKey: string | undefined,
+): Pick<FundamentalsMetricCell, "sector" | "market"> {
+  if (!comparativeKey) {
+    return { sector: "—", market: "—" };
+  }
+
+  const metric = findComparativeMetric(sectorContext, comparativeKey);
+  if (!metric) {
+    return { sector: "—", market: "—" };
+  }
+
+  return {
+    sector: formatComparativeMetricValue(metric.key, metric.sector_median),
+    market: formatComparativeMetricValue(metric.key, metric.market_median),
+  };
+}
+
+function hasMeaningfulValue(value: string) {
+  return value !== "—";
+}
+
 export function buildFundamentalsViewModel(
   decision: StockDecisionViewModel,
   snapshot: FundamentalsSnapshotDto | null | undefined,
+  sectorContext?: SectorContextDto | null,
 ): FundamentalsViewModel {
   const performanceAsOf = snapshot?.latest_as_of_date ?? null;
   const fiscalPeriodNote =
@@ -97,7 +129,8 @@ export function buildFundamentalsViewModel(
     return {
       key: metricCode,
       label,
-      value: formatPerformanceMetricValue(metricCode, metric?.value),
+      stock: formatPerformanceMetricValue(metricCode, metric?.value),
+      ...buildComparisonColumns(sectorContext, undefined),
       helper: formatPerformanceHelper(metric?.fiscal_year, metric?.as_of_date),
     };
   });
@@ -106,31 +139,50 @@ export function buildFundamentalsViewModel(
     {
       key: "pe",
       label: "P/E",
-      value: formatValuationMetric(valuation?.pe_ratio),
+      stock: formatValuationMetric(valuation?.pe_ratio),
+      ...buildComparisonColumns(sectorContext, "pe"),
       helper: valuationHelper,
     },
     {
       key: "pb",
       label: "P/B",
-      value: formatValuationMetric(valuation?.pb_ratio),
+      stock: formatValuationMetric(valuation?.pb_ratio),
+      ...buildComparisonColumns(sectorContext, "pb"),
       helper: valuationHelper,
     },
     {
       key: "dividend-yield",
       label: "Dividend Yield",
-      value: formatDividendYield(valuation?.dividend_yield),
+      stock: formatDividendYield(valuation?.dividend_yield),
+      ...buildComparisonColumns(sectorContext, "dividend_yield"),
       helper: valuationHelper,
     },
     {
       key: "earnings-yield",
       label: "Earnings Yield",
-      value: formatEarningsYield(valuation?.earnings_yield),
+      stock: formatEarningsYield(valuation?.earnings_yield),
+      ...buildComparisonColumns(sectorContext, undefined),
       helper: valuationHelper,
     },
   ];
 
+  const epsGrowth = findComparativeMetric(sectorContext, "eps_growth");
+  const growthMetric: FundamentalsMetricCell | null = epsGrowth
+    ? {
+        key: "eps-growth",
+        label: "EPS Growth",
+        stock: formatComparativeMetricValue("eps_growth", epsGrowth.stock_value),
+        sector: formatComparativeMetricValue("eps_growth", epsGrowth.sector_median),
+        market: formatComparativeMetricValue("eps_growth", epsGrowth.market_median),
+      }
+    : null;
+
+  const metrics = [...performanceMetrics, ...valuationMetrics, ...(growthMetric ? [growthMetric] : [])].filter((metric) =>
+    hasMeaningfulValue(metric.stock),
+  );
+
   return {
     fiscalPeriodNote,
-    metrics: [...performanceMetrics, ...valuationMetrics],
+    metrics,
   };
 }

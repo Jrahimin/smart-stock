@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import type { ExchangeCode } from "@/lib/api/backend-api-types";
+import type { SectorContextDto } from "@/lib/api/stock-details-api";
 import { getStockWorkspace } from "@/lib/api/stock-details-api";
 import { buildStockDecisionViewModel } from "@/features/stock-workspace/view-models/stock-decision-view-model";
 import { buildFundamentalsViewModel } from "@/features/stock-workspace/view-models/fundamentals-view-model";
@@ -11,7 +12,11 @@ import { buildStockWorkspaceModel } from "@/features/stock-workspace/view-models
 import { useMarketDataFreshness } from "@/hooks/market/use-market-data-freshness";
 import { getMarketStaleTimeMs } from "@/lib/market/market-cache-policy";
 
-export function useStockWorkspace(exchange: ExchangeCode, symbol: string) {
+export function useStockWorkspace(
+  exchange: ExchangeCode,
+  symbol: string,
+  sectorContext?: SectorContextDto | null,
+) {
   const freshnessQuery = useMarketDataFreshness(exchange);
   const staleTimeMs = getMarketStaleTimeMs(freshnessQuery.data);
 
@@ -31,8 +36,13 @@ export function useStockWorkspace(exchange: ExchangeCode, symbol: string) {
     [workspaceQuery.data?.decision_support],
   );
   const fundamentalsModel = useMemo(
-    () => buildFundamentalsViewModel(decisionModel, workspaceQuery.data?.fundamentals_snapshot ?? null),
-    [decisionModel, workspaceQuery.data?.fundamentals_snapshot],
+    () =>
+      buildFundamentalsViewModel(
+        decisionModel,
+        workspaceQuery.data?.fundamentals_snapshot ?? null,
+        sectorContext,
+      ),
+    [decisionModel, workspaceQuery.data?.fundamentals_snapshot, sectorContext],
   );
 
   return {

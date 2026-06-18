@@ -17,7 +17,7 @@ export function SmartWarningsPanel({ decision }: SmartWarningsPanelProps) {
 
   return (
     <>
-      <section className="trader-workspace-strip warnings-strip">
+      <section className="trader-workspace-strip warnings-strip warnings-strip-compact">
         <div className="strip-heading">
           <span>Warnings</span>
         </div>

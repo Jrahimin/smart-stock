@@ -82,6 +82,15 @@ export function RelatedStocksSection({
                       <span>
                         {item.price} / {item.changePercent}
                       </span>
+                      {item.reasons.length ? (
+                        <div className="related-stock-reasons">
+                          {item.reasons.map((reason) => (
+                            <span className="related-stock-reason" key={reason}>
+                              {reason}
+                            </span>
+                          ))}
+                        </div>
+                      ) : null}
                     </Link>
                   ))
                 ) : (
