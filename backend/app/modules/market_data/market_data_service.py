@@ -10,6 +10,7 @@ from fastapi import Depends
 from app.api.dependencies.auth_dependencies import get_current_user_context
 from app.core.core_config import get_settings
 from app.core.enums import DataQualityFlag, ExchangeCode
+from app.core.market_cache import invalidate_market_caches_for_exchange
 from app.jobs.ingestion.amarstock_daily_enrichment import (
     PostDailyAmarstockStats,
     run_daily_news_enrichment,
@@ -109,11 +110,14 @@ class MarketDataService:
         )
 
     async def create_daily_price(self, price_data: DailyPriceCreate) -> DailyPrice:
-        await self._ensure_stock_exists(price_data.stock_id)
+        stock = await self.repository.get_stock_by_id(price_data.stock_id)
+        if stock is None:
+            raise NotFoundError("Stock was not found")
         prepared_values = await self._prepare_daily_price_values(price_data)
         daily_price = await self.repository.create(prepared_values)
         await self.repository.commit()
         await self.repository.refresh(daily_price)
+        await invalidate_market_caches_for_exchange(stock.exchange)
         return daily_price
 
     async def ingest_daily_prices(
@@ -124,6 +128,7 @@ class MarketDataService:
         source: MarketDataSource,
         validation_source: MarketDataSource | None = None,
         insert_only: bool = False,
+        invalidate_market_cache: bool = True,
     ) -> DailyPriceIngestionResult:
         ingested_prices, validation_prices = await self._fetch_ingestion_prices(
             source=source,
@@ -137,7 +142,7 @@ class MarketDataService:
                 trade_date,
                 source.source_name,
             )
-            return DailyPriceIngestionResult(
+            result = DailyPriceIngestionResult(
                 exchange=exchange,
                 trade_date=trade_date,
                 source=source.source_name,
@@ -147,6 +152,9 @@ class MarketDataService:
                 skipped_unknown_symbol_count=0,
                 suspicious_count=0,
             )
+            if invalidate_market_cache:
+                await invalidate_market_caches_for_exchange(exchange)
+            return result
 
         suspicious_count = self._apply_close_price_validation(
             primary_prices=ingested_prices,
@@ -200,6 +208,8 @@ class MarketDataService:
             skipped_unknown_symbol_count,
             suspicious_count,
         )
+        if invalidate_market_cache:
+            await invalidate_market_caches_for_exchange(exchange)
         return DailyPriceIngestionResult(
             exchange=exchange,
             trade_date=trade_date,

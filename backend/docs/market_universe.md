@@ -56,6 +56,19 @@ pulse:{section}:{exchange}          # presentation — derived from scored rows 
 
 `invalidate_market_caches()` deletes presentation keys first, then `universe:scored`. Stock-workspace keys are **not** invalidated on sync.
 
+### When Redis is invalidated
+
+See [market_caching.md](market_caching.md) for the full backend + frontend caching guide, TTL alignment, and end-to-end journeys.
+
+Exchange-wide keys are cleared (best-effort) after:
+
+- `MarketDataService.ingest_daily_prices()` (default; backfill passes `invalidate_market_cache=False` and invalidates once at end)
+- `MarketDataService.create_daily_price()`
+- `run_daily_market_sync()` after news ingestion
+- `compute_daily_indicators()` and `generate_daily_signals()` batch jobs
+
+Scheduled snapshots invalidate via price ingest above. Prefer these entry points over ad-hoc deletes in new code.
+
 ## Historical price windows
 
 Consumer modules (dashboard, pulse, explorer, scanner, signals, watchlist) **must not** call `GET /market/price-windows` or `list_market_price_windows` directly.

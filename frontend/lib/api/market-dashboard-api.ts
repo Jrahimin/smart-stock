@@ -1,4 +1,4 @@
-import { backendApiGet } from "@/lib/api/backend-api-client";
+import { backendApiGetMarket } from "@/lib/api/backend-api-client";
 import type {
   BackendDashboardHeatmapDto,
   BackendDashboardMarketAlertsDto,
@@ -11,29 +11,29 @@ import type {
 } from "@/lib/api/backend-api-types";
 
 export function getDashboardOverview(exchange: ExchangeCode = "DSE") {
-  return backendApiGet<BackendDashboardOverviewDto>("/dashboard/overview", { exchange });
+  return backendApiGetMarket<BackendDashboardOverviewDto>("/dashboard/overview", { exchange });
 }
 
 export function getDashboardMovers(exchange: ExchangeCode = "DSE") {
-  return backendApiGet<BackendDashboardMoversDto>("/dashboard/movers", { exchange });
+  return backendApiGetMarket<BackendDashboardMoversDto>("/dashboard/movers", { exchange });
 }
 
 export function getDashboardSectors(exchange: ExchangeCode = "DSE") {
-  return backendApiGet<BackendDashboardSectorsDto>("/dashboard/sectors", { exchange });
+  return backendApiGetMarket<BackendDashboardSectorsDto>("/dashboard/sectors", { exchange });
 }
 
 export function getDashboardMarketAlerts(exchange: ExchangeCode = "DSE") {
-  return backendApiGet<BackendDashboardMarketAlertsDto>("/dashboard/market-alerts", { exchange });
+  return backendApiGetMarket<BackendDashboardMarketAlertsDto>("/dashboard/market-alerts", { exchange });
 }
 
 export function getDashboardStocksInFocus(exchange: ExchangeCode = "DSE") {
-  return backendApiGet<BackendDashboardStocksInFocusDto>("/dashboard/stocks-in-focus", { exchange });
+  return backendApiGetMarket<BackendDashboardStocksInFocusDto>("/dashboard/stocks-in-focus", { exchange });
 }
 
 export function getDashboardHeatmap(exchange: ExchangeCode = "DSE") {
-  return backendApiGet<BackendDashboardHeatmapDto>("/dashboard/heatmap", { exchange });
+  return backendApiGetMarket<BackendDashboardHeatmapDto>("/dashboard/heatmap", { exchange });
 }
 
 export function getDashboardMarketSentiment(exchange: ExchangeCode = "DSE") {
-  return backendApiGet<BackendDashboardMarketSentimentDto>("/dashboard/market-sentiment", { exchange });
+  return backendApiGetMarket<BackendDashboardMarketSentimentDto>("/dashboard/market-sentiment", { exchange });
 }

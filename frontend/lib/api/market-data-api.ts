@@ -1,4 +1,4 @@
-import { backendApiGet } from "@/lib/api/backend-api-client";
+import { backendApiGetFresh, backendApiGetMarket } from "@/lib/api/backend-api-client";
 import type {
   BackendDailyMarketSummaryDto,
   BackendDailyPriceDto,
@@ -30,15 +30,15 @@ export type ListMarketPriceWindowsParams = ListMarketSummariesParams & {
 };
 
 export function getMarketFreshness(exchange: ExchangeCode = "DSE") {
-  return backendApiGet<BackendMarketFreshnessDto>("/market/freshness", { exchange });
+  return backendApiGetFresh<BackendMarketFreshnessDto>("/market/freshness", { exchange });
 }
 
 export function getDsexIndexSnapshot(exchange: ExchangeCode = "DSE") {
-  return backendApiGet<BackendDsexIndexSnapshotDto>("/market/index/dsex", { exchange });
+  return backendApiGetMarket<BackendDsexIndexSnapshotDto>("/market/index/dsex", { exchange });
 }
 
 export function listMarketSummaries(params: ListMarketSummariesParams = {}) {
-  return backendApiGet<BackendDailyMarketSummaryDto[]>("/market/summaries", {
+  return backendApiGetMarket<BackendDailyMarketSummaryDto[]>("/market/summaries", {
     limit: params.limit ?? 50,
     offset: params.offset ?? 0,
     exchange: params.exchange,
@@ -46,7 +46,7 @@ export function listMarketSummaries(params: ListMarketSummariesParams = {}) {
 }
 
 export function listLatestMarketPrices(params: ListMarketSummariesParams = {}) {
-  return backendApiGet<BackendLatestMarketPriceDto[]>("/market/latest-prices", {
+  return backendApiGetMarket<BackendLatestMarketPriceDto[]>("/market/latest-prices", {
     limit: params.limit ?? 100,
     offset: params.offset ?? 0,
     exchange: params.exchange,
@@ -55,7 +55,7 @@ export function listLatestMarketPrices(params: ListMarketSummariesParams = {}) {
 
 /** @deprecated Prefer listUniverseRows — trader UI must use GET /market/universe-rows. */
 export function listMarketPriceWindows(params: ListMarketPriceWindowsParams = {}) {
-  return backendApiGet<BackendMarketPriceWindowDto[]>("/market/price-windows", {
+  return backendApiGetMarket<BackendMarketPriceWindowDto[]>("/market/price-windows", {
     limit: params.limit ?? 100,
     offset: params.offset ?? 0,
     exchange: params.exchange,
@@ -64,7 +64,7 @@ export function listMarketPriceWindows(params: ListMarketPriceWindowsParams = {}
 }
 
 export function listDailyPrices(stockId: string, params: ListDailyPricesParams = {}) {
-  return backendApiGet<BackendDailyPriceDto[]>(`/stocks/${stockId}/prices`, {
+  return backendApiGetMarket<BackendDailyPriceDto[]>(`/stocks/${stockId}/prices`, {
     limit: params.limit ?? 180,
     offset: params.offset ?? 0,
     start_date: params.start_date,

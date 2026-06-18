@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
-import { clearBackendApiCache } from "@/lib/api/backend-api-client";
+import { refreshMarketClientCaches } from "@/lib/market/refresh-market-client-caches";
 import { listUniverseRows } from "@/lib/api/market-universe-api";
 import { useMarketDataFreshness } from "@/hooks/market/use-market-data-freshness";
 import { getMarketRefetchIntervalMs, getMarketStaleTimeMs } from "@/lib/market/market-cache-policy";
@@ -52,7 +52,7 @@ export function useMarketUniverse(options: UseMarketUniverseOptions = {}) {
     isError: universeQuery.isError,
     loadedPriceCount: rows.length,
     refetch: async () => {
-      await clearBackendApiCache();
+      await refreshMarketClientCaches();
       await universeQuery.refetch();
       await freshnessQuery.refetch();
     },

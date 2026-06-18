@@ -33,7 +33,7 @@ export function MarketTopbar({ model }: MarketTopbarProps) {
         <span className="market-tape-pill">As of: {model.latestTradeDate}</span>
         <span className="market-tape-pill" title={model.session.description}>Session: {model.session.label}</span>
         <span className="market-tape-pill">
-          Cache: {frontendConfig.cacheHours}h / {model.session.shouldPoll ? "polling ready" : "manual refresh"}
+          Cache: {frontendConfig.marketCacheMinutes}m / {model.session.shouldPoll ? "polling ready" : "manual refresh"}
         </span>
         {model.session.disablesFreshDataActions ? <span className="market-tape-pill market-tape-pill-warning">Refresh guarded</span> : null}
         <DataQualityBadge quality={model.dataQuality} />

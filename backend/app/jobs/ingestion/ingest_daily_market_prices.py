@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 
 from app.core.core_config import Settings, get_settings
 from app.core.enums import ExchangeCode
+from app.core.market_cache import invalidate_market_caches_for_exchange
 from app.core.security_config import UserContext
 from app.jobs.ingestion.dse_market_data_source import DseMarketDataSource
 from app.jobs.ingestion.ingestion_source_base import MarketDataSource
@@ -128,14 +129,6 @@ async def sync_market_snapshot(
             trade_date=resolved_trade_date,
         )
 
-    from app.core.redis_client import build_redis_client
-    from app.core.market_cache import invalidate_market_caches
-
-    await invalidate_market_caches(
-        build_redis_client(resolved_settings),
-        exchange,
-    )
-
     return MarketSnapshotSyncResult(
         exchange=exchange,
         trade_date=resolved_trade_date,
@@ -176,6 +169,8 @@ async def run_daily_market_sync(
             trade_date=resolved_trade_date,
         )
 
+    await invalidate_market_caches_for_exchange(exchange, settings=resolved_settings)
+
     return DailyNewsSyncResult(
         exchange=exchange,
         trade_date=resolved_trade_date,
@@ -195,7 +190,7 @@ async def ingest_daily_market_prices(
     """Price-only ingest (API / manual); prefer sync_market_snapshot for scheduled work."""
     async with AsyncSessionLocal() as session:
         service = _build_service(session)
-        return await _ingest_with_optional_fallback(
+        result = await _ingest_with_optional_fallback(
             service,
             exchange=exchange,
             trade_date=trade_date,
@@ -203,6 +198,8 @@ async def ingest_daily_market_prices(
             source=source,
             validation_source=validation_source,
         )
+
+    return result
 
 
 def _merge_ingestion_results(results: list[DailyPriceIngestionResult]) -> DailyPriceIngestionResult:
@@ -248,6 +245,7 @@ async def backfill_daily_prices(
                 source=dse_source,
                 validation_source=None,
                 insert_only=insert_only,
+                invalidate_market_cache=False,
             )
         logger.info(
             "DSE backfill %s: fetched=%s inserted=%s skipped_existing=%s skipped_unknown=%s",
@@ -262,4 +260,5 @@ async def backfill_daily_prices(
         results.append(result)
         day += timedelta(days=1)
 
+    await invalidate_market_caches_for_exchange(exchange)
     return _merge_ingestion_results(results)

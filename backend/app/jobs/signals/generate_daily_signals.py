@@ -1,6 +1,9 @@
 from datetime import date
 from typing import Any
 
+from app.core.enums import ExchangeCode
+from app.core.market_cache import invalidate_market_caches_for_exchange
+
 STRATEGY_NAME = "deterministic_trader_v1"
 
 
@@ -21,9 +24,11 @@ async def generate_daily_signals(trade_date: date) -> dict[str, Any]:
     than waiting for this batch job.
     """
     _ = trade_date
-    return {
+    result = {
         "trade_date": trade_date.isoformat(),
         "signals_generated": 0,
         "strategy_name": STRATEGY_NAME,
         "note": "Batch persistence hook reserved; live decisions use the shared decision engine.",
     }
+    await invalidate_market_caches_for_exchange(ExchangeCode.DSE)
+    return result

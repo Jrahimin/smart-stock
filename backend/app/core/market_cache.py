@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import logging
 
+from app.core.core_config import Settings, get_settings
 from app.core.enums import ExchangeCode
-from app.core.redis_client import OptionalRedisClient
+from app.core.redis_client import OptionalRedisClient, build_redis_client
 from app.modules.market_universe.market_universe_cache import UNIVERSE_CACHE_KEY_NAMES, universe_cache_key
 
 logger = logging.getLogger(__name__)
@@ -68,3 +69,13 @@ async def invalidate_dashboard_cache(
 ) -> None:
     """Backward-compatible alias — invalidates all market caches."""
     await invalidate_market_caches(redis, exchange)
+
+
+async def invalidate_market_caches_for_exchange(
+    exchange: ExchangeCode,
+    *,
+    settings: Settings | None = None,
+) -> None:
+    """Best-effort Redis invalidation after price/indicator/signal data changes."""
+    resolved_settings = settings or get_settings()
+    await invalidate_market_caches(build_redis_client(resolved_settings), exchange)

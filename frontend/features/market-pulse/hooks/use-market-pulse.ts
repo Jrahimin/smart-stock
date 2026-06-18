@@ -10,6 +10,7 @@ import {
   buildMarketPulseViewModel,
 } from "@/features/market-pulse/view-models/market-pulse-view-model";
 import { getMarketPulseBriefing, getMarketPulseSummary } from "@/lib/api/market-pulse-api";
+import { refreshMarketClientCaches } from "@/lib/market/refresh-market-client-caches";
 import type { BackendMarketPulseDto, BackendMarketPulsePreviousSnapshotDto } from "@/lib/api/backend-api-types";
 import { useMarketDataFreshness } from "@/hooks/market/use-market-data-freshness";
 import { getMarketRefetchIntervalMs, getMarketStaleTimeMs } from "@/lib/market/market-cache-policy";
@@ -94,6 +95,7 @@ export function useMarketPulse() {
     isBriefingLoading: briefingQuery.isLoading,
     isError: summaryQuery.isError || briefingQuery.isError,
     refetch: async () => {
+      await refreshMarketClientCaches();
       await summaryQuery.refetch();
       await briefingQuery.refetch();
       await freshnessQuery.refetch();

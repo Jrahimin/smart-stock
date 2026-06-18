@@ -1,4 +1,4 @@
-import { backendApiGet } from "@/lib/api/backend-api-client";
+import { backendApiGetMarket } from "@/lib/api/backend-api-client";
 import type {
   BackendMarketBriefingDto,
   BackendMarketPulseDto,
@@ -29,7 +29,7 @@ export function getMarketPulse(params: GetMarketPulseParams = {}) {
     ? encodeURIComponent(JSON.stringify(params.previousSnapshot))
     : undefined;
 
-  return backendApiGet<BackendMarketPulseDto>("/market/pulse", {
+  return backendApiGetMarket<BackendMarketPulseDto>("/market/pulse", {
     exchange: params.exchange ?? "DSE",
     previous_snapshot: previousSnapshot,
     display_name: params.displayName ?? undefined,
@@ -41,7 +41,7 @@ export function getMarketPulseSummary(params: GetMarketPulseParams = {}) {
     ? encodeURIComponent(JSON.stringify(params.previousSnapshot))
     : undefined;
 
-  return backendApiGet<BackendMarketPulseSummaryDto>("/market/pulse/summary", {
+  return backendApiGetMarket<BackendMarketPulseSummaryDto>("/market/pulse/summary", {
     exchange: params.exchange ?? "DSE",
     previous_snapshot: previousSnapshot,
     display_name: params.displayName ?? undefined,
@@ -49,7 +49,7 @@ export function getMarketPulseSummary(params: GetMarketPulseParams = {}) {
 }
 
 export function getMarketPulseBriefing(params: { exchange?: ExchangeCode; displayName?: string | null } = {}) {
-  return backendApiGet<BackendMarketBriefingDto | null>("/market/pulse/briefing", {
+  return backendApiGetMarket<BackendMarketBriefingDto | null>("/market/pulse/briefing", {
     exchange: params.exchange ?? "DSE",
     display_name: params.displayName ?? undefined,
   });

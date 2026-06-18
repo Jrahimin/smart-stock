@@ -118,6 +118,31 @@ type CachedApiPayload<T> = {
   data: T;
 };
 
+export type BackendApiPersistentCache = "default" | "market" | "off";
+
+function getPersistentCacheTtlMs(mode: BackendApiPersistentCache): number | null {
+  if (mode === "off") {
+    return null;
+  }
+  if (mode === "market") {
+    return frontendConfig.marketCacheMinutes * 60 * 1000;
+  }
+  if (frontendConfig.cacheHours <= 0) {
+    return null;
+  }
+  return frontendConfig.cacheHours * 60 * 60 * 1000;
+}
+
+function resolvePersistentCacheMode(
+  init?: RequestInit,
+  mode: BackendApiPersistentCache = "default",
+): BackendApiPersistentCache {
+  if (init?.cache === "no-store" || mode === "off") {
+    return "off";
+  }
+  return mode;
+}
+
 function getCacheKey(url: string) {
   return url;
 }
@@ -178,14 +203,14 @@ async function readCachedApiResponse<T>(url: string): Promise<T | null> {
   });
 }
 
-async function writeCachedApiResponse<T>(url: string, data: T) {
+async function writeCachedApiResponse<T>(url: string, data: T, ttlMs: number) {
   const database = await openApiCacheDatabase();
   if (!database) {
     return;
   }
 
   return new Promise<void>((resolve) => {
-    const expiresAt = Date.now() + frontendConfig.cacheHours * 60 * 60 * 1000;
+    const expiresAt = Date.now() + ttlMs;
     const transaction = database.transaction(API_CACHE_STORE, "readwrite");
     transaction.objectStore(API_CACHE_STORE).put({ cacheKey: getCacheKey(url), expiresAt, data });
     transaction.oncomplete = () => {
@@ -342,9 +367,12 @@ export async function backendApiGet<T>(
   path: string,
   params?: Record<string, QueryValue>,
   init?: RequestInit,
+  persistentCache: BackendApiPersistentCache = "default",
 ): Promise<T> {
   const url = `${frontendConfig.apiBaseUrl}${path}${buildQueryString(params)}`;
-  const shouldUsePersistentCache = init?.cache !== "no-store" && frontendConfig.cacheHours > 0;
+  const cacheMode = resolvePersistentCacheMode(init, persistentCache);
+  const cacheTtlMs = getPersistentCacheTtlMs(cacheMode);
+  const shouldUsePersistentCache = cacheTtlMs !== null;
   const cachedData = shouldUsePersistentCache ? await readCachedApiResponse<T>(url) : null;
   if (cachedData !== null) {
     return cachedData;
@@ -362,10 +390,32 @@ export async function backendApiGet<T>(
     throw new BackendApiError(envelope.message || "Backend request failed", response.status);
   }
 
-  if (shouldUsePersistentCache) {
-    await writeCachedApiResponse(url, envelope.data);
+  if (shouldUsePersistentCache && cacheTtlMs !== null) {
+    await writeCachedApiResponse(url, envelope.data, cacheTtlMs);
   }
 
   return envelope.data;
+}
+
+// Market GET policy: use `backendApiGetMarket` for trader/dashboard/pulse data (short IndexedDB TTL).
+// Use `backendApiGetFresh` for `/market/freshness` and other always-live endpoints.
+// Plain `backendApiGet` is for non-market data only (long IndexedDB TTL).
+
+/** Market intelligence GET with short IndexedDB TTL (see `frontendConfig.marketCacheMinutes`). */
+export function backendApiGetMarket<T>(
+  path: string,
+  params?: Record<string, QueryValue>,
+  init?: RequestInit,
+): Promise<T> {
+  return backendApiGet<T>(path, params, init, "market");
+}
+
+/** GET that always bypasses IndexedDB (for freshness and other always-live endpoints). */
+export function backendApiGetFresh<T>(
+  path: string,
+  params?: Record<string, QueryValue>,
+  init?: RequestInit,
+): Promise<T> {
+  return backendApiGet<T>(path, params, { ...init, cache: "no-store" }, "off");
 }
 

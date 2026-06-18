@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { buildMarketDashboardModel } from "@/features/market-dashboard/view-models/market-dashboard-view-model";
+import { refreshMarketClientCaches } from "@/lib/market/refresh-market-client-caches";
 import { mapDashboardMoversDto } from "@/features/market-dashboard/view-models/dashboard-movers-mapper";
 import {
   mapDashboardAlertsDto,
@@ -139,6 +140,7 @@ export function useMarketDashboard() {
       sentimentQuery.isError,
     priceBackedCount: mappedSentiment?.priceBackedCount ?? signalsQuery.data?.evaluated_count ?? 0,
     refetch: async () => {
+      await refreshMarketClientCaches();
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["dashboard"] }),
         freshnessQuery.refetch(),
