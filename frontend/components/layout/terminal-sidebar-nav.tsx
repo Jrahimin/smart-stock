@@ -98,7 +98,13 @@ export function TerminalSidebarNav({ collapsed, pathname }: TerminalSidebarNavPr
         </>
       ) : null}
 
-      {!collapsed ? <p className="terminal-nav-section-label">Market</p> : null}
+      {!collapsed ? <p className="terminal-nav-section-label terminal-nav-section-label-wealth">Wealth</p> : null}
+
+      <WealthWorkspaceNavPill collapsed={collapsed} isActive={isWealthActive} />
+
+      <div aria-hidden="true" className="terminal-nav-divider" />
+
+      {!collapsed ? <p className="terminal-nav-section-label terminal-nav-section-label-market">Smart Stock</p> : null}
 
       {marketNavigationItems.map((item) => {
         const Icon = item.icon;
@@ -117,12 +123,6 @@ export function TerminalSidebarNav({ collapsed, pathname }: TerminalSidebarNavPr
           </Link>
         );
       })}
-
-      <div aria-hidden="true" className="terminal-nav-divider" />
-
-      {!collapsed ? <p className="terminal-nav-section-label">Personal</p> : null}
-
-      <WealthWorkspaceNavPill collapsed={collapsed} isActive={isWealthActive} />
     </nav>
   );
 }

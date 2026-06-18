@@ -9,9 +9,10 @@ import { useWealthWorkspaceInsightIndicator } from "@/features/wealth/hooks/use-
 type WealthWorkspaceNavPillProps = {
   collapsed: boolean;
   isActive: boolean;
+  onNavigate?: () => void;
 };
 
-export function WealthWorkspaceNavPill({ collapsed, isActive }: WealthWorkspaceNavPillProps) {
+export function WealthWorkspaceNavPill({ collapsed, isActive, onNavigate }: WealthWorkspaceNavPillProps) {
   const hasInsight = useWealthWorkspaceInsightIndicator();
   const showInsightDot = isActive && hasInsight;
 
@@ -19,8 +20,10 @@ export function WealthWorkspaceNavPill({ collapsed, isActive }: WealthWorkspaceN
     <div className="terminal-nav-wealth-module">
       <Link
         aria-current={isActive ? "page" : undefined}
+        aria-label="Open Wealth Workspace"
         className={isActive ? "wealth-workspace-nav-tile is-active" : "wealth-workspace-nav-tile"}
         href="/wealth"
+        onClick={onNavigate}
         title={collapsed ? "Wealth Workspace" : undefined}
       >
         <span className="wealth-workspace-nav-tile-icon-wrap">
@@ -32,7 +35,10 @@ export function WealthWorkspaceNavPill({ collapsed, isActive }: WealthWorkspaceN
           <span className="wealth-workspace-nav-tile-body">
             <span className="wealth-workspace-nav-tile-title">Wealth Workspace</span>
             <span className="wealth-workspace-nav-tile-subtitle">Goals • Income • Future</span>
-            <ChevronRight aria-hidden="true" className="wealth-workspace-nav-tile-chevron" size={16} strokeWidth={2} />
+            <span className="wealth-workspace-nav-tile-action">
+              <span>Open workspace</span>
+              <ChevronRight aria-hidden="true" className="wealth-workspace-nav-tile-chevron" size={13} strokeWidth={2.25} />
+            </span>
           </span>
         ) : null}
         {showInsightDot ? <span aria-label="New wealth insight" className="wealth-workspace-nav-insight-dot" /> : null}

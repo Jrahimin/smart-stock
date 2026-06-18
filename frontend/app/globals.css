@@ -519,8 +519,8 @@ button {
   gap: 5px;
   height: auto;
   line-height: normal;
-  min-height: 68px;
-  padding: 11px 5px 11px 10px;
+  min-height: 70px;
+  padding: 11px 10px 11px 10px;
 }
 
 .terminal-shell-collapsed .terminal-sidebar nav a:not(.wealth-workspace-nav-tile) {
@@ -585,12 +585,11 @@ button {
     var(--wealth-tile-surface-top) 0%,
     color-mix(in srgb, var(--wealth-tile-surface-bottom) 92%, var(--sidebar)) 100%
   );
-  border: 1px solid color-mix(in srgb, var(--wealth-accent) 34%, var(--border));
+  border: 1px solid color-mix(in srgb, var(--wealth-accent) 30%, var(--border));
   border-radius: 14px;
   box-shadow:
     0 1px 0 rgb(255 255 255 / 7%) inset,
-    0 8px 18px rgb(0 0 0 / 20%),
-    0 0 18px color-mix(in srgb, var(--wealth-accent) 8%, transparent);
+    0 4px 12px rgb(0 0 0 / 16%);
   box-sizing: border-box;
   color: var(--foreground);
   cursor: pointer;
@@ -598,11 +597,25 @@ button {
   isolation: isolate;
   overflow: hidden;
   position: relative;
+  text-decoration: none;
   transition:
-    background 0.28s ease,
-    border-color 0.28s ease,
-    box-shadow 0.28s ease;
+    background 0.22s ease,
+    border-color 0.22s ease,
+    box-shadow 0.22s ease,
+    transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
   width: 100%;
+}
+
+.wealth-workspace-nav-tile:focus {
+  outline: none;
+}
+
+.wealth-workspace-nav-tile:focus-visible {
+  border-color: color-mix(in srgb, var(--wealth-accent) 55%, var(--border));
+  box-shadow:
+    0 1px 0 rgb(255 255 255 / 8%) inset,
+    0 6px 16px rgb(0 0 0 / 18%),
+    0 0 0 2px color-mix(in srgb, var(--wealth-accent) 28%, transparent);
 }
 
 .wealth-workspace-nav-tile::before {
@@ -639,16 +652,21 @@ button {
     color-mix(in srgb, var(--wealth-accent) 10%, var(--wealth-tile-surface-top)) 0%,
     var(--wealth-tile-surface-bottom) 100%
   );
-  border-color: color-mix(in srgb, var(--wealth-accent) 48%, var(--border));
+  border-color: color-mix(in srgb, var(--wealth-accent) 46%, var(--border));
   box-shadow:
     0 1px 0 rgb(255 255 255 / 9%) inset,
-    0 10px 22px rgb(0 0 0 / 24%),
-    0 0 26px color-mix(in srgb, var(--wealth-accent) 20%, transparent),
-    0 0 44px color-mix(in srgb, var(--wealth-accent) 10%, transparent);
+    0 8px 18px rgb(0 0 0 / 22%),
+    0 0 0 1px color-mix(in srgb, var(--wealth-accent) 14%, transparent);
+  transform: translateY(-1px);
 }
 
 .wealth-workspace-nav-tile:hover::after {
-  box-shadow: 0 0 14px color-mix(in srgb, var(--wealth-accent) 55%, transparent);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--wealth-accent) 42%, transparent);
+}
+
+.wealth-workspace-nav-tile:active {
+  transform: translateY(0) scale(0.985);
+  transition-duration: 0.08s;
 }
 
 .wealth-workspace-nav-tile.is-active {
@@ -657,19 +675,15 @@ button {
     color-mix(in srgb, var(--wealth-accent) 14%, var(--wealth-tile-surface-top)) 0%,
     var(--wealth-tile-surface-bottom) 100%
   );
-  border-color: color-mix(in srgb, var(--wealth-accent) 50%, var(--border));
+  border-color: color-mix(in srgb, var(--wealth-accent) 48%, var(--border));
   box-shadow:
     0 1px 0 rgb(255 255 255 / 8%) inset,
-    0 10px 22px rgb(0 0 0 / 26%),
-    0 0 30px color-mix(in srgb, var(--wealth-accent) 22%, transparent);
+    0 6px 16px rgb(0 0 0 / 22%),
+    0 0 0 1px color-mix(in srgb, var(--wealth-accent) 18%, transparent);
 }
 
 .wealth-workspace-nav-tile.is-active::after {
-  box-shadow: 0 0 12px color-mix(in srgb, var(--wealth-accent) 50%, transparent);
-}
-
-.wealth-workspace-nav-tile.is-active .wealth-workspace-nav-tile-chevron {
-  color: var(--wealth-accent);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--wealth-accent) 45%, transparent);
 }
 
 .wealth-workspace-nav-tile-icon-wrap {
@@ -780,46 +794,58 @@ button {
   font-size: 0.86rem;
   font-weight: 600;
   letter-spacing: -0.012em;
-  line-height: 1.25;
+  line-height: 1.3;
   min-width: 0;
-  opacity: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .wealth-workspace-nav-tile-subtitle {
-  color: color-mix(in srgb, var(--muted) 78%, var(--wealth-accent-muted));
-  font-size: 0.64rem;
+  color: color-mix(in srgb, var(--muted) 62%, var(--foreground));
+  font-size: 0.65rem;
   font-weight: 500;
   letter-spacing: 0.01em;
-  line-height: 1.25;
+  line-height: 1.3;
   min-width: 0;
   overflow: hidden;
-  padding-right: 14px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.wealth-workspace-nav-tile-chevron {
-  bottom: 0;
-  color: color-mix(in srgb, var(--muted) 62%, var(--wealth-accent));
-  flex-shrink: 0;
-  height: 14px;
-  opacity: 0.95;
-  position: absolute;
-  right: 0;
-  top: auto;
-  transition:
-    color 0.28s ease,
-    opacity 0.28s ease,
-    transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
-  width: 14px;
+.wealth-workspace-nav-tile-action {
+  align-items: center;
+  color: color-mix(in srgb, var(--muted) 42%, var(--wealth-accent));
+  display: inline-flex;
+  font-size: 0.62rem;
+  font-weight: 500;
+  gap: 2px;
+  letter-spacing: 0.01em;
+  line-height: 1.25;
+  margin-top: 3px;
+  transition: color 0.22s ease;
+  width: fit-content;
 }
 
-.wealth-workspace-nav-tile:hover .wealth-workspace-nav-tile-chevron {
-  color: var(--wealth-accent);
+.wealth-workspace-nav-tile-chevron {
+  flex-shrink: 0;
+  height: 13px;
+  transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+  width: 13px;
+}
+
+.wealth-workspace-nav-tile:hover .wealth-workspace-nav-tile-action,
+.wealth-workspace-nav-tile:focus-visible .wealth-workspace-nav-tile-action {
+  color: color-mix(in srgb, var(--muted) 22%, var(--wealth-accent));
+}
+
+.wealth-workspace-nav-tile:hover .wealth-workspace-nav-tile-chevron,
+.wealth-workspace-nav-tile:focus-visible .wealth-workspace-nav-tile-chevron {
   transform: translateX(2px);
+}
+
+.wealth-workspace-nav-tile.is-active .wealth-workspace-nav-tile-action {
+  color: color-mix(in srgb, var(--muted) 18%, var(--wealth-accent));
 }
 
 .terminal-shell-collapsed .terminal-sidebar nav a.wealth-workspace-nav-tile {
@@ -836,7 +862,11 @@ button {
 }
 
 .terminal-shell-collapsed .wealth-workspace-nav-tile:hover {
-  transform: none;
+  transform: translateY(-1px);
+}
+
+.terminal-shell-collapsed .wealth-workspace-nav-tile:active {
+  transform: translateY(0) scale(0.96);
 }
 
 .terminal-shell-collapsed .wealth-workspace-nav-tile-body,
@@ -864,22 +894,20 @@ button {
   box-shadow:
     0 1px 0 rgb(255 255 255 / 90%) inset,
     0 -1px 0 rgb(0 0 0 / 6%) inset,
-    0 14px 26px rgb(67 56 38 / 12%),
-    0 4px 10px rgb(67 56 38 / 8%),
-    0 0 0 1px color-mix(in srgb, var(--wealth-accent) 12%, transparent),
-    0 0 24px color-mix(in srgb, var(--wealth-accent) 10%, transparent);
+    0 6px 14px rgb(67 56 38 / 10%),
+    0 0 0 1px color-mix(in srgb, var(--wealth-accent) 10%, transparent);
 }
 
 :root[data-theme="light"] .wealth-workspace-nav-tile-title {
   text-shadow: none;
 }
 
-:root[data-theme="light"] .wealth-workspace-nav-tile:hover {
+:root[data-theme="light"] .wealth-workspace-nav-tile:hover,
+:root[data-theme="light"] .wealth-workspace-nav-tile.is-active {
   box-shadow:
     0 1px 0 rgb(255 255 255 / 95%) inset,
-    0 18px 30px rgb(67 56 38 / 14%),
-    0 0 32px color-mix(in srgb, var(--wealth-accent) 20%, transparent),
-    0 0 56px color-mix(in srgb, var(--wealth-accent) 10%, transparent);
+    0 10px 20px rgb(67 56 38 / 12%),
+    0 0 0 1px color-mix(in srgb, var(--wealth-accent) 16%, transparent);
 }
 
 .sidebar-toggle-button {
@@ -21808,6 +21836,19 @@ button {
 
 .terminal-nav-section-label-ops {
   color: color-mix(in srgb, var(--primary) 78%, var(--muted));
+}
+
+.terminal-nav-section-label-wealth {
+  color: color-mix(in srgb, var(--wealth-accent) 72%, var(--muted));
+}
+
+.terminal-nav-section-label-market {
+  color: color-mix(in srgb, var(--muted) 82%, transparent);
+}
+
+.mobile-nav-drawer-section .terminal-nav-wealth-module {
+  margin-top: 0;
+  padding: 0 0 4px;
 }
 
 .terminal-nav-link-ops {

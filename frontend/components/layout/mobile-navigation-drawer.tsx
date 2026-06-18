@@ -17,9 +17,8 @@ import {
   MOBILE_NAV_DRAWER_ID,
 } from "@/components/layout/mobile-app-header";
 import { SidebarThemeToggle } from "@/components/layout/sidebar-theme-toggle";
-import { WealthWorkspaceNavIcon } from "@/components/layout/wealth-workspace-nav-icon";
+import { WealthWorkspaceNavPill } from "@/components/layout/wealth-workspace-nav-pill";
 import { useAuth } from "@/features/auth/context/auth-context";
-import { useWealthWorkspaceInsightIndicator } from "@/features/wealth/hooks/use-wealth-workspace-insight-indicator";
 import {
   adminNavigationItems,
   isNavigationItemActive,
@@ -36,7 +35,6 @@ type MobileNavigationDrawerProps = {
 export function MobileNavigationDrawer({ isOpen, menuButtonRef, onClose, storeHydrated }: MobileNavigationDrawerProps) {
   const pathname = usePathname();
   const { user, isAuthenticated, isLoading, logout } = useAuth();
-  const hasWealthInsight = useWealthWorkspaceInsightIndicator();
   const [mounted, setMounted] = useState(false);
   const isWealthActive = isNavigationItemActive(pathname, "/wealth");
   const isAdminSection = pathname === "/admin" || pathname.startsWith("/admin/");
@@ -156,7 +154,12 @@ export function MobileNavigationDrawer({ isOpen, menuButtonRef, onClose, storeHy
           ) : null}
 
           <section className="mobile-nav-drawer-section">
-            <p className="mobile-nav-drawer-section-label">Market</p>
+            <p className="mobile-nav-drawer-section-label terminal-nav-section-label-wealth">Wealth</p>
+            <WealthWorkspaceNavPill collapsed={false} isActive={isWealthActive} onNavigate={onClose} />
+          </section>
+
+          <section className="mobile-nav-drawer-section">
+            <p className="mobile-nav-drawer-section-label terminal-nav-section-label-market">Smart Stock</p>
             {marketNavigationItems.map((item) => {
               const Icon = item.icon;
               const isActive = isNavigationItemActive(pathname, item.href);
@@ -174,24 +177,6 @@ export function MobileNavigationDrawer({ isOpen, menuButtonRef, onClose, storeHy
                 </Link>
               );
             })}
-          </section>
-
-          <section className="mobile-nav-drawer-section">
-            <p className="mobile-nav-drawer-section-label">Personal</p>
-            <Link
-              aria-current={isWealthActive ? "page" : undefined}
-              className={isWealthActive ? "mobile-nav-link active terminal-nav-link-blue" : "mobile-nav-link terminal-nav-link-blue"}
-              href="/wealth"
-              onClick={onClose}
-            >
-              <span className="mobile-nav-wealth-icon">
-                <WealthWorkspaceNavIcon className="mobile-nav-wealth-icon-mark" />
-              </span>
-              <span>Wealth Workspace</span>
-              {isWealthActive && hasWealthInsight ? (
-                <span aria-label="New wealth insight" className="wealth-workspace-nav-insight-dot mobile-nav-insight-dot" />
-              ) : null}
-            </Link>
           </section>
 
           <section className="mobile-nav-drawer-section">
