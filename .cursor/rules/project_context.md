@@ -215,6 +215,7 @@ Each active feature module keeps schemas, repository, service, and router files 
   * Repository: `backend/app/modules/stocks/stocks_repository.py`
   * Service: `backend/app/modules/stocks/stocks_service.py`
   * Routes: `backend/app/modules/stocks/stocks_router.py`
+  * `GET /api/v1/stocks/active-symbols` — lean active symbol index for frontend sitemap (`ActiveStockSymbolRead`)
 
 * Market data:
   * Schemas: `backend/app/modules/market_data/market_data_schemas.py`
@@ -333,6 +334,12 @@ Root: `frontend/`
 * Market universe hook: `frontend/features/market-dashboard/hooks/use-market-universe.ts` (raw rows + mapped list models)
 * Market dashboard feature: `frontend/features/market-dashboard/`
 * Stock workspace feature: `frontend/features/stock-workspace/`
+* Stock detail SEO (server, App Router):
+  * Config: `frontend/lib/seo/site-config.ts` (`NEXT_PUBLIC_SITE_URL`)
+  * Helpers: `frontend/lib/seo/stock-page-seo.ts` (canonical, title, JSON-LD builders)
+  * Route: `frontend/app/stocks/[exchange]/[symbol]/page.tsx` (`generateMetadata` + JSON-LD scripts)
+  * Crawl files: `frontend/app/sitemap.ts`, `frontend/app/robots.ts`
+  * JSON-LD component: `frontend/components/seo/json-ld-script.tsx`
 * Scanner feature: `frontend/features/scanner/`
 * Signal center feature: `frontend/features/signals/`
 * Watchlist feature: `frontend/features/watchlist/`
@@ -344,7 +351,7 @@ Current frontend product flow:
 * Dashboard loads active stocks and recent per-stock OHLCV to derive heatmap tiles, movers, breadth, market condition, deterministic signals, and timeline context.
 * Stock Explorer uses TanStack Table over derived stock intelligence models for trader-focused discovery.
 * Explorer, Scanner, Signal Center, and Watchlist resolve **Action**, **RSI**, and **Trend** from the shared enriched universe map (`useEnrichedUniverseIntelligence` → `resolveTraderDecision` + `trend-display`). Do not read watchlist-only `trader_decision` when universe intelligence exists.
-* Stock Detail Workspace uses exchange/symbol lookup, historical OHLCV, candlestick charting, technical summary, deterministic insights, and available stock fundamentals.
+* Stock Detail Workspace uses exchange/symbol lookup, historical OHLCV, candlestick charting, technical summary, deterministic insights, and available stock fundamentals. The route is also the SEO surface: server `generateMetadata` (canonical, OG/Twitter), BreadcrumbList + Organization JSON-LD, and inclusion in `/sitemap.xml` via `GET /stocks/active-symbols`. Visible UI is unchanged; only the browser tab title and crawler-facing head tags differ.
 * Signal Center and Scanner reuse deterministic signal and stock intelligence models instead of static placeholders.
 * Watchlist joins user items to the same `intelligenceByStockId` map; API `technical_snapshot` is fallback only when a symbol is outside the universe payload.
 * Until a backend market-wide latest-prices endpoint exists, the frontend uses per-stock price requests for Trader-usable V1 and should keep this logic isolated in feature hooks/view models.

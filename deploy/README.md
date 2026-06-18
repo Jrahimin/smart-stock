@@ -50,6 +50,7 @@ Edit `.env` and set at minimum:
 - `JWT_SECRET_KEY` — long random string
 - `SUPER_ADMIN_EMAIL` / `SUPER_ADMIN_PASSWORD` — bootstrap admin
 - `NEXT_PUBLIC_API_BASE_URL` — `https://api.stockwealthbd.com/api/v1`
+- `NEXT_PUBLIC_SITE_URL` — `https://stockwealthbd.com` (canonical URLs, sitemap, JSON-LD; frontend build-time)
 - OAuth / SMTP values if used
 
 Never commit `.env`.

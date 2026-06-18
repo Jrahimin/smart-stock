@@ -290,6 +290,26 @@ Use TanStack Table for stock explorer, signal center, scanner results, and watch
 
 Do not build market-wide pages by issuing one request per stock. Use aggregate backend endpoints: trader dashboard → `GET /api/v1/dashboard/*`; explorer/scanner/signals/watchlist → `GET /api/v1/market/universe-rows`. Per-stock historical endpoints only for chart windows (`GET /api/v1/stock-details/{exchange}/{symbol}/workspace`).
 
+### Stock Detail SEO (P6 Core)
+
+Stock detail pages (`/stocks/{exchange}/{symbol}`) are server-rendered for crawlability. SEO is **head/metadata only** — the trader workspace UI is unchanged.
+
+| Piece | Location | Role |
+|-------|----------|------|
+| Site base URL | `frontend/lib/seo/site-config.ts` | `NEXT_PUBLIC_SITE_URL` (build-time); fallback `localhost:3000` |
+| Page metadata | `frontend/app/stocks/[exchange]/[symbol]/page.tsx` | `generateMetadata`: title, description, canonical, OpenGraph, Twitter |
+| Structured data | `frontend/lib/seo/stock-page-seo.ts` + `components/seo/json-ld-script.tsx` | BreadcrumbList + Organization JSON-LD |
+| Semantic copy | `buildStockSemanticSummary()` | Meta description from deterministic workspace/decision context |
+| Sitemap | `frontend/app/sitemap.ts` | `/`, `/stocks`, `/market-pulse`, all active stock detail URLs |
+| Robots | `frontend/app/robots.ts` | Allow public routes; disallow auth/admin; point to sitemap |
+| Symbol index API | `GET /api/v1/stocks/active-symbols` | Lean `{ exchange, symbol }[]` for sitemap generation |
+
+Rules:
+
+* Set `NEXT_PUBLIC_SITE_URL` at **frontend Docker build** (with `NEXT_PUBLIC_API_BASE_URL`); canonicals and sitemap URLs bake in at build time.
+* Title format: `{SYMBOL} Share Price, Dividend, PE Ratio & Analysis — {Name}`.
+* Deferred (P6b): indexable on-page HTML blocks, Dataset/FinancialService schema, company profile narrative.
+
 ### Visualization Strategy
 
 Use TradingView Lightweight Charts for stock detail workspaces. Chart components should transform price DTOs into chart-safe models before render, sync theme with design tokens, handle missing/stale/partial data explicitly, and add overlays incrementally: candles and volume first, then timeframe aggregation, SMA/EMA, RSI/MACD panels, signal markers, event overlays, and auditable pattern labels.

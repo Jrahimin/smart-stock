@@ -171,6 +171,41 @@ None
 
 ---
 
+### GET /api/v1/stocks/active-symbols
+
+**Description**
+Return a lean index of active stock symbols for sitemap and SEO URL generation.
+Does not include prices, fundamentals, or full `StockRead` payloads.
+
+**Path Params**
+
+None
+
+**Query Params**
+
+* exchange: optional enum, one of `DSE`, `CSE`
+
+**Response**
+
+```json
+{
+  "success": true,
+  "message": "Active stock symbols retrieved",
+  "data": [
+    { "exchange": "DSE", "symbol": "GP" },
+    { "exchange": "DSE", "symbol": "BATBC" }
+  ]
+}
+```
+
+**Notes**
+
+* Only `is_active=true` stocks are returned.
+* Ordered by exchange, symbol for stable output.
+* Public; used by `frontend/app/sitemap.ts` at build/request time.
+
+---
+
 ### GET /api/v1/stocks/lookup/{exchange}/{symbol}
 
 **Description**
