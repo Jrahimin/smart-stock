@@ -40,6 +40,36 @@ Readiness probe. Executes `SELECT 1` against PostgreSQL. Use for Docker health c
 
 ---
 
+## System
+
+### GET /api/v1/system
+
+**Description**
+Returns the deployed backend release metadata (version, git commit, build time). Public, no authentication required.
+
+**Response**
+
+```json
+{
+  "success": true,
+  "message": "System version",
+  "data": {
+    "version": "2026.06.18.3",
+    "git_sha": "7e2a9d1",
+    "build_time": "2026-06-18T16:30:00Z"
+  }
+}
+```
+
+**Notes**
+
+* Values are baked into the backend image at `docker compose build` via `APP_VERSION`, `GIT_SHA`, and `BUILD_TIME`.
+* `git_sha` is always a 7-character short SHA in public responses (never the full commit hash).
+* For the frontend build, use `GET https://stockwealthbd.com/build-info.json` (same JSON shape, no API wrapper).
+* Deploy scripts set metadata automatically; see `deploy/README.md`.
+
+---
+
 ## Stocks
 
 ### GET /api/v1/stocks

@@ -16,6 +16,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 FROM python:3.12-slim-bookworm AS runtime
 
+ARG APP_VERSION=dev
+ARG GIT_SHA=unknown
+ARG BUILD_TIME=unknown
+
 RUN apt-get update \
     && apt-get install -y --no-install-recommends libpq5 curl \
     && rm -rf /var/lib/apt/lists/* \
@@ -26,7 +30,12 @@ WORKDIR /app/backend
 COPY --from=builder /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1
+    PYTHONDONTWRITEBYTECODE=1 \
+    APP_VERSION=$APP_VERSION \
+    GIT_SHA=$GIT_SHA \
+    BUILD_TIME=$BUILD_TIME
+
+LABEL org.opencontainers.image.version=$APP_VERSION
 
 COPY backend/app ./app
 COPY backend/alembic ./alembic

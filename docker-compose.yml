@@ -88,6 +88,10 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
+      args:
+        APP_VERSION: ${APP_VERSION:-dev}
+        GIT_SHA: ${GIT_SHA:-unknown}
+        BUILD_TIME: ${BUILD_TIME:-unknown}
     image: smart-stock-backend:latest
     restart: unless-stopped
     stop_grace_period: 30s
@@ -110,6 +114,10 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
+      args:
+        APP_VERSION: ${APP_VERSION:-dev}
+        GIT_SHA: ${GIT_SHA:-unknown}
+        BUILD_TIME: ${BUILD_TIME:-unknown}
     image: smart-stock-backend:latest
     restart: unless-stopped
     stop_grace_period: 30s
@@ -133,6 +141,9 @@ services:
       context: .
       dockerfile: frontend/Dockerfile
       args:
+        APP_VERSION: ${APP_VERSION:-dev}
+        GIT_SHA: ${GIT_SHA:-unknown}
+        BUILD_TIME: ${BUILD_TIME:-unknown}
         NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL}
         NEXT_PUBLIC_MARKET_CACHE_HOURS: ${NEXT_PUBLIC_MARKET_CACHE_HOURS:-2}
         NEXT_PUBLIC_MARKET_CACHE_MINUTES: ${NEXT_PUBLIC_MARKET_CACHE_MINUTES:-10}

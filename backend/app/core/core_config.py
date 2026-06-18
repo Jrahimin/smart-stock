@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     app_env: AppEnvironment = AppEnvironment.LOCAL
     debug: bool = False
     api_v1_prefix: str = "/api/v1"
+    app_version: str = "dev"
+    git_sha: str = "unknown"
+    build_time: str = "unknown"
 
     database_url: str = Field(default="postgresql://postgres:postgres@localhost:5432/smart_stock")
     alembic_database_url: str | None = None

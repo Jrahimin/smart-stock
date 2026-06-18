@@ -18,5 +18,6 @@ out/
 # Deployment
 deploy/certs/*
 !deploy/certs/README.md
+deploy/.deploy-counter-*
 .env.production.local
 

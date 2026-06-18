@@ -120,6 +120,8 @@ docker compose exec backend-api python -m app.scripts.seed_super_admin
 ```bash
 curl -f https://api.stockwealthbd.com/api/v1/health
 curl -f https://api.stockwealthbd.com/api/v1/health/ready
+curl -fsS https://api.stockwealthbd.com/api/v1/system | jq .data
+curl -fsS https://stockwealthbd.com/build-info.json | jq .
 curl -fI https://stockwealthbd.com
 
 docker compose ps
@@ -141,6 +143,24 @@ Register OAuth production origins (Google Console, Facebook app) for `https://st
 
 ## 7. Subsequent deploys
 
+Use the deploy scripts so every release gets fresh build metadata, a rebuilt frontend, container recreation, and optional Cloudflare purge.
+
+**Frontend-only** (UI/CSS/JS or `NEXT_PUBLIC_*` changes):
+
+```bash
+git pull
+bash deploy/scripts/deploy-frontend.sh
+```
+
+**Full stack** (backend + frontend + migrations):
+
+```bash
+git pull
+bash deploy/scripts/deploy.sh
+```
+
+Manual equivalent (not recommended — skips version verification and Cloudflare purge):
+
 ```bash
 git pull
 docker compose build
@@ -148,7 +168,26 @@ docker compose up -d
 docker compose exec backend-api alembic upgrade head
 ```
 
-Rebuild the frontend image whenever `NEXT_PUBLIC_*` variables change.
+### Identify the running version
+
+```bash
+curl -s https://api.stockwealthbd.com/api/v1/system | jq .data
+curl -s https://stockwealthbd.com/build-info.json | jq .
+```
+
+Example:
+
+```json
+{
+  "version": "2026.06.18.3",
+  "git_sha": "7e2a9d1",
+  "build_time": "2026-06-18T16:30:00Z"
+}
+```
+
+After a full deploy, backend `/api/v1/system` and frontend `/build-info.json` should match.
+
+Set `CF_API_TOKEN` and `CF_ZONE_ID` in `.env` to purge Cloudflare automatically after deploy. Cache rules: [`deploy/cloudflare/cache-rules.md`](cloudflare/cache-rules.md).
 
 ---
 
@@ -206,6 +245,8 @@ Local and production should be on the same Alembic migration head before a data-
 | 502 from Nginx | `docker compose ps` — are frontend and backend-api healthy? |
 | CORS errors | `BACKEND_CORS_ORIGINS` includes `https://stockwealthbd.com` |
 | Wrong API URL in browser | Rebuild frontend with correct `NEXT_PUBLIC_API_BASE_URL` |
+| Stale UI after deploy | Run `bash deploy/scripts/deploy-frontend.sh`; compare `/build-info.json` vs `/api/v1/system` |
+| Old version still showing | `docker compose ps frontend` — confirm healthy; check `curl -s …/build-info.json` |
 
 ---
 

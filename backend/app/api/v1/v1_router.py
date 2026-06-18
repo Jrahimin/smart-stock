@@ -1,8 +1,10 @@
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import text
 
+from app.core.core_config import get_settings
 from app.core.database_session import async_engine
 from app.core.response_handler import ApiResponse, success_response
+from app.schemas.system_version import SystemVersionData
 from app.modules.auth.auth_router import router as auth_router
 from app.modules.admin_dashboard.admin_dashboard_router import router as admin_dashboard_router
 from app.modules.admin_configuration.admin_configuration_router import router as admin_configuration_router
@@ -37,6 +39,19 @@ router.include_router(market_universe_router)
 router.include_router(indicators_router)
 router.include_router(signals_router)
 router.include_router(stock_details_router)
+
+
+@router.get("/system", response_model=ApiResponse[SystemVersionData])
+async def system_version() -> ApiResponse[SystemVersionData]:
+    settings = get_settings()
+    return success_response(
+        data=SystemVersionData(
+            version=settings.app_version,
+            git_sha=settings.git_sha,
+            build_time=settings.build_time,
+        ),
+        message="System version",
+    )
 
 
 @router.get("/health", response_model=ApiResponse[dict[str, str]])
