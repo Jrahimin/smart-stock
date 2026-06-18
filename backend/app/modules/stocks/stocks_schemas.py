@@ -68,3 +68,8 @@ class StockRead(StockBase):
     created_at: datetime
     updated_at: datetime
 
+
+class ActiveStockSymbolRead(BaseModel):
+    exchange: ExchangeCode
+    symbol: str
+

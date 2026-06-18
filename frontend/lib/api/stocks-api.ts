@@ -9,6 +9,11 @@ export type ListStocksParams = {
   search?: string;
 };
 
+export type ActiveStockSymbolDto = {
+  exchange: ExchangeCode;
+  symbol: string;
+};
+
 export function listStocks(params: ListStocksParams = {}) {
   return backendApiGet<BackendStockDto[]>("/stocks", {
     limit: params.limit ?? 50,

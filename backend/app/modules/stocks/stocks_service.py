@@ -9,7 +9,7 @@ from app.core.pagination import ListQueryParams
 from app.core.security_config import UserContext
 from app.models import Stock
 from app.modules.stocks.stocks_repository import StocksRepository, get_stocks_repository
-from app.modules.stocks.stocks_schemas import StockCreate
+from app.modules.stocks.stocks_schemas import ActiveStockSymbolRead, StockCreate
 
 
 class StocksService:
@@ -27,6 +27,10 @@ class StocksService:
             exchange=exchange,
             params=params,
         )
+
+    async def list_active_symbols(self, *, exchange: ExchangeCode | None = None) -> list[ActiveStockSymbolRead]:
+        rows = await self.repository.list_active_symbols(exchange=exchange)
+        return [ActiveStockSymbolRead(exchange=row_exchange, symbol=symbol) for row_exchange, symbol in rows]
 
     async def get_stock(self, stock_id: UUID) -> Stock:
         stock = await self.repository.get_by_id(stock_id)

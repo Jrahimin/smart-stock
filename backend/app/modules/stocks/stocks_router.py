@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Path, Query
 from app.core.enums import ExchangeCode
 from app.core.pagination import ListQueryParams, get_list_query_params
 from app.core.response_handler import ApiResponse, success_response
-from app.modules.stocks.stocks_schemas import StockCreate, StockRead
+from app.modules.stocks.stocks_schemas import ActiveStockSymbolRead, StockCreate, StockRead
 from app.modules.stocks.stocks_service import StocksService, get_stocks_service
 
 router = APIRouter(prefix="/stocks", tags=["stocks"])
@@ -40,6 +40,15 @@ async def search_stocks(
     )
     stock_items = [StockRead.model_validate(stock) for stock in stocks]
     return success_response(data=stock_items, message="Stocks matched")
+
+
+@router.get("/active-symbols", response_model=ApiResponse[list[ActiveStockSymbolRead]])
+async def list_active_stock_symbols(
+    service: Annotated[StocksService, Depends(get_stocks_service)],
+    exchange: ExchangeCode | None = None,
+) -> ApiResponse[list[ActiveStockSymbolRead]]:
+    symbols = await service.list_active_symbols(exchange=exchange)
+    return success_response(data=symbols, message="Active stock symbols retrieved")
 
 
 @router.get("/lookup/{exchange}/{symbol}", response_model=ApiResponse[StockRead])

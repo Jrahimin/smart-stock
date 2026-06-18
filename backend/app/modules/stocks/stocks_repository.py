@@ -49,6 +49,17 @@ class StocksRepository(BaseRepository[Stock]):
         result = await self.session.scalar(statement)
         return int(result or 0)
 
+    async def list_active_symbols(self, *, exchange: ExchangeCode | None = None) -> list[tuple[ExchangeCode, str]]:
+        statement = (
+            select(Stock.exchange, Stock.symbol)
+            .where(Stock.is_active.is_(True))
+            .order_by(Stock.exchange, Stock.symbol, Stock.id)
+        )
+        if exchange is not None:
+            statement = statement.where(Stock.exchange == exchange)
+        result = await self.session.execute(statement)
+        return [(row[0], row[1]) for row in result.all()]
+
 
 def get_stocks_repository(session: AsyncSession = Depends(get_db_session)) -> StocksRepository:
     return StocksRepository(session)

@@ -54,8 +54,8 @@ export function RelatedStocksSection({
       {showSkeleton ? (
         <div aria-hidden="true" className="related-stocks-skeleton">
           {Array.from({ length: 4 }).map((_, rowIndex) => (
-            <div className="related-stocks-skeleton-row" key={rowIndex}>
-              <div className="related-stocks-skeleton-label" />
+            <div className="related-stocks-skeleton-cluster" key={rowIndex}>
+              <div className="related-stocks-skeleton-legend" />
               <div className="related-stocks-skeleton-cards">
                 {Array.from({ length: 4 }).map((__, cardIndex) => (
                   <div className="related-stocks-skeleton-card" key={cardIndex} />
@@ -69,33 +69,35 @@ export function RelatedStocksSection({
       {loadEnabled && !showSkeleton && hasResults ? (
         <div className="related-stocks-grid">
           {groups.map((group) => (
-            <section className="related-stocks-group" key={group.id}>
-              <h3>{group.title}</h3>
-              <div className="related-stocks-list">
+            <section className="related-stocks-cluster" key={group.id}>
+              <h3 className="related-stocks-cluster-legend">{group.title}</h3>
+              <div className="related-stocks-cluster-body">
+                <div className="related-stocks-list">
                 {group.items.length ? (
-                  group.items.map((item) => (
-                    <Link className="scanner-result-card related-stock-card" href={item.href} key={item.stockId}>
-                      <div className="scanner-card-topline">
-                        <strong>{item.symbol}</strong>
-                        <SignalBadge signal={item.recommendation as TraderRecommendation} />
-                      </div>
-                      <span>
-                        {item.price} / {item.changePercent}
-                      </span>
-                      {item.reasons.length ? (
-                        <div className="related-stock-reasons">
-                          {item.reasons.map((reason) => (
-                            <span className="related-stock-reason" key={reason}>
-                              {reason}
-                            </span>
-                          ))}
+                  group.items.map((item) => {
+                    const changeTone = item.changePercent.startsWith("+")
+                      ? "positive"
+                      : item.changePercent.startsWith("-")
+                        ? "negative"
+                        : "neutral";
+
+                    return (
+                      <Link className="scanner-result-card related-stock-card" href={item.href} key={item.stockId}>
+                        <div className="scanner-card-topline">
+                          <strong>{item.symbol}</strong>
+                          <SignalBadge signal={item.recommendation as TraderRecommendation} />
                         </div>
-                      ) : null}
-                    </Link>
-                  ))
+                        <div className={`related-stock-quote related-stock-quote-${changeTone}`}>
+                          <strong className="related-stock-quote-price">{item.price}</strong>
+                          <span className="related-stock-quote-change">{item.changePercent}</span>
+                        </div>
+                      </Link>
+                    );
+                  })
                 ) : (
                   <div className="related-stocks-empty related-stocks-empty-row">No matches in this group yet.</div>
                 )}
+                </div>
               </div>
             </section>
           ))}
