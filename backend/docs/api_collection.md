@@ -1201,7 +1201,20 @@ Consolidated stock workspace payload: `StockRead`, OHLCV window (260 bars), and 
     "stock": {},
     "prices": [],
     "latest_trade_date": "2026-06-17",
-    "decision_support": {}
+    "decision_support": {},
+    "fundamentals_snapshot": {
+      "metrics": [
+        {
+          "metric_code": "EPS",
+          "label": "EPS",
+          "value": 4.5,
+          "as_of_date": "2024-12-31",
+          "fiscal_year": 2024
+        }
+      ],
+      "latest_fiscal_year": 2024,
+      "latest_as_of_date": "2024-12-31"
+    }
   }
 }
 ```

@@ -1,32 +1,22 @@
-"use client";
-
-import { useState } from "react";
-
-import type { StockWorkspaceModel } from "@/features/stock-workspace/view-models/stock-workspace-view-model";
+import type { FundamentalsViewModel } from "@/features/stock-workspace/view-models/fundamentals-view-model";
 
 type FundamentalsPanelProps = {
-  model: StockWorkspaceModel;
+  fundamentals: FundamentalsViewModel;
 };
 
-export function FundamentalsPanel({ model }: FundamentalsPanelProps) {
-  const [expanded, setExpanded] = useState(true);
-
+export function FundamentalsPanel({ fundamentals }: FundamentalsPanelProps) {
   return (
-    <section className="trader-workspace-strip fundamentals-strip">
-      <button className="collapsible-strip-toggle" onClick={() => setExpanded((value) => !value)} type="button">
-        <span>{expanded ? "▼" : "▶"} Fundamentals</span>
-        <small>Market cap, capital, category, listing</small>
-      </button>
-      {expanded ? (
-        <div className="fundamentals-grid fundamentals-compact">
-          {model.fundamentals.map((item) => (
-            <article className="technical-summary-card" key={item.label}>
-              <span>{item.label}</span>
-              <strong>{item.value}</strong>
-            </article>
-          ))}
-        </div>
-      ) : null}
-    </section>
+    <div className="fundamentals-panel">
+      {fundamentals.fiscalPeriodNote ? <p className="fundamentals-fiscal-note">{fundamentals.fiscalPeriodNote}</p> : null}
+      <div className="fundamentals-grid fundamentals-compact">
+        {fundamentals.metrics.map((item) => (
+          <article className="technical-summary-card fundamentals-metric-card" key={item.key}>
+            <span>{item.label}</span>
+            <strong>{item.value}</strong>
+            {item.helper ? <small>{item.helper}</small> : null}
+          </article>
+        ))}
+      </div>
+    </div>
   );
 }

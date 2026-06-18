@@ -12,11 +12,26 @@ from app.modules.stock_details.stock_details_schemas import (
 from app.modules.stocks.stocks_schemas import StockRead
 
 
+class FinancialMetricSnapshotRead(BaseModel):
+    metric_code: str
+    label: str
+    value: float | None
+    as_of_date: str | None
+    fiscal_year: int | None
+
+
+class FundamentalsSnapshotRead(BaseModel):
+    metrics: list[FinancialMetricSnapshotRead] = Field(default_factory=list)
+    latest_fiscal_year: int | None = None
+    latest_as_of_date: str | None = None
+
+
 class StockWorkspaceRead(BaseModel):
     stock: StockRead
     prices: list[DailyPriceRead]
     latest_trade_date: str
     decision_support: StockDecisionSupportRead
+    fundamentals_snapshot: FundamentalsSnapshotRead | None = None
 
 
 class StockWorkspacePatternsRead(BaseModel):

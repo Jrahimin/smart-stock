@@ -19,11 +19,17 @@ from app.modules.stock_details.stock_details_repository import (
     get_stock_details_repository,
 )
 from app.modules.stock_details.stock_details_workspace_schemas import (
+    FinancialMetricSnapshotRead,
+    FundamentalsSnapshotRead,
     StockWorkspaceEventsRead,
     StockWorkspacePatternsRead,
     StockWorkspaceRead,
 )
 from app.modules.stocks.stocks_schemas import StockRead
+from app.modules.stock_details.decision.fundamentals_snapshot import (
+    FUNDAMENTALS_PERFORMANCE_METRIC_CODES,
+    build_fundamentals_snapshot,
+)
 
 
 class StockDetailsWorkspaceService:
@@ -71,11 +77,31 @@ class StockDetailsWorkspaceService:
 
         prices = await self.repository.list_daily_prices_window(stock_id=stock.id)
         decision_support = await self.decision_service.get_decision_support(exchange=exchange, symbol=symbol)
+        metric_rows = await self.repository.list_latest_metric_values(
+            stock_id=stock.id,
+            metric_codes=list(FUNDAMENTALS_PERFORMANCE_METRIC_CODES),
+        )
+        fundamentals_result = build_fundamentals_snapshot(metric_rows)
+        fundamentals_snapshot = FundamentalsSnapshotRead(
+            metrics=[
+                FinancialMetricSnapshotRead(
+                    metric_code=metric.metric_code,
+                    label=metric.label,
+                    value=metric.value,
+                    as_of_date=metric.as_of_date,
+                    fiscal_year=metric.fiscal_year,
+                )
+                for metric in fundamentals_result.metrics
+            ],
+            latest_fiscal_year=fundamentals_result.latest_fiscal_year,
+            latest_as_of_date=fundamentals_result.latest_as_of_date,
+        )
         payload = StockWorkspaceRead(
             stock=stock_read,
             prices=[DailyPriceRead.model_validate(price) for price in prices],
             latest_trade_date=latest_trade_date,
             decision_support=decision_support,
+            fundamentals_snapshot=fundamentals_snapshot,
         )
         await self._cache_set(cache_key, payload.model_dump(mode="json"))
         return payload

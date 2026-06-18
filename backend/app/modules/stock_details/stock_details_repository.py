@@ -10,6 +10,7 @@ from app.core.base_repository import BaseRepository
 from app.core.constants.trading_constants import DECISION_OHLCV_WINDOW
 from app.core.database_session import get_db_session
 from app.core.enums import ExchangeCode, IndicatorType, MarketEventType, StockDetailsSyncJobStatus
+from app.modules.stock_details.decision.fundamentals_snapshot import LatestFinancialMetricRow
 from app.models import (
     CorporateAction,
     DailyPrice,
@@ -122,6 +123,57 @@ class StockDetailsRepository(BaseRepository[StockDetailsSyncJob]):
             .limit(limit)
         )
         return list((await self.session.scalars(statement)).all())
+
+    async def list_latest_metric_values(
+        self,
+        *,
+        stock_id: UUID,
+        metric_codes: list[str],
+    ) -> list[LatestFinancialMetricRow]:
+        if not metric_codes:
+            return []
+
+        statement = (
+            select(
+                FinancialMetricDefinition.metric_code,
+                FinancialMetricDefinition.display_name,
+                FinancialMetricValue.value,
+                FinancialMetricValue.as_of_date,
+                FinancialReport.fiscal_year,
+                FinancialMetricValue.updated_at,
+            )
+            .join(
+                FinancialMetricDefinition,
+                FinancialMetricValue.metric_definition_id == FinancialMetricDefinition.id,
+            )
+            .join(
+                FinancialReport,
+                FinancialMetricValue.financial_report_id == FinancialReport.id,
+            )
+            .where(
+                FinancialReport.stock_id == stock_id,
+                FinancialMetricDefinition.metric_code.in_(metric_codes),
+            )
+            .order_by(
+                FinancialMetricDefinition.metric_code,
+                FinancialMetricValue.as_of_date.desc(),
+                FinancialMetricValue.updated_at.desc(),
+            )
+        )
+        result = await self.session.execute(statement)
+        latest_by_code: dict[str, LatestFinancialMetricRow] = {}
+        for metric_code, display_name, value, as_of_date, fiscal_year, _updated_at in result.all():
+            if metric_code in latest_by_code:
+                continue
+            latest_by_code[metric_code] = LatestFinancialMetricRow(
+                metric_code=metric_code,
+                display_name=display_name,
+                value=value,
+                as_of_date=as_of_date,
+                fiscal_year=fiscal_year,
+            )
+
+        return [latest_by_code[code] for code in metric_codes if code in latest_by_code]
 
     async def list_due_stocks(
         self,

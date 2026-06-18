@@ -136,9 +136,24 @@ export type EventTimelineItemDto = {
   source: string | null;
 };
 
+export type FinancialMetricSnapshotDto = {
+  metric_code: string;
+  label: string;
+  value: number | null;
+  as_of_date: string | null;
+  fiscal_year: number | null;
+};
+
+export type FundamentalsSnapshotDto = {
+  metrics: FinancialMetricSnapshotDto[];
+  latest_fiscal_year: number | null;
+  latest_as_of_date: string | null;
+};
+
 export type StockWorkspaceDto = {
   stock: BackendStockDto;
   prices: BackendDailyPriceDto[];
   latest_trade_date: string;
   decision_support: StockDecisionSupportDto;
+  fundamentals_snapshot: FundamentalsSnapshotDto | null;
 };

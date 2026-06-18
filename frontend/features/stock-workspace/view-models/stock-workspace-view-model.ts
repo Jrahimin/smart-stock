@@ -1,7 +1,7 @@
 import type { BackendDailyPriceDto, BackendStockDto } from "@/lib/api/backend-api-types";
 import {
-  formatBdt,
   formatCompactNumber,
+  formatFinancialDisplay,
   formatNumber,
   formatPercent,
 } from "@/lib/formatters/financial-formatters";
@@ -16,6 +16,7 @@ export type StockWorkspaceModel = {
     exchange: string;
     sector: string;
     category: string;
+    listingDate: string | null;
     latestPrice: string;
     changePercent: string;
     marketCap: string;
@@ -29,7 +30,6 @@ export type StockWorkspaceModel = {
     tone: "positive" | "negative" | "neutral" | "warning";
     category: "warning" | "opportunity" | "momentum" | "accumulation" | "volatility" | "risk";
   }>;
-  fundamentals: Array<{ label: string; value: string; helper: string }>;
 };
 
 function buildInsights(intelligence: StockIntelligenceModel | null): StockWorkspaceModel["insights"] {
@@ -100,9 +100,10 @@ export function buildStockWorkspaceModel(stock: BackendStockDto | null, prices: 
       exchange: stock?.exchange ?? "DSE",
       sector: stock?.sector ?? "Unclassified",
       category: stock?.category ?? "N/A",
+      listingDate: stock?.listing_date ?? null,
       latestPrice: formatNumber(intelligence?.latestPrice),
       changePercent: formatPercent(intelligence?.priceChangePercent),
-      marketCap: formatCompactNumber(stock?.market_cap),
+      marketCap: formatFinancialDisplay(stock?.market_cap, (parsed) => formatCompactNumber(parsed)),
       signal: intelligence?.signal.signal ?? "HOLD",
       confidence: intelligence ? `${intelligence.signal.confidence}%` : "N/A",
     },
@@ -139,27 +140,5 @@ export function buildStockWorkspaceModel(stock: BackendStockDto | null, prices: 
       },
     ],
     insights: buildInsights(intelligence),
-    fundamentals: [
-      {
-        label: "Market Cap",
-        value: formatCompactNumber(stock?.market_cap),
-        helper: stock?.market_cap ? "From stock master / detail sync." : "Missing until stock details sync provides capitalization.",
-      },
-      {
-        label: "Paid-up Capital",
-        value: formatBdt(stock?.paid_up_capital),
-        helper: stock?.paid_up_capital ? "Available from stock profile." : "Not available in current stock row.",
-      },
-      {
-        label: "Category",
-        value: stock?.category ?? "N/A",
-        helper: stock?.category ? "DSE category classification." : "Category not available.",
-      },
-      {
-        label: "Listing Date",
-        value: stock?.listing_date ?? "N/A",
-        helper: stock?.listing_date ? "Listing date from stock master." : "Listing date missing from source data.",
-      },
-    ],
   };
 }
