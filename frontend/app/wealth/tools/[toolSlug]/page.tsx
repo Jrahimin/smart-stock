@@ -1,5 +1,7 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
+import { JsonLdScript } from "@/components/seo/json-ld-script";
 import { TerminalAppShell } from "@/components/layout/terminal-app-shell";
 import { WEALTH_TOOL_CONFIG } from "@/features/wealth/catalog/wealth-catalog";
 import { DpsSimulatorWorkspace } from "@/features/wealth/components/dps-simulator-workspace";
@@ -9,14 +11,34 @@ import { TaxPlannerWorkspace } from "@/features/wealth/components/tax-planner-wo
 import { WealthFutureJourneyWorkspace } from "@/features/wealth/components/wealth-future-journey-workspace";
 import { WealthToolWorkspace } from "@/features/wealth/components/wealth-tool-workspace";
 import type { WealthToolSlug } from "@/features/wealth/types/wealth-types";
+import {
+  buildWealthToolBreadcrumbJsonLd,
+  buildWealthToolMetadata,
+} from "@/lib/seo/wealth-page-seo";
 
 type WealthToolPageProps = {
   params: Promise<{ toolSlug: string }>;
 };
 
+function isWealthToolSlug(toolSlug: string): toolSlug is WealthToolSlug {
+  return toolSlug in WEALTH_TOOL_CONFIG;
+}
+
+export async function generateMetadata({ params }: WealthToolPageProps): Promise<Metadata> {
+  const { toolSlug } = await params;
+  if (!isWealthToolSlug(toolSlug)) {
+    return {
+      title: "Wealth Calculator",
+      description: "Explore money scenarios in Wealth Workspace.",
+    };
+  }
+
+  return buildWealthToolMetadata(toolSlug);
+}
+
 export default async function WealthToolPage({ params }: WealthToolPageProps) {
   const { toolSlug } = await params;
-  if (!(toolSlug in WEALTH_TOOL_CONFIG)) {
+  if (!isWealthToolSlug(toolSlug)) {
     notFound();
   }
 
@@ -32,8 +54,13 @@ export default async function WealthToolPage({ params }: WealthToolPageProps) {
     ) : toolSlug === "compound-growth" || toolSlug === "savings-goal" ? (
       <WealthFutureJourneyWorkspace toolSlug={toolSlug} />
     ) : (
-      <WealthToolWorkspace toolSlug={toolSlug as WealthToolSlug} />
+      <WealthToolWorkspace toolSlug={toolSlug} />
     );
 
-  return <TerminalAppShell>{workspace}</TerminalAppShell>;
+  return (
+    <TerminalAppShell>
+      <JsonLdScript data={buildWealthToolBreadcrumbJsonLd(toolSlug)} />
+      {workspace}
+    </TerminalAppShell>
+  );
 }

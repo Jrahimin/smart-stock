@@ -28,10 +28,16 @@ export const adminNavigationItems = [
   { label: "Email Campaigns", href: "/admin/email-campaigns", icon: Mail, exact: false },
 ] as const;
 
+function normalizeNavPathname(pathname: string) {
+  return pathname === "/" ? "/dashboard" : pathname;
+}
+
 export function isNavigationItemActive(pathname: string, href: string) {
+  const normalizedPathname = normalizeNavPathname(pathname);
+
   if (href === "/stocks" || href === "/wealth" || href === "/market-pulse") {
-    return pathname === href || pathname.startsWith(`${href}/`);
+    return normalizedPathname === href || normalizedPathname.startsWith(`${href}/`);
   }
 
-  return pathname === href || pathname.startsWith(`${href}/`);
+  return normalizedPathname === href || normalizedPathname.startsWith(`${href}/`);
 }

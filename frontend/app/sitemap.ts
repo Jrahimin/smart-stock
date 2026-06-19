@@ -4,6 +4,7 @@ import type { ActiveStockSymbolDto } from "@/lib/api/stocks-api";
 import { fetchServerApiData } from "@/lib/api/server-backend-api";
 import { buildStockDetailPath } from "@/lib/seo/stock-page-seo";
 import { siteConfig } from "@/lib/seo/site-config";
+import { buildWealthCanonical, listWealthSitemapPaths } from "@/lib/seo/wealth-page-seo";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const now = new Date();
@@ -28,9 +29,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
   ];
 
+  const wealthRoutes: MetadataRoute.Sitemap = listWealthSitemapPaths().map((path) => ({
+    url: buildWealthCanonical(path),
+    lastModified: now,
+    changeFrequency: "weekly",
+    priority: path === "/wealth" ? 0.85 : path.startsWith("/wealth/tools") || path.startsWith("/wealth/compare") ? 0.75 : 0.65,
+  }));
+
   const activeSymbols = await fetchServerApiData<ActiveStockSymbolDto[]>("/stocks/active-symbols", 3600);
   if (!activeSymbols?.length) {
-    return staticRoutes;
+    return [...staticRoutes, ...wealthRoutes];
   }
 
   const stockRoutes: MetadataRoute.Sitemap = activeSymbols.map((entry) => ({
@@ -40,5 +48,5 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.7,
   }));
 
-  return [...staticRoutes, ...stockRoutes];
+  return [...staticRoutes, ...wealthRoutes, ...stockRoutes];
 }

@@ -11,7 +11,7 @@ export const metadata: Metadata = {
     default: siteConfig.name,
     template: `%s | ${siteConfig.shortName}`,
   },
-  description: "Institutional stock intelligence workspace for the Bangladesh market",
+  description: siteConfig.defaultDescription,
   icons: {
     icon: [{ url: "/stock-favicon-32.png", sizes: "32x32", type: "image/png" }],
     shortcut: "/stock-favicon-32.png",

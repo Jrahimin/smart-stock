@@ -13,7 +13,10 @@ function resolveSiteUrl() {
 }
 
 export const siteConfig = {
-  name: "Smart Stock Intelligence",
-  shortName: "Smart Stock",
+  name: "StockWealth BD",
+  shortName: "StockWealth BD",
+  tagline: "Stock intelligence and wealth planning for Bangladesh",
+  defaultDescription:
+    "Bangladesh stock intelligence and personal wealth planning — market dashboard, stock research, FDR, DPS, Sanchayapatra, tax tools, and comparisons.",
   url: resolveSiteUrl(),
 };
