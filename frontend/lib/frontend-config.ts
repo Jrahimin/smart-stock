@@ -25,6 +25,7 @@ export const frontendConfig = {
   ),
   googleClientId: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "",
   facebookAppId: process.env.NEXT_PUBLIC_FACEBOOK_APP_ID ?? "",
+  gaMeasurementId: process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID?.trim() ?? "",
   features: {
     advancedChartOverlays: readBooleanFlag(process.env.NEXT_PUBLIC_FEATURE_ADVANCED_CHART_OVERLAYS),
     advancedScanners: readBooleanFlag(process.env.NEXT_PUBLIC_FEATURE_ADVANCED_SCANNERS),

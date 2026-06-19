@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 import "@/app/globals.css";
+import { AppGoogleAnalytics } from "@/components/analytics/google-analytics";
 import { AppProviders } from "@/app/providers";
 import { siteConfig } from "@/lib/seo/site-config";
 
@@ -25,6 +26,7 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
       <body suppressHydrationWarning>
         <AppProviders>{children}</AppProviders>
       </body>
+      <AppGoogleAnalytics />
     </html>
   );
 }
