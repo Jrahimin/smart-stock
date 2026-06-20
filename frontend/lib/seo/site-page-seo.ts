@@ -2,6 +2,20 @@ import type { Metadata } from "next";
 
 import { siteConfig } from "@/lib/seo/site-config";
 
+type SitemapEntryConfig = {
+  path: string;
+  changeFrequency: "always" | "hourly" | "daily" | "weekly" | "monthly" | "yearly" | "never";
+  priority: number;
+};
+
+const MARKET_SITEMAP_ENTRIES: SitemapEntryConfig[] = [
+  { path: "/", changeFrequency: "daily", priority: 1 },
+  { path: "/stocks", changeFrequency: "daily", priority: 0.9 },
+  { path: "/market-pulse", changeFrequency: "hourly", priority: 0.8 },
+  { path: "/scanner", changeFrequency: "daily", priority: 0.75 },
+  { path: "/signals", changeFrequency: "daily", priority: 0.75 },
+];
+
 export function buildSiteCanonical(path: string) {
   const normalized = path.startsWith("/") ? path : `/${path}`;
   return `${siteConfig.url}${normalized}`;
@@ -97,4 +111,8 @@ export function buildSignalsMetadata(): Metadata {
       "Explanation-first buy, sell, and hold signals with confidence and risk context for Bangladesh stocks.",
     path: "/signals",
   });
+}
+
+export function listMarketSitemapEntries(): SitemapEntryConfig[] {
+  return MARKET_SITEMAP_ENTRIES;
 }
