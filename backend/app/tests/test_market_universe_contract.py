@@ -6,6 +6,7 @@ from uuid import uuid4
 
 import pytest
 
+from app.core.core_config import Settings
 from app.core.enums import DataQualityFlag, ExchangeCode, RiskLevelLabel, TraderRecommendation, TrendDirection
 from app.core.market_cache import DASHBOARD_CACHE_KEY_NAMES, dashboard_cache_key
 from app.modules.market_universe.market_universe_cache import UNIVERSE_CACHE_KEY_NAMES, universe_cache_key
@@ -185,15 +186,12 @@ async def test_scored_universe_redis_cache_payload_is_lightweight() -> None:
         async def count_stocks(self, **kwargs):
             return 1
 
-    class FakeSettings:
-        market_dashboard_cache_ttl_seconds = 600
-
     redis = FakeRedis()
     service = MarketUniverseService(
         FakeMarketRepository(),
         FakeStocksRepository(),
         redis,
-        FakeSettings(),
+        Settings(market_snapshot_interval_minutes=15),
     )
 
     await service.get_scored_universe(exchange=ExchangeCode.DSE)

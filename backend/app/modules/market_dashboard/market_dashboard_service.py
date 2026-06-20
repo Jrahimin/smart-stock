@@ -13,6 +13,7 @@ from app.core.constants.trading_constants import (
     DASHBOARD_OVERVIEW_SUMMARIES_LIMIT,
 )
 from app.core.core_config import Settings, get_settings
+from app.jobs.market_session_schedule import current_cache_ttl_seconds
 from app.core.enums import ExchangeCode, TraderRecommendation, TrendDirection
 from app.core.redis_client import OptionalRedisClient, get_redis_client
 from app.models import DailyMarketSummary, DailyPrice, Stock
@@ -147,15 +148,12 @@ class MarketDashboardService:
         self.redis = redis
         self.settings = settings
 
-    @property
-    def cache_ttl_seconds(self) -> int:
-        return self.settings.market_dashboard_cache_ttl_seconds
-
     async def _cache_get(self, cache_key: str) -> dict | None:
         return await self.redis.get_json(cache_key)
 
     async def _cache_set(self, cache_key: str, payload: dict) -> None:
-        await self.redis.set_json(cache_key, payload, ttl_seconds=self.cache_ttl_seconds)
+        ttl_seconds = current_cache_ttl_seconds(self.settings)
+        await self.redis.set_json(cache_key, payload, ttl_seconds=ttl_seconds)
 
     async def _get_cached(self, section: str, exchange: ExchangeCode, model: type[T], compute) -> T:
         cache_key = dashboard_cache_key(section, exchange)

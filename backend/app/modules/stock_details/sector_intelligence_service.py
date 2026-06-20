@@ -6,6 +6,7 @@ from uuid import UUID
 from fastapi import Depends
 
 from app.core.core_config import Settings, get_settings
+from app.jobs.market_session_schedule import current_cache_ttl_seconds
 from app.core.enums import ExchangeCode
 from app.core.exception_handlers import NotFoundError
 from app.core.redis_client import OptionalRedisClient, get_redis_client
@@ -89,10 +90,6 @@ class SectorIntelligenceService:
         self.redis = redis
         self.settings = settings
 
-    @property
-    def cache_ttl_seconds(self) -> int:
-        return self.settings.market_dashboard_cache_ttl_seconds
-
     async def get_sector_context(self, *, exchange: ExchangeCode, symbol: str) -> SectorContextRead | None:
         stock = await self.repository.get_stock_by_exchange_symbol(exchange=exchange, symbol=symbol)
         if stock is None:
@@ -114,7 +111,8 @@ class SectorIntelligenceService:
             return None
 
         payload = self._to_read(result)
-        await self.redis.set_json(cache_key, payload.model_dump(mode="json"), ttl_seconds=self.cache_ttl_seconds)
+        ttl_seconds = current_cache_ttl_seconds(self.settings)
+        await self.redis.set_json(cache_key, payload.model_dump(mode="json"), ttl_seconds=ttl_seconds)
         return payload
 
     async def _build_sector_context(self, *, stock: Stock, sector: str) -> SectorContextResult | None:

@@ -10,6 +10,8 @@ from app.core.enums import MarketSessionStatus
 
 DHAKA_TZ = ZoneInfo("Asia/Dhaka")
 WEEKEND_WEEKDAYS = {4, 5}  # Friday=4, Saturday=5 (Monday=0)
+OPEN_MARKET_CACHE_TTL_CAP_SECONDS = 600
+CLOSED_MARKET_CACHE_TTL_SECONDS = 28_800  # 8 hours — POST_CLOSE, HOLIDAY, PRE_OPEN
 
 
 def parse_hh_mm(value: str) -> time:
@@ -43,6 +45,22 @@ def is_within_snapshot_window(now: datetime, settings: Settings) -> bool:
     close_min = _minutes_since_midnight(parse_hh_mm(settings.market_close_time))
     current = _minutes_since_midnight(now)
     return open_min <= current <= close_min
+
+
+def resolve_cache_ttl_seconds(market_status: MarketSessionStatus, settings: Settings) -> int:
+    """Redis / freshness TTL fallback; invalidation on sync remains primary."""
+    if market_status == MarketSessionStatus.OPEN:
+        return min(OPEN_MARKET_CACHE_TTL_CAP_SECONDS, settings.market_sync_interval_seconds)
+    return CLOSED_MARKET_CACHE_TTL_SECONDS
+
+
+def current_cache_ttl_seconds(settings: Settings, *, now: datetime | None = None) -> int:
+    moment = now if now is not None else datetime.now(DHAKA_TZ)
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=DHAKA_TZ)
+    else:
+        moment = moment.astimezone(DHAKA_TZ)
+    return resolve_cache_ttl_seconds(resolve_market_status(moment, settings), settings)
 
 
 def resolve_market_status(now: datetime, settings: Settings) -> MarketSessionStatus:

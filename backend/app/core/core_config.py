@@ -77,10 +77,6 @@ class Settings(BaseSettings):
         return self.market_snapshot_interval_minutes * 60
 
     @property
-    def market_dashboard_cache_ttl_seconds(self) -> int:
-        return max(60, min(600, self.market_sync_interval_seconds))
-
-    @property
     def cors_origins(self) -> list[str]:
         return [origin.strip() for origin in self.backend_cors_origins.split(",") if origin.strip()]
 

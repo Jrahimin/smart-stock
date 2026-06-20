@@ -28,6 +28,7 @@ from app.modules.market_data.market_data_repository import MarketDataRepository,
 from app.jobs.market_session_schedule import (
     build_freshness_label,
     next_snapshot_sync_at,
+    resolve_cache_ttl_seconds,
     resolve_market_status,
 )
 from app.modules.market_data.market_data_schemas import (
@@ -712,7 +713,7 @@ class MarketDataService:
             next_sync_at=next_sync,
             snapshot_interval_minutes=interval,
             market_sync_interval_seconds=settings.market_sync_interval_seconds,
-            dashboard_cache_ttl_seconds=settings.market_dashboard_cache_ttl_seconds,
+            dashboard_cache_ttl_seconds=resolve_cache_ttl_seconds(status, settings),
             expected_delay_minutes=interval,
             market_open_time=settings.market_open_time,
             market_close_time=settings.market_close_time,
