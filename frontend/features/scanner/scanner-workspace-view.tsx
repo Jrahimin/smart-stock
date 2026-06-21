@@ -13,6 +13,7 @@ import { useMarketUniverse } from "@/features/market-dashboard/hooks/use-market-
 import { formatCompactNumber, formatNumber, formatPercent } from "@/lib/formatters/financial-formatters";
 import { frontendConfig } from "@/lib/frontend-config";
 import { isBreakdownRiskDecision, resolveTraderDecision } from "@/lib/market/trader-decision";
+import { buildStockDetailPath } from "@/lib/seo/stock-page-seo";
 
 export function ScannerWorkspaceView() {
   const { universe, isLoading, isError } = useMarketUniverse({ stockLimit: 500 });
@@ -145,7 +146,7 @@ export function ScannerWorkspaceView() {
                   const decision = resolveTraderDecision(stock);
 
                   return (
-                    <Link className="scanner-result-card" href={`/stocks/${stock.stock.exchange}/${stock.stock.symbol}`} key={stock.stock.id}>
+                    <Link className="scanner-result-card" href={buildStockDetailPath(stock.stock.exchange, stock.stock.symbol)} key={stock.stock.id}>
                       <div className="scanner-card-topline">
                         <strong>{stock.stock.symbol}</strong>
                         <div className="scanner-card-actions">

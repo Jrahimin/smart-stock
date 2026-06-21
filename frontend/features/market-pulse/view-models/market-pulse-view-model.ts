@@ -1,5 +1,6 @@
 import type { BackendMarketPulseDto, BackendFocusStockDto, BackendMarketMoverDto, BackendMarketBriefingDto } from "@/lib/api/backend-api-types";
 import { getMarketSession } from "@/lib/market/market-session-engine";
+import { buildStockDetailPath } from "@/lib/seo/stock-page-seo";
 
 import type {
   FocusStockModel,
@@ -40,7 +41,7 @@ function mapFocusStock(stock: BackendFocusStockDto): FocusStockModel {
     symbol: stock.symbol,
     name: stock.name,
     exchange: stock.exchange,
-    href: `/stocks/${stock.exchange}/${stock.symbol}`,
+    href: buildStockDetailPath(stock.exchange, stock.symbol),
     pulseScore: stock.pulse_score,
     scoreBreakdown: {
       trend: stock.score_breakdown.trend,
@@ -74,7 +75,7 @@ function mapChange(change: BackendMarketPulseDto["changes"][number]): PulseChang
     badge: change.badge,
     badgeTone: mapTone(change.badge_tone),
     href:
-      change.symbol && change.exchange ? `/stocks/${change.exchange}/${change.symbol}` : undefined,
+      change.symbol && change.exchange ? buildStockDetailPath(change.exchange, change.symbol) : undefined,
   };
 }
 
@@ -100,7 +101,7 @@ function mapAlert(alert: BackendMarketPulseDto["alerts"][number]): MarketAlertMo
     priceChangePercent: alert.price_change_percent,
     priceTone: alert.price_tone ? mapPriceTone(alert.price_tone) : null,
     href:
-      alert.symbol && alert.exchange ? `/stocks/${alert.exchange}/${alert.symbol}` : alert.alert_type === "sector-rotation" ? "/scanner" : null,
+      alert.symbol && alert.exchange ? buildStockDetailPath(alert.exchange, alert.symbol) : alert.alert_type === "sector-rotation" ? "/scanner" : null,
   };
 }
 
@@ -224,7 +225,7 @@ function mapBriefing(briefing: BackendMarketBriefingDto): MarketBriefingModel {
           symbol: briefing.high_priority.symbol,
           name: briefing.high_priority.name,
           exchange: briefing.high_priority.exchange,
-          href: `/stocks/${briefing.high_priority.exchange}/${briefing.high_priority.symbol}`,
+          href: buildStockDetailPath(briefing.high_priority.exchange, briefing.high_priority.symbol),
           reason: briefing.high_priority.reason,
           triggerLevel: briefing.high_priority.trigger_level,
           metricLabel: briefing.high_priority.metric_label,
@@ -281,7 +282,7 @@ function mapMover(mover: BackendMarketMoverDto): MarketMoverModel {
     priceChangePercent: mover.price_change_percent,
     priceTone: mapPriceTone(mover.price_tone),
     turnover: mover.turnover,
-    href: `/stocks/${mover.exchange}/${mover.symbol}`,
+    href: buildStockDetailPath(mover.exchange, mover.symbol),
   };
 }
 

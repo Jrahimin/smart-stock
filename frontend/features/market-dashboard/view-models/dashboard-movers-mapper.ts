@@ -1,6 +1,7 @@
 import { formatCompactNumber, formatNumber, formatPercent, toNumber } from "@/lib/formatters/financial-formatters";
 import type { BackendDashboardMoverDto, BackendDashboardMoversDto } from "@/lib/api/backend-api-types";
 import type { MarketMoverModel } from "@/features/market-dashboard/types/market-dashboard-types";
+import { buildStockDetailPath } from "@/lib/seo/stock-page-seo";
 
 function mapMoverTone(changePercent: number | null): MarketMoverModel["tone"] {
   if (changePercent === null || changePercent === 0) {
@@ -22,7 +23,7 @@ function mapDashboardMover(mover: BackendDashboardMoverDto): MarketMoverModel {
     turnover: formatCompactNumber(mover.turnover === null ? null : toNumber(mover.turnover)),
     volume: formatCompactNumber(mover.volume),
     trend: mover.trend_direction,
-    href: `/stocks/${mover.exchange}/${mover.symbol}`,
+    href: buildStockDetailPath(mover.exchange, mover.symbol),
     tone: mapMoverTone(changePercent),
   };
 }

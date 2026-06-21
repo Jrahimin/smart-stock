@@ -16,6 +16,7 @@ import {
   getVolumeConfirmationScore,
   resolveTraderDecision,
 } from "@/lib/market/trader-decision";
+import { buildStockDetailPath } from "@/lib/seo/stock-page-seo";
 
 export function SignalCenterView() {
   const { universe, isLoading, isError } = useMarketUniverse({ stockLimit: 500 });
@@ -93,7 +94,7 @@ export function SignalCenterView() {
           return (
             <Link
               className={`signal-center-item signal-center-item-${decision.recommendation.toLowerCase()} priority-${getDecisionPriority(decision.confidence)}`}
-              href={`/stocks/${stock.stock.exchange}/${stock.stock.symbol}`}
+              href={buildStockDetailPath(stock.stock.exchange, stock.stock.symbol)}
               key={stock.stock.id}
             >
               <div className="signal-center-topline">

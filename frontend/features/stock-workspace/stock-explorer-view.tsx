@@ -23,6 +23,7 @@ import { formatCompactNumber, formatNumber, formatPercent } from "@/lib/formatte
 import type { StockIntelligenceModel } from "@/lib/market/market-intelligence-types";
 import { formatTrendAriaLabel } from "@/lib/market/trend-display";
 import { getVolumeBehaviorId, resolveTraderDecision } from "@/lib/market/trader-decision";
+import { buildStockDetailPath } from "@/lib/seo/stock-page-seo";
 
 const columnHelper = createColumnHelper<StockIntelligenceModel>();
 const NUMERIC_EXPLORER_COLUMNS = new Set(["latestPrice", "change", "turnover", "volume", "rsi", "confidence"]);
@@ -126,7 +127,7 @@ export function StockExplorerView() {
         id: "symbol",
         header: "Symbol",
         cell: (info) => (
-          <Link href={`/stocks/${info.row.original.stock.exchange}/${info.row.original.stock.symbol}`}>
+          <Link href={buildStockDetailPath(info.row.original.stock.exchange, info.row.original.stock.symbol)}>
             <strong>
               <span className={`signal-dot signal-dot-${decisionByStockId.get(info.row.original.stock.id)?.recommendation.toLowerCase() ?? "hold"}`} />
               {info.getValue()}

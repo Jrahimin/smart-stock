@@ -8,6 +8,7 @@ import type {
 } from "@/lib/api/backend-api-types";
 import type { InsightBlockModel } from "@/lib/insights/insight-types";
 import type { LeadersPulseContext } from "@/lib/market/market-pulse-metrics";
+import { buildStockDetailPath } from "@/lib/seo/stock-page-seo";
 import type {
   HeatmapTileModel,
   MarketMood,
@@ -24,7 +25,7 @@ export function mapDashboardSignalsDto(dto: BackendDashboardStocksInFocusDto): S
     reason: signal.reason,
     risk: signal.risk,
     priority: signal.priority as SignalFeedItemModel["priority"],
-    href: `/stocks/${signal.exchange}/${signal.symbol}`,
+    href: buildStockDetailPath(signal.exchange, signal.symbol),
     supportingContext: signal.supporting_context,
     generatedAt: signal.generated_at,
   }));

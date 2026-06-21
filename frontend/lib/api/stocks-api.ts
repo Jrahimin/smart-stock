@@ -1,5 +1,6 @@
 import { backendApiGet } from "@/lib/api/backend-api-client";
 import type { BackendStockDto, ExchangeCode } from "@/lib/api/backend-api-types";
+import { encodeStockSymbolSegment } from "@/lib/seo/stock-page-seo";
 
 export type ListStocksParams = {
   limit?: number;
@@ -35,5 +36,5 @@ export function searchStocks(query: string, exchange?: ExchangeCode, limit = 20)
 }
 
 export function getStockByLookup(exchange: ExchangeCode, symbol: string) {
-  return backendApiGet<BackendStockDto>(`/stocks/lookup/${exchange}/${symbol.toUpperCase()}`);
+  return backendApiGet<BackendStockDto>(`/stocks/lookup/${exchange}/${encodeStockSymbolSegment(symbol)}`);
 }

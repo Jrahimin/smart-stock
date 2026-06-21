@@ -1,5 +1,6 @@
 import { formatCompactNumber, formatNumber, formatPercent } from "@/lib/formatters/financial-formatters";
 import type { StockIntelligenceModel } from "@/lib/market/market-intelligence-types";
+import { buildStockDetailPath } from "@/lib/seo/stock-page-seo";
 
 export const DEFAULT_MARKET_MOVER_LIMIT = 5;
 
@@ -59,7 +60,7 @@ function toMoverViewModel(stock: StockIntelligenceModel): DashboardMoverViewMode
     turnover: formatCompactNumber(stock.turnover),
     volume: formatCompactNumber(stock.volume),
     trend: stock.trend,
-    href: `/stocks/${stock.stock.exchange}/${stock.stock.symbol}`,
+    href: buildStockDetailPath(stock.stock.exchange, stock.stock.symbol),
     tone:
       (stock.priceChangePercent ?? 0) > 0
         ? "positive"

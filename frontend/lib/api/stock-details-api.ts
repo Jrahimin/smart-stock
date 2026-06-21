@@ -1,14 +1,15 @@
 import { backendApiGetMarket } from "@/lib/api/backend-api-client";
 import type { ExchangeCode } from "@/lib/api/backend-api-types";
 import type { StockDecisionSupportDto, StockWorkspaceDto } from "@/lib/api/stock-decision-support-types";
+import { encodeStockSymbolSegment } from "@/lib/seo/stock-page-seo";
 
 export function getStockWorkspace(exchange: ExchangeCode, symbol: string) {
-  return backendApiGetMarket<StockWorkspaceDto>(`/stock-details/${exchange}/${symbol.toUpperCase()}/workspace`);
+  return backendApiGetMarket<StockWorkspaceDto>(`/stock-details/${exchange}/${encodeStockSymbolSegment(symbol)}/workspace`);
 }
 
 export function getStockDecisionSupport(exchange: ExchangeCode, symbol: string) {
   return backendApiGetMarket<StockDecisionSupportDto>(
-    `/stock-details/${exchange}/${symbol.toUpperCase()}/decision-support`,
+    `/stock-details/${exchange}/${encodeStockSymbolSegment(symbol)}/decision-support`,
   );
 }
 
@@ -32,5 +33,5 @@ export type SectorContextDto = {
 };
 
 export function getSectorContext(exchange: ExchangeCode, symbol: string) {
-  return backendApiGetMarket<SectorContextDto>(`/stock-details/${exchange}/${symbol.toUpperCase()}/sector-context`);
+  return backendApiGetMarket<SectorContextDto>(`/stock-details/${exchange}/${encodeStockSymbolSegment(symbol)}/sector-context`);
 }

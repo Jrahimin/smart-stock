@@ -12,10 +12,7 @@ import {
   saveRecentStockSearch,
   type StockSearchPick,
 } from "@/lib/stocks/stock-search-config";
-
-function buildStockDetailPath(stock: Pick<BackendStockDto, "exchange" | "symbol">) {
-  return `/stocks/${stock.exchange}/${stock.symbol}`;
-}
+import { buildStockDetailPath } from "@/lib/seo/stock-page-seo";
 
 type UseStockSymbolSearchOptions = {
   onFilterTable?: (query: string) => void;
@@ -61,7 +58,7 @@ export function useStockSymbolSearch(options: UseStockSymbolSearchOptions = {}) 
   const navigateToStock = useCallback(
     (stock: Pick<BackendStockDto, "exchange" | "symbol" | "name">) => {
       rememberStock({ symbol: stock.symbol, exchange: stock.exchange, name: stock.name });
-      router.push(buildStockDetailPath(stock));
+      router.push(buildStockDetailPath(stock.exchange, stock.symbol));
       setQuery("");
       setDebouncedQuery("");
     },

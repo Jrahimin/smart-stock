@@ -10,6 +10,7 @@ import {
 import type { StockIntelligenceModel } from "@/lib/market/market-intelligence-types";
 import { formatNumber, formatPercent } from "@/lib/formatters/financial-formatters";
 import { resolveTraderDecision } from "@/lib/market/trader-decision";
+import { buildStockDetailPath } from "@/lib/seo/stock-page-seo";
 
 export type RelatedStockCard = {
   stockId: string;
@@ -44,7 +45,7 @@ function mapStockToCard(
     stockId: stock.stock.id,
     symbol: stock.stock.symbol,
     exchange: stock.stock.exchange,
-    href: `/stocks/${stock.stock.exchange}/${stock.stock.symbol}`,
+    href: buildStockDetailPath(stock.stock.exchange, stock.stock.symbol),
     price: formatNumber(stock.latestPrice),
     changePercent: formatPercent(stock.priceChangePercent),
     recommendation: decision.recommendation,

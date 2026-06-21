@@ -14,6 +14,7 @@ import {
   buildStockDetailCanonical,
   buildStockDetailTitle,
   buildStockOrganizationJsonLd,
+  encodeStockSymbolSegment,
 } from "@/lib/seo/stock-page-seo";
 import { siteConfig } from "@/lib/seo/site-config";
 
@@ -27,8 +28,8 @@ type StockDetailPageProps = {
 async function loadStockMetadata(exchange: ExchangeCode, symbol: string) {
   const normalizedSymbol = symbol.toUpperCase();
   const [stock, workspace] = await Promise.all([
-    fetchServerApiData<BackendStockDto>(`/stocks/lookup/${exchange}/${normalizedSymbol}`),
-    fetchServerApiData<StockWorkspaceDto>(`/stock-details/${exchange}/${normalizedSymbol}/workspace`),
+    fetchServerApiData<BackendStockDto>(`/stocks/lookup/${exchange}/${encodeStockSymbolSegment(normalizedSymbol)}`),
+    fetchServerApiData<StockWorkspaceDto>(`/stock-details/${exchange}/${encodeStockSymbolSegment(normalizedSymbol)}/workspace`),
   ]);
 
   return { stock, workspace };

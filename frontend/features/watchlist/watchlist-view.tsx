@@ -23,6 +23,7 @@ import {
 } from "@/features/watchlist/view-models/watchlist-view-model";
 import { useEnrichedUniverseIntelligence } from "@/hooks/market/use-enriched-universe-intelligence";
 import { resolveWatchlistStockIntelligence } from "@/lib/market/universe-intelligence";
+import { buildStockDetailPath } from "@/lib/seo/stock-page-seo";
 
 export function WatchlistView() {
   const { items, summary, isLoading, isError } = useUserWatchlist();
@@ -202,7 +203,7 @@ export function WatchlistView() {
             {rows.length ? (
               rows.map((row, rowIndex) => {
                 const stock = row.intelligence?.stock;
-                const href = stock ? `/stocks/${stock.exchange}/${stock.symbol}` : "#";
+                const href = stock ? buildStockDetailPath(stock.exchange, stock.symbol) : "#";
                 const stockId = row.item.stock_id;
                 const isNoteEditing = editingNoteStockId === stockId;
                 const isEditingBuyPrice = editingBuyPriceStockId === stockId;

@@ -1,8 +1,12 @@
 import type { BackendStockDto, ExchangeCode } from "@/lib/api/backend-api-types";
 import { siteConfig } from "@/lib/seo/site-config";
 
+export function encodeStockSymbolSegment(symbol: string) {
+  return encodeURIComponent(symbol.toUpperCase());
+}
+
 export function buildStockDetailPath(exchange: ExchangeCode, symbol: string) {
-  return `/stocks/${exchange}/${symbol.toUpperCase()}`;
+  return `/stocks/${exchange}/${encodeStockSymbolSegment(symbol)}`;
 }
 
 export function buildStockDetailCanonical(exchange: ExchangeCode, symbol: string) {
