@@ -10,9 +10,10 @@ Related module docs: [market_universe.md](market_universe.md), [market_dashboard
 
 1. **PostgreSQL is the source of truth.** Caches are performance layers only.
 2. **Sync-driven freshness on the backend.** Scheduled and manual data writes invalidate Redis; TTL is a safety net, not the primary refresh mechanism.
-3. **Compute-on-miss, no cache warming.** After invalidation, the next request pays full compute cost.
-4. **Redis is optional.** Unset `REDIS_URL` → backend always computes; behavior is correct, only slower.
-5. **Browser fetches the API directly.** Next.js does not proxy or server-cache market JSON; all client caching happens in the browser.
+3. **Sync-aligned freshness in the browser.** `MarketCacheSyncCoordinator` polls `/market/freshness` and busts IndexedDB + TanStack market queries when `last_synced_at` advances — client caches stay aligned with backend sync without a page reload.
+4. **Compute-on-miss, no cache warming.** After invalidation, the next request pays full compute cost.
+5. **Redis is optional.** Unset `REDIS_URL` → backend always computes; behavior is correct, only slower.
+6. **Browser fetches the API directly.** Next.js does not proxy or server-cache market JSON; all client caching happens in the browser.
 
 ---
 
@@ -21,6 +22,11 @@ Related module docs: [market_universe.md](market_universe.md), [market_dashboard
 ```text
 ┌─────────────────────────────────────────────────────────────────────────┐
 │ Browser                                                                 │
+│                                                                         │
+│  MarketCacheSyncCoordinator (app/providers.tsx)                         │
+│    → polls GET /market/freshness every ~2 min                           │
+│    → on last_synced_at change → market-cache-coordinator                │
+│         → clear IndexedDB + invalidate TanStack market query roots        │
 │                                                                         │
 │  UI → TanStack Query (in-memory)                                        │
 │         ↓ queryFn                                                       │
@@ -47,13 +53,16 @@ Related module docs: [market_universe.md](market_universe.md), [market_dashboard
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-Three **independent** client-side layers (do not conflate):
+Three **independent** client-side layers (do not conflate), plus one **coordinator**:
 
 | Layer | Where | Typical TTL | Driven by |
 |-------|--------|-------------|-----------|
 | **Redis** | Backend services | `dashboard_cache_ttl_seconds` (default 600s) | Sync interval + invalidation |
 | **TanStack Query** | React hooks | Same as backend TTL during OPEN/PRE_OPEN | `GET /market/freshness` |
 | **IndexedDB** | `backend-api-client.ts` | Market: 5–10 min; other GETs: 2h | Build-time env |
+| **Sync coordinator** | `market-cache-coordinator.ts` | N/A (event-driven) | `last_synced_at` change on `/market/freshness` poll |
+
+**Coordinator invalidates TanStack roots:** `dashboard`, `market-universe-rows`, `market-pulse-summary`, `market-pulse-briefing`, `signals`. Scanner, signals, and stock explorer consume `market-universe-rows` — no separate keys.
 
 ---
 
@@ -154,7 +163,22 @@ IndexedDB details:
 
 - Database: `smart-stock-api-cache`, store `responses`
 - Key: full request URL including query string
-- Clear all: `clearBackendApiCache()` or `refreshMarketClientCaches()` (`frontend/lib/market/refresh-market-client-caches.ts`)
+- Clear all: `clearBackendApiCache()` or `invalidateMarketClientCaches(queryClient)` via `market-cache-coordinator.ts`
+
+### Market cache coordinator
+
+Central service: `frontend/lib/market/market-cache-coordinator.ts`
+
+| Function | Role |
+|----------|------|
+| `invalidateMarketClientCaches(queryClient)` | Clear IndexedDB + invalidate TanStack market query roots (auto-sync path) |
+| `refreshMarketClientCaches(queryClient)` | Above + invalidate `market-freshness` (manual refresh path) |
+
+Mounted app-wide via `MarketCacheSyncCoordinator` in `frontend/app/providers.tsx` (uses `useMarketCacheSyncCoordinator`).
+
+**Sync detection:** compare previous vs current `last_synced_at` from `useMarketDataFreshness` (2 min poll, always network via `backendApiGetFresh`). Skip invalidation on first observed value (initial mount only).
+
+**Do not** duplicate sync detection or cache busting in feature hooks or pages — extend the coordinator when adding new market TanStack roots.
 
 ### TanStack Query
 
@@ -170,7 +194,21 @@ Market hooks override via `frontend/lib/market/market-cache-policy.ts`:
 Freshness hook (`use-market-data-freshness.ts`):
 
 - `staleTime`: 60s
-- `refetchInterval`: 2 min (disabled on Market Pulse page)
+- `refetchInterval`: 2 min (disabled on Market Pulse page hook instance only; app coordinator always polls)
+
+### Manual refresh
+
+**UI:** `MarketDataFreshnessBar` includes a refresh button (disabled during `PRE_OPEN` / `HOLIDAY`).
+
+**Programmatic:** `useMarketCacheRefresh()` → `refreshMarketClientCaches(queryClient)`.
+
+Feature hooks delegate `refetch()` to the same coordinator (no duplicated invalidation logic):
+
+- `useMarketDashboard`
+- `useMarketPulse`
+- `useMarketUniverse` (and enriched universe via delegation)
+
+`refresh-market-client-caches.ts` re-exports coordinator functions for backward compatibility.
 
 ### Configuration (build-time)
 
@@ -180,16 +218,6 @@ Freshness hook (`use-market-data-freshness.ts`):
 | `NEXT_PUBLIC_MARKET_CACHE_HOURS` | `2` | IndexedDB TTL for non-market GETs; TanStack global default |
 
 Production: rebuild the frontend Docker image after changing `NEXT_PUBLIC_*` values.
-
-### Manual refresh
-
-Hooks expose `refetch()` that calls `refreshMarketClientCaches()` then invalidates/refetches TanStack queries:
-
-- `useMarketDashboard`
-- `useMarketPulse`
-- `useMarketUniverse` (and enriched universe via delegation)
-
-These are not wired to a UI button yet; full page reload also clears in-memory TanStack state but may retain IndexedDB until TTL expiry unless refresh helpers run.
 
 ---
 
@@ -204,9 +232,10 @@ With `market_snapshot_interval_minutes=15`:
 | TanStack market hooks | 600s during OPEN | From `/market/freshness` |
 | IndexedDB market GETs | 10 min | Env clamp 5–10; independent of freshness API |
 | IndexedDB `/market/freshness` | None | Always network |
-| TanStack freshness hook | 60s stale, 2 min poll | In-memory only |
+| TanStack freshness hook | 60s stale, 2 min poll | In-memory only; drives sync coordinator |
+| Sync coordinator reaction | ≤2 min after sync | `last_synced_at` change → IndexedDB clear + TanStack invalidation |
 
-Primary freshness driver: **backend invalidation on data write**, not TTL expiry.
+Primary freshness drivers: **backend Redis invalidation on data write** and **browser coordinator on `last_synced_at` change**. IndexedDB/TanStack TTL alone are safety nets.
 
 ---
 
@@ -249,11 +278,10 @@ User navigates within dashboard
 ```text
 refetchInterval triggers useDashboardOverview refetch
 → backendApiGetMarket("/dashboard/overview")
-→ IndexedDB hit (written at T=0, 10 min TTL not expired)
-→ Returns cached JSON without network
+→ IndexedDB may still serve cached JSON if within 10 min TTL
 
-Note: TanStack "refetched" but may still see IndexedDB data until TTL expires
-      or manual refreshMarketClientCaches() runs.
+If backend sync has not run since T=0, data may match T=0 snapshot.
+Coordinator has not fired (last_synced_at unchanged).
 ```
 
 ### T=15 min — Scheduler runs sync_market_snapshot
@@ -267,26 +295,28 @@ backend-scheduler:
      → DELETE dashboard:*, pulse:*, universe:scored:DSE
 
 PostgreSQL now has fresh prices. Redis exchange-wide keys are empty.
+last_synced_at advances in DB.
 ```
 
-### T=15 min + 30s — User still on dashboard, TanStack refetch fires
+### T=15 min + ≤2 min — Coordinator detects sync (freshness poll)
 
 ```text
-If IndexedDB still holds T=0 overview (10 min TTL expired at T=10… actually expired at T=10):
-  At T=10 IndexedDB expired → prior refetch would have hit network
-  At T=15+ refetch:
-    → IndexedDB miss OR stale entry
-    → fetch GET /dashboard/overview
-    → Backend Redis miss → compute from fresh DB → SET EX=600
-    → UI updates with new prices
+MarketCacheSyncCoordinator observes new last_synced_at
+→ invalidateMarketClientCaches(queryClient)
+   → clearBackendApiCache() (IndexedDB wiped)
+   → invalidateQueries dashboard, market-universe-rows, market-pulse-*, signals
+
+Active TanStack queries refetch immediately
+→ backendApiGetMarket → network (IndexedDB miss)
+→ Backend Redis miss → compute from fresh DB → SET EX=600
+→ UI updates with new prices (no page reload)
 ```
 
-**Staleness window:** worst case is bounded by the **longest** of TanStack `staleTime`, IndexedDB TTL, and time until next sync — with invalidation, backend Redis is not the bottleneck; client IndexedDB + TanStack coordination is.
-
-### T=15 min — Explorer (universe rows) same session
+### T=15 min — Explorer / scanner / signals same session
 
 ```text
-useMarketUniverse → backendApiGetMarket("/market/universe-rows")
+useMarketUniverse → invalidated with market-universe-rows
+→ backendApiGetMarket("/market/universe-rows")
 → Backend: universe:scored miss (invalidated at sync) → full compute → cache
 → Fresh ScoredUniverseRow list in UI
 ```
@@ -305,28 +335,28 @@ useMarketUniverse → backendApiGetMarket("/market/universe-rows")
    → invalidate_market_caches_for_exchange(DSE) once
 
 4. Browser users:
-   → Still see old data until TanStack staleTime / IndexedDB TTL / manual refresh
-   → refreshMarketClientCaches() + refetch forces network round-trip to fresh backend
+   → Coordinator detects new last_synced_at on next freshness poll (≤2 min)
+   → IndexedDB cleared + TanStack market queries invalidated automatically
+   → Or user clicks refresh on MarketDataFreshnessBar / calls useMarketCacheRefresh()
 ```
 
 ---
 
-## Journey: manual refresh (programmatic)
+## Journey: manual refresh (UI or programmatic)
 
 ```text
-User triggers useMarketDashboard().refetch() (when wired to UI):
+User clicks refresh on MarketDataFreshnessBar (or feature hook refetch()):
 
-1. refreshMarketClientCaches()
+1. useMarketCacheRefresh() → refreshMarketClientCaches(queryClient)
    → IndexedDB store cleared entirely
+   → invalidateQueries: dashboard, market-universe-rows, market-pulse-*, signals
+   → invalidateQueries: market-freshness
 
-2. queryClient.invalidateQueries({ queryKey: ["dashboard"] })
-   → All dashboard section queries refetch
-
-3. freshnessQuery.refetch()
-   → backendApiGetFresh("/market/freshness") → latest sync timestamps
-
-4. Each section queryFn → backendApiGetMarket → network → backend
+2. Active TanStack queries refetch
+   → Each queryFn → backendApiGetMarket → network → backend
    → Redis hit or compute-on-miss from current DB
+
+Disabled during PRE_OPEN / HOLIDAY (refresh button only; programmatic refetch still available from hooks).
 ```
 
 ---
@@ -345,7 +375,8 @@ User triggers useMarketDashboard().refetch() (when wired to UI):
 2. Use `backendApiGetMarket` for trader/market intelligence GETs.
 3. Use `backendApiGetFresh` only when the response must never be persisted (like freshness).
 4. Wrap in a hook with `staleTime` / `refetchInterval` from `getMarketStaleTimeMs` / `getMarketRefetchIntervalMs`.
-5. If exposing manual refresh, call `refreshMarketClientCaches()` before TanStack refetch.
+5. If the hook introduces a new TanStack root for exchange-wide market data, register it in `MARKET_TANSTACK_QUERY_ROOTS` inside `market-cache-coordinator.ts`.
+6. For manual refresh, use `useMarketCacheRefresh()` — do not call `clearBackendApiCache()` or ad-hoc `invalidateQueries` from feature code.
 
 ---
 
@@ -356,7 +387,7 @@ User triggers useMarketDashboard().refetch() (when wired to UI):
 | Deploy backend env change | Restart `backend-api` + `backend-scheduler` |
 | Deploy frontend cache env | `docker compose build frontend` (build-time `NEXT_PUBLIC_*`) |
 | Redis down | Backend computes every request; no user-facing error |
-| Pre-deploy browser IndexedDB | Old 2h entries expire naturally; manual refresh clears immediately |
+| Pre-deploy browser IndexedDB | Old entries cleared on next sync detection or manual refresh |
 | Stock workspace staleness | Up to Redis TTL within same trade date; not invalidated on sync |
 | Pulse `previous_snapshot` param | Backend skips Redis read/write for that request (change-detection path) |
 
@@ -384,10 +415,14 @@ User triggers useMarketDashboard().refetch() (when wired to UI):
 |------|------|
 | `lib/api/backend-api-client.ts` | IndexedDB + `Get` / `GetMarket` / `GetFresh` |
 | `lib/frontend-config.ts` | Cache TTL env |
+| `lib/market/market-cache-coordinator.ts` | IndexedDB clear + TanStack invalidation; `MARKET_TANSTACK_QUERY_ROOTS` |
+| `hooks/market/use-market-cache-coordinator.ts` | `useMarketCacheSyncCoordinator`, `useMarketCacheRefresh` |
+| `components/market/market-cache-sync-coordinator.tsx` | App-level sync listener (mounted in providers) |
+| `components/layout/market-data-freshness-bar.tsx` | Freshness chip + manual refresh button |
 | `lib/market/market-cache-policy.ts` | TanStack stale/refetch from freshness |
-| `lib/market/refresh-market-client-caches.ts` | Manual refresh helper |
+| `lib/market/refresh-market-client-caches.ts` | Re-exports coordinator (backward compat) |
 | `hooks/market/use-market-data-freshness.ts` | Freshness polling |
-| `app/providers.tsx` | TanStack global defaults |
+| `app/providers.tsx` | TanStack global defaults + `MarketCacheSyncCoordinator` |
 | `lib/api/market-dashboard-api.ts` | Dashboard GET wrappers |
 | `lib/api/market-universe-api.ts` | Universe GET wrapper |
 | `lib/api/market-pulse-api.ts` | Pulse GET wrappers |

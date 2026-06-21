@@ -69,7 +69,7 @@ Market data workflow (split):
 4. Store in database (upsert by `stock_id + trade_date`)
 5. Compute indicators and generate signals downstream
 
-`GET /market/freshness` exposes snapshot timing and `market_status` for the frontend (no hardcoded session times in UI).
+`GET /market/freshness` exposes snapshot timing and `market_status` for the frontend (no hardcoded session times in UI). The app-level **market cache coordinator** polls this endpoint every ~2 minutes; when `last_synced_at` advances after a backend sync, it clears browser IndexedDB market caches and invalidates TanStack market queries so dashboard, explorer, scanner, signals, and pulse refetch without a page reload. See `backend/docs/market_caching.md`.
 
 The system must be reliable and repeatable.
 
@@ -332,6 +332,7 @@ Root: `frontend/`
 * Shared list intelligence: `frontend/lib/market/universe-row-mapper.ts`, `universe-intelligence.ts`, `trader-decision.ts`, `trend-display.ts`
 * Shared list hook: `frontend/hooks/market/use-enriched-universe-intelligence.ts` (`intelligenceByStockId` from universe rows + persisted signals)
 * Market universe hook: `frontend/features/market-dashboard/hooks/use-market-universe.ts` (raw rows + mapped list models)
+* Market cache coordinator: `frontend/lib/market/market-cache-coordinator.ts` (IndexedDB clear + TanStack invalidation); `frontend/hooks/market/use-market-cache-coordinator.ts`; mounted via `frontend/components/market/market-cache-sync-coordinator.tsx` in `frontend/app/providers.tsx`
 * Market dashboard feature: `frontend/features/market-dashboard/`
 * Stock workspace feature: `frontend/features/stock-workspace/`
 * Stock detail SEO (server, App Router):

@@ -10,7 +10,7 @@ import {
   buildMarketPulseViewModel,
 } from "@/features/market-pulse/view-models/market-pulse-view-model";
 import { getMarketPulseBriefing, getMarketPulseSummary } from "@/lib/api/market-pulse-api";
-import { refreshMarketClientCaches } from "@/lib/market/refresh-market-client-caches";
+import { useMarketCacheRefresh } from "@/hooks/market/use-market-cache-coordinator";
 import type { BackendMarketPulseDto, BackendMarketPulsePreviousSnapshotDto } from "@/lib/api/backend-api-types";
 import { useMarketDataFreshness } from "@/hooks/market/use-market-data-freshness";
 import { getMarketRefetchIntervalMs, getMarketStaleTimeMs } from "@/lib/market/market-cache-policy";
@@ -31,6 +31,7 @@ function toApiPreviousSnapshot(stored: ReturnType<typeof readMarketPulseSnapshot
 
 export function useMarketPulse() {
   const { user } = useAuth();
+  const refreshMarketCaches = useMarketCacheRefresh();
   const freshnessQuery = useMarketDataFreshness("DSE", { refetchInterval: false });
   const staleTime = getMarketStaleTimeMs(freshnessQuery.data);
   const refetchInterval = getMarketRefetchIntervalMs(freshnessQuery.data);
@@ -94,11 +95,6 @@ export function useMarketPulse() {
     isLoading: summaryQuery.isLoading,
     isBriefingLoading: briefingQuery.isLoading,
     isError: summaryQuery.isError || briefingQuery.isError,
-    refetch: async () => {
-      await refreshMarketClientCaches();
-      await summaryQuery.refetch();
-      await briefingQuery.refetch();
-      await freshnessQuery.refetch();
-    },
+    refetch: refreshMarketCaches,
   };
 }

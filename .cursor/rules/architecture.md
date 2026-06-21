@@ -147,7 +147,7 @@ Section endpoints under `GET /api/v1/dashboard/*` replace the old dashboard `pri
 
 **Redis (optional):** `REDIS_URL` unset → compute every request. Keys: `dashboard:{section}:{exchange}` (`overview`, `movers`, `sectors`, `market-alerts`, `stocks-in-focus`, `heatmap`, `market-sentiment`). TTL: `max(60, min(600, market_sync_interval_seconds))`. `sync_market_snapshot` deletes all keys explicitly (best-effort); failures are logged, never fatal.
 
-**Frontend:** TanStack Query per section; `staleTime` / `refetchInterval` from `GET /market/freshness` → `dashboard_cache_ttl_seconds`. See `backend/docs/market_dashboard.md`.
+**Frontend:** TanStack Query per section; `staleTime` / `refetchInterval` from `GET /market/freshness` → `dashboard_cache_ttl_seconds`. App-level `MarketCacheSyncCoordinator` polls freshness and busts IndexedDB + TanStack market queries when `last_synced_at` advances. See `backend/docs/market_dashboard.md` and `backend/docs/market_caching.md`.
 
 ---
 
@@ -274,15 +274,20 @@ Watchlist fallback when a symbol is missing from the universe payload: use watch
 
 The market session engine should model `PRE_OPEN`, `OPEN`, `POST_CLOSE`, `HOLIDAY`, `STALE`, `PARTIAL`, and `SYNCING` using Asia/Dhaka context, latest market dates, data quality, and future sync job state.
 
-The product uses daily synced data, not live streaming. **Three cache layers** (do not conflate):
+The product uses daily synced data, not live streaming. **Three browser-side cache layers** plus a **sync coordinator** (do not conflate):
 
 | Layer | Where | TTL / behavior |
 |-------|--------|----------------|
-| Redis (optional) | `market_dashboard_service` | `dashboard_cache_ttl_seconds`; invalidated on sync |
-| TanStack Query | Feature hooks | Dashboard: `staleTime` + `refetchInterval` from freshness; other views may use defaults |
-| IndexedDB | `backend-api-client` `backendApiGet` | `NEXT_PUBLIC_MARKET_CACHE_HOURS` (default 2h) |
+| Redis (optional) | Backend services | `dashboard_cache_ttl_seconds`; invalidated on sync |
+| TanStack Query | Feature hooks | Market hooks: `staleTime` + `refetchInterval` from freshness during OPEN/PRE_OPEN |
+| IndexedDB | `backendApiGetMarket` in `backend-api-client.ts` | Market GETs: 5–10 min (`NEXT_PUBLIC_MARKET_CACHE_MINUTES`); other GETs: 2h |
+| **Sync coordinator** | `market-cache-coordinator.ts` + `MarketCacheSyncCoordinator` in `providers.tsx` | Polls `/market/freshness` every ~2 min; on `last_synced_at` change → clear IndexedDB + invalidate TanStack roots (`dashboard`, `market-universe-rows`, `market-pulse-*`, `signals`) |
 
-Dashboard loads via `/dashboard/*` only (no `price-windows`). Market views rely on TanStack Query `staleTime` / `refetchInterval` (dashboard: from `dashboard_cache_ttl_seconds` on freshness) and optional IndexedDB caching in `backendApiGet`.
+Dashboard loads via `/dashboard/*` only (no `price-windows`). Explorer, scanner, and signals share `market-universe-rows` — no separate TanStack keys.
+
+**Manual refresh:** `MarketDataFreshnessBar` refresh button and feature-hook `refetch()` both call `refreshMarketClientCaches()` via `useMarketCacheRefresh()`. Do not duplicate invalidation logic in feature hooks.
+
+Full end-to-end flow: `backend/docs/market_caching.md`.
 
 ### Table And Performance Strategy
 

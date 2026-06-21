@@ -1,6 +1,6 @@
 "use client";
 
-import { Clock3 } from "lucide-react";
+import { Clock3, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import {
@@ -8,6 +8,7 @@ import {
   formatRelativeLastUpdated,
   useMarketDataFreshness,
 } from "@/hooks/market/use-market-data-freshness";
+import { useMarketCacheRefresh } from "@/hooks/market/use-market-cache-coordinator";
 import type { ExchangeCode } from "@/lib/api/backend-api-types";
 
 function buildFreshnessTooltip(model: ReturnType<typeof buildMarketFreshnessViewModel>) {
@@ -22,6 +23,10 @@ function buildFreshnessTooltip(model: ReturnType<typeof buildMarketFreshnessView
   return parts.length > 0 ? parts.join(" · ") : undefined;
 }
 
+function isManualRefreshDisabled(marketStatus: string | undefined) {
+  return marketStatus === "PRE_OPEN" || marketStatus === "HOLIDAY";
+}
+
 type FreshnessChipProps = {
   className?: string;
   label: string;
@@ -34,6 +39,27 @@ function FreshnessChip({ className, label, title }: FreshnessChipProps) {
       <Clock3 aria-hidden="true" className="market-freshness-icon" size={12} strokeWidth={2.25} />
       <span className="market-freshness-text">{label}</span>
     </div>
+  );
+}
+
+type MarketFreshnessRefreshButtonProps = {
+  disabled?: boolean;
+  isRefreshing?: boolean;
+  onRefresh: () => void;
+};
+
+function MarketFreshnessRefreshButton({ disabled = false, isRefreshing = false, onRefresh }: MarketFreshnessRefreshButtonProps) {
+  return (
+    <button
+      aria-label="Refresh market data"
+      className="market-freshness-refresh-button"
+      disabled={disabled || isRefreshing}
+      onClick={onRefresh}
+      title={disabled ? "Refresh unavailable during this session" : "Refresh market data"}
+      type="button"
+    >
+      <RefreshCw aria-hidden="true" className={isRefreshing ? "market-freshness-refresh-icon-spinning" : undefined} size={12} strokeWidth={2.25} />
+    </button>
   );
 }
 
@@ -56,6 +82,8 @@ function resolveFreshnessWrapperClass(variant: MarketDataFreshnessBarProps["vari
 
 export function MarketDataFreshnessBar({ variant = "embedded", exchange = "DSE", className }: MarketDataFreshnessBarProps) {
   const { data, isLoading, isError } = useMarketDataFreshness(exchange);
+  const refreshMarketCaches = useMarketCacheRefresh();
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [, setTick] = useState(0);
 
   useEffect(() => {
@@ -65,10 +93,20 @@ export function MarketDataFreshnessBar({ variant = "embedded", exchange = "DSE",
 
   const model = buildMarketFreshnessViewModel(data, isLoading, isError);
   const tooltip = buildFreshnessTooltip(model);
-  const wrapperClass = [resolveFreshnessWrapperClass(variant), className].filter(Boolean).join(" ");
+  const wrapperClass = [resolveFreshnessWrapperClass(variant), "market-freshness-bar-with-refresh", className]
+    .filter(Boolean)
+    .join(" ");
   const relativeLabel =
     model.relativeLastUpdatedLabel ??
     (data?.last_synced_at ? formatRelativeLastUpdated(data.last_synced_at) : null);
+  const refreshDisabled = isManualRefreshDisabled(data?.market_status);
+
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    void refreshMarketCaches().finally(() => {
+      setIsRefreshing(false);
+    });
+  };
 
   if (isLoading && !model.lastUpdatedLabel) {
     return (
@@ -86,6 +124,7 @@ export function MarketDataFreshnessBar({ variant = "embedded", exchange = "DSE",
           label="Status unavailable"
           title="Market snapshot status unavailable"
         />
+        <MarketFreshnessRefreshButton isRefreshing={isRefreshing} onRefresh={handleRefresh} />
       </div>
     );
   }
@@ -95,6 +134,7 @@ export function MarketDataFreshnessBar({ variant = "embedded", exchange = "DSE",
   return (
     <div className={wrapperClass}>
       <FreshnessChip label={label} title={tooltip} />
+      <MarketFreshnessRefreshButton disabled={refreshDisabled} isRefreshing={isRefreshing} onRefresh={handleRefresh} />
     </div>
   );
 }

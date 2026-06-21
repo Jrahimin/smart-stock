@@ -4,6 +4,7 @@ import { GoogleOAuthProvider } from "@react-oauth/google";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { useState } from "react";
+import { MarketCacheSyncCoordinator } from "@/components/market/market-cache-sync-coordinator";
 import { AuthProvider } from "@/features/auth/context/auth-context";
 import { frontendConfig } from "@/lib/frontend-config";
 
@@ -24,7 +25,10 @@ export function AppProviders({ children }: Readonly<{ children: ReactNode }>) {
 
   const content = (
     <AuthProvider>
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      <QueryClientProvider client={queryClient}>
+        <MarketCacheSyncCoordinator />
+        {children}
+      </QueryClientProvider>
     </AuthProvider>
   );
 

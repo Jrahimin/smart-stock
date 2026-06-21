@@ -1,10 +1,9 @@
 "use client";
 
 import { useMemo } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 
 import { buildMarketDashboardModel } from "@/features/market-dashboard/view-models/market-dashboard-view-model";
-import { refreshMarketClientCaches } from "@/lib/market/refresh-market-client-caches";
+import { useMarketCacheRefresh } from "@/hooks/market/use-market-cache-coordinator";
 import { mapDashboardMoversDto } from "@/features/market-dashboard/view-models/dashboard-movers-mapper";
 import {
   mapDashboardAlertsDto,
@@ -28,7 +27,7 @@ import {
 import { isSectionLoading } from "@/lib/ui/section-loading";
 
 export function useMarketDashboard() {
-  const queryClient = useQueryClient();
+  const refreshMarketCaches = useMarketCacheRefresh();
   const freshnessQuery = useMarketDataFreshness("DSE");
   const freshness = freshnessQuery.data;
   const staleTimeMs = getDashboardStaleTimeMs(freshness);
@@ -139,12 +138,6 @@ export function useMarketDashboard() {
       heatmapQuery.isError ||
       sentimentQuery.isError,
     priceBackedCount: mappedSentiment?.priceBackedCount ?? signalsQuery.data?.evaluated_count ?? 0,
-    refetch: async () => {
-      await refreshMarketClientCaches();
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["dashboard"] }),
-        freshnessQuery.refetch(),
-      ]);
-    },
+    refetch: refreshMarketCaches,
   };
 }

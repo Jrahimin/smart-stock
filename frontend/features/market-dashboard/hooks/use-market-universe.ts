@@ -3,8 +3,8 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
-import { refreshMarketClientCaches } from "@/lib/market/refresh-market-client-caches";
 import { listUniverseRows } from "@/lib/api/market-universe-api";
+import { useMarketCacheRefresh } from "@/hooks/market/use-market-cache-coordinator";
 import { useMarketDataFreshness } from "@/hooks/market/use-market-data-freshness";
 import { getMarketRefetchIntervalMs, getMarketStaleTimeMs } from "@/lib/market/market-cache-policy";
 import { mapUniverseRowToListRow } from "@/lib/market/universe-row-mapper";
@@ -24,6 +24,7 @@ export function useScoredUniverseRows(options: UseMarketUniverseOptions = {}) {
 
 export function useMarketUniverse(options: UseMarketUniverseOptions = {}) {
   const stockLimit = options.stockLimit ?? DEFAULT_MARKET_UNIVERSE_LIMIT;
+  const refreshMarketCaches = useMarketCacheRefresh();
   const freshnessQuery = useMarketDataFreshness("DSE");
   const cacheMs = options.staleTimeMs ?? getMarketStaleTimeMs(freshnessQuery.data);
   const refetchInterval = options.refetchIntervalMs ?? getMarketRefetchIntervalMs(freshnessQuery.data);
@@ -51,10 +52,6 @@ export function useMarketUniverse(options: UseMarketUniverseOptions = {}) {
     isLoading: universeQuery.isLoading,
     isError: universeQuery.isError,
     loadedPriceCount: rows.length,
-    refetch: async () => {
-      await refreshMarketClientCaches();
-      await universeQuery.refetch();
-      await freshnessQuery.refetch();
-    },
+    refetch: refreshMarketCaches,
   };
 }
