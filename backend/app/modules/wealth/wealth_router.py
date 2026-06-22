@@ -22,6 +22,8 @@ from app.modules.wealth.wealth_schemas import (
     WealthToolCalculateRequest,
     WealthToolCalculateResponse,
 )
+from app.modules.wealth.tax_config.tax_config_schemas import TaxPlannerConfigRead
+from app.modules.wealth.tax_config.tax_config_service import TaxConfigService, get_tax_config_service
 from app.modules.wealth.tax_planner_service import TaxPlannerService, get_tax_planner_service
 from app.modules.wealth.wealth_service import WealthService, get_wealth_service
 
@@ -52,6 +54,17 @@ async def calculate_wealth_tool(
     return success_response(data=result, message="Wealth tool calculated")
 
 
+@router.get("/tax-planner/config", response_model=ApiResponse[TaxPlannerConfigRead])
+async def get_tax_planner_config(
+    user_context: Annotated[UserContext, Depends(allow_public_access)],
+    tax_config_service: Annotated[TaxConfigService, Depends(get_tax_config_service)],
+    country_code: str = "BD",
+) -> ApiResponse[TaxPlannerConfigRead]:
+    del user_context
+    config = await tax_config_service.get_public_config(country_code=country_code)
+    return success_response(data=config, message="Tax planner config retrieved")
+
+
 @router.post("/tax-planner/calculate", response_model=ApiResponse[TaxPlannerCalculateResponse])
 async def calculate_tax_planner(
     payload: TaxPlannerCalculateRequest,
@@ -59,7 +72,7 @@ async def calculate_tax_planner(
     tax_planner_service: Annotated[TaxPlannerService, Depends(get_tax_planner_service)],
 ) -> ApiResponse[TaxPlannerCalculateResponse]:
     del user_context
-    result = tax_planner_service.calculate(payload)
+    result = await tax_planner_service.calculate(payload)
     return success_response(data=result, message="Tax planner calculated")
 
 

@@ -1095,3 +1095,64 @@ class EmailCampaignRecipient(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     campaign = relationship("EmailCampaign", back_populates="recipients")
 
+
+class TaxPlannerSettings(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "tax_planner_settings"
+    __table_args__ = (
+        UniqueConstraint("country_code", name="uq_tax_planner_settings_country_code"),
+    )
+
+    country_code: Mapped[str] = mapped_column(String(2), default="BD", nullable=False)
+    tax_year_label: Mapped[str] = mapped_column(String(20), nullable=False)
+    display_name: Mapped[str] = mapped_column(String(80), nullable=False)
+    disclaimer: Mapped[str] = mapped_column(Text, nullable=False)
+    minimum_tax_note: Mapped[str] = mapped_column(Text, nullable=False)
+    threshold_general: Mapped[Decimal] = mapped_column(Numeric(20, 4), nullable=False)
+    threshold_woman_or_senior: Mapped[Decimal] = mapped_column(Numeric(20, 4), nullable=False)
+    threshold_person_with_disability: Mapped[Decimal] = mapped_column(Numeric(20, 4), nullable=False)
+    threshold_freedom_fighter: Mapped[Decimal] = mapped_column(Numeric(20, 4), nullable=False)
+    rebate_max_income_percentage: Mapped[Decimal] = mapped_column(Numeric(8, 4), nullable=False)
+    rebate_max_amount: Mapped[Decimal] = mapped_column(Numeric(20, 4), nullable=False)
+    rebate_rate: Mapped[Decimal] = mapped_column(Numeric(8, 4), nullable=False)
+    rebate_max_rebate_amount: Mapped[Decimal | None] = mapped_column(Numeric(20, 4), nullable=True)
+    minimum_tax_national: Mapped[Decimal] = mapped_column(Numeric(20, 4), nullable=False)
+    minimum_tax_dhaka_ctg: Mapped[Decimal] = mapped_column(Numeric(20, 4), nullable=False)
+    minimum_tax_other_city: Mapped[Decimal] = mapped_column(Numeric(20, 4), nullable=False)
+    minimum_tax_rural: Mapped[Decimal] = mapped_column(Numeric(20, 4), nullable=False)
+    updated_by_user_id: Mapped[UUID | None] = mapped_column(
+        PostgresUUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
+
+class TaxPlannerSlab(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "tax_slabs"
+    __table_args__ = (
+        UniqueConstraint("sort_order", name="uq_tax_slabs_sort_order"),
+    )
+
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False)
+    band_amount: Mapped[Decimal | None] = mapped_column(Numeric(20, 4), nullable=True)
+    rate: Mapped[Decimal] = mapped_column(Numeric(8, 4), nullable=False)
+    label: Mapped[str] = mapped_column(String(120), nullable=False)
+    is_allowance_band: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+
+class TaxInvestmentCategory(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "tax_investment_categories"
+    __table_args__ = (
+        UniqueConstraint("category_key", name="uq_tax_investment_categories_category_key"),
+        Index("ix_tax_investment_categories_sort_order", "sort_order"),
+    )
+
+    category_key: Mapped[str] = mapped_column(String(60), nullable=False)
+    display_label: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False)
+    is_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    updated_by_user_id: Mapped[UUID | None] = mapped_column(
+        PostgresUUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+

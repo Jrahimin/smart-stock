@@ -67,6 +67,7 @@ class TaxPlannerProfileInput(BaseModel):
     senior_citizen: bool = False
     person_with_disability: bool = False
     freedom_fighter: bool = False
+    location_code: str | None = None
 
 
 class TaxPlannerIncomeInput(BaseModel):
@@ -99,7 +100,6 @@ class TaxPlannerInvestmentInput(BaseModel):
 
 class TaxPlannerCalculateRequest(BaseModel):
     mode: TaxPlannerMode = TaxPlannerMode.QUICK
-    fiscal_year: str | None = "2025-2026"
     profile: TaxPlannerProfileInput = Field(default_factory=TaxPlannerProfileInput)
     income: TaxPlannerIncomeInput = Field(default_factory=TaxPlannerIncomeInput)
     investments: TaxPlannerInvestmentInput = Field(default_factory=TaxPlannerInvestmentInput)
@@ -122,7 +122,7 @@ class TaxPlannerInsight(BaseModel):
 
 
 class TaxPlannerCalculateResponse(BaseModel):
-    fiscal_year: str
+    tax_year_label: str
     mode: TaxPlannerMode
     total_income: Decimal
     tax_free_allowance: Decimal
@@ -130,6 +130,8 @@ class TaxPlannerCalculateResponse(BaseModel):
     gross_tax: Decimal
     rebate: Decimal
     final_tax: Decimal
+    minimum_tax_applied: Decimal = Decimal("0")
+    minimum_tax_rule_code: str | None = None
     current_eligible_investment: Decimal
     maximum_eligible_investment: Decimal
     remaining_eligible_investment: Decimal

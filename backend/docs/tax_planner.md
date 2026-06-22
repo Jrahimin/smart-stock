@@ -1,5 +1,7 @@
 # Tax Planner
 
+> **Configuration-driven architecture (V2):** Tax-law numbers are stored in PostgreSQL (`tax_planner_settings` + `tax_slabs`); investment categories are global. See [`tax_planner_v2.md`](tax_planner_v2.md) for schema, APIs, and admin workflow. `bangladesh_tax_config.py` remains as seed source and runtime fallback when the database is empty.
+
 The Tax Planner is an educational Wealth Workspace tool for estimating ordinary resident individual tax in Bangladesh and exploring how eligible savings or investments may affect the estimate.
 
 It is not a tax filing system, eReturn replacement, document-preparation workflow, legal advisory tool, or government-form experience.

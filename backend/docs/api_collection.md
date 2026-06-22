@@ -1866,6 +1866,26 @@ List safe runtime operational settings with environment/database source metadata
 
 Update one safe runtime setting (`SUPER_ADMIN` only).
 
+### GET /api/v1/admin/tax-planner/config
+
+Get active tax planner configuration for admin editing (`ADMIN` read).
+
+### PUT /api/v1/admin/tax-planner/config
+
+Replace scalar tax configuration: display metadata, thresholds, rebate, and minimum tax amounts (`SUPER_ADMIN`).
+
+### PUT /api/v1/admin/tax-planner/slabs
+
+Replace progressive tax slabs (`SUPER_ADMIN`). Validates exactly one allowance slab and unique sort order.
+
+### GET /api/v1/admin/tax-planner/investment-categories
+
+List global investment categories (`ADMIN` read).
+
+### PUT /api/v1/admin/tax-planner/investment-categories
+
+Bulk replace category labels, sort order, and enabled flags (`SUPER_ADMIN`).
+
 ### GET /api/v1/admin/jobs/executions
 
 List `system_job_executions`.
@@ -1944,6 +1964,20 @@ For `sanchayapatra`, `inputs` supports:
 }
 ```
 
+### GET /api/v1/wealth/tax-planner/config
+
+**Description**
+Public Tax Planner configuration for the active fiscal year plus global investment categories. Replaces hardcoded frontend rebate/category constants.
+
+**Query Params**
+
+* fiscal_year (optional): e.g. `2025-2026`
+* country_code (optional, default `BD`)
+
+**Response Data**
+
+Returns active tax rules: `tax_year_label`, `display_name`, `investment_rebate`, enabled `investment_categories`, `location_tiers`, and `minimum_tax` summary.
+
 ### POST /api/v1/wealth/tax-planner/calculate
 
 **Description**
@@ -1954,14 +1988,14 @@ Public stateless Bangladesh Tax Planner estimate. This is for planning only and 
 ```json
 {
   "mode": "QUICK",
-  "fiscal_year": "2025-2026",
   "profile": {
     "resident_individual": true,
     "gender": "PREFER_NOT_TO_SAY",
     "age": null,
     "senior_citizen": false,
     "person_with_disability": false,
-    "freedom_fighter": false
+    "freedom_fighter": false,
+    "location_code": null
   },
   "income": {
     "annual_salary": 1200000,
@@ -1980,7 +2014,7 @@ Returns raw values for frontend presentation:
 
 ```json
 {
-  "fiscal_year": "2025-2026",
+  "tax_year_label": "2025-2026",
   "mode": "QUICK",
   "total_income": 1300000,
   "tax_free_allowance": 375000,
@@ -1988,6 +2022,8 @@ Returns raw values for frontend presentation:
   "gross_tax": 135000,
   "rebate": 22500,
   "final_tax": 112500,
+  "minimum_tax_applied": 0,
+  "minimum_tax_rule_code": null,
   "current_eligible_investment": 150000,
   "maximum_eligible_investment": 260000,
   "remaining_eligible_investment": 110000,
