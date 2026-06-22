@@ -7,6 +7,10 @@ import { MetricCard } from "@/components/ui/metric-card";
 import { WealthProjectionSection } from "@/features/wealth/components/wealth-projection-section";
 import { WealthSaveSnapshotCard } from "@/features/wealth/components/wealth-save-snapshot-card";
 import { WealthSubNav } from "@/features/wealth/components/wealth-sub-nav";
+import {
+  snapWealthTimelineYear,
+  WealthYearsTimelineSlider,
+} from "@/features/wealth/components/wealth-years-timeline-slider";
 import { resolveSourceTaxRate } from "@/features/wealth/components/wealth-source-tax-control";
 import { getCalculatorAccountIdentifierLabel } from "@/features/wealth/lib/calculator-snapshot";
 import { WEALTH_DEFAULT_RATES, WEALTH_TOOL_CONFIG } from "@/features/wealth/catalog/wealth-catalog";
@@ -22,15 +26,12 @@ import { useAuth } from "@/features/auth/context/auth-context";
 import { saveWealthScenario } from "@/lib/api/wealth-api";
 
 const FDR_CONFIG = WEALTH_TOOL_CONFIG.fdr;
-const FDR_TENURE_MIN = 1;
-const FDR_TENURE_MAX = 15;
-const FDR_TENURE_MARKS = [1, 3, 5, 10, 15] as const;
 
 const FDR_PAYOUT_OPTIONS = [
-  { value: "maturity", label: "At maturity", hint: "Compound until unlock" },
   { value: "monthly", label: "Monthly", hint: "Profit paid monthly" },
   { value: "quarterly", label: "Quarterly", hint: "Profit paid quarterly" },
   { value: "yearly", label: "Yearly", hint: "Profit paid yearly" },
+  { value: "maturity", label: "At maturity", hint: "Compound until unlock" },
 ] as const;
 
 export function FdrToolWorkspace() {
@@ -68,11 +69,13 @@ export function FdrToolWorkspace() {
   const tenureYears = resolveTenureYears(inputs.tenure_value ?? "3", inputs.tenure_unit ?? "years");
   const tenureLabel = formatTenureLabel(tenureYears);
   const [durationYears, setDurationYears] = useState(() =>
-    clampTenureYears(Math.round(tenureYears)),
+    snapWealthTimelineYear(Math.round(tenureYears)),
   );
 
   useEffect(() => {
-    setDurationYears(clampTenureYears(Math.round(resolveTenureYears(inputs.tenure_value ?? "3", inputs.tenure_unit ?? "years"))));
+    setDurationYears(
+      snapWealthTimelineYear(Math.round(resolveTenureYears(inputs.tenure_value ?? "3", inputs.tenure_unit ?? "years"))),
+    );
   }, [inputs.tenure_unit, inputs.tenure_value]);
 
   const monthlyIncome = useMemo(() => {
@@ -126,7 +129,7 @@ export function FdrToolWorkspace() {
   }, [viewModel]);
 
   function handleTenureSliderChange(nextYears: number) {
-    const clampedYears = clampTenureYears(nextYears);
+    const clampedYears = snapWealthTimelineYear(nextYears);
     setDurationYears(clampedYears);
     setInputs((current) => ({
       ...current,
@@ -232,9 +235,26 @@ export function FdrToolWorkspace() {
             </label>
           </div>
 
+          <WealthYearsTimelineSlider
+            ariaLabel="FDR commitment length in years"
+            eyebrow="Commitment"
+            onYearsChange={handleTenureSliderChange}
+            valueLabel={
+              isLoading ? (
+                <span className="wealth-muted-copy">Updating…</span>
+              ) : maturityValue != null ? (
+                formatWealthCurrency(maturityValue)
+              ) : (
+                <span className="wealth-muted-copy">Maturity at unlock</span>
+              )
+            }
+            years={durationYears}
+          />
+
           <WealthProjectionSection
             accountIdentifier={accountIdentifier}
             accountIdentifierLabel={getCalculatorAccountIdentifierLabel("fdr")}
+            compactTop
             customSourceTax={customSourceTax}
             inflationRate={inflationRate}
             onAccountIdentifierChange={setAccountIdentifier}
@@ -245,13 +265,6 @@ export function FdrToolWorkspace() {
             showSourceTax
             sourceTaxPreset={sourceTaxPreset}
             title="Improve projection"
-          />
-
-          <FdrMaturityTimeline
-            durationYears={durationYears}
-            isLoading={isLoading}
-            maturityValue={maturityValue}
-            onYearsChange={handleTenureSliderChange}
           />
         </section>
 
@@ -353,98 +366,6 @@ function FdrPayoutSelector({ value, onChange }: { value: string; onChange: (valu
   );
 }
 
-function FdrMaturityTimeline({
-  durationYears,
-  isLoading,
-  maturityValue,
-  onYearsChange,
-}: {
-  durationYears: number;
-  isLoading: boolean;
-  maturityValue: number | null;
-  onYearsChange: (years: number) => void;
-}) {
-  const wholeYears = clampTenureYears(durationYears);
-  const sliderPercent = tenureSliderPercent(wholeYears);
-  const storyStops = buildFdrStoryStops(wholeYears);
-  const integerStops = Array.from({ length: FDR_TENURE_MAX }, (_, index) => index + 1);
-
-  return (
-    <div className="wealth-fdr-timeline-control">
-      <div className="wealth-fdr-timeline-heading">
-        <div>
-          <p className="eyebrow">Commitment length</p>
-          <h2>
-            {wholeYears} year{wholeYears === 1 ? "" : "s"}
-          </h2>
-        </div>
-        {isLoading ? (
-          <span className="wealth-fdr-timeline-hint">Updating…</span>
-        ) : maturityValue != null ? (
-          <strong>{formatWealthCurrency(maturityValue)}</strong>
-        ) : (
-          <span className="wealth-fdr-timeline-hint">Maturity at unlock</span>
-        )}
-      </div>
-
-      <div className="wealth-fdr-timeline-slider">
-        <div className="wealth-fdr-timeline-story" aria-hidden="true">
-          {storyStops.map((stop) => (
-            <span
-              className={[
-                wholeYears >= stop.year ? "wealth-fdr-story-stop-active" : "",
-                stop.year === FDR_TENURE_MIN ? "wealth-fdr-story-stop-start" : "",
-                stop.year === FDR_TENURE_MAX ? "wealth-fdr-story-stop-end" : "",
-              ]
-                .filter(Boolean)
-                .join(" ")}
-              key={`${stop.label}-${stop.year}`}
-              style={{ left: `${tenureSliderPercent(stop.year)}%` }}
-            >
-              {stop.label}
-            </span>
-          ))}
-        </div>
-        <div className="wealth-fdr-range-shell">
-          <span className="wealth-fdr-range-fill" style={{ width: `${sliderPercent}%` }} />
-          {integerStops.map((tick) => (
-            <span
-              className={`wealth-fdr-range-tick ${FDR_TENURE_MARKS.includes(tick as (typeof FDR_TENURE_MARKS)[number]) ? "wealth-fdr-range-tick-major" : ""} ${wholeYears >= tick ? "wealth-fdr-stop-active" : ""}`}
-              key={tick}
-              style={{ left: `${tenureSliderPercent(tick)}%` }}
-            />
-          ))}
-          <input
-            aria-label="FDR commitment length in years"
-            aria-valuetext={`${wholeYears} years`}
-            max={FDR_TENURE_MAX}
-            min={FDR_TENURE_MIN}
-            onChange={(event) => onYearsChange(Number(event.currentTarget.value))}
-            onInput={(event) => onYearsChange(Number(event.currentTarget.value))}
-            step="1"
-            type="range"
-            value={wholeYears}
-          />
-        </div>
-      </div>
-
-      <div className="wealth-fdr-timeline-marks">
-        {FDR_TENURE_MARKS.map((mark) => (
-          <button
-            className={wholeYears === mark ? "wealth-fdr-mark-active" : ""}
-            key={mark}
-            onClick={() => onYearsChange(mark)}
-            style={{ left: `${tenureSliderPercent(mark)}%` }}
-            type="button"
-          >
-            {mark}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function ExploreOtherPaths({ onSaveScenario }: { onSaveScenario: () => void }) {
   return (
     <section className="wealth-fdr-explore-paths">
@@ -498,30 +419,4 @@ function formatTenureLabel(years: number) {
     return `${years} year${years === 1 ? "" : "s"}`;
   }
   return `${years.toFixed(1)} years`;
-}
-
-function clampTenureYears(value: number) {
-  return Math.max(FDR_TENURE_MIN, Math.min(FDR_TENURE_MAX, Math.round(value)));
-}
-
-function tenureSliderPercent(year: number) {
-  return ((clampTenureYears(year) - FDR_TENURE_MIN) / (FDR_TENURE_MAX - FDR_TENURE_MIN)) * 100;
-}
-
-function buildFdrStoryStops(selectedYears: number) {
-  const clampedYears = clampTenureYears(selectedYears);
-  const stops: Array<{ year: number; label: string }> = [{ year: 1, label: "Today" }];
-
-  if (clampedYears >= 4) {
-    const midpoint = Math.ceil(clampedYears / 2);
-    if (midpoint > 1 && midpoint < clampedYears) {
-      stops.push({ year: midpoint, label: "Locked in" });
-    }
-  }
-
-  if (clampedYears > 1) {
-    stops.push({ year: clampedYears, label: "Maturity" });
-  }
-
-  return stops;
 }

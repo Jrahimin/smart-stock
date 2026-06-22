@@ -6,6 +6,10 @@ import { useMemo, useState } from "react";
 import { WealthProjectionSection } from "@/features/wealth/components/wealth-projection-section";
 import { WealthSaveSnapshotCard } from "@/features/wealth/components/wealth-save-snapshot-card";
 import { WealthSubNav } from "@/features/wealth/components/wealth-sub-nav";
+import {
+  snapWealthTimelineYear,
+  WealthYearsTimelineSlider,
+} from "@/features/wealth/components/wealth-years-timeline-slider";
 import { resolveSourceTaxRate } from "@/features/wealth/components/wealth-source-tax-control";
 import { getCalculatorAccountIdentifierLabel } from "@/features/wealth/lib/calculator-snapshot";
 import { WEALTH_DEFAULT_RATES } from "@/features/wealth/catalog/wealth-catalog";
@@ -18,15 +22,6 @@ import { formatWealthCurrency } from "@/features/wealth/view-models/wealth-view-
 import { useAuth } from "@/features/auth/context/auth-context";
 import { saveWealthScenario } from "@/lib/api/wealth-api";
 
-const TIMELINE_MARKS = [1, 3, 5, 10, 15, 20] as const;
-const TIMELINE_INTEGER_STOPS = Array.from({ length: 20 }, (_, index) => index + 1);
-const TIMELINE_STORY_STOPS = [
-  { year: 1, label: "Start" },
-  { year: 3, label: "Habit" },
-  { year: 5, label: "Momentum" },
-  { year: 10, label: "Compounding" },
-  { year: 20, label: "Wealth" },
-] as const;
 const FUTURE_PATH_YEARS = [3, 5, 10, 15, 20] as const;
 const GOAL_YEARS = [10, 15, 20] as const;
 const MILESTONES = [
@@ -53,7 +48,7 @@ export function DpsSimulatorWorkspace() {
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
 
   const simulation = useMemo(() => {
-    const selectedYears = snapTimelineYear(toNumber(years));
+    const selectedYears = snapWealthTimelineYear(toNumber(years));
     const rate = clampNumber(toNumber(annualRate), 0, 30);
     const inflation = clampNumber(toNumber(inflationRate), 0, 30);
     const sourceTaxRate = resolveSourceTaxRate(sourceTaxPreset, customSourceTax);
@@ -219,12 +214,8 @@ export function DpsSimulatorWorkspace() {
     setSaveMessage("DPS habit and projection added to your Money Snapshot draft.");
   }
 
-  function handleTimelineChange(value: string) {
-    setYears(String(snapTimelineYear(Number(value))));
-  }
-
-  function handleTimelineRelease() {
-    setYears(String(snapTimelineYear(simulation.selectedYears)));
+  function handleTimelineYearsChange(nextYears: number) {
+    setYears(String(nextYears));
   }
 
   return (
@@ -286,9 +277,18 @@ export function DpsSimulatorWorkspace() {
             </label>
           </div>
 
+          <WealthYearsTimelineSlider
+            ariaLabel="DPS timeline in years"
+            eyebrow="Timeline"
+            onYearsChange={handleTimelineYearsChange}
+            valueLabel={formatWealthCurrency(simulation.futureValue)}
+            years={simulation.selectedYears}
+          />
+
           <WealthProjectionSection
             accountIdentifier={accountIdentifier}
             accountIdentifierLabel={getCalculatorAccountIdentifierLabel("dps")}
+            compactTop
             customSourceTax={customSourceTax}
             inflationRate={inflationRate}
             onAccountIdentifierChange={setAccountIdentifier}
@@ -300,64 +300,6 @@ export function DpsSimulatorWorkspace() {
             sourceTaxPreset={sourceTaxPreset}
             title="Improve projection"
           />
-
-          <div className="wealth-dps-timeline-control">
-            <div className="wealth-dps-timeline-heading">
-              <div>
-                <p className="eyebrow">Timeline</p>
-                <h2>{simulation.selectedYears} years</h2>
-              </div>
-              <strong>{formatWealthCurrency(simulation.futureValue)}</strong>
-            </div>
-            <div className="wealth-dps-timeline-slider">
-              <div className="wealth-dps-timeline-story" aria-hidden="true">
-                {TIMELINE_STORY_STOPS.map((stop) => (
-                  <span
-                    className={simulation.selectedYears >= stop.year ? "wealth-dps-story-stop-active" : ""}
-                    key={stop.label}
-                    style={{ left: `${timelinePercent(stop.year)}%` }}
-                  >
-                    {stop.label}
-                  </span>
-                ))}
-              </div>
-              <div className="wealth-dps-range-shell">
-                <span className="wealth-dps-range-fill" style={{ width: `${timelinePercent(simulation.selectedYears)}%` }} />
-                {TIMELINE_INTEGER_STOPS.map((mark) => (
-                  <span
-                    className={`wealth-dps-range-tick ${TIMELINE_MARKS.includes(mark as (typeof TIMELINE_MARKS)[number]) ? "wealth-dps-range-tick-major" : ""} ${simulation.selectedYears >= mark ? "wealth-dps-stop-active" : ""}`}
-                    key={mark}
-                    style={{ left: `${timelinePercent(mark)}%` }}
-                  />
-                ))}
-                <input
-                  aria-label="DPS timeline in years"
-                  max="20"
-                  min="1"
-                  onBlur={handleTimelineRelease}
-                  onChange={(event) => handleTimelineChange(event.target.value)}
-                  onPointerUp={handleTimelineRelease}
-                  onKeyUp={handleTimelineRelease}
-                  step="1"
-                  type="range"
-                  value={simulation.selectedYears}
-                />
-              </div>
-            </div>
-            <div className="wealth-dps-timeline-marks">
-              {TIMELINE_MARKS.map((mark) => (
-                <button
-                  className={simulation.selectedYears === mark ? "wealth-dps-mark-active" : ""}
-                  key={mark}
-                  onClick={() => setYears(String(mark))}
-                  style={{ left: `${timelinePercent(mark)}%` }}
-                  type="button"
-                >
-                  {mark}
-                </button>
-              ))}
-            </div>
-          </div>
 
           <GrowthVisualization
             activePoint={chartPaths.activePoint}
@@ -408,8 +350,14 @@ export function DpsSimulatorWorkspace() {
               <span className="wealth-dps-ratio-growth" style={{ width: `${growthShare}%` }} />
             </div>
             <div className="wealth-dps-ratio-values">
-              <span>Deposited {formatWealthCurrency(simulation.totalDeposited)}</span>
-              <span>Returns {formatWealthCurrency(simulation.investmentGrowth)}</span>
+              <article className="wealth-dps-ratio-stat">
+                <span className="wealth-dps-ratio-stat-label">Deposited</span>
+                <strong className="wealth-dps-ratio-stat-value">{formatWealthCurrency(simulation.totalDeposited)}</strong>
+              </article>
+              <article className="wealth-dps-ratio-stat wealth-dps-ratio-stat-growth">
+                <span className="wealth-dps-ratio-stat-label">Returns</span>
+                <strong className="wealth-dps-ratio-stat-value">{formatWealthCurrency(simulation.investmentGrowth)}</strong>
+              </article>
             </div>
           </div>
 
@@ -852,12 +800,4 @@ function toNumber(value: string) {
 
 function clampNumber(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
-}
-
-function timelinePercent(year: number) {
-  return ((clampNumber(year, 1, 20) - 1) / 19) * 100;
-}
-
-function snapTimelineYear(value: number) {
-  return Math.round(clampNumber(value, 1, 20));
 }

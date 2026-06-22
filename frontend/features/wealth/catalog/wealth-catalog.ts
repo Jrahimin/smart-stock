@@ -251,7 +251,7 @@ export const WEALTH_EDUCATION_BITES = [
 
 export const WEALTH_TOOL_DETAILS_DEFAULTS = {
   title: "Better forecasts",
-  hint: "Optional — sharpen timelines, purchasing power, and Money Snapshot insights.",
+  hint: "Optional — sharpen timelines, purchasing power, and Snapshot.",
 } as const;
 
 export const WEALTH_TOOL_CONFIG: Record<

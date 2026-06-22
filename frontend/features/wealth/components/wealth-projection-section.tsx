@@ -16,6 +16,7 @@ type WealthProjectionSectionProps = {
   showSourceTax?: boolean;
   sourceTaxPreset?: string;
   title?: string;
+  compactTop?: boolean;
 };
 
 export function WealthProjectionSection({
@@ -33,6 +34,7 @@ export function WealthProjectionSection({
   accountIdentifierLabel,
   accountIdentifier = "",
   onAccountIdentifierChange,
+  compactTop = false,
 }: WealthProjectionSectionProps) {
   const showAccountIdentifier = accountIdentifierLabel != null && onAccountIdentifierChange != null;
 
@@ -74,7 +76,7 @@ export function WealthProjectionSection({
   }
 
   return (
-    <div className="wealth-projection-section">
+    <div className={`wealth-projection-section${compactTop ? " wealth-projection-section-compact-top" : ""}`}>
       <div className="wealth-form-section-break">
         <span>{title}</span>
         {hint ? <p>{hint}</p> : null}
