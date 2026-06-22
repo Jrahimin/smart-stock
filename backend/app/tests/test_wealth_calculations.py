@@ -1,4 +1,5 @@
 from decimal import Decimal
+from unittest.mock import MagicMock
 
 from app.modules.wealth.formulas.financial_formulas import (
     calculate_cagr,
@@ -10,7 +11,9 @@ from app.modules.wealth.formulas.financial_formulas import (
     calculate_progressive_tax,
     calculate_zakat_amount,
 )
-from app.modules.wealth.bangladesh_tax_config import get_enabled_tax_year_config
+from app.modules.wealth.bangladesh_tax_config import get_active_tax_config
+from app.modules.wealth.tax_config.tax_config_models import ResolvedMinimumTaxRule
+from app.modules.wealth.tax_config.tax_config_python_fallback import build_fallback_resolved_config
 from app.modules.wealth.tax_planner_service import TaxPlannerService
 from app.modules.wealth.wealth_calculation_service import WealthCalculationService
 from app.modules.wealth.wealth_comparison_service import WealthComparisonService
@@ -22,6 +25,16 @@ from app.modules.wealth.wealth_schemas import (
     WealthAssumptionsInput,
     WealthComparisonEvaluateRequest,
 )
+
+
+def _tax_planner_service() -> TaxPlannerService:
+    return TaxPlannerService(resolver=MagicMock())
+
+
+def _calculate_tax_planner(request: TaxPlannerCalculateRequest, *, config=None):
+    service = _tax_planner_service()
+    resolved_config = config or build_fallback_resolved_config()
+    return service.calculate_with_config(request, resolved_config)
 
 
 def test_lump_sum_growth() -> None:
@@ -55,7 +68,7 @@ def test_zakat_below_nisab() -> None:
 
 
 def test_progressive_tax_uses_configured_slabs() -> None:
-    config = get_enabled_tax_year_config("2025-2026")
+    config = get_active_tax_config()
     tax, breakdown = calculate_progressive_tax(1300000, config.slabs)
     assert tax == Decimal("135000.00")
     assert breakdown[0]["tax"] == Decimal("0.00")
@@ -77,8 +90,7 @@ def test_investment_rebate_caps_actual_investment() -> None:
 
 
 def test_tax_planner_quick_estimate_returns_raw_values() -> None:
-    service = TaxPlannerService()
-    response = service.calculate(
+    response = _calculate_tax_planner(
         TaxPlannerCalculateRequest(
             income=TaxPlannerIncomeInput(annual_salary=Decimal("1200000"), other_yearly_income=Decimal("100000")),
             investments=TaxPlannerInvestmentInput(tax_saving_investments=Decimal("150000")),
@@ -98,8 +110,7 @@ def test_tax_planner_quick_estimate_returns_raw_values() -> None:
 
 
 def test_tax_planner_below_threshold_has_zero_tax() -> None:
-    service = TaxPlannerService()
-    response = service.calculate(
+    response = _calculate_tax_planner(
         TaxPlannerCalculateRequest(
             income=TaxPlannerIncomeInput(annual_salary=Decimal("300000")),
         )
@@ -110,8 +121,7 @@ def test_tax_planner_below_threshold_has_zero_tax() -> None:
 
 
 def test_tax_planner_special_threshold_override() -> None:
-    service = TaxPlannerService()
-    response = service.calculate(
+    response = _calculate_tax_planner(
         TaxPlannerCalculateRequest(
             profile=TaxPlannerProfileInput(gender="FEMALE"),
             income=TaxPlannerIncomeInput(annual_salary=Decimal("400000")),
@@ -123,8 +133,7 @@ def test_tax_planner_special_threshold_override() -> None:
 
 
 def test_tax_planner_generates_structured_insights() -> None:
-    service = TaxPlannerService()
-    response = service.calculate(
+    response = _calculate_tax_planner(
         TaxPlannerCalculateRequest(
             income=TaxPlannerIncomeInput(
                 annual_salary=Decimal("1200000"),
@@ -142,8 +151,7 @@ def test_tax_planner_generates_structured_insights() -> None:
 
 
 def test_tax_planner_simulation_does_not_require_saved_state() -> None:
-    service = TaxPlannerService()
-    response = service.calculate(
+    response = _calculate_tax_planner(
         TaxPlannerCalculateRequest(
             income=TaxPlannerIncomeInput(annual_salary=Decimal("1200000")),
             investments=TaxPlannerInvestmentInput(
@@ -155,6 +163,58 @@ def test_tax_planner_simulation_does_not_require_saved_state() -> None:
 
     assert response.current_eligible_investment == Decimal("150000.00")
     assert response.rebate == Decimal("22500.00")
+
+
+def test_tax_planner_minimum_tax_floor_applies_when_configured() -> None:
+    from dataclasses import replace
+
+    config = replace(
+        build_fallback_resolved_config(),
+        minimum_tax_rules=(
+            ResolvedMinimumTaxRule(
+                rule_code="NATIONAL_DEFAULT",
+                rule_type="NATIONAL_DEFAULT",
+                location_code=None,
+                minimum_amount=Decimal("5000"),
+                is_active=True,
+            ),
+        ),
+    )
+    response = _calculate_tax_planner(
+        TaxPlannerCalculateRequest(
+            income=TaxPlannerIncomeInput(annual_salary=Decimal("400000")),
+        ),
+        config=config,
+    )
+
+    assert response.gross_tax == Decimal("2500.00")
+    assert response.minimum_tax_applied == Decimal("5000.00")
+    assert response.final_tax == Decimal("5000.00")
+    assert response.minimum_tax_rule_code == "NATIONAL_DEFAULT"
+
+
+def test_tax_planner_disabled_investment_category_excluded() -> None:
+    from dataclasses import replace
+
+    config = build_fallback_resolved_config()
+    categories = tuple(
+        replace(category, is_enabled=category.category_key != "life_insurance")
+        for category in config.investment_categories
+    )
+    config = replace(config, investment_categories=categories)
+    response = _calculate_tax_planner(
+        TaxPlannerCalculateRequest(
+            mode="DETAILED",
+            income=TaxPlannerIncomeInput(annual_salary=Decimal("1200000")),
+            investments=TaxPlannerInvestmentInput(
+                life_insurance=Decimal("100000"),
+                provident_fund=Decimal("50000"),
+            ),
+        ),
+        config=config,
+    )
+
+    assert response.current_eligible_investment == Decimal("50000.00")
 
 
 def test_fdr_tool_calculation() -> None:
@@ -314,3 +374,21 @@ def test_loan_prepayment_comparison_uses_gain_not_full_principal_value() -> None
     assert response.left.final_value == Decimal("76234.17")
     assert response.right.final_value == Decimal("76234.17")
     assert response.difference_value == Decimal("0.00")
+
+
+def test_validate_slabs_requires_exactly_one_allowance_band() -> None:
+    import pytest
+
+    from app.core.exception_handlers import AppError
+    from app.modules.wealth.tax_config.tax_config_validation import SlabInput, validate_slabs
+
+    with pytest.raises(AppError, match="Exactly one allowance slab"):
+        validate_slabs([SlabInput(1, False), SlabInput(2, False)])
+
+    with pytest.raises(AppError, match="Exactly one allowance slab"):
+        validate_slabs([SlabInput(1, True), SlabInput(2, True)])
+
+    with pytest.raises(AppError, match="Duplicate slab sort_order"):
+        validate_slabs([SlabInput(1, True), SlabInput(1, False)])
+
+    validate_slabs([SlabInput(1, True), SlabInput(2, False)])

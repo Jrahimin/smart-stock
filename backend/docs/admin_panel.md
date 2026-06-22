@@ -38,6 +38,7 @@ The seeder creates or updates one verified `SUPER_ADMIN` account. Keep credentia
 | `/admin/configuration` | Safe runtime operational settings (`SUPER_ADMIN`) |
 | `/admin/jobs` | `system_job_executions` history and manual triggers (`SUPER_ADMIN`) |
 | `/admin/email-campaigns` | Compose, queue, and monitor bulk email campaigns |
+| `/admin/tax-planner` | Maintain active tax rules and global investment categories |
 
 Admin navigation appears in the terminal sidebar for `ADMIN` and `SUPER_ADMIN` users.
 
@@ -50,6 +51,20 @@ Admin navigation appears in the terminal sidebar for `ADMIN` and `SUPER_ADMIN` u
 | `admin_configuration` | Safe runtime settings stored in `admin_config_settings` |
 | `admin_jobs` | `system_job_executions` and manual job triggers |
 | `admin_email_campaigns` | Campaign creation, recipient snapshots, APScheduler processing |
+| `wealth/tax_config` | Tax calculator config (3-table model), public config API, admin maintenance |
+
+## Tax Planner admin
+
+Route: `/admin/tax-planner` (`SUPER_ADMIN` write; `ADMIN` read).
+
+Tabs:
+
+- **Tax Rules** — display metadata, thresholds, rebate, minimum tax amounts, progressive slabs
+- **Investment Categories** — global labels, sort order, enabled flags
+
+Changes apply immediately on save (resolver cache invalidation). No draft/publish workflow.
+
+See [`tax_planner_v2.md`](tax_planner_v2.md).
 
 ## Login activity
 

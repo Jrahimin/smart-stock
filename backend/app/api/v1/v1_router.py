@@ -11,6 +11,7 @@ from app.modules.admin_configuration.admin_configuration_router import router as
 from app.modules.admin_email_campaigns.admin_email_campaigns_router import router as admin_email_campaigns_router
 from app.modules.admin_jobs.admin_jobs_router import router as admin_jobs_router
 from app.modules.admin_users.admin_users_router import router as admin_users_router
+from app.modules.wealth.tax_config.tax_config_admin_router import router as tax_config_admin_router
 from app.modules.indicators.indicators_router import router as indicators_router
 from app.modules.market_data.market_data_router import router as market_data_router
 from app.modules.market_dashboard.market_dashboard_router import router as market_dashboard_router
@@ -27,6 +28,7 @@ router.include_router(auth_router)
 router.include_router(admin_dashboard_router)
 router.include_router(admin_users_router)
 router.include_router(admin_configuration_router)
+router.include_router(tax_config_admin_router)
 router.include_router(admin_jobs_router)
 router.include_router(admin_email_campaigns_router)
 router.include_router(stocks_router)

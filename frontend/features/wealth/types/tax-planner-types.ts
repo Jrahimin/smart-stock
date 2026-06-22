@@ -8,7 +8,8 @@ export type TaxPlannerInsightType =
   | "MULTIPLE_INCOME_SOURCES"
   | "HIGH_REMAINING_INVESTMENT_CAPACITY"
   | "OUT_OF_SCOPE_PROFILE"
-  | "MINIMUM_TAX_NOT_MODELED";
+  | "MINIMUM_TAX_NOT_MODELED"
+  | "MINIMUM_TAX_APPLIED";
 
 export type TaxPlannerProfileInput = {
   resident_individual: boolean;
@@ -17,6 +18,7 @@ export type TaxPlannerProfileInput = {
   senior_citizen: boolean;
   person_with_disability: boolean;
   freedom_fighter: boolean;
+  location_code?: string | null;
 };
 
 export type TaxPlannerIncomeInput = {
@@ -49,7 +51,6 @@ export type TaxPlannerInvestmentInput = {
 
 export type TaxPlannerCalculateRequest = {
   mode: TaxPlannerMode;
-  fiscal_year: string;
   profile: TaxPlannerProfileInput;
   income: TaxPlannerIncomeInput;
   investments: TaxPlannerInvestmentInput;
@@ -72,7 +73,7 @@ export type TaxPlannerInsight = {
 };
 
 export type TaxPlannerCalculateResponse = {
-  fiscal_year: string;
+  tax_year_label: string;
   mode: TaxPlannerMode;
   total_income: string | number;
   tax_free_allowance: string | number;
@@ -84,6 +85,8 @@ export type TaxPlannerCalculateResponse = {
   maximum_eligible_investment: string | number;
   remaining_eligible_investment: string | number;
   potential_additional_tax_saving: string | number;
+  minimum_tax_applied?: string | number;
+  minimum_tax_rule_code?: string | null;
   slab_breakdown: TaxPlannerSlabBreakdown[];
   insights: TaxPlannerInsight[];
   assumptions_used: Record<string, unknown>;
