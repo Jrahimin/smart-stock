@@ -11,6 +11,7 @@ import {
   type SnapshotDraftAsset,
   type SnapshotDraftLiability,
 } from "@/features/wealth/lib/snapshot-entry-helpers";
+import { formatAssetProjectionLine } from "@/features/wealth/lib/snapshot-dashboard-helpers";
 import { formatWealthCurrency } from "@/features/wealth/view-models/wealth-view-model";
 
 const ENTRY_ICONS: Record<string, string> = {
@@ -103,6 +104,7 @@ function SnapshotAssetRow({
   const [isEditing, setIsEditing] = useState(false);
   const [editDraft, setEditDraft] = useState(asset);
   const metaParts = buildAssetMetaLine(asset);
+  const projectionLine = formatAssetProjectionLine(asset);
   const icon = assetIconForDraft(asset, ENTRY_ICONS);
 
   function handleStartEdit() {
@@ -160,6 +162,7 @@ function SnapshotAssetRow({
         ) : (
           <p className="wealth-pending-entry-meta wealth-pending-entry-meta-muted">{optionIdForAsset(asset)}</p>
         )}
+        {projectionLine ? <p className="wealth-pending-entry-projection">{projectionLine}</p> : null}
       </div>
       <div className="wealth-pending-entry-actions">
         <button

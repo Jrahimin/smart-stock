@@ -8548,11 +8548,41 @@ button {
 }
 
 .wealth-workspace-view,
-.wealth-tool-workspace,
-.wealth-snapshot-page {
+.wealth-tool-workspace {
   display: grid;
   gap: 12px;
   width: 100%;
+}
+
+.wealth-snapshot-page {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+}
+
+.wealth-snapshot-page .wealth-metric-grid {
+  gap: 8px;
+}
+
+.wealth-snapshot-summary-grid {
+  align-items: start;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.wealth-snapshot-summary-grid > .metric-card {
+  align-content: start;
+  display: grid;
+  gap: 5px;
+  grid-template-rows: auto auto;
+}
+
+.wealth-snapshot-summary-grid .metric-card strong {
+  font-size: clamp(0.82rem, 1.1vw, 1rem);
+}
+
+.wealth-snapshot-hero {
+  padding-bottom: 10px;
+  padding-top: 10px;
 }
 
 .wealth-hero-card,
@@ -9416,9 +9446,29 @@ button {
 }
 
 .wealth-snapshot-side-grid {
+  align-items: start;
   display: grid;
   gap: 12px;
   grid-template-columns: minmax(0, 1.4fr) minmax(240px, 0.8fr);
+}
+
+.wealth-snapshot-side-stack {
+  align-content: start;
+  display: grid;
+  gap: 12px;
+}
+
+.wealth-snapshot-savings-panel {
+  gap: 8px;
+}
+
+.wealth-snapshot-savings-panel h2 {
+  margin: 0;
+}
+
+.wealth-snapshot-savings-panel .wealth-muted-copy {
+  font-size: 0.78rem;
+  line-height: 1.4;
 }
 
 .wealth-money-event-list {
@@ -9484,6 +9534,7 @@ button {
 .wealth-metric-grid,
 .wealth-insight-grid,
 .wealth-education-strip {
+  align-items: start;
   display: grid;
   gap: 10px;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -15670,6 +15721,251 @@ button {
   gap: 10px;
 }
 
+.wealth-money-event-groups {
+  display: grid;
+  gap: 14px;
+}
+
+.wealth-money-event-group h3 {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  margin: 0 0 8px;
+  text-transform: uppercase;
+}
+
+.wealth-snapshot-completeness-card {
+  gap: 5px;
+}
+
+.wealth-snapshot-completeness-head {
+  align-items: center;
+  display: flex;
+  gap: 6px;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.wealth-snapshot-completeness-head .eyebrow {
+  margin: 0;
+  min-width: 0;
+}
+
+.wealth-snapshot-completeness-info {
+  flex-shrink: 0;
+  position: relative;
+}
+
+.wealth-snapshot-completeness-info-trigger {
+  align-items: center;
+  background: color-mix(in srgb, var(--info) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--info) 28%, var(--border));
+  border-radius: 999px;
+  color: var(--info);
+  cursor: help;
+  display: inline-flex;
+  height: 18px;
+  justify-content: center;
+  padding: 0;
+  width: 18px;
+}
+
+.wealth-snapshot-completeness-info-trigger:hover,
+.wealth-snapshot-completeness-info:focus-within .wealth-snapshot-completeness-info-trigger {
+  background: color-mix(in srgb, var(--info) 18%, transparent);
+  color: color-mix(in srgb, var(--info) 90%, #fff);
+}
+
+.wealth-snapshot-completeness-popover {
+  background: var(--panel-strong);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 10px 28px rgb(0 0 0 / 22%);
+  opacity: 0;
+  padding: 8px 10px;
+  pointer-events: none;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  transform: translateY(4px);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  width: max-content;
+  z-index: 30;
+}
+
+.wealth-snapshot-completeness-info:hover .wealth-snapshot-completeness-popover,
+.wealth-snapshot-completeness-info:focus-within .wealth-snapshot-completeness-popover {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.wealth-snapshot-completeness-popover-summary {
+  color: var(--foreground);
+  font-size: 0.74rem;
+  font-weight: 600;
+  margin: 0 0 6px;
+  white-space: nowrap;
+}
+
+.wealth-snapshot-completeness-list {
+  display: grid;
+  gap: 3px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.wealth-snapshot-completeness-list li {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-size: 0.72rem;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.wealth-snapshot-completeness-list li span {
+  color: color-mix(in srgb, var(--muted) 70%, transparent);
+  font-size: 0.68rem;
+  width: 11px;
+}
+
+.wealth-snapshot-completeness-done {
+  color: var(--foreground);
+}
+
+.wealth-snapshot-completeness-done span {
+  color: var(--positive);
+}
+
+.wealth-snapshot-allocation-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.wealth-snapshot-allocation-panel h2 {
+  margin: 0;
+}
+
+.wealth-snapshot-allocation-panel-body {
+  align-items: center;
+  display: flex;
+  flex-direction: row;
+  gap: 16px;
+  min-width: 0;
+}
+
+.wealth-snapshot-allocation-panel .wealth-snapshot-allocation-donut {
+  border-radius: 50%;
+  flex: 0 0 96px;
+  height: 96px;
+  position: relative;
+  width: 96px;
+}
+
+.wealth-snapshot-allocation-panel .wealth-snapshot-allocation-donut-center {
+  align-items: center;
+  background: var(--panel);
+  border-radius: 50%;
+  display: grid;
+  gap: 1px;
+  height: 58px;
+  justify-items: center;
+  left: 50%;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 58px;
+}
+
+.wealth-snapshot-allocation-panel .wealth-snapshot-allocation-donut-center span {
+  color: var(--muted);
+  font-size: 0.58rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.wealth-snapshot-allocation-panel .wealth-snapshot-allocation-donut-center strong {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.wealth-snapshot-allocation-panel-list {
+  display: grid;
+  flex: 1 1 auto;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  min-width: 0;
+  padding: 0;
+}
+
+.wealth-snapshot-allocation-panel-item {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.wealth-snapshot-allocation-panel-item-head {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.wealth-snapshot-allocation-panel-label {
+  align-items: center;
+  display: inline-flex;
+  font-size: 0.82rem;
+  gap: 7px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wealth-snapshot-allocation-panel-label i {
+  border-radius: 999px;
+  flex-shrink: 0;
+  height: 8px;
+  width: 8px;
+}
+
+.wealth-snapshot-allocation-panel-item-head strong {
+  flex-shrink: 0;
+  font-size: 0.82rem;
+}
+
+.wealth-snapshot-allocation-panel-track {
+  background: color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: 999px;
+  height: 5px;
+  overflow: hidden;
+  width: 100%;
+}
+
+.wealth-snapshot-allocation-panel-track span {
+  border-radius: inherit;
+  display: block;
+  height: 100%;
+  min-width: 4px;
+}
+
+.wealth-snapshot-allocation-panel-item small {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.wealth-pending-entry-projection {
+  color: color-mix(in srgb, var(--positive) 78%, var(--foreground));
+  font-size: 0.74rem;
+  font-weight: 600;
+  margin: 2px 0 0;
+}
+
 .wealth-sp-planner {
   gap: 16px;
 }
@@ -15966,6 +16262,19 @@ button {
   .wealth-snapshot-side-grid,
   .wealth-money-event {
     grid-template-columns: 1fr;
+  }
+
+  .wealth-snapshot-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .wealth-snapshot-allocation-panel-body {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .wealth-snapshot-allocation-panel .wealth-snapshot-allocation-donut {
+    margin: 0 auto;
   }
 
   .wealth-progressive-form-inline,

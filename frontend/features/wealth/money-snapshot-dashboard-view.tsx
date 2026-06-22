@@ -5,6 +5,8 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 import { MetricCard } from "@/components/ui/metric-card";
+import { SnapshotAssetAllocation } from "@/features/wealth/components/snapshot-asset-allocation";
+import { SnapshotCompletenessCard } from "@/features/wealth/components/snapshot-completeness-card";
 import { SnapshotEntryList } from "@/features/wealth/components/snapshot-entry-list";
 import { WealthInsightCard } from "@/features/wealth/components/wealth-insight-card";
 import { WealthSubNav } from "@/features/wealth/components/wealth-sub-nav";
@@ -18,15 +20,18 @@ import {
 } from "@/features/wealth/catalog/sanchayapatra-catalog";
 import {
   ensureAssetPlanningDates,
-  formatDateLabel,
   metadataValue,
   optionIdForAsset,
-  resolveAssetEndDate,
-  resolveAssetStartDate,
   setMetadataValue,
   type SnapshotDraftAsset,
   type SnapshotDraftLiability,
 } from "@/features/wealth/lib/snapshot-entry-helpers";
+import {
+  buildAssetAllocation,
+  buildUpcomingMoneyEventGroups,
+  computeSnapshotCompleteness,
+  estimatePeriodicProfitValue,
+} from "@/features/wealth/lib/snapshot-dashboard-helpers";
 import { formatWealthCurrency } from "@/features/wealth/view-models/wealth-view-model";
 import { useAuth } from "@/features/auth/context/auth-context";
 
@@ -192,28 +197,12 @@ export function MoneySnapshotDashboardView() {
     return { totalAssets, totalLiabilities, netWorth: totalAssets - totalLiabilities };
   }, [assets, liabilities]);
 
-  const clarityScore = useMemo(() => {
-    if (isAuthenticated && dashboard) {
-      return dashboard.clarity_score;
-    }
-    const optionalContext = assets.reduce((sum, asset) => sum + Object.values(asset.metadata).filter(Boolean).length, 0);
-    const liabilityContext = liabilities.reduce(
-      (sum, liability) =>
-        sum +
-        [liability.interest_rate, liability.monthly_emi, liability.remaining_months].filter(Boolean).length +
-        Object.values(liability.metadata).filter(Boolean).length,
-      0,
-    );
-    return Math.min(
-      (assets.length > 0 ? 25 : 0) +
-        (liabilities.length > 0 ? 10 : 0) +
-        (monthlySavings ? 10 : 0) +
-        Math.min((optionalContext + liabilityContext) * 5, 30),
-      100,
-    );
-  }, [assets, dashboard, isAuthenticated, liabilities, monthlySavings]);
-
-  const timelineEvents = useMemo(() => buildTimelineEvents(assets, liabilities), [assets, liabilities]);
+  const snapshotCompleteness = useMemo(
+    () => computeSnapshotCompleteness(assets, liabilities, monthlySavings),
+    [assets, liabilities, monthlySavings],
+  );
+  const assetAllocation = useMemo(() => buildAssetAllocation(assets), [assets]);
+  const upcomingEventGroups = useMemo(() => buildUpcomingMoneyEventGroups(assets, liabilities), [assets, liabilities]);
   const netWorth = isAuthenticated ? dashboard?.net_worth : localTotals.netWorth;
   const totalAssets = isAuthenticated ? dashboard?.total_assets : localTotals.totalAssets;
   const totalLiabilities = isAuthenticated ? dashboard?.total_liabilities : localTotals.totalLiabilities;
@@ -382,16 +371,11 @@ export function MoneySnapshotDashboardView() {
         </p>
       </header>
 
-      <div className="wealth-metric-grid">
+      <div className="wealth-metric-grid wealth-snapshot-summary-grid">
         <MetricCard label="Net Worth" tone="info" value={formatWealthCurrency(netWorth)} />
         <MetricCard label="Total Assets" tone="positive" value={formatWealthCurrency(totalAssets)} />
         <MetricCard label="Total Liabilities" tone="warning" value={formatWealthCurrency(totalLiabilities)} />
-        <MetricCard
-          helper="The more context you add, the richer your projections become."
-          label="Clarity Score"
-          tone="neutral"
-          value={`${clarityScore}%`}
-        />
+        <SnapshotCompletenessCard completeness={snapshotCompleteness} />
       </div>
 
       <section className="wealth-panel wealth-snapshot-entry-panel">
@@ -500,28 +484,41 @@ export function MoneySnapshotDashboardView() {
       <section className="wealth-snapshot-side-grid">
         <div className="wealth-panel">
           <h2>Upcoming Money Events</h2>
-          {timelineEvents.length ? (
-            <div className="wealth-money-event-list">
-              {timelineEvents.map((event) => (
-                <div className="wealth-money-event" key={`${event.label}-${event.dateLabel}`}>
-                  <span>{event.dateLabel}</span>
-                  <strong>{event.label}</strong>
-                  <small>{event.value}</small>
+          {upcomingEventGroups.length ? (
+            <div className="wealth-money-event-groups">
+              {upcomingEventGroups.map((group) => (
+                <div className="wealth-money-event-group" key={group.id}>
+                  <h3>{group.label}</h3>
+                  <div className="wealth-money-event-list wealth-money-event-list-expanded">
+                    {group.events.map((event) => (
+                      <div
+                        className={`wealth-money-event wealth-money-event-${event.kind}`}
+                        key={`${group.id}-${event.kind}-${event.label}-${event.dateLabel}`}
+                      >
+                        <span>{event.dateLabel}</span>
+                        <strong>{event.label}</strong>
+                        <small>{event.value}</small>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="wealth-muted-copy">Add a maturity date, purchase date, or EMI to see your financial timeline grow.</p>
+            <p className="wealth-muted-copy">Add a maturity date, profit rate, or EMI to see upcoming money events.</p>
           )}
         </div>
 
-        <div className="wealth-panel">
-          <h2>Monthly savings</h2>
-          <p className="wealth-muted-copy">Optional. This improves your dashboard without becoming a full financial profile.</p>
-          <label className="wealth-field">
-            <span>How much do you usually save monthly?</span>
-            <input inputMode="decimal" onChange={(event) => setMonthlySavings(event.target.value)} value={monthlySavings} />
-          </label>
+        <div className="wealth-snapshot-side-stack">
+          <div className="wealth-panel wealth-snapshot-savings-panel">
+            <h2>Monthly savings</h2>
+            <p className="wealth-muted-copy">Optional. This improves your dashboard without becoming a full financial profile.</p>
+            <label className="wealth-field">
+              <span>How much do you usually save monthly?</span>
+              <input inputMode="decimal" onChange={(event) => setMonthlySavings(event.target.value)} value={monthlySavings} />
+            </label>
+          </div>
+          <SnapshotAssetAllocation slices={assetAllocation} />
         </div>
       </section>
 
@@ -1243,94 +1240,6 @@ function buildAssetMetadata(asset: DraftAsset) {
     ...(monthlyProfit ? { monthly_profit: monthlyProfit } : {}),
     ...(periodicProfit ? { periodic_profit: periodicProfit } : {}),
   };
-}
-
-function buildTimelineEvents(assets: DraftAsset[], liabilities: DraftLiability[]) {
-  const events = assets.flatMap((asset) => {
-    const planningMetadata = ensureAssetPlanningDates(asset);
-    const startDate = resolveAssetStartDate(planningMetadata);
-    const maturityDate = resolveAssetEndDate(planningMetadata);
-    const periodicProfit = estimatePeriodicProfit({ ...asset, metadata: planningMetadata });
-    const moneyEvents = [];
-    if (startDate) {
-      moneyEvents.push({ dateLabel: formatDateLabel(startDate), label: `${asset.label} started`, value: "Planning anchor" });
-    }
-    if ((asset.category === "SANCHAYAPATRA" || asset.category === "DEPOSIT") && periodicProfit) {
-      moneyEvents.push({ dateLabel: nextPayoutLabel(asset), label: `${asset.label} profit`, value: periodicProfit });
-    }
-    if (maturityDate) {
-      moneyEvents.push({
-        dateLabel: formatDateLabel(maturityDate),
-        label: `${asset.label} matures`,
-        value: formatWealthCurrency(asset.value),
-      });
-    }
-    return moneyEvents;
-  });
-
-  liabilities.forEach((liability) => {
-    if (liability.monthly_emi) {
-      events.push({ dateLabel: "15th", label: `${liability.label} EMI`, value: formatWealthCurrency(liability.monthly_emi) });
-    }
-    if (liability.remaining_months) {
-      events.push({ dateLabel: `${liability.remaining_months} mo`, label: `${liability.label} completed`, value: "Debt free" });
-    }
-  });
-
-  return events.slice(0, 6);
-}
-
-function estimatePeriodicProfit(asset: DraftAsset) {
-  const periodicProfit = estimatePeriodicProfitValue(asset);
-  return periodicProfit ? formatWealthCurrency(periodicProfit) : null;
-}
-
-function estimatePeriodicProfitValue(asset: DraftAsset) {
-  if (asset.category !== "SANCHAYAPATRA" && asset.category !== "DEPOSIT") {
-    return null;
-  }
-  const certificateType = metadataValue(asset.metadata, "certificate_type") || "family-savings";
-  const certificateConfig = getSanchayapatraConfig(certificateType);
-  const distribution =
-    metadataValue(asset.metadata, "profit_distribution") ||
-    (asset.category === "SANCHAYAPATRA" ? certificateConfig.profitDistribution : "monthly") ||
-    "monthly";
-  const months = distribution === "quarterly" ? 3 : distribution === "yearly" ? 12 : distribution === "maturity" ? 0 : 1;
-  if (!months) {
-    return null;
-  }
-  const amount = Number(asset.value);
-  const rate = Number(
-    asset.metadata.interest_rate ||
-      (asset.category === "SANCHAYAPATRA" ? certificateConfig.defaultRate : undefined) ||
-      9,
-  );
-  if (!amount || !rate) {
-    return null;
-  }
-  return Math.round((amount * rate * months) / 1200);
-}
-
-function profitLabel(asset: DraftAsset) {
-  const distribution = metadataValue(asset.metadata, "profit_distribution") || "monthly";
-  if (distribution === "quarterly") {
-    return "Quarterly Profit";
-  }
-  if (distribution === "yearly") {
-    return "Yearly Profit";
-  }
-  return "Monthly Profit";
-}
-
-function nextPayoutLabel(asset: DraftAsset) {
-  const distribution = metadataValue(asset.metadata, "profit_distribution") || "monthly";
-  if (distribution === "quarterly") {
-    return "Next quarter";
-  }
-  if (distribution === "yearly") {
-    return "Next year";
-  }
-  return "Next month";
 }
 
 function defaultLabelForAsset(asset: DraftAsset) {
