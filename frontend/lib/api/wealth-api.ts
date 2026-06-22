@@ -10,6 +10,7 @@ import type {
   TaxPlannerCalculateRequest,
   TaxPlannerCalculateResponse,
 } from "@/features/wealth/types/tax-planner-types";
+import type { TaxPlannerConfigResponse } from "@/features/wealth/types/tax-planner-config-types";
 
 const NO_STORE = { cache: "no-store" } as RequestInit;
 
@@ -26,6 +27,12 @@ export function calculateWealthTool(
 
 export function calculateTaxPlanner(payload: TaxPlannerCalculateRequest) {
   return backendApiPost<TaxPlannerCalculateResponse>("/wealth/tax-planner/calculate", payload);
+}
+
+export function fetchTaxPlannerConfig(countryCode = "BD") {
+  return backendApiGet<TaxPlannerConfigResponse>("/wealth/tax-planner/config", {
+    country_code: countryCode,
+  });
 }
 
 export function evaluateWealthComparison(

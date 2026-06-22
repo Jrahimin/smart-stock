@@ -22180,6 +22180,30 @@ button {
   grid-column: 1 / -1;
 }
 
+.admin-composer-grid-4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.admin-composer-input-suffix {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.admin-composer-input-suffix input {
+  flex: 1;
+  min-width: 0;
+}
+
+.admin-composer-suffix {
+  color: var(--muted);
+  flex-shrink: 0;
+  font-size: 0.76rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .admin-drawer-root {
   inset: 0;
   position: fixed;
@@ -22649,3 +22673,223 @@ button {
   }
 }
 
+.admin-tax-planner-stack {
+  display: grid;
+  gap: 8px;
+}
+
+.admin-tax-planner-workspace {
+  gap: 8px;
+}
+
+.admin-tax-planner-workspace .admin-page-header {
+  border-radius: 12px;
+  padding: 8px 12px;
+}
+
+.admin-tax-planner-workspace .admin-page-header-main {
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-tax-planner-workspace .admin-page-header-eyebrow {
+  display: none;
+}
+
+.admin-tax-planner-workspace .admin-page-header-copy h1 {
+  font-size: 1.05rem;
+  line-height: 1.2;
+}
+
+.admin-tax-planner-workspace .admin-page-header-description {
+  display: none;
+}
+
+.admin-tax-planner-tabs {
+  margin-bottom: 0;
+}
+
+.admin-tax-planner-callout {
+  background: color-mix(in srgb, var(--info) 8%, var(--panel));
+  border: 1px solid color-mix(in srgb, var(--info) 20%, var(--border));
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.35;
+  margin: 0;
+  padding: 6px 10px;
+}
+
+.admin-tax-planner-workspace .admin-composer-field {
+  gap: 3px;
+}
+
+.admin-tax-planner-workspace .admin-composer-field span {
+  font-size: 0.66rem;
+}
+
+.admin-tax-planner-workspace .admin-composer-field input,
+.admin-tax-planner-workspace .admin-composer-field textarea {
+  font-size: 0.8rem;
+  padding: 5px 8px;
+}
+
+.admin-tax-planner-workspace .admin-composer-suffix {
+  font-size: 0.68rem;
+  min-width: 1.6em;
+}
+
+.admin-tax-planner-grid-compact {
+  gap: 8px;
+}
+
+.admin-tax-planner-limits {
+  display: grid;
+  gap: 8px;
+}
+
+.admin-tax-planner-subsection {
+  border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  display: grid;
+  gap: 6px;
+  padding-top: 8px;
+}
+
+.admin-tax-planner-subsection:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.admin-tax-planner-subsection-title {
+  color: var(--muted);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.admin-tax-planner-sticky-footer {
+  align-items: center;
+  background: color-mix(in srgb, var(--panel) 96%, transparent);
+  backdrop-filter: blur(8px);
+  border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+  border-radius: 8px;
+  bottom: 8px;
+  box-shadow: 0 -4px 16px rgb(0 0 0 / 10%);
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  padding: 6px 10px;
+  position: sticky;
+  z-index: 6;
+}
+
+.admin-tax-planner-action-status {
+  color: var(--muted);
+  font-size: 0.72rem;
+  margin-right: auto;
+  opacity: 0.55;
+}
+
+.admin-tax-planner-action-status-dirty {
+  color: color-mix(in srgb, var(--primary) 80%, var(--muted));
+  opacity: 1;
+}
+
+.admin-tax-planner-data-shell {
+  border-radius: 8px;
+}
+
+.admin-data-table-tax-slabs {
+  min-width: 0;
+}
+
+.admin-data-table-tax-slabs .admin-data-table-head,
+.admin-data-table-tax-slabs .admin-data-table-body .admin-data-table-row {
+  gap: 6px;
+  grid-template-columns: 40px minmax(120px, 1.5fr) 130px 88px 44px;
+  padding: 4px 8px;
+}
+
+.admin-data-table-tax-slabs .admin-data-table-head {
+  font-size: 0.64rem;
+  padding: 3px 8px;
+}
+
+.admin-data-table-tax-slabs .admin-data-table-row input[type="text"] {
+  background: color-mix(in srgb, var(--background) 55%, var(--panel));
+  border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+  border-radius: 6px;
+  color: inherit;
+  font-size: 0.78rem;
+  padding: 4px 6px;
+  width: 100%;
+}
+
+.admin-data-table-tax-slabs .admin-composer-input-suffix {
+  gap: 4px;
+}
+
+.admin-data-table-tax-slabs .admin-composer-suffix {
+  font-size: 0.62rem;
+  min-width: auto;
+}
+
+.admin-tax-slab-row-allowance {
+  background: color-mix(in srgb, var(--positive) 7%, transparent);
+}
+
+.admin-tax-slab-row-open {
+  background: color-mix(in srgb, var(--primary) 6%, transparent);
+}
+
+.admin-tax-slab-allowance-cell {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+}
+
+.admin-data-table-investment {
+  min-width: 0;
+}
+
+.admin-data-table-investment .admin-data-table-head,
+.admin-data-table-investment .admin-data-table-body .admin-data-table-row {
+  gap: 6px;
+  grid-template-columns: minmax(120px, 1fr) minmax(160px, 1.6fr) 56px 44px;
+  padding: 4px 8px;
+}
+
+.admin-data-table-investment .admin-data-table-head {
+  font-size: 0.64rem;
+  padding: 3px 8px;
+}
+
+.admin-data-table-investment .admin-data-table-row input[type="text"] {
+  background: color-mix(in srgb, var(--background) 55%, var(--panel));
+  border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+  border-radius: 6px;
+  color: inherit;
+  font-size: 0.78rem;
+  padding: 4px 6px;
+  width: 100%;
+}
+
+.admin-tax-planner-key {
+  color: var(--muted);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.72rem;
+}
+
+@media (max-width: 960px) {
+  .admin-composer-grid-4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-data-table-tax-slabs .admin-data-table-head,
+  .admin-data-table-tax-slabs .admin-data-table-body .admin-data-table-row,
+  .admin-data-table-investment .admin-data-table-head,
+  .admin-data-table-investment .admin-data-table-body .admin-data-table-row {
+    grid-template-columns: 1fr;
+  }
+}

@@ -60,6 +60,41 @@ export function updateAdminConfiguration(settingKey: string, value: string) {
   return backendApiPut<AdminConfigSetting>(`/admin/configuration/${settingKey}`, { value });
 }
 
+export function fetchAdminTaxPlannerConfig() {
+  return backendApiGet<Record<string, unknown>>("/admin/tax-planner/config", undefined, NO_STORE);
+}
+
+export function updateAdminTaxPlannerConfig(payload: Record<string, unknown>) {
+  return backendApiPut<Record<string, unknown>>("/admin/tax-planner/config", payload);
+}
+
+export function updateAdminTaxPlannerSlabs(
+  slabs: Array<{
+    sort_order: number;
+    band_amount?: number | string | null;
+    rate: number | string;
+    label: string;
+    is_allowance_band: boolean;
+  }>,
+) {
+  return backendApiPut<Record<string, unknown>>("/admin/tax-planner/slabs", { slabs });
+}
+
+export function fetchAdminTaxInvestmentCategories() {
+  return backendApiGet<Array<Record<string, unknown>>>("/admin/tax-planner/investment-categories", undefined, NO_STORE);
+}
+
+export function updateAdminTaxInvestmentCategories(
+  categories: Array<{
+    category_key: string;
+    display_label?: string | null;
+    sort_order: number;
+    is_enabled: boolean;
+  }>,
+) {
+  return backendApiPut<Array<Record<string, unknown>>>("/admin/tax-planner/investment-categories", { categories });
+}
+
 export function fetchSystemJobExecutions(params?: {
   job_type?: SystemJobType;
   status?: string;

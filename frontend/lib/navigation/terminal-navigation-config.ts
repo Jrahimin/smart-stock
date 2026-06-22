@@ -1,6 +1,7 @@
 import {
   BarChart3,
   Bell,
+  Calculator,
   Flame,
   LayoutDashboard,
   LineChart,
@@ -24,6 +25,7 @@ export const adminNavigationItems = [
   { label: "Dashboard", href: "/admin", icon: LayoutDashboard, exact: true },
   { label: "Users", href: "/admin/users", icon: Users, exact: false },
   { label: "Configuration", href: "/admin/configuration", icon: Settings, exact: false },
+  { label: "Tax Planner", href: "/admin/tax-planner", icon: Calculator, exact: false },
   { label: "Jobs", href: "/admin/jobs", icon: Workflow, exact: false },
   { label: "Email Campaigns", href: "/admin/email-campaigns", icon: Mail, exact: false },
 ] as const;

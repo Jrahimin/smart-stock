@@ -8,6 +8,7 @@ import {
   saveTaxPlannerDraft,
   useTaxPlanner,
 } from "@/features/wealth/hooks/use-tax-planner";
+import { useTaxPlannerConfig } from "@/features/wealth/hooks/use-tax-planner-config";
 import type {
   TaxPlannerCalculateRequest,
   TaxPlannerCalculateResponse,
@@ -17,7 +18,7 @@ import type {
   TaxPlannerMode,
   TaxPlannerProfileInput,
 } from "@/features/wealth/types/tax-planner-types";
-import { buildInvestmentTips } from "@/features/wealth/catalog/tax-planner-config";
+import type { TaxPlannerConfigResponse, TaxPlannerInvestmentCategoryConfig } from "@/features/wealth/types/tax-planner-config-types";
 import { formatWealthCurrency, formatWealthNumber } from "@/features/wealth/view-models/wealth-view-model";
 
 type NumericInputState<T extends Record<string, unknown>> = Record<keyof T, string>;
@@ -33,6 +34,7 @@ type TaxPlannerProfileState = {
   senior_citizen: boolean;
   person_with_disability: boolean;
   freedom_fighter: boolean;
+  location_code: string;
 };
 
 type WizardStep = "about" | "income" | "investments" | "review";
@@ -80,6 +82,7 @@ const DEFAULT_PROFILE: TaxPlannerProfileState = {
   senior_citizen: false,
   person_with_disability: false,
   freedom_fighter: false,
+  location_code: "",
 };
 
 const QUICK_PROFILE: TaxPlannerProfileInput = {
@@ -89,6 +92,7 @@ const QUICK_PROFILE: TaxPlannerProfileInput = {
   senior_citizen: false,
   person_with_disability: false,
   freedom_fighter: false,
+  location_code: null,
 };
 
 const HERO_CHIPS = ["No tax forms", "No uploads", "Plain language", "Planning focused"] as const;
@@ -180,13 +184,15 @@ const INCOME_CARDS = [
   },
 ] as const;
 
-const INVESTMENT_CARDS = [
-  { key: "life_insurance", label: "Life Insurance", icon: "🛡️" },
-  { key: "provident_fund", label: "Provident Fund", icon: "🧾" },
-  { key: "stock_market", label: "Stocks", icon: "📊" },
-  { key: "mutual_funds", label: "Mutual Funds", icon: "🪙" },
-  { key: "sanchayapatra", label: "Sanchayapatra", icon: "🇧🇩" },
-  { key: "dps_or_savings", label: "DPS / Savings", icon: "📅" },
+const INVESTMENT_FIELD_KEYS = [
+  "life_insurance",
+  "provident_fund",
+  "dps_or_savings",
+  "sanchayapatra",
+  "stock_market",
+  "mutual_funds",
+  "approved_donations",
+  "other_eligible_investment",
 ] as const;
 
 const JOURNEY_STEPS = [
@@ -195,6 +201,7 @@ const JOURNEY_STEPS = [
   { key: "taxable_income", label: "Taxable Income", icon: "🧾", tone: "neutral" },
   { key: "gross_tax", label: "Gross Tax", icon: "％", tone: "warning" },
   { key: "rebate", label: "Investment Rebate", icon: "🌱", tone: "positive" },
+  { key: "minimum_tax_applied", label: "Minimum Tax Floor", icon: "📍", tone: "warning" },
   { key: "final_tax", label: "Final Tax", icon: "🎯", tone: "primary" },
 ] as const;
 
@@ -212,6 +219,9 @@ export function TaxPlannerWorkspace() {
   const [selectedInvestmentCards, setSelectedInvestmentCards] = useState<string[]>([]);
   const [activeStep, setActiveStep] = useState<WizardStep>("about");
   const [simulatedAdditionalInvestment, setSimulatedAdditionalInvestment] = useState(0);
+
+  const { data: plannerConfig } = useTaxPlannerConfig();
+  const investmentCategories = plannerConfig?.investment_categories ?? [];
 
   const workspaceRef = useRef<HTMLDivElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
@@ -322,7 +332,11 @@ export function TaxPlannerWorkspace() {
     <section aria-labelledby="tax-planner-title" className="wealth-tool-workspace wealth-tax-planner-workspace">
       <WealthSubNav />
 
-      <TaxHero isLoading={showResultsSkeleton} potentialSavings={potentialSavings} />
+      <TaxHero
+        displayName={plannerConfig?.display_name ?? "FY 2025-2026"}
+        isLoading={showResultsSkeleton}
+        potentialSavings={potentialSavings}
+      />
 
       <TaxModeSegment activeMode={mode} onChange={changeMode} />
 
@@ -341,6 +355,8 @@ export function TaxPlannerWorkspace() {
             activeStep={activeStep}
             income={income}
             investments={investments}
+            investmentCategories={investmentCategories}
+            locationTiers={plannerConfig?.location_tiers ?? []}
             onCalculate={scrollToPlay}
             onIncomeChange={updateIncome}
             onInvestmentChange={updateInvestment}
@@ -348,6 +364,7 @@ export function TaxPlannerWorkspace() {
             onStepChange={setActiveStep}
             onToggleIncomeCard={toggleIncomeCard}
             onToggleInvestmentCard={toggleInvestmentCard}
+            plannerConfig={plannerConfig}
             profile={profile}
             selectedIncomeCards={selectedIncomeCards}
             selectedInvestmentCards={selectedInvestmentCards}
@@ -388,16 +405,18 @@ export function TaxPlannerWorkspace() {
 }
 
 function TaxHero({
+  displayName,
   isLoading,
   potentialSavings,
 }: {
+  displayName: string;
   isLoading: boolean;
   potentialSavings: string | number;
 }) {
   return (
     <header className="wealth-tax-hero">
       <div className="wealth-tax-hero-content">
-        <span className="wealth-tax-badge">FY 2025-2026</span>
+        <span className="wealth-tax-badge">{displayName}</span>
         <h1 id="tax-planner-title">Tax Planner</h1>
         <p className="wealth-tax-hero-subtitle">
           Estimate your yearly tax and discover legal ways to reduce it through tax-saving investments.
@@ -553,6 +572,8 @@ function DetailedWizard({
   activeStep,
   income,
   investments,
+  investmentCategories,
+  locationTiers,
   onCalculate,
   onIncomeChange,
   onInvestmentChange,
@@ -560,6 +581,7 @@ function DetailedWizard({
   onStepChange,
   onToggleIncomeCard,
   onToggleInvestmentCard,
+  plannerConfig,
   profile,
   selectedIncomeCards,
   selectedInvestmentCards,
@@ -567,6 +589,8 @@ function DetailedWizard({
   activeStep: WizardStep;
   income: NumericInputState<TaxPlannerIncomeInput>;
   investments: DetailedInvestmentState;
+  investmentCategories: TaxPlannerInvestmentCategoryConfig[];
+  locationTiers: TaxPlannerConfigResponse["location_tiers"];
   onCalculate: () => void;
   onIncomeChange: (key: keyof TaxPlannerIncomeInput, value: string) => void;
   onInvestmentChange: (key: keyof DetailedInvestmentState, value: string) => void;
@@ -574,6 +598,7 @@ function DetailedWizard({
   onStepChange: (step: WizardStep) => void;
   onToggleIncomeCard: (cardId: string) => void;
   onToggleInvestmentCard: (cardId: string) => void;
+  plannerConfig?: TaxPlannerConfigResponse;
   profile: TaxPlannerProfileState;
   selectedIncomeCards: string[];
   selectedInvestmentCards: string[];
@@ -614,7 +639,7 @@ function DetailedWizard({
 
       <div className="wealth-tax-step-body">
         {activeStep === "about" ? (
-          <AboutYouStep onProfileChange={onProfileChange} profile={profile} />
+          <AboutYouStep locationTiers={locationTiers} onProfileChange={onProfileChange} profile={profile} />
         ) : activeStep === "income" ? (
           <IncomeStep
             income={income}
@@ -625,9 +650,11 @@ function DetailedWizard({
         ) : activeStep === "investments" ? (
           <InvestmentStep
             income={income}
+            investmentCategories={investmentCategories}
             investments={investments}
             onInvestmentChange={onInvestmentChange}
             onToggleInvestmentCard={onToggleInvestmentCard}
+            plannerConfig={plannerConfig}
             selectedInvestmentCards={selectedInvestmentCards}
           />
         ) : (
@@ -653,9 +680,11 @@ function DetailedWizard({
 }
 
 function AboutYouStep({
+  locationTiers,
   onProfileChange,
   profile,
 }: {
+  locationTiers: TaxPlannerConfigResponse["location_tiers"];
   onProfileChange: (profile: TaxPlannerProfileState) => void;
   profile: TaxPlannerProfileState;
 }) {
@@ -695,6 +724,23 @@ function AboutYouStep({
           />
         </label>
       </div>
+
+      {locationTiers.length > 0 ? (
+        <label className="wealth-tax-about-field">
+          <span className="wealth-tax-about-field-label">Where do you live?</span>
+          <select
+            onChange={(event) => onProfileChange({ ...profile, location_code: event.target.value })}
+            value={profile.location_code}
+          >
+            <option value="">Use national minimum tax default</option>
+            {locationTiers.map((tier) => (
+              <option key={tier.location_code} value={tier.location_code}>
+                {tier.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
 
       <div className="wealth-tax-about-field">
         <span className="wealth-tax-about-field-label">Do any of these apply to you?</span>
@@ -782,18 +828,33 @@ function IncomeStep({
 
 function InvestmentStep({
   income,
+  investmentCategories,
   investments,
   onInvestmentChange,
   onToggleInvestmentCard,
+  plannerConfig,
   selectedInvestmentCards,
 }: {
   income: NumericInputState<TaxPlannerIncomeInput>;
+  investmentCategories: TaxPlannerInvestmentCategoryConfig[];
   investments: DetailedInvestmentState;
   onInvestmentChange: (key: keyof DetailedInvestmentState, value: string) => void;
   onToggleInvestmentCard: (cardId: string) => void;
+  plannerConfig?: TaxPlannerConfigResponse;
   selectedInvestmentCards: string[];
 }) {
-  const tips = useMemo(() => buildInvestmentTips(sumStateValues(income)), [income]);
+  const tips = useMemo(
+    () => buildInvestmentTips(plannerConfig, sumStateValues(income)),
+    [plannerConfig, income],
+  );
+  const cards = investmentCategories.length
+    ? investmentCategories
+    : INVESTMENT_FIELD_KEYS.map((key, index) => ({
+        category_key: key,
+        display_label: key,
+        icon: "💰",
+        sort_order: index + 1,
+      }));
 
   return (
     <div className="wealth-tax-step-content">
@@ -805,24 +866,24 @@ function InvestmentStep({
       <InvestmentKnowHow tips={tips} />
 
       <div className="wealth-tax-investment-list">
-        {INVESTMENT_CARDS.map((card) => {
-          const isSelected = selectedInvestmentCards.includes(card.key);
-          const amountId = `tax-investment-${card.key}`;
+        {cards.map((card) => {
+          const isSelected = selectedInvestmentCards.includes(card.category_key);
+          const amountId = `tax-investment-${card.category_key}`;
           return (
             <div
               className={`wealth-tax-investment-tile ${isSelected ? "wealth-tax-investment-tile-active" : ""}`}
-              key={card.key}
+              key={card.category_key}
             >
               <div className="wealth-tax-investment-tile-head">
                 <span className="wealth-tax-investment-icon" aria-hidden="true">
                   {card.icon}
                 </span>
-                <span className="wealth-tax-investment-name">{card.label}</span>
+                <span className="wealth-tax-investment-name">{card.display_label}</span>
                 <button
                   aria-expanded={isSelected}
-                  aria-label={`${card.label}. ${isSelected ? "Remove" : "Add"} amount.`}
+                  aria-label={`${card.display_label}. ${isSelected ? "Remove" : "Add"} amount.`}
                   className="wealth-tax-investment-action"
-                  onClick={() => onToggleInvestmentCard(card.key)}
+                  onClick={() => onToggleInvestmentCard(card.category_key)}
                   type="button"
                 >
                   {isSelected ? "−" : "+"}
@@ -831,15 +892,18 @@ function InvestmentStep({
               {isSelected ? (
                 <div className="wealth-tax-investment-amount">
                   <input
-                    aria-label={`${card.label} yearly amount`}
+                    aria-label={`${card.display_label} yearly amount`}
                     id={amountId}
                     inputMode="decimal"
                     onChange={(event) =>
-                      onInvestmentChange(card.key as keyof DetailedInvestmentState, event.target.value)
+                      onInvestmentChange(
+                        card.category_key as keyof DetailedInvestmentState,
+                        event.target.value,
+                      )
                     }
                     placeholder="Yearly amount"
                     type="text"
-                    value={investments[card.key as keyof DetailedInvestmentState]}
+                    value={investments[card.category_key as keyof DetailedInvestmentState]}
                   />
                 </div>
               ) : null}
@@ -1123,12 +1187,17 @@ function PlayAndExplore({
 }
 
 function TaxJourney({ result }: { result: TaxPlannerCalculateResponse }) {
-  const values: Record<(typeof JOURNEY_STEPS)[number]["key"], string | number> = {
+  const minimumTaxApplied = toNumber(result.minimum_tax_applied ?? 0);
+  const journeySteps = JOURNEY_STEPS.filter(
+    (step) => step.key !== "minimum_tax_applied" || minimumTaxApplied > 0,
+  );
+  const values: Record<string, string | number> = {
     total_income: result.total_income,
     tax_free_allowance: result.tax_free_allowance,
     taxable_income: result.taxable_income,
     gross_tax: result.gross_tax,
     rebate: result.rebate,
+    minimum_tax_applied: minimumTaxApplied,
     final_tax: result.final_tax,
   };
 
@@ -1139,17 +1208,17 @@ function TaxJourney({ result }: { result: TaxPlannerCalculateResponse }) {
         <h2>Understand how your tax is calculated</h2>
       </div>
       <div className="wealth-tax-journey-flow">
-        {JOURNEY_STEPS.map((step, index) => (
+        {journeySteps.map((step, index) => (
           <div className="wealth-tax-journey-item" key={step.key}>
             <article className={`wealth-tax-journey-node wealth-tax-node-${step.tone}`}>
               <span className="wealth-tax-journey-icon" aria-hidden="true">{step.icon}</span>
               <span className="wealth-tax-journey-label">{step.label}</span>
               <strong>
-                {step.key === "rebate" ? "−" : ""}
-                {formatWealthCurrency(values[step.key])}
+                {step.key === "rebate" || step.key === "minimum_tax_applied" ? "−" : ""}
+                {formatWealthCurrency(values[step.key] ?? 0)}
               </strong>
             </article>
-            {index < JOURNEY_STEPS.length - 1 ? (
+            {index < journeySteps.length - 1 ? (
               <span className="wealth-tax-journey-arrow" aria-hidden="true">→</span>
             ) : null}
           </div>
@@ -1397,7 +1466,6 @@ function buildPayload(
 ): TaxPlannerCalculateRequest {
   return {
     mode,
-    fiscal_year: "2025-2026",
     profile: mode === "QUICK" ? QUICK_PROFILE : buildProfilePayload(profile),
     income: buildIncomePayload(mode, income),
     investments: buildInvestmentPayload(mode, investments, quickTaxSavingInvestments, simulationAdditionalInvestment),
@@ -1452,6 +1520,7 @@ function buildProfilePayload(profile: TaxPlannerProfileState): TaxPlannerProfile
     senior_citizen: profile.senior_citizen,
     person_with_disability: profile.person_with_disability,
     freedom_fighter: profile.freedom_fighter,
+    location_code: profile.location_code || null,
   };
 }
 
@@ -1506,4 +1575,43 @@ function sumStateValues(values: Record<string, string>) {
 function toNumber(value: string | number | null | undefined) {
   const numericValue = Number(value ?? 0);
   return Number.isFinite(numericValue) ? numericValue : 0;
+}
+
+function buildInvestmentTips(config: TaxPlannerConfigResponse | undefined, totalIncome: number) {
+  const rebate = config?.investment_rebate;
+  const maxIncomePercent = rebate ? toNumber(rebate.max_income_percentage) : 20;
+  const maxAmount = rebate ? toNumber(rebate.max_amount) : 1_000_000;
+  const rebateRate = rebate ? toNumber(rebate.rebate_rate) : 15;
+  const maxEligible = Math.min(totalIncome * (maxIncomePercent / 100), maxAmount);
+
+  return [
+    {
+      id: "income-cap",
+      icon: "📊",
+      summary: `Up to ${maxIncomePercent}% of your yearly income can count`,
+      detail: `Eligible tax-saving investments are limited to ${maxIncomePercent}% of your total income in a year, with an overall cap of ${formatWealthCurrency(maxAmount)}. Amounts above that won't increase your rebate.`,
+    },
+    {
+      id: "rebate-rate",
+      icon: "🌱",
+      summary: `${rebateRate}% rebate on what qualifies`,
+      detail: `Bangladesh offers a ${rebateRate}% investment rebate on eligible amounts. That rebate is subtracted from your gross tax — it's a direct reduction, not a refund on its own.`,
+    },
+    {
+      id: "mix-types",
+      icon: "🧩",
+      summary: "You can mix PF, insurance, stocks, funds & savings",
+      detail: "You don't need to pick just one instrument. Provident fund, life insurance, stocks, mutual funds, DPS, and Sanchayapatra can all count together toward your yearly eligible total.",
+    },
+    ...(totalIncome > 0
+      ? [
+          {
+            id: "your-room",
+            icon: "🎯",
+            summary: `Your income suggests ~${formatWealthCurrency(maxEligible)} room this year`,
+            detail: `Based on the income you've entered so far, your estimated maximum eligible investment is about ${formatWealthCurrency(maxEligible)}. Add amounts below — we'll refine this as you complete the wizard.`,
+          },
+        ]
+      : []),
+  ];
 }
