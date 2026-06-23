@@ -20,10 +20,9 @@ class ResolvedTaxFreeThresholds:
 
 @dataclass(frozen=True)
 class ResolvedInvestmentRebateConfig:
-    max_income_percentage: Decimal
-    max_amount: Decimal
-    rebate_rate: Decimal
-    max_rebate_amount: Decimal | None = None
+    taxable_income_limit_pct: Decimal
+    investment_rebate_pct: Decimal
+    maximum_rebate_amount: Decimal
 
 
 @dataclass(frozen=True)

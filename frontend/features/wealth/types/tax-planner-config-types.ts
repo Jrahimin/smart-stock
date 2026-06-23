@@ -1,8 +1,7 @@
 export type TaxPlannerInvestmentRebateConfig = {
-  max_income_percentage: string | number;
-  max_amount: string | number;
-  rebate_rate: string | number;
-  max_rebate_amount?: string | number | null;
+  taxable_income_limit_pct: string | number;
+  investment_rebate_pct: string | number;
+  maximum_rebate_amount: string | number;
 };
 
 export type TaxPlannerInvestmentCategoryConfig = {

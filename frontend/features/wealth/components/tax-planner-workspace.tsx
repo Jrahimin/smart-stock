@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
+import { TaxInfoTooltip } from "@/features/wealth/components/tax-info-tooltip";
 import { WealthSubNav } from "@/features/wealth/components/wealth-sub-nav";
 import {
   readTaxPlannerDraft,
@@ -19,6 +20,15 @@ import type {
   TaxPlannerProfileInput,
 } from "@/features/wealth/types/tax-planner-types";
 import type { TaxPlannerConfigResponse, TaxPlannerInvestmentCategoryConfig } from "@/features/wealth/types/tax-planner-config-types";
+import {
+  buildAdditionalInvestmentMarkers,
+  getAdditionalInvestmentSliderStep,
+  normalizeAdditionalInvestment,
+} from "@/features/wealth/lib/tax-planner-rebate-helpers";
+import {
+  RebateBreakdownHint,
+  ActiveLimiterBadge,
+} from "@/features/wealth/components/tax-planner-rebate-breakdown-hint";
 import { formatWealthCurrency, formatWealthNumber } from "@/features/wealth/view-models/wealth-view-model";
 
 type NumericInputState<T extends Record<string, unknown>> = Record<keyof T, string>;
@@ -196,17 +206,15 @@ const INVESTMENT_FIELD_KEYS = [
 ] as const;
 
 const JOURNEY_STEPS = [
-  { key: "total_income", label: "Total Income", icon: "💰", tone: "info" },
-  { key: "tax_free_allowance", label: "Tax-Free Allowance", icon: "🛡️", tone: "positive" },
-  { key: "taxable_income", label: "Taxable Income", icon: "🧾", tone: "neutral" },
-  { key: "gross_tax", label: "Gross Tax", icon: "％", tone: "warning" },
-  { key: "rebate", label: "Investment Rebate", icon: "🌱", tone: "positive" },
-  { key: "minimum_tax_applied", label: "Minimum Tax Floor", icon: "📍", tone: "warning" },
-  { key: "final_tax", label: "Final Tax", icon: "🎯", tone: "primary" },
+  { key: "total_income", label: "Income", icon: "💰", tone: "info", caption: "" },
+  { key: "tax_free_allowance", label: "Tax-Free", icon: "🛡️", tone: "positive", caption: "" },
+  { key: "taxable_income", label: "Taxable Income", icon: "🧾", tone: "neutral", caption: "" },
+  { key: "gross_tax", label: "Gross Tax", icon: "％", tone: "warning", caption: "Before savings" },
+  { key: "rebate", label: "Investment Rebate", icon: "🌱", tone: "positive", caption: "" },
+  { key: "final_tax", label: "Final Tax", icon: "🎯", tone: "primary", caption: "" },
 ] as const;
 
-const SIMULATION_STEPS = [50000, 100000, 200000] as const;
-const SIMULATION_SLIDER_MAX = 1000000;
+const SIMULATION_DEBOUNCE_MS = 120;
 
 export function TaxPlannerWorkspace() {
   const [draftHydrated, setDraftHydrated] = useState(false);
@@ -225,6 +233,7 @@ export function TaxPlannerWorkspace() {
 
   const workspaceRef = useRef<HTMLDivElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
+  const playExploreRef = useRef<HTMLElement>(null);
 
   const basePayload = useMemo<TaxPlannerCalculateRequest>(
     () => buildPayload(mode, profile, income, investments, quickTaxSavingInvestments, 0),
@@ -345,7 +354,6 @@ export function TaxPlannerWorkspace() {
           <QuickEstimateForm
             income={income}
             onIncomeChange={updateIncome}
-            onScrollToPlay={scrollToPlay}
             onSwitchDetailed={() => changeMode("DETAILED")}
             taxSavingInvestments={quickTaxSavingInvestments}
             onTaxSavingInvestmentChange={setQuickTaxSavingInvestments}
@@ -391,11 +399,11 @@ export function TaxPlannerWorkspace() {
               additionalInvestment={simulatedAdditionalInvestment}
               baseResult={baseResult}
               onChange={setSimulatedAdditionalInvestment}
-              onReset={() => setSimulatedAdditionalInvestment(0)}
+              plannerConfig={plannerConfig}
+              sectionRef={playExploreRef}
               simResult={liveResult}
             />
-            <TaxJourney result={liveResult} />
-            <SmartInsights result={liveResult} />
+            <TaxJourney onExploreSavings={() => scrollToRebateSection(playExploreRef)} result={liveResult} />
             <p className="wealth-tax-footer-disclaimer">{liveResult.disclaimer}</p>
           </div>
         ) : null}
@@ -514,14 +522,12 @@ function TaxResultsSkeleton() {
 function QuickEstimateForm({
   income,
   onIncomeChange,
-  onScrollToPlay,
   onSwitchDetailed,
   onTaxSavingInvestmentChange,
   taxSavingInvestments,
 }: {
   income: NumericInputState<TaxPlannerIncomeInput>;
   onIncomeChange: (key: keyof TaxPlannerIncomeInput, value: string) => void;
-  onScrollToPlay: () => void;
   onSwitchDetailed: () => void;
   onTaxSavingInvestmentChange: (value: string) => void;
   taxSavingInvestments: string;
@@ -548,22 +554,26 @@ function QuickEstimateForm({
           value={income.other_yearly_income}
         />
         <TaxInput
-          helper="Life insurance, provident fund, stocks, mutual funds, government savings certificates and similar."
-          hint="Total amount invested this year in tax-saving instruments."
+          infoTooltip={
+            <>
+              <strong>Total amount invested this year in tax-saving instruments.</strong>
+              <p>
+                Life insurance, provident fund, stocks, mutual funds, government savings certificates and
+                similar.
+              </p>
+            </>
+          }
           inputMode="decimal"
           label="Tax Saving Investments"
           onChange={onTaxSavingInvestmentChange}
           value={taxSavingInvestments}
         />
       </div>
-      <div className="wealth-tax-quick-actions">
-        <button className="wealth-tax-next-button" onClick={onScrollToPlay} type="button">
-          See My Tax Snapshot →
-        </button>
+      <p className="wealth-tax-quick-foot">
         <button className="wealth-inline-link wealth-tax-link-button" onClick={onSwitchDetailed} type="button">
           Need more accuracy? Try detailed estimate
         </button>
-      </div>
+      </p>
     </div>
   );
 }
@@ -1007,8 +1017,8 @@ function TaxSnapshot({
           <strong>{formatWealthCurrency(baseResult.potential_additional_tax_saving)}</strong>
         </article>
         <article className="wealth-tax-story-card wealth-tax-story-max">
-          <span className="wealth-tax-story-label">Max Eligible Investment</span>
-          <strong>{formatWealthCurrency(baseResult.maximum_eligible_investment)}</strong>
+          <span className="wealth-tax-story-label">Target Investment for Max Rebate</span>
+          <strong>{formatWealthCurrency(baseResult.required_investment_for_full_rebate)}</strong>
         </article>
       </div>
 
@@ -1021,7 +1031,12 @@ function TaxSnapshot({
           </strong>
         </span>
         <span className="wealth-tax-stat-pill" role="listitem">
-          <span>Effective rate</span>
+          <span className="wealth-tax-stat-pill-label">
+            Effective rate
+            <TaxInfoTooltip ariaLabel="How effective tax rate is calculated" title="Final tax divided by total income.">
+              Final tax divided by total income.
+            </TaxInfoTooltip>
+          </span>
           <strong>{formatWealthNumber(effectiveRate)}%</strong>
         </span>
         <span className="wealth-tax-stat-pill" role="listitem">
@@ -1041,144 +1056,274 @@ function PlayAndExplore({
   additionalInvestment,
   baseResult,
   onChange,
-  onReset,
+  plannerConfig,
+  sectionRef,
   simResult,
 }: {
   additionalInvestment: number;
   baseResult: TaxPlannerCalculateResponse;
   onChange: (value: number) => void;
-  onReset: () => void;
+  plannerConfig?: TaxPlannerConfigResponse | null;
+  sectionRef?: React.RefObject<HTMLElement | null>;
   simResult: TaxPlannerCalculateResponse;
 }) {
-  const currentTax = toNumber(baseResult.final_tax);
-  const newTax = toNumber(simResult.final_tax);
-  const taxSaved = Math.max(0, currentTax - newTax);
-  const maximumEligible = toNumber(baseResult.maximum_eligible_investment);
-  const remainingEligible = toNumber(baseResult.remaining_eligible_investment);
-  const simulationCap = Math.max(0, Math.round(remainingEligible));
-  const sliderMax = simulationCap > 0 ? simulationCap : SIMULATION_SLIDER_MAX;
-  const usedEligible = toNumber(simResult.current_eligible_investment);
-  const unlockedPercent = maximumEligible > 0 ? Math.min(100, Math.round((usedEligible / maximumEligible) * 100)) : 0;
+  const [draftAdditional, setDraftAdditional] = useState(additionalInvestment);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const jarFillPercent = unlockedPercent;
-  const rewardCopy =
-    unlockedPercent >= 100
-      ? "Full room unlocked — you're keeping the maximum rebate."
-      : taxSaved > 0
-        ? "Every extra taka can shrink your tax."
-        : "Slide to see your tax drop.";
+  useEffect(() => {
+    setDraftAdditional(additionalInvestment);
+  }, [additionalInvestment]);
+
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, []);
+
+  function handleAdditionalChange(value: number) {
+    const normalized = normalizeAdditionalInvestment(value, sliderMax, sliderStep);
+    setDraftAdditional(normalized);
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+    debounceTimerRef.current = setTimeout(() => onChange(normalized), SIMULATION_DEBOUNCE_MS);
+  }
+
+  function flushAdditionalChange(value: number) {
+    const normalized = normalizeAdditionalInvestment(value, sliderMax, sliderStep);
+    setDraftAdditional(normalized);
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+    onChange(normalized);
+  }
+
+  const activeResult = additionalInvestment > 0 ? simResult : baseResult;
+  const currentTax = toNumber(baseResult.final_tax);
+  const currentInvestment = toNumber(baseResult.current_investment);
+  const requiredInvestment = toNumber(baseResult.required_investment_for_full_rebate);
+  const additionalNeeded = toNumber(activeResult.additional_investment_needed);
+  const maximumAvailableRebate = toNumber(baseResult.maximum_available_rebate);
+  const currentRebate = toNumber(baseResult.rebate);
+  const additionalTaxSaving = toNumber(activeResult.potential_additional_tax_saving);
+  const baseUtilizationPct = Math.round(toNumber(baseResult.rebate_utilization_pct));
+  const projectedUtilizationPct = Math.round(toNumber(simResult.rebate_utilization_pct));
+  const simulationCap = Math.max(0, toNumber(baseResult.additional_investment_needed));
+  const sliderMax = Math.round(simulationCap);
+  const sliderStep = getAdditionalInvestmentSliderStep(sliderMax);
+  const simulatedAdditional = Math.min(sliderMax, draftAdditional);
+  const isSimulating = simulatedAdditional > 0;
+  const heroUtilizationPct = isSimulating && additionalInvestment > 0 ? projectedUtilizationPct : baseUtilizationPct;
+  const projectedRebate = toNumber(simResult.rebate);
+  const projectedTax = toNumber(simResult.final_tax);
+  const projectedTaxSaving = Math.max(0, currentTax - projectedTax);
+  const totalSimulatedInvestment = currentInvestment + simulatedAdditional;
+  const sliderRatio = sliderMax > 0 ? simulatedAdditional / sliderMax : 0;
+  const sliderMarkers = useMemo(() => buildAdditionalInvestmentMarkers(sliderMax), [sliderMax]);
+  const targetAchieved = requiredInvestment > 0 && currentInvestment >= requiredInvestment - 0.01;
+  const projectedRebateMaxed =
+    isSimulating && additionalInvestment > 0 && (projectedUtilizationPct >= 100 || toNumber(simResult.additional_investment_needed) <= 0);
+  const currentRebateMaxed = baseUtilizationPct >= 100 || toNumber(baseResult.additional_investment_needed) <= 0;
+  const rebateMaxed = isSimulating && additionalInvestment > 0 ? projectedRebateMaxed : currentRebateMaxed;
 
   return (
-    <section className="wealth-tax-play wealth-panel">
+    <section
+      className="wealth-tax-play wealth-tax-play-compact wealth-panel"
+      id="tax-planner-play-explore"
+      ref={sectionRef}
+      tabIndex={-1}
+    >
       <div className="wealth-tax-play-head">
-        <p className="wealth-tax-section-eyebrow">Play &amp; Explore</p>
         <h2>What If I Invest More?</h2>
       </div>
 
-      <div className="wealth-tax-play-layout">
-        <div className="wealth-tax-play-jar">
-          <SavingsJar
-            fillPercent={jarFillPercent}
-            label={`Tax-saving room ${unlockedPercent}% filled`}
-          />
-          <div className="wealth-tax-play-jar-caption">
-            <strong>{formatWealthCurrency(additionalInvestment)}</strong>
-            <span>extra invested · {unlockedPercent}% room used</span>
+      <div className="wealth-tax-play-layout wealth-tax-play-layout-compact">
+        <aside className="wealth-tax-play-aside">
+          <SavingsJar compact fillPercent={heroUtilizationPct} label={`${heroUtilizationPct}% rebate utilization`} />
+          <div className="wealth-tax-play-aside-investment">
+            <div className="wealth-tax-play-aside-row wealth-tax-play-aside-row--current">
+              <span>Current Investment</span>
+              <strong>{formatWealthCurrency(currentInvestment)}</strong>
+            </div>
+            <div className="wealth-tax-play-aside-row wealth-tax-play-aside-row--target">
+              <span>{targetAchieved ? "Required Investment" : "Target Investment"}</span>
+              <strong>{formatWealthCurrency(requiredInvestment)}</strong>
+            </div>
+            {targetAchieved ? <p className="wealth-tax-target-achieved">✓ Target Achieved</p> : null}
           </div>
-        </div>
+        </aside>
 
-        <div className="wealth-tax-play-controls">
-          <div className="wealth-tax-play-quick">
-            <span className="wealth-tax-play-quick-label">Add more investment</span>
-            <div className="wealth-tax-play-quick-buttons">
-              {SIMULATION_STEPS.map((amount) => {
-                const cappedAmount = Math.min(amount, simulationCap);
-                return (
-                  <button
-                    className={`wealth-tax-quick-button ${additionalInvestment === cappedAmount && simulationCap > 0 ? "wealth-tax-quick-active" : ""}`}
-                    disabled={simulationCap <= 0}
-                    key={amount}
-                    onClick={() => onChange(cappedAmount)}
-                    type="button"
-                  >
-                    +{formatWealthNumber(amount)}
-                  </button>
-                );
-              })}
-              <button
-                className={`wealth-tax-quick-button ${additionalInvestment >= simulationCap && simulationCap > 0 ? "wealth-tax-quick-active" : ""}`}
-                disabled={simulationCap <= 0}
-                onClick={() => onChange(simulationCap)}
-                type="button"
-              >
-                Max Out
-              </button>
+        <div className="wealth-tax-play-main">
+          <div className="wealth-tax-play-planning">
+            {isSimulating ? (
+              <>
+                <p className="wealth-tax-play-hero-pct">
+                  Projected Rebate Utilization: {heroUtilizationPct}%
+                </p>
+                <p className="wealth-tax-play-hero-context">
+                  After investing {formatWealthCurrency(simulatedAdditional)} more
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="wealth-tax-play-hero-pct">Current Rebate Utilization: {baseUtilizationPct}%</p>
+                <p className="wealth-tax-play-hero-context">Based on your current investments today</p>
+              </>
+            )}
+            <div className="wealth-tax-progress-track wealth-tax-progress-track--hero">
+              <span style={{ width: `${heroUtilizationPct}%` }} />
+            </div>
+
+            <div className="wealth-tax-play-recommendation" role="status">
+              {isSimulating && additionalInvestment > 0 && projectedRebateMaxed ? (
+                <p>
+                  ✓ Projected outcome: full rebate unlocked. Rebate rises to{" "}
+                  <strong className="wealth-tax-play-recommendation-save">
+                    {formatWealthCurrency(projectedRebate)}
+                  </strong>
+                  , saving an additional{" "}
+                  <strong className="wealth-tax-play-recommendation-save">
+                    {formatWealthCurrency(projectedTaxSaving)}
+                  </strong>{" "}
+                  in tax.
+                </p>
+              ) : isSimulating ? (
+                <p>
+                  Invest{" "}
+                  <span className="wealth-tax-play-recommendation-invest">
+                    {formatWealthCurrency(simulatedAdditional)}
+                  </span>{" "}
+                  more to get Maximum Rebate{" "}
+                  <strong className="wealth-tax-play-recommendation-save">
+                    {formatWealthCurrency(maximumAvailableRebate)}
+                  </strong>
+                </p>
+              ) : rebateMaxed ? (
+                <p>
+                  ✓ Maximum rebate achieved on current investments. You are saving{" "}
+                  <strong className="wealth-tax-play-recommendation-save">
+                    {formatWealthCurrency(currentRebate)}
+                  </strong>{" "}
+                  on tax today.
+                </p>
+              ) : (
+                <p>
+                  Invest{" "}
+                  <span className="wealth-tax-play-recommendation-invest">
+                    {formatWealthCurrency(additionalNeeded)}
+                  </span>{" "}
+                  more to get Maximum Rebate{" "}
+                  <strong className="wealth-tax-play-recommendation-save">
+                    {formatWealthCurrency(maximumAvailableRebate)}
+                  </strong>
+                </p>
+              )}
+            </div>
+
+            <div className="wealth-tax-play-context">
+              <div className="wealth-tax-play-context-chips">
+                <span className="wealth-tax-play-rebate-chip">
+                  <span className="wealth-tax-play-rebate-chip-label">Current Rebate (today)</span>
+                  <strong>{formatWealthCurrency(currentRebate)}</strong>
+                </span>
+                <span className="wealth-tax-play-rebate-chip wealth-tax-play-rebate-chip--max">
+                  <span className="wealth-tax-play-rebate-chip-label">Maximum Rebate</span>
+                  <strong>{formatWealthCurrency(maximumAvailableRebate)}</strong>
+                </span>
+              </div>
+              <div className="wealth-tax-play-context-meta">
+                <ActiveLimiterBadge plannerConfig={plannerConfig} result={baseResult} />
+                <RebateBreakdownHint
+                  align="end"
+                  plannerConfig={plannerConfig}
+                  result={baseResult}
+                  simulatorMode
+                />
+              </div>
             </div>
           </div>
 
-          <div className="wealth-tax-slider-block">
-            <div className="wealth-tax-slider-head">
-              <span>Use the slider or quick buttons to explore</span>
-              <span className="wealth-tax-slider-max">Maximum eligible {formatWealthCurrency(maximumEligible)}</span>
-            </div>
-            <input
-              aria-label="Additional tax-saving investment to simulate"
-              aria-valuemax={sliderMax}
-              aria-valuemin={0}
-              aria-valuenow={Math.min(sliderMax, additionalInvestment)}
-              aria-valuetext={formatWealthCurrency(Math.min(sliderMax, additionalInvestment))}
-              className="wealth-tax-slider"
-              disabled={sliderMax <= 0}
-              max={sliderMax}
-              min={0}
-              onChange={(event) => onChange(Number(event.target.value))}
-              step={sliderMax > 100000 ? 10000 : 5000}
-              type="range"
-              value={Math.min(sliderMax, additionalInvestment)}
-            />
-            <div className="wealth-tax-slider-scale">
-              <span>0</span>
-              <span>{formatWealthNumber(Math.round(sliderMax / 2))}</span>
-              <span>{formatWealthCurrency(sliderMax)}</span>
+          <div className="wealth-tax-play-controls wealth-tax-play-controls-compact">
+            <div className="wealth-tax-slider-block wealth-tax-slider-block--compact">
+              <div aria-live="polite" className="wealth-tax-slider-summary">
+                <span className="wealth-tax-slider-summary-item">
+                  <em>Additional Investment</em>
+                  <strong>{formatWealthCurrency(simulatedAdditional)}</strong>
+                </span>
+                <span className="wealth-tax-slider-summary-item wealth-tax-slider-summary-item--total">
+                  <em>Total Investment</em>
+                  <strong>{formatWealthCurrency(totalSimulatedInvestment)}</strong>
+                </span>
+              </div>
+              <div className="wealth-tax-slider-wrap">
+                <div
+                  className="wealth-tax-slider-rail"
+                  style={{ "--slider-ratio": sliderRatio } as React.CSSProperties}
+                >
+                  {simulatedAdditional > 0 ? (
+                    <span aria-hidden="true" className="wealth-tax-slider-fill" />
+                  ) : null}
+                  {simulatedAdditional > 0 ? (
+                    <span className="wealth-tax-slider-thumb-value">
+                      +{formatWealthCurrency(simulatedAdditional)}
+                    </span>
+                  ) : null}
+                  <input
+                    aria-label="Additional tax-saving investment to simulate"
+                    aria-valuemax={sliderMax}
+                    aria-valuemin={0}
+                    aria-valuenow={simulatedAdditional}
+                    aria-valuetext={formatWealthCurrency(simulatedAdditional)}
+                    className="wealth-tax-slider"
+                    disabled={sliderMax <= 0}
+                    max={sliderMax || 1}
+                    min={0}
+                    onChange={(event) => handleAdditionalChange(Number(event.target.value))}
+                    onPointerUp={(event) => flushAdditionalChange(Number(event.currentTarget.value))}
+                    step={sliderStep}
+                    type="range"
+                    value={simulatedAdditional}
+                  />
+                </div>
+                {sliderMax > 0 ? (
+                  <div aria-hidden="true" className="wealth-tax-slider-markers">
+                    {sliderMarkers.map((marker) => (
+                      <span
+                        className={`wealth-tax-slider-marker wealth-tax-slider-marker--${marker.position}${marker.isMax ? " wealth-tax-slider-marker--max" : ""}`}
+                        key={`${marker.position}-${marker.label}`}
+                        style={{ left: `${marker.percent}%` }}
+                        title={
+                          marker.isMax
+                            ? `Maximum additional investment for full rebate: ${formatWealthCurrency(sliderMax)}`
+                            : formatWealthCurrency(marker.value)
+                        }
+                      >
+                        <span className="wealth-tax-slider-marker-tick" />
+                        <span className="wealth-tax-slider-marker-label">{marker.label}</span>
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
             </div>
           </div>
 
-          <div className="wealth-tax-progress">
-            <div className="wealth-tax-progress-head">
-              <span>Tax-saving room used</span>
-              <strong>{unlockedPercent}%</strong>
-            </div>
-            <div className="wealth-tax-progress-track">
-              <span style={{ width: `${unlockedPercent}%` }} />
-            </div>
-          </div>
-
-          <div className="wealth-tax-play-metrics">
+          <div className="wealth-tax-play-metrics wealth-tax-play-metrics-action">
             <div className="wealth-tax-play-metric wealth-tax-metric-current">
               <span>Current Tax</span>
               <strong>{formatWealthCurrency(currentTax)}</strong>
             </div>
-            <div className="wealth-tax-play-metric wealth-tax-metric-new">
-              <span>New Estimated Tax</span>
-              <strong>{formatWealthCurrency(newTax)}</strong>
-            </div>
             <div className="wealth-tax-play-metric wealth-tax-metric-saved">
-              <span>Tax Saved</span>
-              <strong>{formatWealthCurrency(taxSaved)}</strong>
+              <span>Additional Investment Needed</span>
+              <strong>{formatWealthCurrency(additionalNeeded)}</strong>
             </div>
             <div className="wealth-tax-play-metric wealth-tax-metric-unlocked">
-              <span>Potential Savings Unlocked</span>
-              <strong>{unlockedPercent}%</strong>
+              <span>Additional Tax Saving</span>
+              <strong>{formatWealthCurrency(additionalTaxSaving)}</strong>
             </div>
-          </div>
-
-          <div className="wealth-tax-play-footer">
-            <p>{rewardCopy}</p>
-            {additionalInvestment > 0 ? (
-              <button className="wealth-inline-link wealth-tax-link-button" onClick={onReset} type="button">
-                Reset simulation
-              </button>
-            ) : null}
           </div>
         </div>
       </div>
@@ -1186,133 +1331,331 @@ function PlayAndExplore({
   );
 }
 
-function TaxJourney({ result }: { result: TaxPlannerCalculateResponse }) {
-  const minimumTaxApplied = toNumber(result.minimum_tax_applied ?? 0);
-  const journeySteps = JOURNEY_STEPS.filter(
-    (step) => step.key !== "minimum_tax_applied" || minimumTaxApplied > 0,
-  );
-  const values: Record<string, string | number> = {
-    total_income: result.total_income,
-    tax_free_allowance: result.tax_free_allowance,
-    taxable_income: result.taxable_income,
-    gross_tax: result.gross_tax,
-    rebate: result.rebate,
-    minimum_tax_applied: minimumTaxApplied,
-    final_tax: result.final_tax,
-  };
+function TaxJourney({
+  onExploreSavings,
+  result,
+}: {
+  onExploreSavings: () => void;
+  result: TaxPlannerCalculateResponse;
+}) {
+  const totalIncome = toNumber(result.total_income);
+  const allowance = toNumber(result.tax_free_allowance);
+  const taxableIncome = toNumber(result.taxable_income);
+  const rebate = toNumber(result.rebate);
+  const finalTax = toNumber(result.final_tax);
+  const utilizationPct = Math.round(toNumber(result.rebate_utilization_pct));
+  const additionalNeeded = toNumber(result.additional_investment_needed);
+  const potentialSaving = toNumber(result.potential_additional_tax_saving);
+  const effectiveRate = effectiveTaxRate(finalTax, totalIncome);
+  const taxablePct = totalIncome > 0 ? Math.round((taxableIncome / totalIncome) * 100) : 0;
+  const taxFreePct = totalIncome > 0 ? Math.max(0, 100 - taxablePct) : 0;
+
+  const insightCards = buildTaxJourneyInsightCards({
+    allowance,
+    additionalNeeded,
+    potentialSaving,
+    utilizationPct,
+  });
+
+  function handleExploreSavings() {
+    onExploreSavings();
+  }
 
   return (
     <section className="wealth-tax-journey-section wealth-panel">
-      <div className="wealth-tax-play-head">
+      <header className="wealth-tax-journey-head">
         <p className="wealth-tax-section-eyebrow">Tax Journey</p>
-        <h2>Understand how your tax is calculated</h2>
+        <h2>Your tax journey, simplified</h2>
+        <p className="wealth-tax-journey-subtitle">See how your income becomes your final tax.</p>
+      </header>
+
+      <div className="wealth-tax-journey-main">
+      <div className="wealth-tax-journey-flow-wrap">
+        <div aria-hidden="true" className="wealth-tax-journey-connector" />
+        <div className="wealth-tax-journey-flow">
+          {JOURNEY_STEPS.map((step, index) => {
+            const caption =
+              step.key === "taxable_income"
+                ? `${taxablePct}% taxable`
+                : step.key === "rebate"
+                  ? "Rebate unlocked"
+                  : step.key === "final_tax"
+                    ? `${formatWealthNumber(effectiveRate)}% of income`
+                    : step.caption;
+
+            return (
+              <div className="wealth-tax-journey-item" key={step.key}>
+                <article
+                  className={`wealth-tax-journey-node wealth-tax-node-${step.tone} wealth-tax-journey-node-${step.key}${step.key === "final_tax" ? " wealth-tax-journey-node-destination" : ""}`}
+                >
+                  <span className="wealth-tax-journey-icon-wrap" aria-hidden="true">
+                    <span className="wealth-tax-journey-icon">{step.icon}</span>
+                  </span>
+                  <span className="wealth-tax-journey-label">{step.label}</span>
+
+                  {step.key === "rebate" ? (
+                    <strong className="wealth-tax-journey-amount wealth-tax-journey-rebate-saved">
+                      {formatWealthCurrency(rebate)} Saved
+                    </strong>
+                  ) : (
+                    <strong
+                      className={`wealth-tax-journey-amount${step.key === "final_tax" ? " wealth-tax-journey-final-amount" : ""}`}
+                    >
+                      {formatWealthCurrency(
+                        step.key === "final_tax" ? finalTax : valuesForStep(step.key, result),
+                      )}
+                    </strong>
+                  )}
+
+                  <div className="wealth-tax-journey-visual-slot">
+                    <JourneyCardVisual
+                      rebatePct={utilizationPct}
+                      stepKey={step.key}
+                      taxFreePct={taxFreePct}
+                      taxablePct={taxablePct}
+                    />
+                  </div>
+
+                  <p
+                    className={`wealth-tax-journey-caption${caption ? "" : " wealth-tax-journey-caption-empty"}`}
+                  >
+                    {caption || "\u00A0"}
+                  </p>
+                </article>
+                {index < JOURNEY_STEPS.length - 1 ? (
+                  <span aria-hidden="true" className="wealth-tax-journey-arrow-node">
+                    <span className="wealth-tax-journey-arrow-glow" />
+                    <span className="wealth-tax-journey-arrow-icon">→</span>
+                  </span>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
       </div>
-      <div className="wealth-tax-journey-flow">
-        {journeySteps.map((step, index) => (
-          <div className="wealth-tax-journey-item" key={step.key}>
-            <article className={`wealth-tax-journey-node wealth-tax-node-${step.tone}`}>
-              <span className="wealth-tax-journey-icon" aria-hidden="true">{step.icon}</span>
-              <span className="wealth-tax-journey-label">{step.label}</span>
-              <strong>
-                {step.key === "rebate" || step.key === "minimum_tax_applied" ? "−" : ""}
-                {formatWealthCurrency(values[step.key] ?? 0)}
-              </strong>
-            </article>
-            {index < journeySteps.length - 1 ? (
-              <span className="wealth-tax-journey-arrow" aria-hidden="true">→</span>
-            ) : null}
+
+      <div className="wealth-tax-journey-metrics" role="list">
+        <article className="wealth-tax-journey-metric wealth-tax-journey-metric-income" role="listitem">
+          <span className="wealth-tax-journey-metric-icon-wrap" aria-hidden="true">
+            <span className="wealth-tax-journey-metric-icon">💰</span>
+          </span>
+          <div className="wealth-tax-journey-metric-body">
+            <span className="wealth-tax-journey-metric-label">Income</span>
+            <strong>{formatWealthCurrency(totalIncome)}</strong>
           </div>
-        ))}
+        </article>
+        <article className="wealth-tax-journey-metric wealth-tax-journey-metric-saved" role="listitem">
+          <span className="wealth-tax-journey-metric-icon-wrap" aria-hidden="true">
+            <span className="wealth-tax-journey-metric-icon">🎯</span>
+          </span>
+          <div className="wealth-tax-journey-metric-body">
+            <span className="wealth-tax-journey-metric-label">Tax Saved</span>
+            <strong>{formatWealthCurrency(rebate)}</strong>
+          </div>
+        </article>
+        <article className="wealth-tax-journey-metric wealth-tax-journey-metric-pay" role="listitem">
+          <span className="wealth-tax-journey-metric-icon-wrap" aria-hidden="true">
+            <span className="wealth-tax-journey-metric-icon">🧾</span>
+          </span>
+          <div className="wealth-tax-journey-metric-body">
+            <span className="wealth-tax-journey-metric-label">You Pay</span>
+            <strong>{formatWealthCurrency(finalTax)}</strong>
+          </div>
+        </article>
+        <article className="wealth-tax-journey-metric wealth-tax-journey-metric-rate" role="listitem">
+          <span className="wealth-tax-journey-metric-icon-wrap" aria-hidden="true">
+            <span className="wealth-tax-journey-metric-icon">📊</span>
+          </span>
+          <div className="wealth-tax-journey-metric-body">
+            <span className="wealth-tax-journey-metric-label">Effective Tax Rate</span>
+            <strong>{formatWealthNumber(effectiveRate)}%</strong>
+          </div>
+        </article>
+      </div>
+      </div>
+
+      <div className="wealth-tax-journey-insights-block">
+        <p className="wealth-tax-section-eyebrow wealth-tax-journey-insights-eyebrow">
+          <span aria-hidden="true">💡</span> Smart Insights
+        </p>
+        <div className="wealth-tax-journey-insights-layout">
+          <div className="wealth-tax-journey-insights-grid">
+            {insightCards.map((card) => (
+              <article className={`wealth-tax-journey-insight-card wealth-tax-journey-insight-${card.tone}`} key={card.id}>
+                <span className="wealth-tax-journey-insight-icon-wrap" aria-hidden="true">
+                  <span className="wealth-tax-journey-insight-icon">{card.icon}</span>
+                </span>
+                <div className="wealth-tax-journey-insight-body">
+                  <h3>{card.title}</h3>
+                  <p>{card.body}</p>
+                </div>
+              </article>
+            ))}
+          </div>
+          <button className="wealth-tax-journey-cta" onClick={handleExploreSavings} type="button">
+            Explore More Savings
+            <span aria-hidden="true">→</span>
+          </button>
+        </div>
       </div>
     </section>
   );
 }
 
-function SmartInsights({ result }: { result: TaxPlannerCalculateResponse }) {
-  const remaining = toNumber(result.remaining_eligible_investment);
-  const potential = toNumber(result.potential_additional_tax_saving);
-  const maximum = toNumber(result.maximum_eligible_investment);
-  const hasRoom = remaining > 0 && maximum > 0;
+function valuesForStep(stepKey: (typeof JOURNEY_STEPS)[number]["key"], result: TaxPlannerCalculateResponse) {
+  switch (stepKey) {
+    case "total_income":
+      return result.total_income;
+    case "tax_free_allowance":
+      return result.tax_free_allowance;
+    case "taxable_income":
+      return result.taxable_income;
+    case "gross_tax":
+      return result.gross_tax;
+    default:
+      return 0;
+  }
+}
 
-  const cards = hasRoom
-    ? [
-        {
-          id: "opportunity",
-          kind: "Opportunity",
-          icon: "🎯",
-          tone: "info",
-          title: "Room left",
-          body: "More eligible investment still available.",
-          amount: remaining,
-        },
-        {
-          id: "impact",
-          kind: "Impact",
-          icon: "📉",
-          tone: "primary",
-          title: "Tax you could save",
-          body: "Using full room may cut tax by about this much.",
-          amount: potential,
-        },
-        {
-          id: "action",
-          kind: "Action",
-          icon: "🧭",
-          tone: "warning",
-          title: "Try next",
-          body: "PF, insurance, stocks, funds, or Sanchayapatra.",
-          amount: null,
-        },
-      ]
-    : [
-        {
-          id: "opportunity",
-          kind: "Opportunity",
-          icon: "🏆",
-          tone: "positive",
-          title: "Room maxed",
-          body: "You're claiming the full rebate.",
-          amount: result.rebate,
-        },
-        {
-          id: "impact",
-          kind: "Impact",
-          icon: "🛡️",
-          tone: "primary",
-          title: "Rebate locked in",
-          body: "Keep investing yearly to maintain it.",
-          amount: null,
-        },
-        {
-          id: "action",
-          kind: "Action",
-          icon: "🧭",
-          tone: "info",
-          title: "Revisit later",
-          body: "Income changes may open new room.",
-          amount: null,
-        },
-      ];
+function buildTaxJourneyInsightCards({
+  allowance,
+  additionalNeeded,
+  potentialSaving,
+  utilizationPct,
+}: {
+  allowance: number;
+  additionalNeeded: number;
+  potentialSaving: number;
+  utilizationPct: number;
+}): Array<{
+  id: string;
+  icon: string;
+  tone: "positive" | "warning";
+  title: string;
+  body: ReactNode;
+}> {
+  const hasRoom = additionalNeeded > 0 && potentialSaving > 0;
+
+  return [
+    {
+      id: "biggest-saver",
+      icon: "⭐",
+      tone: "positive",
+      title: "Biggest Tax Saver",
+      body: (
+        <>
+          Tax-free allowance protected <strong>{formatWealthCurrency(allowance)}</strong> from tax.
+        </>
+      ),
+    },
+    {
+      id: "unlock-more",
+      icon: "🎯",
+      tone: "warning",
+      title: "Unlock More Savings",
+      body: hasRoom ? (
+        <>
+          Invest <strong>{formatWealthCurrency(additionalNeeded)}</strong> more to save{" "}
+          <strong>{formatWealthCurrency(potentialSaving)}</strong>.
+        </>
+      ) : (
+        <>Maximum rebate unlocked under current limits.</>
+      ),
+    },
+    {
+      id: "rebate-progress",
+      icon: "🌱",
+      tone: "positive",
+      title: "Rebate Progress",
+      body: (
+        <>
+          Unlocked <strong>{utilizationPct}%</strong> of available rebate.
+        </>
+      ),
+    },
+  ];
+}
+
+function JourneyCardVisual({
+  rebatePct,
+  stepKey,
+  taxFreePct,
+  taxablePct,
+}: {
+  rebatePct: number;
+  stepKey: (typeof JOURNEY_STEPS)[number]["key"];
+  taxFreePct: number;
+  taxablePct: number;
+}) {
+  switch (stepKey) {
+    case "total_income":
+      return (
+        <div
+          aria-hidden="true"
+          className="wealth-tax-journey-visual wealth-tax-journey-visual-income-split"
+          title={`${taxFreePct}% tax-free · ${taxablePct}% taxable`}
+        >
+          <span style={{ flex: `${Math.max(taxFreePct, 0)} 1 0` }} />
+          <span style={{ flex: `${Math.max(taxablePct, 0)} 1 0` }} />
+        </div>
+      );
+    case "tax_free_allowance":
+      return (
+        <div aria-hidden="true" className="wealth-tax-journey-visual wealth-tax-journey-visual-shield">
+          <span />
+        </div>
+      );
+    case "taxable_income":
+      return (
+        <div aria-hidden="true" className="wealth-tax-journey-visual wealth-tax-journey-visual-taxable">
+          <span style={{ width: `${Math.min(100, Math.max(0, taxablePct))}%` }} />
+        </div>
+      );
+    case "gross_tax":
+      return (
+        <div aria-hidden="true" className="wealth-tax-journey-visual wealth-tax-journey-visual-slabs">
+          <span className="wealth-tax-journey-slab wealth-tax-journey-slab-1" />
+          <span className="wealth-tax-journey-slab wealth-tax-journey-slab-2" />
+          <span className="wealth-tax-journey-slab wealth-tax-journey-slab-3" />
+          <span className="wealth-tax-journey-slab wealth-tax-journey-slab-4" />
+        </div>
+      );
+    case "rebate":
+      return <RebateProgressRing percent={rebatePct} />;
+    case "final_tax":
+      return (
+        <div aria-hidden="true" className="wealth-tax-journey-visual wealth-tax-journey-visual-destination">
+          <span className="wealth-tax-journey-destination-doc">🧾</span>
+          <span className="wealth-tax-journey-destination-check">✓</span>
+        </div>
+      );
+    default:
+      return null;
+  }
+}
+
+function RebateProgressRing({ percent }: { percent: number }) {
+  const clamped = Math.min(100, Math.max(0, percent));
+  const radius = 26;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference - (clamped / 100) * circumference;
 
   return (
-    <section className="wealth-tax-insights">
-      <p className="wealth-tax-section-eyebrow">Smart Insights</p>
-      <div className="wealth-tax-insights-grid">
-        {cards.map((card) => (
-          <article className={`wealth-tax-insight-card wealth-tax-insight-${card.tone}`} key={card.id}>
-            <div className="wealth-tax-insight-top">
-              <span className="wealth-tax-insight-icon" aria-hidden="true">{card.icon}</span>
-              <span className="wealth-tax-insight-kind">{card.kind}</span>
-            </div>
-            <h3>{card.title}</h3>
-            <p>{card.body}</p>
-            {card.amount != null && toNumber(card.amount) > 0 ? (
-              <strong className="wealth-tax-insight-value">{formatWealthCurrency(card.amount)}</strong>
-            ) : null}
-          </article>
-        ))}
-      </div>
-    </section>
+    <div aria-hidden="true" className="wealth-tax-journey-rebate-ring">
+      <svg viewBox="0 0 60 60">
+        <circle className="wealth-tax-journey-rebate-ring-track" cx="30" cy="30" r={radius} />
+        <circle
+          className="wealth-tax-journey-rebate-ring-fill"
+          cx="30"
+          cy="30"
+          r={radius}
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          transform="rotate(-90 30 30)"
+        />
+      </svg>
+      <span>{clamped}%</span>
+    </div>
   );
 }
 
@@ -1404,6 +1747,7 @@ function SavingsJar({
 function TaxInput({
   helper,
   hint,
+  infoTooltip,
   inputMode = "decimal",
   label,
   onChange,
@@ -1411,6 +1755,7 @@ function TaxInput({
 }: {
   helper?: string;
   hint?: string;
+  infoTooltip?: ReactNode;
   inputMode?: "decimal" | "numeric" | "text";
   label: string;
   onChange: (value: string) => void;
@@ -1419,8 +1764,15 @@ function TaxInput({
   const inputId = `tax-input-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
 
   return (
-    <label className="wealth-field" htmlFor={inputId}>
-      <span>{label}</span>
+    <div className="wealth-field">
+      <div className="wealth-field-label-row">
+        <label className="wealth-field-label" htmlFor={inputId}>
+          {label}
+        </label>
+        {infoTooltip ? (
+          <TaxInfoTooltip ariaLabel={`More about ${label}`}>{infoTooltip}</TaxInfoTooltip>
+        ) : null}
+      </div>
       <input
         aria-describedby={helper ? `${inputId}-helper` : hint ? `${inputId}-hint` : undefined}
         id={inputId}
@@ -1440,7 +1792,7 @@ function TaxInput({
           {helper}
         </small>
       ) : null}
-    </label>
+    </div>
   );
 }
 
@@ -1543,6 +1895,20 @@ function zeroInvestmentPayload(): TaxPlannerInvestmentInput {
   };
 }
 
+function scrollToRebateSection(targetRef: React.RefObject<HTMLElement | null>) {
+  const element = targetRef.current;
+  if (!element) {
+    return;
+  }
+
+  const headerOffset = 88;
+  const top = element.getBoundingClientRect().top + window.scrollY - headerOffset;
+  window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+  window.setTimeout(() => {
+    element.focus({ preventScroll: true });
+  }, 400);
+}
+
 function effectiveTaxRate(finalTax: string | number, totalIncome: string | number) {
   const income = toNumber(totalIncome);
   if (income <= 0) {
@@ -1577,39 +1943,40 @@ function toNumber(value: string | number | null | undefined) {
   return Number.isFinite(numericValue) ? numericValue : 0;
 }
 
-function buildInvestmentTips(config: TaxPlannerConfigResponse | undefined, totalIncome: number) {
+function buildInvestmentTips(config: TaxPlannerConfigResponse | undefined, taxableIncome: number) {
   const rebate = config?.investment_rebate;
-  const maxIncomePercent = rebate ? toNumber(rebate.max_income_percentage) : 20;
-  const maxAmount = rebate ? toNumber(rebate.max_amount) : 1_000_000;
-  const rebateRate = rebate ? toNumber(rebate.rebate_rate) : 15;
-  const maxEligible = Math.min(totalIncome * (maxIncomePercent / 100), maxAmount);
+  const incomeLimitPct = rebate ? toNumber(rebate.taxable_income_limit_pct) : 3;
+  const investmentRebatePct = rebate ? toNumber(rebate.investment_rebate_pct) : 15;
+  const maximumRebate = rebate ? toNumber(rebate.maximum_rebate_amount) : 1_000_000;
+  const incomeLimitRebate = taxableIncome * (incomeLimitPct / 100);
+  const maxAvailableRebate = Math.min(incomeLimitRebate, maximumRebate);
 
   return [
     {
-      id: "income-cap",
+      id: "income-limit",
       icon: "📊",
-      summary: `Up to ${maxIncomePercent}% of your yearly income can count`,
-      detail: `Eligible tax-saving investments are limited to ${maxIncomePercent}% of your total income in a year, with an overall cap of ${formatWealthCurrency(maxAmount)}. Amounts above that won't increase your rebate.`,
+      summary: `Rebate capped at ${incomeLimitPct}% of taxable income`,
+      detail: `Your maximum rebate from the income limit is about ${formatWealthCurrency(maxAvailableRebate)} before investment and gross tax caps apply.`,
     },
     {
       id: "rebate-rate",
       icon: "🌱",
-      summary: `${rebateRate}% rebate on what qualifies`,
-      detail: `Bangladesh offers a ${rebateRate}% investment rebate on eligible amounts. That rebate is subtracted from your gross tax — it's a direct reduction, not a refund on its own.`,
+      summary: `${investmentRebatePct}% rebate on total investment`,
+      detail: `Bangladesh allows up to ${investmentRebatePct}% of your total tax-saving investment as a rebate. The final amount is the lowest applicable limit.`,
     },
     {
       id: "mix-types",
       icon: "🧩",
       summary: "You can mix PF, insurance, stocks, funds & savings",
-      detail: "You don't need to pick just one instrument. Provident fund, life insurance, stocks, mutual funds, DPS, and Sanchayapatra can all count together toward your yearly eligible total.",
+      detail: "Provident fund, life insurance, stocks, mutual funds, DPS, and Sanchayapatra can count together toward your yearly eligible total.",
     },
-    ...(totalIncome > 0
+    ...(taxableIncome > 0 && investmentRebatePct > 0
       ? [
           {
-            id: "your-room",
+            id: "your-target",
             icon: "🎯",
-            summary: `Your income suggests ~${formatWealthCurrency(maxEligible)} room this year`,
-            detail: `Based on the income you've entered so far, your estimated maximum eligible investment is about ${formatWealthCurrency(maxEligible)}. Add amounts below — we'll refine this as you complete the wizard.`,
+            summary: `Full rebate may need ~${formatWealthCurrency(maxAvailableRebate / (investmentRebatePct / 100))} investment`,
+            detail: `Based on taxable income entered so far, investing about ${formatWealthCurrency(maxAvailableRebate / (investmentRebatePct / 100))} in eligible instruments could unlock the maximum rebate available under current limits.`,
           },
         ]
       : []),

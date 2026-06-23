@@ -26,9 +26,9 @@ class TaxFreeThresholds:
 
 @dataclass(frozen=True)
 class InvestmentRebateConfig:
-    max_income_percentage: Decimal
-    max_amount: Decimal
-    rebate_rate: Decimal
+    taxable_income_limit_pct: Decimal
+    investment_rebate_pct: Decimal
+    maximum_rebate_amount: Decimal
 
 
 @dataclass(frozen=True)
@@ -60,9 +60,9 @@ ACTIVE_BANGLADESH_TAX_CONFIG = BangladeshTaxConfig(
         TaxSlab(amount=None, rate=Decimal("30"), label="Remaining income"),
     ),
     investment_rebate=InvestmentRebateConfig(
-        max_income_percentage=Decimal("20"),
-        max_amount=Decimal("1000000"),
-        rebate_rate=Decimal("15"),
+        taxable_income_limit_pct=Decimal("3"),
+        investment_rebate_pct=Decimal("15"),
+        maximum_rebate_amount=Decimal("1000000"),
     ),
 )
 

@@ -81,10 +81,20 @@ export type TaxPlannerCalculateResponse = {
   gross_tax: string | number;
   rebate: string | number;
   final_tax: string | number;
-  current_eligible_investment: string | number;
-  maximum_eligible_investment: string | number;
-  remaining_eligible_investment: string | number;
+  current_investment: string | number;
+  income_limited_rebate: string | number;
+  cap_limited_rebate: string | number;
+  maximum_available_rebate: string | number;
+  required_investment_for_full_rebate: string | number;
+  additional_investment_needed: string | number;
   potential_additional_tax_saving: string | number;
+  rebate_utilization_pct: string | number;
+  /** @deprecated Use current_investment */
+  current_eligible_investment: string | number;
+  /** @deprecated Use required_investment_for_full_rebate */
+  maximum_eligible_investment: string | number;
+  /** @deprecated Use additional_investment_needed */
+  remaining_eligible_investment: string | number;
   minimum_tax_applied?: string | number;
   minimum_tax_rule_code?: string | null;
   slab_breakdown: TaxPlannerSlabBreakdown[];

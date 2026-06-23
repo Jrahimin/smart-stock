@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import { calculateTaxPlanner } from "@/lib/api/wealth-api";
 import type { TaxPlannerCalculateRequest } from "@/features/wealth/types/tax-planner-types";
@@ -11,6 +11,7 @@ export function useTaxPlanner(payload: TaxPlannerCalculateRequest) {
   const query = useQuery({
     queryKey: ["wealth", "tax-planner", payload],
     queryFn: () => calculateTaxPlanner(payload),
+    placeholderData: keepPreviousData,
     staleTime: 15_000,
   });
 

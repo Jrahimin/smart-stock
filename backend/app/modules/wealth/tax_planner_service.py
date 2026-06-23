@@ -4,7 +4,7 @@ from decimal import Decimal
 from fastapi import Depends
 
 from app.core.enums import TaxPlannerGender, TaxPlannerInsightType, TaxPlannerMode, WealthInsightSeverity
-from app.modules.wealth.formulas.financial_formulas import calculate_investment_rebate, calculate_progressive_tax
+from app.modules.wealth.formulas.financial_formulas import calculate_progressive_tax, calculate_tax_rebate
 from app.modules.wealth.tax_config.tax_config_models import ResolvedTaxPlannerConfig
 from app.modules.wealth.tax_config.tax_config_resolver import TaxConfigResolver, get_tax_config_resolver
 from app.modules.wealth.wealth_schemas import (
@@ -60,47 +60,39 @@ class TaxPlannerService:
             slab_tuple = slabs
 
         gross_tax, slab_breakdown = calculate_progressive_tax(total_income, slab_tuple)
-        actual_investment = self._calculate_tax_saving_investments(
+        total_investment = self._calculate_total_investment(
             payload.mode,
             investments,
             config,
         )
 
         rebate_config = config.investment_rebate
-        (
-            current_eligible_investment,
-            maximum_eligible_investment,
-            remaining_eligible_investment,
-            calculated_rebate,
-        ) = calculate_investment_rebate(
-            taxable_income=total_income,
-            actual_investment=actual_investment,
-            max_income_percentage=rebate_config.max_income_percentage,
-            max_amount=rebate_config.max_amount,
-            rebate_rate=rebate_config.rebate_rate,
+        rebate_result = calculate_tax_rebate(
+            taxable_income=taxable_income,
+            total_investment=total_investment,
+            gross_tax=gross_tax,
+            taxable_income_limit_pct=rebate_config.taxable_income_limit_pct,
+            investment_rebate_pct=rebate_config.investment_rebate_pct,
+            maximum_rebate_amount=rebate_config.maximum_rebate_amount,
         )
 
-        rebate = min(calculated_rebate, gross_tax).quantize(Decimal("0.01"))
-        if rebate_config.max_rebate_amount is not None:
-            rebate = min(rebate, rebate_config.max_rebate_amount).quantize(Decimal("0.01"))
+        rebate = rebate_result.rebate
 
         tax_after_rebate = max(gross_tax - rebate, Decimal("0")).quantize(Decimal("0.01"))
         minimum_tax_applied, minimum_tax_rule_code = self._resolve_minimum_tax(profile, config, tax_after_rebate)
         final_tax = max(tax_after_rebate, minimum_tax_applied).quantize(Decimal("0.01"))
 
-        potential_additional_tax_saving = min(
-            remaining_eligible_investment * rebate_config.rebate_rate / Decimal("100"),
-            gross_tax - rebate,
-        ).quantize(Decimal("0.01"))
-
         insights = self._build_insights(
             income=income,
             profile=profile,
             gross_tax=gross_tax,
-            actual_investment=actual_investment,
-            maximum_eligible_investment=maximum_eligible_investment,
-            remaining_eligible_investment=remaining_eligible_investment,
-            potential_additional_tax_saving=potential_additional_tax_saving,
+            total_investment=total_investment,
+            maximum_available_rebate=rebate_result.maximum_available_rebate,
+            required_investment_for_full_rebate=rebate_result.required_investment_for_full_rebate,
+            additional_investment_needed=rebate_result.additional_investment_needed,
+            rebate=rebate,
+            potential_additional_tax_saving=rebate_result.potential_additional_tax_saving,
+            rebate_utilization_pct=rebate_result.rebate_utilization_pct,
             minimum_tax_applied=minimum_tax_applied,
             minimum_tax_rule_code=minimum_tax_rule_code,
             config=config,
@@ -117,19 +109,30 @@ class TaxPlannerService:
             final_tax=final_tax,
             minimum_tax_applied=minimum_tax_applied,
             minimum_tax_rule_code=minimum_tax_rule_code,
-            current_eligible_investment=current_eligible_investment,
-            maximum_eligible_investment=maximum_eligible_investment,
-            remaining_eligible_investment=remaining_eligible_investment,
-            potential_additional_tax_saving=potential_additional_tax_saving,
+            current_investment=rebate_result.current_investment,
+            income_limited_rebate=rebate_result.income_limited_rebate,
+            cap_limited_rebate=rebate_result.cap_limited_rebate,
+            maximum_available_rebate=rebate_result.maximum_available_rebate,
+            required_investment_for_full_rebate=rebate_result.required_investment_for_full_rebate,
+            additional_investment_needed=rebate_result.additional_investment_needed,
+            potential_additional_tax_saving=rebate_result.potential_additional_tax_saving,
+            rebate_utilization_pct=rebate_result.rebate_utilization_pct,
+            current_eligible_investment=rebate_result.current_eligible_investment,
+            maximum_eligible_investment=rebate_result.maximum_eligible_investment,
+            remaining_eligible_investment=rebate_result.remaining_eligible_investment,
             slab_breakdown=[TaxPlannerSlabBreakdown(**item) for item in slab_breakdown],
             insights=insights,
             assumptions_used={
                 "tax_year_label": config.tax_year_label,
                 "config_source": config.source,
                 "tax_free_allowance": str(tax_free_allowance),
-                "investment_rebate_rate": str(rebate_config.rebate_rate),
-                "investment_cap_percentage": str(rebate_config.max_income_percentage),
-                "investment_max_amount": str(rebate_config.max_amount),
+                "total_investment": str(total_investment),
+                "income_limited_rebate": str(rebate_result.income_limited_rebate),
+                "cap_limited_rebate": str(rebate_result.cap_limited_rebate),
+                "investment_rebate_pct": str(rebate_config.investment_rebate_pct),
+                "taxable_income_limit_pct": str(rebate_config.taxable_income_limit_pct),
+                "maximum_rebate_amount": str(rebate_config.maximum_rebate_amount),
+                "rebate_utilization_pct": str(rebate_result.rebate_utilization_pct),
                 "minimum_tax_note": config.minimum_tax_note,
                 "minimum_tax_applied": str(minimum_tax_applied),
                 "minimum_tax_rule_code": minimum_tax_rule_code or "",
@@ -181,7 +184,7 @@ class TaxPlannerService:
             Decimal("0"),
         )
 
-    def _calculate_tax_saving_investments(
+    def _calculate_total_investment(
         self,
         mode: TaxPlannerMode,
         investments: TaxPlannerInvestmentInput,
@@ -194,7 +197,7 @@ class TaxPlannerService:
         }
 
         if mode == TaxPlannerMode.QUICK and investments.tax_saving_investments is not None:
-            actual_investment = _non_negative(investments.tax_saving_investments)
+            total_investment = _non_negative(investments.tax_saving_investments)
         else:
             field_values = {
                 "tax_saving_investments": _non_negative(investments.tax_saving_investments),
@@ -207,7 +210,7 @@ class TaxPlannerService:
                 "approved_donations": _non_negative(investments.approved_donations),
                 "other_eligible_investment": _non_negative(investments.other_eligible_investment),
             }
-            actual_investment = sum(
+            total_investment = sum(
                 (
                     value
                     for field_name, value in field_values.items()
@@ -216,7 +219,7 @@ class TaxPlannerService:
                 Decimal("0"),
             )
 
-        return (actual_investment + _non_negative(investments.simulation_additional_investment)).quantize(
+        return (total_investment + _non_negative(investments.simulation_additional_investment)).quantize(
             Decimal("0.01")
         )
 
@@ -239,45 +242,70 @@ class TaxPlannerService:
         income: TaxPlannerIncomeInput,
         profile: TaxPlannerProfileInput,
         gross_tax: Decimal,
-        actual_investment: Decimal,
-        maximum_eligible_investment: Decimal,
-        remaining_eligible_investment: Decimal,
+        total_investment: Decimal,
+        maximum_available_rebate: Decimal,
+        required_investment_for_full_rebate: Decimal,
+        additional_investment_needed: Decimal,
+        rebate: Decimal,
         potential_additional_tax_saving: Decimal,
+        rebate_utilization_pct: Decimal,
         minimum_tax_applied: Decimal,
         minimum_tax_rule_code: str | None,
         config: ResolvedTaxPlannerConfig,
     ) -> list[TaxPlannerInsight]:
         insights: list[TaxPlannerInsight] = []
 
-        if remaining_eligible_investment > 0 and potential_additional_tax_saving > 0:
+        if additional_investment_needed > 0 and potential_additional_tax_saving > 0:
             insights.append(
                 TaxPlannerInsight(
                     id="unused-rebate-opportunity",
                     type=TaxPlannerInsightType.UNUSED_REBATE_OPPORTUNITY,
-                    title="You still have room for tax saving investments",
-                    body="Adding tax saving investments may reduce your estimated tax further.",
+                    title="Invest more to unlock your full rebate",
+                    body=(
+                        f"Invest {additional_investment_needed:,.0f} BDT more to reach the maximum "
+                        f"available rebate of {maximum_available_rebate:,.0f} BDT."
+                    ),
                     severity=WealthInsightSeverity.POSITIVE,
-                    amount=remaining_eligible_investment,
+                    amount=additional_investment_needed,
                 )
             )
 
         if (
-            maximum_eligible_investment > 0
-            and remaining_eligible_investment >= maximum_eligible_investment * Decimal("0.5")
+            required_investment_for_full_rebate > 0
+            and additional_investment_needed >= required_investment_for_full_rebate * Decimal("0.5")
             and potential_additional_tax_saving > 0
         ):
             insights.append(
                 TaxPlannerInsight(
                     id="high-remaining-investment-capacity",
                     type=TaxPlannerInsightType.HIGH_REMAINING_INVESTMENT_CAPACITY,
-                    title="A meaningful savings opportunity may remain",
-                    body="Your current entry leaves a larger part of the tax saving investment room unused.",
+                    title="Significant rebate still available",
+                    body=(
+                        f"Potential additional tax saving: {potential_additional_tax_saving:,.0f} BDT "
+                        f"({rebate_utilization_pct:.0f}% of available rebate unlocked so far)."
+                    ),
                     severity=WealthInsightSeverity.POSITIVE,
                     amount=potential_additional_tax_saving,
                 )
             )
 
-        if actual_investment <= 0 and gross_tax > 0:
+        if (
+            maximum_available_rebate > 0
+            and rebate_utilization_pct >= Decimal("100")
+            and gross_tax > 0
+        ):
+            insights.append(
+                TaxPlannerInsight(
+                    id="maximum-rebate-achieved",
+                    type=TaxPlannerInsightType.UNUSED_REBATE_OPPORTUNITY,
+                    title="Maximum rebate already achieved",
+                    body="Your total investment is sufficient for the maximum rebate available under current limits.",
+                    severity=WealthInsightSeverity.POSITIVE,
+                    amount=rebate,
+                )
+            )
+
+        if total_investment <= 0 and gross_tax > 0:
             insights.append(
                 TaxPlannerInsight(
                     id="no-tax-saving-investments",

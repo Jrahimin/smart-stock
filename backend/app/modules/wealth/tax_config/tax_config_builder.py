@@ -20,10 +20,9 @@ def thresholds_from_settings(settings: TaxPlannerSettings) -> ResolvedTaxFreeThr
 
 def rebate_from_settings(settings: TaxPlannerSettings) -> ResolvedInvestmentRebateConfig:
     return ResolvedInvestmentRebateConfig(
-        max_income_percentage=settings.rebate_max_income_percentage,
-        max_amount=settings.rebate_max_amount,
-        rebate_rate=settings.rebate_rate,
-        max_rebate_amount=settings.rebate_max_rebate_amount,
+        taxable_income_limit_pct=settings.rebate_taxable_income_limit_pct,
+        investment_rebate_pct=settings.rebate_investment_pct,
+        maximum_rebate_amount=settings.rebate_maximum_amount,
     )
 
 

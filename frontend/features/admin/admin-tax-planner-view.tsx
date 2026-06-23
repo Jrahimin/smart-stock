@@ -12,6 +12,7 @@ import {
   type AdminTaxInvestmentCategory,
   type AdminTaxSlab,
   configsEqual,
+  formatAdminCurrency,
   formatDisplayNumber,
   isOpenEndedSlab,
   prepareConfigPayload,
@@ -27,29 +28,27 @@ import {
 } from "@/lib/api/admin-api";
 
 const THRESHOLD_FIELDS: Array<{ key: keyof AdminTaxConfigScalars; label: string }> = [
-  { key: "threshold_general", label: "General" },
-  { key: "threshold_woman_or_senior", label: "Woman / Senior" },
-  { key: "threshold_person_with_disability", label: "Disability" },
+  { key: "threshold_general", label: "General Taxpayer" },
+  { key: "threshold_woman_or_senior", label: "Woman or Senior Citizen" },
+  { key: "threshold_person_with_disability", label: "Person with Disability" },
   { key: "threshold_freedom_fighter", label: "Freedom Fighter" },
 ];
 
 const MINIMUM_TAX_FIELDS: Array<{ key: keyof AdminTaxConfigScalars; label: string }> = [
-  { key: "minimum_tax_national", label: "National" },
-  { key: "minimum_tax_dhaka_ctg", label: "Dhaka/Ctg" },
-  { key: "minimum_tax_other_city", label: "Other city" },
-  { key: "minimum_tax_rural", label: "Rural" },
+  { key: "minimum_tax_national", label: "National Default" },
+  { key: "minimum_tax_dhaka_ctg", label: "Dhaka / Chattogram" },
+  { key: "minimum_tax_other_city", label: "Other City Corporation" },
+  { key: "minimum_tax_rural", label: "Outside City Corporation" },
 ];
 
 const REBATE_FIELDS: Array<{
   key: keyof AdminTaxConfigScalars;
   label: string;
-  suffix: string;
-  optional?: boolean;
+  inputMode: "decimal" | "numeric";
 }> = [
-  { key: "rebate_max_income_percentage", label: "Income cap", suffix: "%" },
-  { key: "rebate_max_amount", label: "Max amount", suffix: "BDT" },
-  { key: "rebate_rate", label: "Rate", suffix: "%" },
-  { key: "rebate_max_rebate_amount", label: "Cap", suffix: "BDT", optional: true },
+  { key: "rebate_taxable_income_limit_pct", label: "Income-Based Rebate Limit (%)", inputMode: "decimal" },
+  { key: "rebate_investment_pct", label: "Investment-Based Rebate Rate (%)", inputMode: "decimal" },
+  { key: "rebate_maximum_amount", label: "Maximum Rebate Cap (BDT)", inputMode: "numeric" },
 ];
 
 export function AdminTaxPlannerView() {
@@ -65,7 +64,7 @@ function AdminTaxPlannerContent() {
 
   return (
     <div className="admin-workspace admin-tax-planner-workspace workspace-page-stack">
-      <AdminPageHeader description="Bangladesh tax-law values." title="Tax Planner" />
+      <AdminPageHeader description="Bangladesh income tax settings for the public calculator." title="Tax Planner" />
 
       <div className="admin-config-tabs admin-tax-planner-tabs" role="tablist">
         <button
@@ -212,33 +211,34 @@ function TaxRulesPanel() {
   return (
     <div className="admin-tax-planner-stack">
       <p className="admin-tax-planner-callout">
-        Business rules stay in code. Edit thresholds, slabs, rebate limits, and minimum tax amounts here.
+        Calculation rules are built into the application. Use this page to update the tax-law amounts taxpayers see
+        and the calculator uses.
       </p>
 
-      <AdminSection className="admin-section-compact" title="General">
+      <AdminSection className="admin-section-compact" title="General Settings">
         <div className="admin-composer-grid admin-tax-planner-grid-compact">
-          <AdminField label="Tax year">
+          <AdminField label="Tax Year Label">
             <input
               onChange={(event) => updateConfigField("tax_year_label", event.target.value)}
               type="text"
               value={config.tax_year_label}
             />
           </AdminField>
-          <AdminField label="Display name">
+          <AdminField label="Public Display Name">
             <input
               onChange={(event) => updateConfigField("display_name", event.target.value)}
               type="text"
               value={config.display_name}
             />
           </AdminField>
-          <AdminField label="Disclaimer" wide>
+          <AdminField label="Public Disclaimer" wide>
             <textarea
               onChange={(event) => updateConfigField("disclaimer", event.target.value)}
               rows={2}
               value={config.disclaimer}
             />
           </AdminField>
-          <AdminField label="Min tax note" wide>
+          <AdminField label="Minimum Tax Notice" wide>
             <textarea
               onChange={(event) => updateConfigField("minimum_tax_note", event.target.value)}
               rows={2}
@@ -248,10 +248,10 @@ function TaxRulesPanel() {
         </div>
       </AdminSection>
 
-      <AdminSection className="admin-section-compact" title="Limits">
+      <AdminSection className="admin-section-compact" title="Tax Limits">
         <div className="admin-tax-planner-limits">
           <div className="admin-tax-planner-subsection">
-            <span className="admin-tax-planner-subsection-title">Tax-free thresholds</span>
+            <span className="admin-tax-planner-subsection-title">Tax-Free Income Thresholds</span>
             <div className="admin-composer-grid admin-composer-grid-4 admin-tax-planner-grid-compact">
               {THRESHOLD_FIELDS.map((field) => (
                 <AdminField key={field.key} label={field.label} suffix="BDT">
@@ -266,25 +266,32 @@ function TaxRulesPanel() {
             </div>
           </div>
           <div className="admin-tax-planner-subsection">
-            <span className="admin-tax-planner-subsection-title">Investment rebate</span>
-            <div className="admin-composer-grid admin-composer-grid-4 admin-tax-planner-grid-compact">
+            <span className="admin-tax-planner-subsection-title">Investment Tax Rebate</span>
+            <p className="admin-tax-planner-rebate-hint">
+              The tax rebate is limited by the lowest applicable value from income, investment, and the maximum rebate
+              cap.
+            </p>
+            <div className="admin-composer-grid admin-tax-planner-grid-compact admin-tax-planner-rebate-grid">
               {REBATE_FIELDS.map((field) => (
-                <AdminField key={field.key} label={field.label} suffix={field.suffix}>
+                <AdminField key={field.key} label={field.label}>
                   <input
-                    inputMode={field.suffix === "%" ? "decimal" : "numeric"}
-                    onChange={(event) =>
-                      updateConfigField(field.key, field.optional ? event.target.value || null : event.target.value)
-                    }
-                    placeholder={field.optional ? "—" : undefined}
+                    inputMode={field.inputMode}
+                    onChange={(event) => updateConfigField(field.key, event.target.value)}
                     type="text"
                     value={formatDisplayNumber(config[field.key])}
                   />
                 </AdminField>
               ))}
             </div>
+            <p className="admin-tax-planner-rebate-preview">
+              <strong>Current Rule:</strong>{" "}
+              {formatDisplayNumber(config.rebate_taxable_income_limit_pct)}% of taxable income •{" "}
+              {formatDisplayNumber(config.rebate_investment_pct)}% of investment • Max BDT{" "}
+              {formatAdminCurrency(config.rebate_maximum_amount)}
+            </p>
           </div>
           <div className="admin-tax-planner-subsection">
-            <span className="admin-tax-planner-subsection-title">Minimum tax</span>
+            <span className="admin-tax-planner-subsection-title">Minimum Tax Amounts</span>
             <div className="admin-composer-grid admin-composer-grid-4 admin-tax-planner-grid-compact">
               {MINIMUM_TAX_FIELDS.map((field) => (
                 <AdminField key={field.key} label={field.label} suffix="BDT">
@@ -301,15 +308,15 @@ function TaxRulesPanel() {
         </div>
       </AdminSection>
 
-      <AdminSection className="admin-section-compact" title="Slabs">
+      <AdminSection className="admin-section-compact" title="Progressive Tax Brackets">
         <div className="admin-data-table-shell admin-tax-planner-data-shell">
           <div className="admin-data-table admin-data-table-tax-slabs">
             <div className="admin-data-table-head">
-              <span>#</span>
-              <span>Label</span>
-              <span>Amount</span>
-              <span>Rate</span>
-              <span>Allow.</span>
+              <span>Order</span>
+              <span>Band Label</span>
+              <span>Band Size</span>
+              <span>Tax Rate</span>
+              <span>Tax-Free</span>
             </div>
             <div className="admin-data-table-body">
               {slabs.map((row, index) => {
@@ -365,7 +372,7 @@ function TaxRulesPanel() {
                     </div>
                     <div className="admin-data-table-cell admin-tax-slab-allowance-cell">
                       <input
-                        aria-label="Allowance band"
+                        aria-label="Tax-free allowance band"
                         checked={row.is_allowance_band}
                         onChange={(event) => updateSlabRow(index, { is_allowance_band: event.target.checked })}
                         type="checkbox"
@@ -456,14 +463,14 @@ function InvestmentCategoriesPanel() {
 
   return (
     <div className="admin-tax-planner-stack">
-      <AdminSection className="admin-section-compact" title="Categories">
+      <AdminSection className="admin-section-compact" title="Investment Category Labels">
         <div className="admin-data-table-shell admin-tax-planner-data-shell">
           <div className="admin-data-table admin-data-table-investment">
             <div className="admin-data-table-head">
-              <span>Key</span>
-              <span>Label</span>
-              <span>#</span>
-              <span>On</span>
+              <span>Category Code</span>
+              <span>Display Name</span>
+              <span>Display Order</span>
+              <span>Visible</span>
             </div>
             <div className="admin-data-table-body">
               {rows.map((row, index) => (

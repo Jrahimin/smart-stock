@@ -132,10 +132,26 @@ class TaxPlannerCalculateResponse(BaseModel):
     final_tax: Decimal
     minimum_tax_applied: Decimal = Decimal("0")
     minimum_tax_rule_code: str | None = None
-    current_eligible_investment: Decimal
-    maximum_eligible_investment: Decimal
-    remaining_eligible_investment: Decimal
+    current_investment: Decimal
+    income_limited_rebate: Decimal
+    cap_limited_rebate: Decimal
+    maximum_available_rebate: Decimal
+    required_investment_for_full_rebate: Decimal
+    additional_investment_needed: Decimal
     potential_additional_tax_saving: Decimal
+    rebate_utilization_pct: Decimal
+    current_eligible_investment: Decimal = Field(
+        deprecated=True,
+        description="Deprecated: use current_investment.",
+    )
+    maximum_eligible_investment: Decimal = Field(
+        deprecated=True,
+        description="Deprecated: use required_investment_for_full_rebate.",
+    )
+    remaining_eligible_investment: Decimal = Field(
+        deprecated=True,
+        description="Deprecated: use additional_investment_needed.",
+    )
     slab_breakdown: list[TaxPlannerSlabBreakdown] = Field(default_factory=list)
     insights: list[TaxPlannerInsight] = Field(default_factory=list)
     assumptions_used: dict[str, Any] = Field(default_factory=dict)

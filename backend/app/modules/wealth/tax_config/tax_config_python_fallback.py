@@ -46,9 +46,9 @@ def build_fallback_resolved_config() -> ResolvedTaxPlannerConfig:
             for index, slab in enumerate(python_config.slabs)
         ),
         investment_rebate=ResolvedInvestmentRebateConfig(
-            max_income_percentage=python_config.investment_rebate.max_income_percentage,
-            max_amount=python_config.investment_rebate.max_amount,
-            rebate_rate=python_config.investment_rebate.rebate_rate,
+            taxable_income_limit_pct=python_config.investment_rebate.taxable_income_limit_pct,
+            investment_rebate_pct=python_config.investment_rebate.investment_rebate_pct,
+            maximum_rebate_amount=python_config.investment_rebate.maximum_rebate_amount,
         ),
         minimum_tax_rules=(),
         investment_categories=categories,

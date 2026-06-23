@@ -7,10 +7,9 @@ export type AdminTaxConfigScalars = {
   threshold_woman_or_senior: string | number;
   threshold_person_with_disability: string | number;
   threshold_freedom_fighter: string | number;
-  rebate_max_income_percentage: string | number;
-  rebate_max_amount: string | number;
-  rebate_rate: string | number;
-  rebate_max_rebate_amount?: string | number | null;
+  rebate_taxable_income_limit_pct: string | number;
+  rebate_investment_pct: string | number;
+  rebate_maximum_amount: string | number;
   minimum_tax_national: string | number;
   minimum_tax_dhaka_ctg: string | number;
   minimum_tax_other_city: string | number;
@@ -53,6 +52,20 @@ export function formatDisplayNumber(value: string | number | null | undefined): 
   }
 
   return String(parseFloat(numeric.toFixed(4)));
+}
+
+export function formatAdminCurrency(value: string | number | null | undefined): string {
+  const display = formatDisplayNumber(value);
+  if (!display) {
+    return "0";
+  }
+
+  const numeric = Number(display.replace(/,/g, ""));
+  if (Number.isNaN(numeric)) {
+    return display;
+  }
+
+  return new Intl.NumberFormat("en-US").format(numeric);
 }
 
 export function normalizeScalar(value: string | number | null | undefined): string {
@@ -131,10 +144,9 @@ export function prepareConfigPayload(config: AdminTaxConfigScalars): Record<stri
     threshold_woman_or_senior: coerceNumericPayload(config.threshold_woman_or_senior),
     threshold_person_with_disability: coerceNumericPayload(config.threshold_person_with_disability),
     threshold_freedom_fighter: coerceNumericPayload(config.threshold_freedom_fighter),
-    rebate_max_income_percentage: coerceNumericPayload(config.rebate_max_income_percentage),
-    rebate_max_amount: coerceNumericPayload(config.rebate_max_amount),
-    rebate_rate: coerceNumericPayload(config.rebate_rate),
-    rebate_max_rebate_amount: coerceNumericPayload(config.rebate_max_rebate_amount),
+    rebate_taxable_income_limit_pct: coerceNumericPayload(config.rebate_taxable_income_limit_pct),
+    rebate_investment_pct: coerceNumericPayload(config.rebate_investment_pct),
+    rebate_maximum_amount: coerceNumericPayload(config.rebate_maximum_amount),
     minimum_tax_national: coerceNumericPayload(config.minimum_tax_national),
     minimum_tax_dhaka_ctg: coerceNumericPayload(config.minimum_tax_dhaka_ctg),
     minimum_tax_other_city: coerceNumericPayload(config.minimum_tax_other_city),

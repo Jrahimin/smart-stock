@@ -13288,8 +13288,9 @@ button {
   width: clamp(56px, 7vw, 80px);
 }
 
-.wealth-tax-jar-compact .wealth-tax-jar-spark {
-  display: none;
+.wealth-tax-play-aside .wealth-tax-jar-compact .wealth-tax-jar-spark {
+  display: block;
+  transform: scale(0.85);
 }
 
 .wealth-tax-jar svg {
@@ -14169,6 +14170,155 @@ button {
   justify-content: space-between;
 }
 
+.wealth-tax-quick-foot {
+  margin: 4px 0 0;
+}
+
+.wealth-field-label-row {
+  align-items: center;
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.wealth-field-label {
+  color: inherit;
+  font: inherit;
+  margin: 0;
+}
+
+.wealth-tax-info-tooltip {
+  display: inline-flex;
+  flex-shrink: 0;
+  position: relative;
+  vertical-align: middle;
+}
+
+.wealth-tax-info-icon {
+  align-items: center;
+  background: color-mix(in srgb, var(--info) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--info) 38%, var(--border));
+  border-radius: 999px;
+  color: color-mix(in srgb, var(--foreground) 35%, var(--info));
+  cursor: help;
+  display: inline-flex;
+  height: 18px;
+  justify-content: center;
+  padding: 0;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  width: 18px;
+}
+
+.wealth-tax-info-icon:hover,
+.wealth-tax-info-icon:focus-visible {
+  background: color-mix(in srgb, var(--info) 22%, transparent);
+  border-color: color-mix(in srgb, var(--info) 55%, var(--border));
+  color: color-mix(in srgb, var(--foreground) 20%, var(--info));
+  outline: none;
+}
+
+.wealth-tax-info-icon svg {
+  display: block;
+  height: 12px;
+  width: 12px;
+}
+
+.wealth-tax-info-popover {
+  background: var(--panel-strong);
+  border: 1px solid color-mix(in srgb, var(--info) 22%, var(--border));
+  border-radius: 10px;
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--foreground) 14%, transparent);
+  left: 50%;
+  max-width: min(280px, 72vw);
+  min-width: 200px;
+  opacity: 0;
+  padding: 10px 12px;
+  pointer-events: none;
+  position: absolute;
+  top: calc(100% + 8px);
+  transform: translateX(-50%);
+  transition: opacity 0.15s ease, visibility 0.15s ease;
+  visibility: hidden;
+  width: max-content;
+  z-index: 60;
+}
+
+.wealth-tax-info-popover--open {
+  opacity: 1;
+  pointer-events: auto;
+  visibility: visible;
+}
+
+.wealth-tax-info-popover--portaled {
+  position: fixed;
+  z-index: 10000;
+}
+
+.wealth-tax-info-popover--wide {
+  min-width: 260px;
+  max-width: min(320px, 88vw);
+}
+
+.wealth-tax-info-popover--wide .wealth-tax-breakdown-title {
+  color: color-mix(in srgb, var(--foreground) 55%, var(--info));
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  margin: 0 0 8px;
+  text-transform: uppercase;
+}
+
+.wealth-tax-info-popover--wide .wealth-tax-breakdown-lines {
+  gap: 7px;
+}
+
+.wealth-tax-info-popover--wide .wealth-tax-breakdown-intro {
+  background: color-mix(in srgb, var(--info) 8%, transparent);
+  border-radius: 6px;
+  margin-bottom: 6px;
+  padding: 6px 8px;
+}
+
+.wealth-tax-info-popover--wide .wealth-tax-breakdown-lines span {
+  font-size: 0.64rem;
+}
+
+.wealth-tax-info-popover--wide .wealth-tax-breakdown-lines strong {
+  font-size: 0.72rem;
+}
+
+.wealth-tax-info-popover--wide .wealth-tax-breakdown-result {
+  border-top-color: color-mix(in srgb, var(--info) 18%, var(--border));
+  margin-top: 2px;
+  padding-top: 7px;
+}
+
+.wealth-tax-info-popover--wide .wealth-tax-breakdown-limiter strong {
+  color: color-mix(in srgb, var(--foreground) 40%, var(--warning));
+}
+
+.wealth-tax-info-popover strong {
+  color: var(--foreground);
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1.35;
+  margin: 0 0 4px;
+}
+
+.wealth-tax-info-popover p {
+  color: var(--muted);
+  font-size: 0.66rem;
+  line-height: 1.4;
+  margin: 0;
+}
+
+.wealth-tax-stat-pill-label {
+  align-items: center;
+  display: inline-flex;
+  gap: 4px;
+}
+
 .wealth-tax-wizard-nav .wealth-tax-next-button,
 .wealth-tax-wizard-nav .wealth-tax-back-button {
   border-radius: 999px;
@@ -14471,7 +14621,30 @@ button {
 .wealth-tax-play-metrics {
   display: grid;
   gap: 8px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.wealth-tax-hint-button {
+  background: color-mix(in srgb, var(--foreground) 8%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  cursor: help;
+  display: inline-flex;
+  font-size: 0.62rem;
+  font-weight: 700;
+  height: 14px;
+  line-height: 1;
+  margin-left: 4px;
+  padding: 0;
+  vertical-align: middle;
+  width: 14px;
+}
+
+.wealth-tax-progress-caption {
+  color: var(--muted);
+  font-size: 0.72rem;
+  margin: 4px 0 0;
 }
 
 .wealth-tax-play-metric {
@@ -14481,11 +14654,16 @@ button {
   display: grid;
   gap: 2px;
   padding: 8px 10px;
+  position: relative;
 }
 
 .wealth-tax-play-metric span {
+  align-items: center;
   color: var(--muted);
+  display: inline-flex;
+  flex-wrap: wrap;
   font-size: 0.72rem;
+  gap: 2px;
 }
 
 .wealth-tax-play-metric strong {
@@ -14512,10 +14690,727 @@ button {
   margin: 0;
 }
 
+/* ---------- Play & Explore (compact planning) ---------- */
+.wealth-tax-play-compact {
+  gap: 4px;
+  scroll-margin-top: 88px;
+}
+
+.wealth-tax-play-compact .wealth-tax-play-head {
+  margin: 0;
+}
+
+.wealth-tax-play-compact .wealth-tax-play-head h2 {
+  font-size: clamp(1rem, 2vw, 1.25rem);
+  line-height: 1.2;
+  margin: 0;
+}
+
+.wealth-tax-play-layout-compact {
+  align-items: start;
+  gap: 14px;
+  grid-template-columns: minmax(148px, 30%) minmax(0, 1fr);
+}
+
+.wealth-tax-play-aside {
+  align-content: start;
+  border-right: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  display: grid;
+  gap: 14px;
+  justify-items: center;
+  padding: 4px 12px 0 6px;
+  text-align: center;
+}
+
+.wealth-tax-play-aside .wealth-tax-jar-compact {
+  width: clamp(118px, 13vw, 156px);
+}
+
+.wealth-tax-play-aside-investment {
+  display: grid;
+  gap: 12px;
+  width: 100%;
+}
+
+.wealth-tax-play-aside-row {
+  display: grid;
+  gap: 2px;
+  justify-items: center;
+}
+
+.wealth-tax-play-aside-row span,
+.wealth-tax-play-aside-row strong {
+  display: block;
+  width: 100%;
+}
+
+.wealth-tax-play-aside-row span {
+  color: var(--muted);
+  font-size: 0.64rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1.25;
+  opacity: 0.92;
+}
+
+.wealth-tax-play-aside-row--current strong {
+  color: color-mix(in srgb, var(--foreground) 78%, var(--muted));
+  font-size: clamp(0.94rem, 1.7vw, 1.04rem);
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.wealth-tax-play-aside-row--target span {
+  color: color-mix(in srgb, var(--foreground) 45%, var(--primary));
+  font-weight: 700;
+}
+
+.wealth-tax-play-aside-row--target strong {
+  color: color-mix(in srgb, var(--foreground) 48%, var(--primary));
+  font-size: clamp(1.06rem, 2vw, 1.18rem);
+  font-weight: 800;
+  line-height: 1.15;
+}
+
+.wealth-tax-play-aside .wealth-tax-target-achieved {
+  font-size: 0.74rem;
+  margin: 0;
+  text-align: center;
+}
+
+.wealth-tax-play-main {
+  align-self: start;
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  overflow: visible;
+  padding-top: 0;
+}
+
+.wealth-tax-play-planning {
+  display: grid;
+  gap: 5px;
+  overflow: visible;
+}
+
+.wealth-tax-play-hero-pct {
+  color: color-mix(in srgb, var(--foreground) 70%, var(--primary));
+  font-size: clamp(1.1rem, 2.2vw, 1.35rem);
+  font-weight: 800;
+  line-height: 1.15;
+  margin: 0;
+}
+
+.wealth-tax-play-hero-eyebrow {
+  color: color-mix(in srgb, var(--foreground) 45%, var(--primary));
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.wealth-tax-play-hero-context {
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.3;
+  margin: 0;
+}
+
+.wealth-tax-progress-track--hero {
+  background: color-mix(in srgb, var(--border) 55%, transparent);
+  border-radius: 999px;
+  height: 6px;
+  overflow: hidden;
+  width: 100%;
+}
+
+.wealth-tax-progress-track--hero span {
+  background: linear-gradient(90deg, var(--positive), var(--primary));
+  border-radius: inherit;
+  display: block;
+  height: 100%;
+  min-width: 4px;
+  transition: width 0.25s ease;
+}
+
+.wealth-tax-play-recommendation {
+  background: color-mix(in srgb, var(--positive) 10%, var(--panel));
+  border: 1px solid color-mix(in srgb, var(--positive) 24%, var(--border));
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.wealth-tax-play-recommendation p {
+  color: color-mix(in srgb, var(--foreground) 78%, var(--positive));
+  font-size: 0.8rem;
+  line-height: 1.4;
+  margin: 0;
+}
+
+.wealth-tax-play-recommendation-invest {
+  color: color-mix(in srgb, var(--foreground) 82%, var(--muted));
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.wealth-tax-play-recommendation-save {
+  color: var(--positive);
+  font-size: 0.92rem;
+  font-weight: 800;
+}
+
+.wealth-tax-play-context {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  overflow: visible;
+}
+
+.wealth-tax-play-context-chips {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.wealth-tax-play-context-meta {
+  align-items: center;
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 4px;
+  overflow: visible;
+  position: relative;
+  z-index: 2;
+}
+
+.wealth-tax-play-rebate-chip {
+  background: color-mix(in srgb, var(--foreground) 7%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 85%, var(--foreground));
+  border-radius: 8px;
+  display: grid;
+  flex: 0 0 auto;
+  gap: 2px;
+  min-width: 104px;
+  padding: 6px 12px;
+}
+
+.wealth-tax-play-rebate-chip-label {
+  color: var(--muted);
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1.2;
+}
+
+.wealth-tax-play-rebate-chip strong {
+  color: var(--foreground);
+  font-size: 1rem;
+  font-weight: 800;
+  line-height: 1.15;
+}
+
+.wealth-tax-play-rebate-chip--max {
+  background: color-mix(in srgb, var(--primary) 11%, transparent);
+  border-color: color-mix(in srgb, var(--primary) 32%, var(--border));
+}
+
+.wealth-tax-play-rebate-chip--max strong {
+  color: color-mix(in srgb, var(--foreground) 42%, var(--primary));
+  font-size: 1.04rem;
+}
+
+.wealth-tax-play-context-badge {
+  align-self: center;
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  flex: 0 0 auto;
+  font-size: 0.6rem;
+  font-weight: 600;
+  line-height: 1.2;
+  padding: 4px 9px;
+  white-space: nowrap;
+}
+
+.wealth-tax-play-context-badge--limiter {
+  align-items: center;
+  background: color-mix(in srgb, var(--warning) 10%, transparent);
+  border-color: color-mix(in srgb, var(--warning) 30%, var(--border));
+  color: color-mix(in srgb, var(--foreground) 50%, var(--warning));
+  display: inline-flex;
+  font-weight: 700;
+  line-height: 1.25;
+  min-height: 22px;
+}
+
+.wealth-tax-play-context .wealth-tax-info-tooltip {
+  align-items: center;
+  display: inline-flex;
+  flex: 0 0 auto;
+  line-height: 0;
+}
+
+.wealth-tax-play-context .wealth-tax-info-popover {
+  left: auto;
+  right: 0;
+  top: calc(100% + 10px);
+  transform: none;
+  z-index: 80;
+}
+
+.wealth-tax-play-controls-compact {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+}
+
+.wealth-tax-play-quick-buttons--row {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.wealth-tax-play-quick-buttons--row::-webkit-scrollbar {
+  display: none;
+}
+
+.wealth-tax-play-quick-buttons--row .wealth-tax-quick-button {
+  flex: 0 0 auto;
+}
+
+.wealth-tax-quick-button--compact {
+  font-size: 0.74rem;
+  padding: 5px 10px;
+}
+
+.wealth-tax-slider-block--compact {
+  display: grid;
+  gap: 3px;
+  margin: 0;
+  width: 100%;
+}
+
+.wealth-tax-slider-summary {
+  align-items: baseline;
+  background: color-mix(in srgb, var(--foreground) 5%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 90%, var(--foreground));
+  border-radius: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  justify-content: space-between;
+  padding: 5px 8px;
+}
+
+.wealth-tax-slider-summary-item {
+  align-items: baseline;
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.wealth-tax-slider-summary-item em {
+  color: var(--muted);
+  font-size: 0.6rem;
+  font-style: normal;
+  font-weight: 600;
+}
+
+.wealth-tax-slider-summary-item strong {
+  color: var(--foreground);
+  font-size: 0.76rem;
+  font-weight: 800;
+  line-height: 1.15;
+}
+
+.wealth-tax-slider-summary-item--total strong {
+  color: color-mix(in srgb, var(--foreground) 55%, var(--primary));
+}
+
+.wealth-tax-breakdown-intro {
+  color: color-mix(in srgb, var(--foreground) 72%, var(--info));
+  font-size: 0.68rem;
+  line-height: 1.35;
+  margin: 0 0 4px;
+}
+
+.wealth-tax-breakdown-intro strong {
+  color: var(--foreground);
+}
+
+.wealth-tax-slider-wrap {
+  --wealth-tax-slider-thumb-size: 18px;
+  display: grid;
+  gap: 6px;
+  padding-bottom: 18px;
+  position: relative;
+}
+
+.wealth-tax-slider-rail {
+  --wealth-tax-slider-hit-height: 32px;
+  --wealth-tax-slider-track-height: 6px;
+  --wealth-tax-slider-track-top: calc(
+    (var(--wealth-tax-slider-hit-height) - var(--wealth-tax-slider-track-height)) / 2
+  );
+  --slider-ratio: 0;
+  height: var(--wealth-tax-slider-hit-height);
+  overflow: visible;
+  position: relative;
+}
+
+.wealth-tax-slider-rail::before {
+  background: color-mix(in srgb, var(--foreground) 8%, var(--border));
+  border-radius: 999px;
+  content: "";
+  height: var(--wealth-tax-slider-track-height);
+  left: calc(var(--wealth-tax-slider-thumb-size) / 2);
+  position: absolute;
+  right: calc(var(--wealth-tax-slider-thumb-size) / 2);
+  top: var(--wealth-tax-slider-track-top);
+}
+
+.wealth-tax-slider-fill {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--primary) 72%, white),
+    var(--primary)
+  );
+  border-radius: 999px;
+  box-shadow: 0 0 12px color-mix(in srgb, var(--primary) 24%, transparent);
+  height: var(--wealth-tax-slider-track-height);
+  left: calc(var(--wealth-tax-slider-thumb-size) / 2);
+  pointer-events: none;
+  position: absolute;
+  top: var(--wealth-tax-slider-track-top);
+  width: calc((100% - var(--wealth-tax-slider-thumb-size)) * var(--slider-ratio));
+  z-index: 1;
+}
+
+.wealth-tax-slider-block--compact .wealth-tax-slider {
+  -webkit-appearance: none;
+  accent-color: transparent;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+  height: var(--wealth-tax-slider-hit-height);
+  left: 0;
+  margin: 0;
+  position: absolute;
+  top: 0;
+  width: 100%;
+  z-index: 3;
+}
+
+.wealth-tax-slider-block--compact .wealth-tax-slider:focus {
+  outline: none;
+}
+
+.wealth-tax-slider-block--compact .wealth-tax-slider:focus-visible::-webkit-slider-thumb {
+  box-shadow:
+    0 0 0 2px var(--panel),
+    0 0 0 4px color-mix(in srgb, var(--primary) 45%, transparent),
+    0 2px 8px color-mix(in srgb, var(--foreground) 20%, transparent);
+}
+
+.wealth-tax-slider-block--compact .wealth-tax-slider::-webkit-slider-runnable-track {
+  background: transparent;
+  height: var(--wealth-tax-slider-hit-height);
+}
+
+.wealth-tax-slider-block--compact .wealth-tax-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  background: linear-gradient(
+    160deg,
+    color-mix(in srgb, var(--primary) 88%, white),
+    var(--primary)
+  );
+  border: 2px solid color-mix(in srgb, var(--foreground) 10%, var(--panel-strong));
+  border-radius: 999px;
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--primary) 24%, transparent),
+    0 2px 8px color-mix(in srgb, var(--foreground) 22%, transparent);
+  cursor: grab;
+  height: var(--wealth-tax-slider-thumb-size);
+  margin-top: calc(
+    (var(--wealth-tax-slider-hit-height) - var(--wealth-tax-slider-thumb-size)) / 2
+  );
+  width: var(--wealth-tax-slider-thumb-size);
+}
+
+.wealth-tax-slider-block--compact .wealth-tax-slider:active::-webkit-slider-thumb {
+  cursor: grabbing;
+  transform: scale(1.06);
+}
+
+.wealth-tax-slider-block--compact .wealth-tax-slider::-moz-range-track {
+  background: transparent;
+  border: none;
+  height: var(--wealth-tax-slider-hit-height);
+}
+
+.wealth-tax-slider-block--compact .wealth-tax-slider::-moz-range-progress {
+  background: transparent;
+  border: none;
+  height: var(--wealth-tax-slider-hit-height);
+}
+
+.wealth-tax-slider-block--compact .wealth-tax-slider::-moz-range-thumb {
+  appearance: none;
+  background: linear-gradient(
+    160deg,
+    color-mix(in srgb, var(--primary) 88%, white),
+    var(--primary)
+  );
+  border: 2px solid color-mix(in srgb, var(--foreground) 10%, var(--panel-strong));
+  border-radius: 999px;
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--primary) 24%, transparent),
+    0 2px 8px color-mix(in srgb, var(--foreground) 22%, transparent);
+  cursor: grab;
+  height: var(--wealth-tax-slider-thumb-size);
+  width: var(--wealth-tax-slider-thumb-size);
+}
+
+.wealth-tax-slider-block--compact .wealth-tax-slider:active::-moz-range-thumb {
+  cursor: grabbing;
+  transform: scale(1.06);
+}
+
+.wealth-tax-slider-thumb-value {
+  background: color-mix(in srgb, var(--positive) 14%, var(--panel-strong));
+  border: 1px solid color-mix(in srgb, var(--positive) 35%, var(--border));
+  border-radius: 6px;
+  color: var(--positive);
+  font-size: 0.58rem;
+  font-weight: 800;
+  left: calc(
+    var(--wealth-tax-slider-thumb-size) / 2 +
+    (100% - var(--wealth-tax-slider-thumb-size)) * var(--slider-ratio)
+  );
+  line-height: 1.2;
+  padding: 2px 6px;
+  pointer-events: none;
+  position: absolute;
+  top: calc(var(--wealth-tax-slider-track-top) - 6px);
+  transform: translateX(-50%) translateY(-100%);
+  white-space: nowrap;
+  z-index: 4;
+}
+
+.wealth-tax-slider-markers {
+  bottom: 0;
+  height: 16px;
+  left: calc(var(--wealth-tax-slider-thumb-size) / 2);
+  pointer-events: none;
+  position: absolute;
+  right: calc(var(--wealth-tax-slider-thumb-size) / 2);
+}
+
+.wealth-tax-slider-marker {
+  align-items: center;
+  bottom: 0;
+  display: grid;
+  gap: 2px;
+  justify-items: center;
+  position: absolute;
+  transform: translateX(-50%);
+}
+
+.wealth-tax-slider-marker-tick {
+  background: color-mix(in srgb, var(--foreground) 42%, var(--muted));
+  border-radius: 1px;
+  height: 7px;
+  width: 2px;
+}
+
+.wealth-tax-slider-marker-label {
+  color: color-mix(in srgb, var(--foreground) 72%, var(--muted));
+  font-size: 0.58rem;
+  font-weight: 700;
+  line-height: 1.1;
+  text-shadow: 0 1px 0 color-mix(in srgb, var(--panel) 80%, transparent);
+  white-space: nowrap;
+}
+
+.wealth-tax-slider-marker--max .wealth-tax-slider-marker-tick {
+  background: color-mix(in srgb, var(--primary) 70%, var(--foreground));
+  height: 8px;
+}
+
+.wealth-tax-slider-marker--max .wealth-tax-slider-marker-label {
+  color: color-mix(in srgb, var(--foreground) 58%, var(--primary));
+  font-weight: 800;
+}
+
+.wealth-tax-slider-hint {
+  color: color-mix(in srgb, var(--foreground) 45%, var(--muted));
+  font-size: 0.64rem;
+  font-style: italic;
+  line-height: 1.25;
+  margin: 0;
+}
+
+.wealth-tax-slider-labels {
+  align-items: end;
+  color: var(--muted);
+  display: grid;
+  font-size: 0.62rem;
+  gap: 2px 12px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.wealth-tax-slider-label-end {
+  display: grid;
+  gap: 1px;
+}
+
+.wealth-tax-slider-label-end em {
+  font-size: 0.56rem;
+  font-style: normal;
+  font-weight: 600;
+  opacity: 0.9;
+}
+
+.wealth-tax-slider-label-end strong {
+  color: color-mix(in srgb, var(--foreground) 78%, var(--muted));
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.wealth-tax-slider-label-end:first-child {
+  text-align: left;
+}
+
+.wealth-tax-slider-label-end--target em {
+  color: color-mix(in srgb, var(--foreground) 45%, var(--primary));
+  font-weight: 700;
+}
+
+.wealth-tax-slider-label-end--target strong {
+  color: color-mix(in srgb, var(--foreground) 48%, var(--primary));
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.wealth-tax-slider-label-end--target {
+  text-align: right;
+}
+
+.wealth-tax-play-metrics-action {
+  gap: 6px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  width: 100%;
+}
+
+.wealth-tax-play-metrics-action .wealth-tax-play-metric {
+  gap: 1px;
+  padding: 6px 8px;
+}
+
+.wealth-tax-play-metrics-action .wealth-tax-play-metric span {
+  font-size: 0.66rem;
+}
+
+.wealth-tax-play-metrics-action .wealth-tax-play-metric strong {
+  font-size: 0.9rem;
+}
+
+.wealth-tax-play-reset {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: -2px;
+}
+
+@media (max-width: 720px) {
+  .wealth-tax-play-layout-compact {
+    grid-template-columns: 1fr;
+  }
+
+  .wealth-tax-play-aside {
+    align-items: center;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+    border-right: none;
+    gap: 12px;
+    grid-template-columns: auto minmax(0, 1fr);
+    padding: 0 0 10px;
+  }
+
+  .wealth-tax-play-aside-investment {
+    align-content: center;
+    justify-items: start;
+    text-align: left;
+  }
+
+  .wealth-tax-play-aside-row {
+    justify-items: start;
+  }
+
+  .wealth-tax-play-aside-row span,
+  .wealth-tax-play-aside-row strong {
+    width: auto;
+  }
+
+  .wealth-tax-play-aside .wealth-tax-target-achieved {
+    text-align: left;
+  }
+}
+
 /* ---------- Tax Journey ---------- */
 .wealth-tax-journey-section {
   display: grid;
-  gap: 10px;
+  gap: 16px;
+}
+
+.wealth-tax-journey-main {
+  display: grid;
+  gap: 8px;
+}
+
+.wealth-tax-journey-head h2 {
+  font-size: clamp(1.25rem, 2.6vw, 1.75rem);
+  margin: 6px 0 0;
+}
+
+.wealth-tax-journey-subtitle {
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.45;
+  margin: 6px 0 0;
+}
+
+.wealth-tax-journey-flow-wrap {
+  padding: 4px 0 0;
+  position: relative;
+}
+
+.wealth-tax-journey-connector {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--primary) 12%, transparent) 0%,
+    color-mix(in srgb, var(--primary) 55%, transparent) 22%,
+    color-mix(in srgb, var(--positive) 48%, transparent) 48%,
+    color-mix(in srgb, var(--warning) 42%, transparent) 72%,
+    color-mix(in srgb, var(--primary) 58%, transparent) 100%
+  );
+  border-radius: 999px;
+  box-shadow:
+    0 0 24px color-mix(in srgb, var(--primary) 32%, transparent),
+    0 0 48px color-mix(in srgb, var(--primary) 14%, transparent);
+  height: 4px;
+  left: 4%;
+  position: absolute;
+  right: 4%;
+  top: calc(50% + 6px);
+  transform: translateY(-50%);
+  z-index: 0;
 }
 
 .wealth-tax-journey-flow {
@@ -14523,76 +15418,835 @@ button {
   display: flex;
   gap: 0;
   overflow-x: auto;
-  padding-bottom: 2px;
+  padding: 4px 4px 6px;
+  position: relative;
   scrollbar-width: thin;
+  z-index: 1;
 }
 
 .wealth-tax-journey-item {
   align-items: stretch;
   display: flex;
   flex: 1 1 0;
-  min-width: 88px;
+  min-width: 132px;
   position: relative;
 }
 
-.wealth-tax-journey-item:not(:last-child)::after {
-  background: linear-gradient(90deg, color-mix(in srgb, var(--primary) 35%, var(--border)), var(--border));
+.wealth-tax-journey-node {
+  align-content: start;
+  background: color-mix(in srgb, var(--panel) 90%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+  border-radius: 16px;
+  display: grid;
+  flex: 1;
+  gap: 5px;
+  grid-template-rows: auto auto auto 64px 14px;
+  height: 204px;
+  justify-items: center;
+  overflow: hidden;
+  padding: 12px 10px 10px;
+  position: relative;
+  text-align: center;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  z-index: 2;
+}
+
+.wealth-tax-journey-node::before {
   content: "";
-  height: 2px;
-  left: calc(100% - 4px);
+  height: 72px;
+  left: 50%;
+  pointer-events: none;
   position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 8px;
+  top: 0;
+  transform: translateX(-50%);
+  width: 100%;
+  z-index: 0;
+}
+
+.wealth-tax-journey-node > * {
+  position: relative;
   z-index: 1;
 }
 
-.wealth-tax-journey-node {
-  background: color-mix(in srgb, var(--panel) 80%, transparent);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  display: grid;
-  flex: 1;
-  gap: 4px;
-  justify-items: center;
-  min-height: 78px;
-  padding: 8px 6px;
-  text-align: center;
-  z-index: 2;
+.wealth-tax-journey-node-total_income::before {
+  background: radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--primary) 28%, transparent), transparent 72%);
+}
+
+.wealth-tax-journey-node-tax_free_allowance::before {
+  background: radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--positive) 26%, transparent), transparent 72%);
+}
+
+.wealth-tax-journey-node-taxable_income::before {
+  background: radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--primary) 22%, transparent), transparent 72%);
+}
+
+.wealth-tax-journey-node-gross_tax::before {
+  background: radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--warning) 28%, transparent), transparent 72%);
+}
+
+.wealth-tax-journey-node-rebate::before {
+  background: radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--positive) 24%, transparent), transparent 72%);
+}
+
+.wealth-tax-journey-node-final_tax::before {
+  background: radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--primary) 38%, transparent), transparent 68%);
+}
+
+.wealth-tax-journey-node-destination {
+  background: linear-gradient(
+    168deg,
+    color-mix(in srgb, var(--primary) 22%, var(--panel)),
+    color-mix(in srgb, var(--panel) 94%, transparent)
+  );
+  border-color: color-mix(in srgb, var(--primary) 58%, var(--border));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--primary) 24%, transparent),
+    0 0 32px color-mix(in srgb, var(--primary) 28%, transparent),
+    0 14px 36px color-mix(in srgb, var(--primary) 20%, transparent);
+}
+
+.wealth-tax-journey-icon-wrap {
+  align-items: center;
+  border-radius: 999px;
+  display: inline-flex;
+  height: 56px;
+  justify-content: center;
+  position: relative;
+  width: 56px;
+}
+
+.wealth-tax-journey-icon-wrap::before {
+  border-radius: inherit;
+  content: "";
+  inset: -6px;
+  position: absolute;
+  z-index: 0;
+}
+
+.wealth-tax-node-info .wealth-tax-journey-icon-wrap::before {
+  background: radial-gradient(circle, color-mix(in srgb, var(--primary) 38%, transparent), transparent 70%);
+  box-shadow: 0 0 20px color-mix(in srgb, var(--primary) 24%, transparent);
+}
+
+.wealth-tax-node-positive .wealth-tax-journey-icon-wrap::before {
+  background: radial-gradient(circle, color-mix(in srgb, var(--positive) 36%, transparent), transparent 70%);
+  box-shadow: 0 0 20px color-mix(in srgb, var(--positive) 22%, transparent);
+}
+
+.wealth-tax-node-neutral .wealth-tax-journey-icon-wrap::before {
+  background: radial-gradient(circle, color-mix(in srgb, var(--primary) 28%, transparent), transparent 70%);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--primary) 18%, transparent);
+}
+
+.wealth-tax-node-warning .wealth-tax-journey-icon-wrap::before {
+  background: radial-gradient(circle, color-mix(in srgb, var(--warning) 38%, transparent), transparent 70%);
+  box-shadow: 0 0 20px color-mix(in srgb, var(--warning) 24%, transparent);
+}
+
+.wealth-tax-node-primary .wealth-tax-journey-icon-wrap::before {
+  background: radial-gradient(circle, color-mix(in srgb, var(--primary) 44%, transparent), transparent 68%);
+  box-shadow: 0 0 28px color-mix(in srgb, var(--primary) 32%, transparent);
 }
 
 .wealth-tax-journey-icon {
   align-items: center;
-  border-radius: 8px;
+  border-radius: 999px;
   display: inline-flex;
-  font-size: 0.95rem;
-  height: 28px;
+  font-size: 1.55rem;
+  height: 48px;
   justify-content: center;
-  width: 28px;
+  width: 48px;
 }
 
+.wealth-tax-node-info .wealth-tax-journey-icon { background: color-mix(in srgb, var(--primary) 24%, transparent); }
+.wealth-tax-node-positive .wealth-tax-journey-icon { background: color-mix(in srgb, var(--positive) 24%, transparent); }
+.wealth-tax-node-neutral .wealth-tax-journey-icon { background: color-mix(in srgb, var(--primary) 18%, transparent); }
+.wealth-tax-node-warning .wealth-tax-journey-icon { background: color-mix(in srgb, var(--warning) 28%, transparent); }
+.wealth-tax-node-primary .wealth-tax-journey-icon { background: color-mix(in srgb, var(--primary) 30%, transparent); }
+
 .wealth-tax-journey-label {
-  color: var(--muted);
-  font-size: 0.58rem;
-  font-weight: 700;
+  color: color-mix(in srgb, var(--muted) 95%, var(--foreground));
+  font-size: 0.6rem;
+  font-weight: 500;
+  letter-spacing: 0.03em;
   line-height: 1.15;
 }
 
+.wealth-tax-journey-amount,
 .wealth-tax-journey-node strong {
-  font-size: 0.72rem;
-  line-height: 1.2;
+  font-size: clamp(0.92rem, 1.7vw, 1.1rem);
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  line-height: 1.12;
 }
 
-.wealth-tax-node-info .wealth-tax-journey-icon { background: color-mix(in srgb, var(--info) 22%, transparent); }
-.wealth-tax-node-positive .wealth-tax-journey-icon { background: color-mix(in srgb, var(--positive) 22%, transparent); }
-.wealth-tax-node-neutral .wealth-tax-journey-icon { background: color-mix(in srgb, var(--neutral) 22%, transparent); }
-.wealth-tax-node-warning .wealth-tax-journey-icon { background: color-mix(in srgb, var(--warning) 26%, transparent); }
-.wealth-tax-node-primary { border-color: color-mix(in srgb, var(--primary) 45%, var(--border)); }
-.wealth-tax-node-primary .wealth-tax-journey-icon { background: color-mix(in srgb, var(--primary) 26%, transparent); }
-.wealth-tax-node-primary strong { color: color-mix(in srgb, var(--foreground) 65%, var(--primary)); }
+.wealth-tax-node-info .wealth-tax-journey-amount { color: color-mix(in srgb, var(--foreground) 78%, var(--primary)); }
+.wealth-tax-node-positive .wealth-tax-journey-amount { color: var(--positive); }
+.wealth-tax-node-neutral .wealth-tax-journey-amount { color: color-mix(in srgb, var(--foreground) 80%, var(--primary)); }
+.wealth-tax-node-warning .wealth-tax-journey-amount { color: var(--warning); }
 
-.wealth-tax-journey-arrow {
-  display: none;
+.wealth-tax-journey-rebate-saved {
+  color: var(--positive);
+}
+
+.wealth-tax-journey-final-amount {
+  color: color-mix(in srgb, var(--foreground) 84%, var(--primary));
+  font-size: clamp(1rem, 2vw, 1.18rem);
+  text-shadow: 0 0 20px color-mix(in srgb, var(--primary) 24%, transparent);
+}
+
+.wealth-tax-journey-caption {
+  align-self: end;
+  color: var(--muted);
+  font-size: 0.58rem;
+  line-height: 1.2;
+  margin: 0;
+  max-width: 100%;
+  min-height: 14px;
+}
+
+.wealth-tax-journey-caption-empty {
+  visibility: hidden;
+}
+
+.wealth-tax-journey-visual-slot {
+  align-items: center;
+  display: flex;
+  height: 64px;
+  justify-content: center;
+  width: 100%;
+}
+
+.wealth-tax-journey-visual-slot .wealth-tax-journey-visual {
+  align-items: center;
+  margin-top: 0;
+}
+
+.wealth-tax-journey-visual-slot .wealth-tax-journey-visual-slabs,
+.wealth-tax-journey-visual-slot .wealth-tax-journey-visual-destination,
+.wealth-tax-journey-visual-slot .wealth-tax-journey-rebate-ring {
+  height: 100%;
+}
+
+.wealth-tax-journey-visual-slot .wealth-tax-journey-visual-slabs {
+  align-items: flex-end;
+  align-self: flex-end;
+}
+
+.wealth-tax-journey-arrow-node {
+  align-items: center;
+  align-self: center;
+  display: inline-flex;
+  flex-shrink: 0;
+  height: 30px;
+  justify-content: center;
+  position: relative;
+  width: 30px;
+  z-index: 3;
+}
+
+.wealth-tax-journey-arrow-glow {
+  background: radial-gradient(circle, color-mix(in srgb, var(--primary) 42%, transparent), transparent 72%);
+  border-radius: 999px;
+  inset: -4px;
+  position: absolute;
+}
+
+.wealth-tax-journey-arrow-icon {
+  align-items: center;
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  border: 1px solid color-mix(in srgb, var(--primary) 38%, var(--border));
+  border-radius: 999px;
+  box-shadow:
+    0 0 14px color-mix(in srgb, var(--primary) 28%, transparent),
+    inset 0 0 8px color-mix(in srgb, var(--primary) 12%, transparent);
+  color: color-mix(in srgb, var(--foreground) 70%, var(--primary));
+  display: inline-flex;
+  font-size: 0.82rem;
+  font-weight: 800;
+  height: 26px;
+  justify-content: center;
+  position: relative;
+  width: 26px;
+  z-index: 1;
+}
+
+.wealth-tax-journey-visual {
+  align-items: flex-end;
+  display: flex;
+  height: 100%;
+  justify-content: center;
+  width: 100%;
+}
+
+.wealth-tax-journey-visual-income-split {
+  align-self: center;
+  background: color-mix(in srgb, var(--border) 65%, transparent);
+  border-radius: 999px;
+  display: flex;
+  flex: none;
+  height: 10px;
+  max-width: 80px;
+  overflow: hidden;
+  width: 100%;
+}
+
+.wealth-tax-journey-visual-income-split span {
+  display: block;
+  height: 100%;
+  min-width: 0;
+}
+
+.wealth-tax-journey-visual-income-split span:first-child {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--positive) 88%, white), var(--positive));
+  box-shadow: 0 0 8px color-mix(in srgb, var(--positive) 24%, transparent);
+}
+
+.wealth-tax-journey-visual-income-split span:last-child {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--primary) 85%, white), var(--primary));
+  box-shadow: 0 0 8px color-mix(in srgb, var(--primary) 20%, transparent);
+}
+
+.wealth-tax-journey-visual-shield {
+  align-items: flex-end;
+  align-self: center;
+  border: 1px dashed color-mix(in srgb, var(--positive) 50%, var(--border));
+  border-radius: 8px;
+  height: 44px;
+  padding: 3px;
+  width: 36px;
+}
+
+.wealth-tax-journey-visual-shield span {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--positive) 92%, white), var(--positive));
+  border-radius: 4px;
+  box-shadow: 0 0 14px color-mix(in srgb, var(--positive) 32%, transparent);
+  display: block;
+  height: 34%;
+  width: 100%;
+}
+
+.wealth-tax-journey-visual-taxable {
+  align-self: center;
+  background: color-mix(in srgb, var(--border) 65%, transparent);
+  border-radius: 999px;
+  display: block;
+  flex: none;
+  height: 10px;
+  max-width: 80px;
+  overflow: hidden;
+  width: 100%;
+}
+
+.wealth-tax-journey-visual-taxable span {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--primary) 85%, white), var(--primary));
+  border-radius: inherit;
+  box-shadow: 0 0 8px color-mix(in srgb, var(--primary) 22%, transparent);
+  display: block;
+  height: 100%;
+  min-width: 0;
+}
+
+.wealth-tax-journey-visual-slabs {
+  align-items: flex-end;
+  gap: 5px;
+  height: 48px;
+}
+
+.wealth-tax-journey-slab {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--warning) 92%, white), var(--warning));
+  border-radius: 4px 4px 0 0;
+  box-shadow: 0 0 10px color-mix(in srgb, var(--warning) 28%, transparent);
+  display: block;
+  width: 11px;
+}
+
+.wealth-tax-journey-slab-1 { height: 32%; }
+.wealth-tax-journey-slab-2 { height: 52%; }
+.wealth-tax-journey-slab-3 { height: 74%; }
+.wealth-tax-journey-slab-4 { height: 100%; }
+
+.wealth-tax-journey-rebate-ring-wrap {
+  display: grid;
+  gap: 4px;
+  justify-items: center;
+  width: 100%;
+}
+
+.wealth-tax-journey-rebate-ring {
+  height: 64px;
+  position: relative;
+  width: 64px;
+}
+
+.wealth-tax-journey-rebate-ring svg {
+  display: block;
+  filter: drop-shadow(0 0 10px color-mix(in srgb, var(--positive) 32%, transparent));
+  height: 64px;
+  width: 64px;
+}
+
+.wealth-tax-journey-rebate-ring-track {
+  fill: none;
+  stroke: color-mix(in srgb, var(--border) 75%, transparent);
+  stroke-width: 5;
+}
+
+.wealth-tax-journey-rebate-ring-fill {
+  fill: none;
+  stroke: var(--positive);
+  stroke-linecap: round;
+  stroke-width: 5;
+}
+
+.wealth-tax-journey-rebate-ring span {
+  color: var(--positive);
+  font-size: 0.78rem;
+  font-weight: 900;
+  left: 50%;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.wealth-tax-journey-visual-destination {
+  align-items: center;
+  position: relative;
+}
+
+.wealth-tax-journey-destination-doc {
+  filter: drop-shadow(0 0 12px color-mix(in srgb, var(--primary) 28%, transparent));
+  font-size: 1.85rem;
+  line-height: 1;
+}
+
+.wealth-tax-journey-destination-check {
+  align-items: center;
+  background: var(--positive);
+  border-radius: 999px;
+  box-shadow: 0 0 10px color-mix(in srgb, var(--positive) 40%, transparent);
+  color: #fff;
+  display: inline-flex;
+  font-size: 0.52rem;
+  font-weight: 800;
+  height: 16px;
+  justify-content: center;
+  position: absolute;
+  right: calc(50% - 28px);
+  top: 2px;
+  width: 16px;
+}
+
+.wealth-tax-journey-metrics {
+  background:
+    radial-gradient(ellipse at 28% 50%, color-mix(in srgb, var(--positive) 8%, transparent), transparent 55%),
+    radial-gradient(ellipse at 62% 50%, color-mix(in srgb, var(--primary) 10%, transparent), transparent 55%),
+    color-mix(in srgb, var(--panel) 92%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+  border-radius: 14px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  padding: 12px 14px;
+}
+
+.wealth-tax-journey-metric {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  text-align: left;
+}
+
+.wealth-tax-journey-metric-icon-wrap {
+  align-items: center;
+  border-radius: 999px;
+  display: inline-flex;
+  flex-shrink: 0;
+  height: 38px;
+  justify-content: center;
+  position: relative;
+  width: 38px;
+}
+
+.wealth-tax-journey-metric-icon-wrap::before {
+  border-radius: inherit;
+  content: "";
+  inset: -5px;
+  position: absolute;
+  z-index: 0;
+}
+
+.wealth-tax-journey-metric-income .wealth-tax-journey-metric-icon-wrap::before {
+  background: radial-gradient(circle, color-mix(in srgb, var(--primary) 22%, transparent), transparent 72%);
+}
+
+.wealth-tax-journey-metric-saved .wealth-tax-journey-metric-icon-wrap::before {
+  background: radial-gradient(circle, color-mix(in srgb, var(--positive) 32%, transparent), transparent 72%);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--positive) 18%, transparent);
+}
+
+.wealth-tax-journey-metric-pay .wealth-tax-journey-metric-icon-wrap::before {
+  background: radial-gradient(circle, color-mix(in srgb, var(--primary) 30%, transparent), transparent 72%);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--primary) 18%, transparent);
+}
+
+.wealth-tax-journey-metric-rate .wealth-tax-journey-metric-icon-wrap::before {
+  background: radial-gradient(circle, color-mix(in srgb, var(--warning) 22%, transparent), transparent 72%);
+}
+
+.wealth-tax-journey-metric-icon {
+  align-items: center;
+  background: color-mix(in srgb, var(--panel) 80%, transparent);
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 1.1rem;
+  height: 32px;
+  justify-content: center;
+  position: relative;
+  width: 32px;
+  z-index: 1;
+}
+
+.wealth-tax-journey-metric-body {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.wealth-tax-journey-metric-label {
+  color: color-mix(in srgb, var(--muted) 96%, var(--foreground));
+  font-size: 0.62rem;
+  font-weight: 500;
+}
+
+.wealth-tax-journey-metric strong {
+  font-size: clamp(1.08rem, 2vw, 1.32rem);
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  line-height: 1.08;
+}
+
+.wealth-tax-journey-metric-income strong {
+  color: color-mix(in srgb, var(--foreground) 64%, var(--primary));
+  font-size: clamp(0.98rem, 1.7vw, 1.12rem);
+  opacity: 0.9;
+}
+
+.wealth-tax-journey-metric-saved {
+  background: radial-gradient(ellipse at left center, color-mix(in srgb, var(--positive) 10%, transparent), transparent 72%);
+  border-radius: 10px;
+  margin: -4px -6px;
+  padding: 4px 6px;
+}
+
+.wealth-tax-journey-metric-saved strong {
+  color: var(--positive);
+  font-size: clamp(1.18rem, 2.2vw, 1.42rem);
+}
+
+.wealth-tax-journey-metric-pay {
+  background: radial-gradient(ellipse at left center, color-mix(in srgb, var(--primary) 12%, transparent), transparent 72%);
+  border-radius: 10px;
+  margin: -4px -6px;
+  padding: 4px 6px;
+}
+
+.wealth-tax-journey-metric-pay strong {
+  color: color-mix(in srgb, var(--foreground) 84%, var(--primary));
+  font-size: clamp(1.18rem, 2.2vw, 1.42rem);
+}
+
+.wealth-tax-journey-metric-rate strong {
+  color: var(--warning);
+  font-size: clamp(0.98rem, 1.7vw, 1.12rem);
+  opacity: 0.9;
+}
+
+.wealth-tax-journey-insights-block {
+  display: grid;
+  gap: 12px;
+}
+
+.wealth-tax-journey-insights-eyebrow {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+}
+
+.wealth-tax-journey-insights-layout {
+  align-items: stretch;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.wealth-tax-journey-insights-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.wealth-tax-journey-insight-card {
+  align-items: flex-start;
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+  border-radius: 14px;
+  display: flex;
+  gap: 12px;
+  overflow: hidden;
+  padding: 14px 14px 14px 12px;
+  position: relative;
+}
+
+.wealth-tax-journey-insight-card::before {
+  content: "";
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+  z-index: 0;
+}
+
+.wealth-tax-journey-insight-positive::before {
+  background: radial-gradient(ellipse at 0% 50%, color-mix(in srgb, var(--positive) 14%, transparent), transparent 68%);
+}
+
+.wealth-tax-journey-insight-warning::before {
+  background: radial-gradient(ellipse at 0% 50%, color-mix(in srgb, var(--warning) 16%, transparent), transparent 68%);
+}
+
+.wealth-tax-journey-insight-icon-wrap,
+.wealth-tax-journey-insight-body {
+  position: relative;
+  z-index: 1;
+}
+
+.wealth-tax-journey-insight-icon-wrap {
+  align-items: center;
+  border-radius: 999px;
+  display: inline-flex;
+  flex-shrink: 0;
+  height: 48px;
+  justify-content: center;
+  position: relative;
+  width: 48px;
+}
+
+.wealth-tax-journey-insight-icon-wrap::before {
+  border-radius: inherit;
+  content: "";
+  inset: -6px;
+  position: absolute;
+  z-index: 0;
+}
+
+.wealth-tax-journey-insight-positive .wealth-tax-journey-insight-icon-wrap::before {
+  background: radial-gradient(circle, color-mix(in srgb, var(--positive) 38%, transparent), transparent 72%);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--positive) 22%, transparent);
+}
+
+.wealth-tax-journey-insight-warning .wealth-tax-journey-insight-icon-wrap::before {
+  background: radial-gradient(circle, color-mix(in srgb, var(--warning) 38%, transparent), transparent 72%);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--warning) 22%, transparent);
+}
+
+.wealth-tax-journey-insight-icon {
+  align-items: center;
+  background: color-mix(in srgb, var(--panel) 82%, transparent);
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 1.35rem;
+  height: 42px;
+  justify-content: center;
+  position: relative;
+  width: 42px;
+  z-index: 1;
+}
+
+.wealth-tax-journey-insight-body {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.wealth-tax-journey-insight-card h3 {
+  font-size: 0.86rem;
+  font-weight: 800;
+  margin: 0;
+}
+
+.wealth-tax-journey-insight-card p {
+  color: var(--muted);
+  font-size: 0.74rem;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.wealth-tax-journey-insight-card p strong {
+  color: var(--foreground);
+  font-weight: 800;
+}
+
+.wealth-tax-journey-insight-positive p strong {
+  color: var(--positive);
+}
+
+.wealth-tax-journey-insight-warning p strong {
+  color: var(--warning);
+}
+
+.wealth-tax-journey-cta {
+  align-items: center;
+  align-self: center;
+  background: linear-gradient(135deg, var(--primary), color-mix(in srgb, var(--primary) 68%, #6d28d9));
+  border: none;
+  border-radius: 12px;
+  box-shadow:
+    0 0 20px color-mix(in srgb, var(--primary) 28%, transparent),
+    0 8px 22px color-mix(in srgb, var(--primary) 20%, transparent);
+  color: #fff;
+  cursor: pointer;
+  display: inline-flex;
+  flex-direction: row;
+  flex-shrink: 0;
+  font-size: 0.82rem;
+  font-weight: 800;
+  gap: 8px;
+  justify-content: center;
+  min-height: auto;
+  min-width: 0;
+  padding: 12px 14px;
+  text-align: center;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  white-space: nowrap;
+}
+
+.wealth-tax-journey-cta:hover {
+  box-shadow:
+    0 0 32px color-mix(in srgb, var(--primary) 42%, transparent),
+    0 12px 32px color-mix(in srgb, var(--primary) 30%, transparent);
+  transform: translateY(-2px);
+}
+
+.wealth-tax-journey-cta span {
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.wealth-tax-breakdown-hint {
+  display: inline-flex;
+  position: relative;
+  vertical-align: middle;
+}
+
+.wealth-tax-breakdown-panel {
+  background: var(--panel-strong);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--foreground) 12%, transparent);
+  left: 0;
+  min-width: 240px;
+  padding: 10px 12px;
+  position: absolute;
+  top: calc(100% + 6px);
+  z-index: 20;
+}
+
+.wealth-tax-breakdown-title {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  margin: 0 0 8px;
+  text-transform: uppercase;
+}
+
+.wealth-tax-breakdown-lines {
+  display: grid;
+  gap: 6px;
+}
+
+.wealth-tax-breakdown-lines p {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+}
+
+.wealth-tax-breakdown-lines span {
+  color: var(--muted);
+  font-size: 0.66rem;
+}
+
+.wealth-tax-breakdown-lines strong {
+  color: var(--foreground);
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.wealth-tax-breakdown-result {
+  border-top: 1px dashed var(--border);
+  padding-top: 6px;
+}
+
+.wealth-tax-breakdown-note {
+  color: var(--muted);
+  font-size: 0.64rem;
+  font-style: italic;
+}
+
+.wealth-tax-breakdown-limiter strong {
+  color: color-mix(in srgb, var(--foreground) 55%, var(--primary));
+}
+
+.wealth-tax-limiter-chip {
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--primary) 24%, var(--border));
+  border-radius: 999px;
+  color: color-mix(in srgb, var(--foreground) 50%, var(--primary));
+  font-size: 0.58rem;
+  font-weight: 700;
+  justify-self: start;
+  line-height: 1.2;
+  margin-top: 2px;
+  padding: 2px 6px;
+  white-space: nowrap;
+}
+
+.wealth-tax-target-rows {
+  display: grid;
+  gap: 4px;
+  text-align: left;
+  width: 100%;
+}
+
+.wealth-tax-target-rows p {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: space-between;
+  margin: 0;
+}
+
+.wealth-tax-target-rows span {
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+
+.wealth-tax-target-rows strong {
+  font-size: 0.78rem;
+}
+
+.wealth-tax-target-rows--inline {
+  margin-bottom: 4px;
+}
+
+.wealth-tax-target-achieved {
+  color: var(--positive);
+  font-size: 0.76rem;
+  font-weight: 700;
+  margin: 4px 0 0;
+  text-align: center;
 }
 
 /* ---------- Smart Insights ---------- */
@@ -14706,7 +16360,7 @@ button {
     grid-template-columns: 1fr;
   }
 
-  .wealth-tax-play-layout {
+  .wealth-tax-play-layout:not(.wealth-tax-play-layout-compact) {
     grid-template-columns: 1fr;
   }
 
@@ -14716,8 +16370,26 @@ button {
   }
 
   .wealth-tax-story-grid,
-  .wealth-tax-insights-grid {
+  .wealth-tax-insights-grid,
+  .wealth-tax-journey-insights-layout {
     grid-template-columns: 1fr;
+  }
+
+  .wealth-tax-journey-insights-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .wealth-tax-journey-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .wealth-tax-journey-cta {
+    align-self: stretch;
+    flex-direction: row;
+    justify-content: center;
+    min-height: auto;
+    min-width: 0;
+    width: 100%;
   }
 
   .wealth-tax-investment-list {
@@ -14739,7 +16411,26 @@ button {
   }
 
   .wealth-tax-journey-item {
-    min-width: 72px;
+    min-width: 120px;
+  }
+
+  .wealth-tax-journey-node {
+    height: 196px;
+    grid-template-rows: auto auto auto 58px 14px;
+  }
+
+  .wealth-tax-journey-visual-slot {
+    height: 58px;
+  }
+
+  .wealth-tax-journey-rebate-ring,
+  .wealth-tax-journey-rebate-ring svg {
+    height: 58px;
+    width: 58px;
+  }
+
+  .wealth-tax-journey-connector {
+    display: none;
   }
 }
 
@@ -22881,9 +24572,34 @@ button {
   font-size: 0.72rem;
 }
 
+.admin-tax-planner-rebate-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.admin-tax-planner-rebate-hint,
+.admin-tax-planner-rebate-preview {
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.35;
+  margin: 0;
+}
+
+.admin-tax-planner-rebate-preview strong {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  margin-right: 4px;
+  text-transform: uppercase;
+}
+
 @media (max-width: 960px) {
   .admin-composer-grid-4 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-tax-planner-rebate-grid {
+    grid-template-columns: 1fr;
   }
 
   .admin-data-table-tax-slabs .admin-data-table-head,

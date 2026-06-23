@@ -76,10 +76,9 @@ class TaxConfigService:
             disclaimer=config.disclaimer,
             minimum_tax_note=config.minimum_tax_note,
             investment_rebate=TaxPlannerInvestmentRebateConfigRead(
-                max_income_percentage=config.investment_rebate.max_income_percentage,
-                max_amount=config.investment_rebate.max_amount,
-                rebate_rate=config.investment_rebate.rebate_rate,
-                max_rebate_amount=config.investment_rebate.max_rebate_amount,
+                taxable_income_limit_pct=config.investment_rebate.taxable_income_limit_pct,
+                investment_rebate_pct=config.investment_rebate.investment_rebate_pct,
+                maximum_rebate_amount=config.investment_rebate.maximum_rebate_amount,
             ),
             investment_categories=enabled_categories,
             location_tiers=location_tiers,
@@ -124,10 +123,9 @@ class TaxConfigService:
             }
         )
         validate_rebate_config(
-            max_income_percentage=payload.rebate_max_income_percentage,
-            max_amount=payload.rebate_max_amount,
-            rebate_rate=payload.rebate_rate,
-            max_rebate_amount=payload.rebate_max_rebate_amount,
+            taxable_income_limit_pct=payload.rebate_taxable_income_limit_pct,
+            investment_rebate_pct=payload.rebate_investment_pct,
+            maximum_rebate_amount=payload.rebate_maximum_amount,
         )
         validate_minimum_tax_amounts(
             national=payload.minimum_tax_national,

@@ -6,7 +6,7 @@ from app.modules.wealth.formulas.financial_formulas import (
     calculate_emi,
     calculate_future_value_annuity,
     calculate_inflation_adjusted_value,
-    calculate_investment_rebate,
+    calculate_tax_rebate,
     calculate_lump_sum_growth,
     calculate_progressive_tax,
     calculate_zakat_amount,
@@ -75,18 +75,39 @@ def test_progressive_tax_uses_configured_slabs() -> None:
     assert breakdown[-1]["rate"] == Decimal("20")
 
 
-def test_investment_rebate_caps_actual_investment() -> None:
-    current, maximum, remaining, rebate = calculate_investment_rebate(
-        taxable_income=2000000,
-        actual_investment=1000000,
-        max_income_percentage=20,
-        max_amount=1000000,
-        rebate_rate=15,
+def test_tax_rebate_uses_minimum_of_all_limits() -> None:
+    result = calculate_tax_rebate(
+        taxable_income=925000,
+        total_investment=150000,
+        gross_tax=135000,
+        taxable_income_limit_pct=3,
+        investment_rebate_pct=15,
+        maximum_rebate_amount=1000000,
     )
-    assert current == Decimal("400000.00")
-    assert maximum == Decimal("400000.00")
-    assert remaining == Decimal("0.00")
-    assert rebate == Decimal("60000.00")
+    assert result.income_limited_rebate == Decimal("27750.00")
+    assert result.cap_limited_rebate == Decimal("1000000.00")
+    assert result.maximum_available_rebate == Decimal("27750.00")
+    assert result.rebate == Decimal("22500.00")
+    assert result.required_investment_for_full_rebate == Decimal("185000.00")
+    assert result.additional_investment_needed == Decimal("35000.00")
+    assert result.potential_additional_tax_saving == Decimal("5250.00")
+    assert result.rebate_utilization_pct == Decimal("81.08")
+    assert result.current_investment == Decimal("150000.00")
+
+
+def test_tax_rebate_caps_at_gross_tax() -> None:
+    result = calculate_tax_rebate(
+        taxable_income=500000,
+        total_investment=500000,
+        gross_tax=10000,
+        taxable_income_limit_pct=3,
+        investment_rebate_pct=15,
+        maximum_rebate_amount=1000000,
+    )
+    assert result.income_limited_rebate == Decimal("15000.00")
+    assert result.maximum_available_rebate == Decimal("15000.00")
+    assert result.rebate == Decimal("10000.00")
+    assert result.rebate_utilization_pct == Decimal("66.67")
 
 
 def test_tax_planner_quick_estimate_returns_raw_values() -> None:
@@ -103,10 +124,16 @@ def test_tax_planner_quick_estimate_returns_raw_values() -> None:
     assert response.gross_tax == Decimal("135000.00")
     assert response.rebate == Decimal("22500.00")
     assert response.final_tax == Decimal("112500.00")
-    assert response.current_eligible_investment == Decimal("150000.00")
-    assert response.maximum_eligible_investment == Decimal("260000.00")
-    assert response.remaining_eligible_investment == Decimal("110000.00")
-    assert response.potential_additional_tax_saving == Decimal("16500.00")
+    assert response.current_investment == Decimal("150000.00")
+    assert response.income_limited_rebate == Decimal("27750.00")
+    assert response.cap_limited_rebate == Decimal("1000000.00")
+    assert response.maximum_available_rebate == Decimal("27750.00")
+    assert response.required_investment_for_full_rebate == Decimal("185000.00")
+    assert response.additional_investment_needed == Decimal("35000.00")
+    assert response.potential_additional_tax_saving == Decimal("5250.00")
+    assert response.rebate_utilization_pct == Decimal("81.08")
+    assert response.maximum_eligible_investment == Decimal("185000.00")
+    assert response.remaining_eligible_investment == Decimal("35000.00")
 
 
 def test_tax_planner_below_threshold_has_zero_tax() -> None:
@@ -161,7 +188,7 @@ def test_tax_planner_simulation_does_not_require_saved_state() -> None:
         )
     )
 
-    assert response.current_eligible_investment == Decimal("150000.00")
+    assert response.current_investment == Decimal("150000.00")
     assert response.rebate == Decimal("22500.00")
 
 
@@ -214,7 +241,7 @@ def test_tax_planner_disabled_investment_category_excluded() -> None:
         config=config,
     )
 
-    assert response.current_eligible_investment == Decimal("50000.00")
+    assert response.current_investment == Decimal("50000.00")
 
 
 def test_fdr_tool_calculation() -> None:

@@ -26,16 +26,13 @@ def validate_profile_thresholds(thresholds: dict[TaxProfileCode, Decimal]) -> No
 
 def validate_rebate_config(
     *,
-    max_income_percentage: Decimal,
-    max_amount: Decimal,
-    rebate_rate: Decimal,
-    max_rebate_amount: Decimal | None,
+    taxable_income_limit_pct: Decimal,
+    investment_rebate_pct: Decimal,
+    maximum_rebate_amount: Decimal,
 ) -> None:
-    validate_non_negative_amount(max_income_percentage, field_name="Rebate income percentage")
-    validate_non_negative_amount(max_amount, field_name="Rebate max amount")
-    validate_non_negative_amount(rebate_rate, field_name="Rebate rate")
-    if max_rebate_amount is not None:
-        validate_non_negative_amount(max_rebate_amount, field_name="Rebate max rebate amount")
+    validate_non_negative_amount(taxable_income_limit_pct, field_name="Taxable income limit percentage")
+    validate_non_negative_amount(investment_rebate_pct, field_name="Investment rebate percentage")
+    validate_non_negative_amount(maximum_rebate_amount, field_name="Maximum rebate amount")
 
 
 def validate_minimum_tax_amounts(

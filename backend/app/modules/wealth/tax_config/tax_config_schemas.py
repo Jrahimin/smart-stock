@@ -5,10 +5,9 @@ from pydantic import BaseModel, Field
 
 
 class TaxPlannerInvestmentRebateConfigRead(BaseModel):
-    max_income_percentage: Decimal
-    max_amount: Decimal
-    rebate_rate: Decimal
-    max_rebate_amount: Decimal | None = None
+    taxable_income_limit_pct: Decimal
+    investment_rebate_pct: Decimal
+    maximum_rebate_amount: Decimal
 
 
 class TaxPlannerInvestmentCategoryRead(BaseModel):
@@ -82,10 +81,9 @@ class TaxPlannerConfigScalarsRead(BaseModel):
     threshold_woman_or_senior: Decimal
     threshold_person_with_disability: Decimal
     threshold_freedom_fighter: Decimal
-    rebate_max_income_percentage: Decimal
-    rebate_max_amount: Decimal
-    rebate_rate: Decimal
-    rebate_max_rebate_amount: Decimal | None = None
+    rebate_taxable_income_limit_pct: Decimal
+    rebate_investment_pct: Decimal
+    rebate_maximum_amount: Decimal
     minimum_tax_national: Decimal
     minimum_tax_dhaka_ctg: Decimal
     minimum_tax_other_city: Decimal
@@ -103,10 +101,9 @@ class TaxPlannerConfigScalarsWrite(BaseModel):
     threshold_woman_or_senior: Decimal
     threshold_person_with_disability: Decimal
     threshold_freedom_fighter: Decimal
-    rebate_max_income_percentage: Decimal
-    rebate_max_amount: Decimal
-    rebate_rate: Decimal
-    rebate_max_rebate_amount: Decimal | None = None
+    rebate_taxable_income_limit_pct: Decimal
+    rebate_investment_pct: Decimal
+    rebate_maximum_amount: Decimal
     minimum_tax_national: Decimal
     minimum_tax_dhaka_ctg: Decimal
     minimum_tax_other_city: Decimal

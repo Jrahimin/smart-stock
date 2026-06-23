@@ -249,6 +249,19 @@ Operational keys in that file overlap with admin-editable settings — see [Conf
 | Schedulers | Optional `RUN_SCHEDULER=true` with uvicorn | Dedicated `backend-scheduler` container |
 | Database | `localhost:5432` | `postgres:5432` |
 | Frontend API URL | `http://localhost:8000/api/v1` | `https://api.stockwealthbd.com/api/v1` (build-time) |
+| Frontend dev cache | `.next/dev/cache` (Turbopack; can grow large) | Not present — image runs `node server.js` from standalone build only |
+
+### Frontend `.next` cache (local only)
+
+`npm run dev` accumulates Turbopack cache under `frontend/.next/`. It is gitignored and never copied into the production image (`frontend/Dockerfile` copies only `.next/standalone` and `.next/static`).
+
+If local disk use is high or dev feels sluggish, stop the dev server and run from `frontend/`:
+
+```bash
+npm run clean
+```
+
+See [`frontend/README.md`](../../frontend/README.md).
 
 ---
 

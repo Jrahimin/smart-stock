@@ -1,5 +1,6 @@
 """Globally standard financial formulas. Country-specific behavior belongs in assumptions, not here."""
 
+from dataclasses import dataclass
 from decimal import Decimal
 from typing import Protocol
 
@@ -149,6 +150,79 @@ def calculate_progressive_tax(
     return total_tax.quantize(Decimal("0.01")), breakdown
 
 
+@dataclass(frozen=True)
+class TaxRebateCalculation:
+    current_investment: Decimal
+    income_limited_rebate: Decimal
+    cap_limited_rebate: Decimal
+    maximum_available_rebate: Decimal
+    required_investment_for_full_rebate: Decimal
+    additional_investment_needed: Decimal
+    rebate: Decimal
+    potential_additional_tax_saving: Decimal
+    rebate_utilization_pct: Decimal
+    # Deprecated API aliases — remove in a future API version.
+    current_eligible_investment: Decimal
+    maximum_eligible_investment: Decimal
+    remaining_eligible_investment: Decimal
+
+
+def calculate_tax_rebate(
+    *,
+    taxable_income: Decimal | float | int,
+    total_investment: Decimal | float | int,
+    gross_tax: Decimal | float | int,
+    taxable_income_limit_pct: Decimal | float | int,
+    investment_rebate_pct: Decimal | float | int,
+    maximum_rebate_amount: Decimal | float | int,
+) -> TaxRebateCalculation:
+    income = max(_to_decimal(taxable_income), Decimal("0"))
+    investment = max(_to_decimal(total_investment), Decimal("0"))
+    tax = max(_to_decimal(gross_tax), Decimal("0"))
+    income_limit_pct = _to_decimal(taxable_income_limit_pct)
+    investment_pct = _to_decimal(investment_rebate_pct)
+    cap_limited_rebate = max(_to_decimal(maximum_rebate_amount), Decimal("0"))
+
+    income_limited_rebate = (income * income_limit_pct / Decimal("100")).quantize(Decimal("0.01"))
+    investment_component = (investment * investment_pct / Decimal("100")).quantize(Decimal("0.01"))
+
+    maximum_available_rebate = min(income_limited_rebate, cap_limited_rebate).quantize(Decimal("0.01"))
+    rebate = min(income_limited_rebate, investment_component, cap_limited_rebate, tax).quantize(Decimal("0.01"))
+
+    if investment_pct > 0:
+        required_investment = (maximum_available_rebate * Decimal("100") / investment_pct).quantize(Decimal("0.01"))
+    else:
+        required_investment = Decimal("0.00")
+
+    additional_investment_needed = max(required_investment - investment, Decimal("0")).quantize(Decimal("0.01"))
+    potential_additional_tax_saving = max(maximum_available_rebate - rebate, Decimal("0")).quantize(Decimal("0.01"))
+
+    if maximum_available_rebate > 0:
+        rebate_utilization_pct = min(
+            Decimal("100"),
+            (rebate / maximum_available_rebate * Decimal("100")).quantize(Decimal("0.01")),
+        )
+    else:
+        rebate_utilization_pct = Decimal("0.00")
+
+    current_investment = investment.quantize(Decimal("0.01"))
+
+    return TaxRebateCalculation(
+        current_investment=current_investment,
+        income_limited_rebate=income_limited_rebate,
+        cap_limited_rebate=cap_limited_rebate,
+        maximum_available_rebate=maximum_available_rebate,
+        required_investment_for_full_rebate=required_investment,
+        additional_investment_needed=additional_investment_needed,
+        rebate=rebate,
+        potential_additional_tax_saving=potential_additional_tax_saving,
+        rebate_utilization_pct=rebate_utilization_pct,
+        current_eligible_investment=current_investment,
+        maximum_eligible_investment=required_investment,
+        remaining_eligible_investment=additional_investment_needed,
+    )
+
+
 def calculate_investment_rebate(
     *,
     taxable_income: Decimal | float | int,
@@ -156,15 +230,21 @@ def calculate_investment_rebate(
     max_income_percentage: Decimal | float | int,
     max_amount: Decimal | float | int,
     rebate_rate: Decimal | float | int,
+    gross_tax: Decimal | float | int | None = None,
 ) -> tuple[Decimal, Decimal, Decimal, Decimal]:
-    income = max(_to_decimal(taxable_income), Decimal("0"))
-    investment = max(_to_decimal(actual_investment), Decimal("0"))
-    income_based_cap = (income * _to_decimal(max_income_percentage) / Decimal("100")).quantize(Decimal("0.01"))
-    maximum_eligible_investment = min(income_based_cap, _to_decimal(max_amount)).quantize(Decimal("0.01"))
-    current_eligible_investment = min(investment, maximum_eligible_investment).quantize(Decimal("0.01"))
-    remaining_eligible_investment = max(
-        maximum_eligible_investment - current_eligible_investment,
-        Decimal("0"),
-    ).quantize(Decimal("0.01"))
-    rebate = (current_eligible_investment * _to_decimal(rebate_rate) / Decimal("100")).quantize(Decimal("0.01"))
-    return current_eligible_investment, maximum_eligible_investment, remaining_eligible_investment, rebate
+    """Deprecated eligibility model. Prefer calculate_tax_rebate."""
+    del max_income_percentage, max_amount
+    result = calculate_tax_rebate(
+        taxable_income=taxable_income,
+        total_investment=actual_investment,
+        gross_tax=gross_tax if gross_tax is not None else Decimal("999999999"),
+        taxable_income_limit_pct=Decimal("100"),
+        investment_rebate_pct=rebate_rate,
+        maximum_rebate_amount=Decimal("999999999"),
+    )
+    return (
+        result.current_investment,
+        result.maximum_eligible_investment,
+        result.remaining_eligible_investment,
+        result.rebate,
+    )
