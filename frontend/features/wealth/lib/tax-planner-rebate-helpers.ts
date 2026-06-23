@@ -46,7 +46,7 @@ const ACTIVE_LIMITER_BADGE_LABELS: Record<RebateLimiter, string> = {
   gross_tax: "Tax Payable",
 };
 
-export function toTaxNumber(value: string | number | null | undefined): number {
+export function toTaxNumber(value: unknown): number {
   const numericValue = Number(value ?? 0);
   return Number.isFinite(numericValue) ? numericValue : 0;
 }

@@ -122,7 +122,9 @@ export function TaxInfoTooltip({
     const panel = panelRef.current;
     const resizeObserver =
       typeof ResizeObserver !== "undefined" && panel ? new ResizeObserver(updatePosition) : null;
-    resizeObserver?.observe(panel);
+    if (resizeObserver && panel) {
+      resizeObserver.observe(panel);
+    }
 
     window.addEventListener("resize", updatePosition);
     window.addEventListener("scroll", updatePosition, true);
