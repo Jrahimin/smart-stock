@@ -22,6 +22,7 @@ import type {
 import type { TaxPlannerConfigResponse, TaxPlannerInvestmentCategoryConfig } from "@/features/wealth/types/tax-planner-config-types";
 import {
   buildAdditionalInvestmentMarkers,
+  buildAboutAllowanceInsight,
   getAdditionalInvestmentSliderStep,
   normalizeAdditionalInvestment,
 } from "@/features/wealth/lib/tax-planner-rebate-helpers";
@@ -40,7 +41,6 @@ type DetailedInvestmentState = NumericInputState<
 type TaxPlannerProfileState = {
   resident_individual: boolean;
   gender: TaxPlannerGender;
-  age: string;
   senior_citizen: boolean;
   person_with_disability: boolean;
   freedom_fighter: boolean;
@@ -52,25 +52,42 @@ type WizardStep = "about" | "income" | "investments" | "review";
 type TaxPlannerDraft = {
   mode: TaxPlannerMode;
   profile: TaxPlannerProfileState;
-  income: NumericInputState<TaxPlannerIncomeInput>;
+  income: IncomeFormState;
   investments: DetailedInvestmentState;
   quickTaxSavingInvestments: string;
   selectedIncomeCards: string[];
   selectedInvestmentCards: string[];
 };
 
-const DEFAULT_INCOME: NumericInputState<TaxPlannerIncomeInput> = {
-  annual_salary: "900000",
+type IncomeFormState = Omit<
+  NumericInputState<TaxPlannerIncomeInput>,
+  | "annual_salary"
+  | "bank_interest"
+  | "dps_profit"
+  | "fdr_profit"
+  | "festival_bonus"
+  | "other_employment_benefits"
+  | "sanchayapatra_profit"
+  | "dividend_income"
+  | "rental_income"
+> & {
+  deposit_savings_income: string;
+  employment_income: string;
+};
+
+type IncomeFormKey = keyof IncomeFormState;
+
+type IncomeCardField = {
+  key: IncomeFormKey;
+  label: string;
+  placeholder?: string;
+};
+
+const DEFAULT_INCOME: IncomeFormState = {
+  employment_income: "900000",
   other_yearly_income: "0",
-  festival_bonus: "0",
-  other_employment_benefits: "0",
   self_employment_income: "0",
-  rental_income: "0",
-  bank_interest: "0",
-  fdr_profit: "0",
-  dps_profit: "0",
-  sanchayapatra_profit: "0",
-  dividend_income: "0",
+  deposit_savings_income: "0",
   other_income: "0",
 };
 
@@ -88,7 +105,6 @@ const DEFAULT_INVESTMENTS: DetailedInvestmentState = {
 const DEFAULT_PROFILE: TaxPlannerProfileState = {
   resident_individual: true,
   gender: "MALE",
-  age: "30",
   senior_citizen: false,
   person_with_disability: false,
   freedom_fighter: false,
@@ -115,23 +131,44 @@ const HERO_EDU_CHIPS = [
   { label: "Sanchayapatra", icon: "🇧🇩" },
 ] as const;
 
-const GENDER_OPTIONS: Array<{ value: TaxPlannerGender; label: string }> = [
-  { value: "MALE", label: "Male" },
-  { value: "FEMALE", label: "Female" },
-  { value: "OTHER", label: "Other" },
-  { value: "PREFER_NOT_TO_SAY", label: "Prefer not to say" },
-];
+const TAXPAYER_CATEGORY_CARDS = [
+  {
+    id: "woman",
+    title: "Woman",
+    subtitle: "Higher tax-free allowance",
+    icon: "👩",
+    ariaLabel: "Woman",
+  },
+  {
+    id: "senior_citizen",
+    title: "Senior Citizen",
+    subtitle: "Aged 65 or above",
+    icon: "🧓",
+    ariaLabel: "Senior Citizen age 65 or above",
+  },
+  {
+    id: "person_with_disability",
+    title: "Person with Disability",
+    subtitle: "Higher tax-free allowance",
+    icon: "♿",
+    ariaLabel: "Person with Disability",
+  },
+  {
+    id: "freedom_fighter",
+    title: "Freedom Fighter",
+    subtitle: "Gazetted freedom fighter",
+    icon: "🎖",
+    ariaLabel: "Freedom Fighter",
+  },
+] as const;
 
-const SPECIAL_CATEGORIES: Array<{
-  key: "senior_citizen" | "person_with_disability" | "freedom_fighter";
-  label: string;
-  helper: string;
-  icon: string;
-}> = [
-  { key: "senior_citizen", label: "Senior Citizen", helper: "Aged 65 or above", icon: "🧓" },
-  { key: "person_with_disability", label: "Person with Disability", helper: "Higher tax-free allowance", icon: "♿" },
-  { key: "freedom_fighter", label: "Freedom Fighter", helper: "Gazetted freedom fighter", icon: "🎖️" },
-];
+type TaxpayerCategoryId = (typeof TAXPAYER_CATEGORY_CARDS)[number]["id"];
+
+const MINIMUM_TAX_AREA_OPTIONS = [
+  { value: "DHAKA_CHITTAGONG", label: "Dhaka / Chattogram City Corporation" },
+  { value: "OTHER_CITY", label: "Other City Corporation" },
+  { value: "", label: "Outside City Corporation Areas" },
+] as const;
 
 const WIZARD_STEPS: Array<{ id: WizardStep; label: string }> = [
   { id: "about", label: "About You" },
@@ -140,59 +177,48 @@ const WIZARD_STEPS: Array<{ id: WizardStep; label: string }> = [
   { id: "review", label: "Review & Calculate" },
 ];
 
-const INCOME_CARDS = [
+const INCOME_CARDS: Array<{
+  id: string;
+  title: string;
+  icon: string;
+  helper: string;
+  fields: IncomeCardField[];
+}> = [
   {
     id: "salary",
-    title: "Salary",
+    title: "Employment Income",
     icon: "💼",
-    helper: "Yearly salary, bonus, and employment benefits.",
+    helper: "Salary, bonuses, allowances, and employer benefits.",
     fields: [
-      ["annual_salary", "Annual Salary"],
-      ["festival_bonus", "Festival Bonus"],
-      ["other_employment_benefits", "Other Benefits"],
+      {
+        key: "employment_income",
+        label: "Employment Income (Yearly)",
+        placeholder: "Total yearly employment income",
+      },
     ],
   },
   {
     id: "self-employment",
     title: "Business / Freelance",
-    icon: "🧑‍💻",
-    helper: "Small business, freelancing, consulting or professional income.",
-    fields: [["self_employment_income", "Estimated Annual Profit"]],
-  },
-  {
-    id: "rental",
-    title: "Rental Income",
-    icon: "🏠",
-    helper: "Estimated yearly income after normal property expenses.",
-    fields: [["rental_income", "Net Annual Rental Income"]],
+    icon: "🏢",
+    helper: "Business or freelance profit.",
+    fields: [{ key: "self_employment_income", label: "Annual Profit" }],
   },
   {
     id: "savings-deposit",
-    title: "Deposit Income",
+    title: "Deposit & Savings Income",
     icon: "🏦",
-    helper: "Interest or profit from savings products.",
-    fields: [
-      ["bank_interest", "Bank Interest"],
-      ["fdr_profit", "FDR Profit"],
-      ["dps_profit", "DPS Profit"],
-      ["sanchayapatra_profit", "Sanchayapatra Profit"],
-    ],
-  },
-  {
-    id: "dividend",
-    title: "Dividend Income",
-    icon: "📈",
-    helper: "Cash dividends received.",
-    fields: [["dividend_income", "Cash Dividends Received"]],
+    helper: "Bank, FDR, DPS & savings interest.",
+    fields: [{ key: "deposit_savings_income", label: "Total Interest / Profit" }],
   },
   {
     id: "other",
     title: "Other Income",
     icon: "✨",
-    helper: "Any other taxable income you want to include.",
-    fields: [["other_income", "Other Taxable Income"]],
+    helper: "Rental income, dividends, and any other taxable income.",
+    fields: [{ key: "other_income", label: "Other Taxable Income" }],
   },
-] as const;
+];
 
 const INVESTMENT_FIELD_KEYS = [
   "life_insurance",
@@ -220,7 +246,7 @@ export function TaxPlannerWorkspace() {
   const [draftHydrated, setDraftHydrated] = useState(false);
   const [mode, setMode] = useState<TaxPlannerMode>("QUICK");
   const [profile, setProfile] = useState<TaxPlannerProfileState>(DEFAULT_PROFILE);
-  const [income, setIncome] = useState<NumericInputState<TaxPlannerIncomeInput>>(DEFAULT_INCOME);
+  const [income, setIncome] = useState<IncomeFormState>(DEFAULT_INCOME);
   const [investments, setInvestments] = useState<DetailedInvestmentState>(DEFAULT_INVESTMENTS);
   const [quickTaxSavingInvestments, setQuickTaxSavingInvestments] = useState("0");
   const [selectedIncomeCards, setSelectedIncomeCards] = useState<string[]>(["salary"]);
@@ -259,10 +285,10 @@ export function TaxPlannerWorkspace() {
         setMode(savedDraft.mode);
       }
       if (savedDraft.profile) {
-        setProfile(savedDraft.profile);
+        setProfile(normalizeProfileDraft(savedDraft.profile));
       }
       if (savedDraft.income) {
-        setIncome(savedDraft.income);
+        setIncome(normalizeIncomeDraft(savedDraft.income));
       }
       if (savedDraft.investments) {
         setInvestments(savedDraft.investments);
@@ -271,7 +297,7 @@ export function TaxPlannerWorkspace() {
         setQuickTaxSavingInvestments(savedDraft.quickTaxSavingInvestments);
       }
       if (savedDraft.selectedIncomeCards) {
-        setSelectedIncomeCards(savedDraft.selectedIncomeCards);
+        setSelectedIncomeCards(normalizeSelectedIncomeCards(savedDraft.selectedIncomeCards));
       }
       if (savedDraft.selectedInvestmentCards) {
         setSelectedInvestmentCards(savedDraft.selectedInvestmentCards);
@@ -304,7 +330,7 @@ export function TaxPlannerWorkspace() {
     selectedInvestmentCards,
   ]);
 
-  function updateIncome(key: keyof TaxPlannerIncomeInput, value: string) {
+  function updateIncome(key: IncomeFormKey, value: string) {
     setIncome((current) => ({ ...current, [key]: value }));
   }
 
@@ -364,7 +390,6 @@ export function TaxPlannerWorkspace() {
             income={income}
             investments={investments}
             investmentCategories={investmentCategories}
-            locationTiers={plannerConfig?.location_tiers ?? []}
             onCalculate={scrollToPlay}
             onIncomeChange={updateIncome}
             onInvestmentChange={updateInvestment}
@@ -376,6 +401,7 @@ export function TaxPlannerWorkspace() {
             profile={profile}
             selectedIncomeCards={selectedIncomeCards}
             selectedInvestmentCards={selectedInvestmentCards}
+            taxFreeAllowance={baseResult?.tax_free_allowance}
           />
         )}
       </div>
@@ -526,8 +552,8 @@ function QuickEstimateForm({
   onTaxSavingInvestmentChange,
   taxSavingInvestments,
 }: {
-  income: NumericInputState<TaxPlannerIncomeInput>;
-  onIncomeChange: (key: keyof TaxPlannerIncomeInput, value: string) => void;
+  income: IncomeFormState;
+  onIncomeChange: (key: IncomeFormKey, value: string) => void;
   onSwitchDetailed: () => void;
   onTaxSavingInvestmentChange: (value: string) => void;
   taxSavingInvestments: string;
@@ -543,8 +569,8 @@ function QuickEstimateForm({
           hint="Yearly gross salary before tax deductions."
           inputMode="decimal"
           label="Annual Salary"
-          onChange={(value) => onIncomeChange("annual_salary", value)}
-          value={income.annual_salary}
+          onChange={(value) => onIncomeChange("employment_income", value)}
+          value={income.employment_income}
         />
         <TaxInput
           hint="Freelance, rental, bonus, or any other yearly income."
@@ -583,7 +609,6 @@ function DetailedWizard({
   income,
   investments,
   investmentCategories,
-  locationTiers,
   onCalculate,
   onIncomeChange,
   onInvestmentChange,
@@ -595,14 +620,14 @@ function DetailedWizard({
   profile,
   selectedIncomeCards,
   selectedInvestmentCards,
+  taxFreeAllowance,
 }: {
   activeStep: WizardStep;
-  income: NumericInputState<TaxPlannerIncomeInput>;
+  income: IncomeFormState;
   investments: DetailedInvestmentState;
   investmentCategories: TaxPlannerInvestmentCategoryConfig[];
-  locationTiers: TaxPlannerConfigResponse["location_tiers"];
   onCalculate: () => void;
-  onIncomeChange: (key: keyof TaxPlannerIncomeInput, value: string) => void;
+  onIncomeChange: (key: IncomeFormKey, value: string) => void;
   onInvestmentChange: (key: keyof DetailedInvestmentState, value: string) => void;
   onProfileChange: (profile: TaxPlannerProfileState) => void;
   onStepChange: (step: WizardStep) => void;
@@ -612,6 +637,7 @@ function DetailedWizard({
   profile: TaxPlannerProfileState;
   selectedIncomeCards: string[];
   selectedInvestmentCards: string[];
+  taxFreeAllowance?: string | number | null;
 }) {
   const currentIndex = WIZARD_STEPS.findIndex((step) => step.id === activeStep);
 
@@ -649,7 +675,11 @@ function DetailedWizard({
 
       <div className="wealth-tax-step-body">
         {activeStep === "about" ? (
-          <AboutYouStep locationTiers={locationTiers} onProfileChange={onProfileChange} profile={profile} />
+          <AboutYouStep
+            onProfileChange={onProfileChange}
+            profile={profile}
+            taxFreeAllowance={taxFreeAllowance}
+          />
         ) : activeStep === "income" ? (
           <IncomeStep
             income={income}
@@ -689,93 +719,169 @@ function DetailedWizard({
   );
 }
 
+const RESIDENCE_DEFAULT_LABEL = MINIMUM_TAX_AREA_OPTIONS[2].label;
+
+function ResidenceLocationSelect({
+  onChange,
+  value,
+}: {
+  onChange: (locationCode: string) => void;
+  value: string;
+}) {
+  const detailsRef = useRef<HTMLDetailsElement>(null);
+  const normalizedValue = value === "RURAL" ? "" : value;
+
+  const options = MINIMUM_TAX_AREA_OPTIONS;
+
+  const selectedLabel =
+    options.find((option) => option.value === normalizedValue)?.label ?? RESIDENCE_DEFAULT_LABEL;
+
+  useEffect(() => {
+    function handlePointerDown(event: MouseEvent) {
+      const details = detailsRef.current;
+      if (details?.open && !details.contains(event.target as Node)) {
+        details.open = false;
+      }
+    }
+
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape" && detailsRef.current?.open) {
+        detailsRef.current.open = false;
+      }
+    }
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, []);
+
+  function handleSelect(locationCode: string) {
+    onChange(locationCode);
+    if (detailsRef.current) {
+      detailsRef.current.open = false;
+    }
+  }
+
+  return (
+    <details className="wealth-tax-about-location" ref={detailsRef}>
+      <summary className="wealth-tax-about-location-trigger">
+        <span className="wealth-tax-about-location-value">{selectedLabel}</span>
+        <span aria-hidden="true" className="wealth-tax-about-location-chevron">
+          ▾
+        </span>
+      </summary>
+      <div className="wealth-tax-about-location-menu" role="listbox">
+        {options.map((option) => {
+          const isSelected = option.value === normalizedValue;
+          return (
+            <button
+              aria-selected={isSelected}
+              className={`wealth-tax-about-location-option ${isSelected ? "wealth-tax-about-location-option-active" : ""}`}
+              key={option.value || "outside-city"}
+              onClick={() => handleSelect(option.value)}
+              role="option"
+              type="button"
+            >
+              {option.label}
+            </button>
+          );
+        })}
+      </div>
+    </details>
+  );
+}
+
 function AboutYouStep({
-  locationTiers,
   onProfileChange,
   profile,
+  taxFreeAllowance,
 }: {
-  locationTiers: TaxPlannerConfigResponse["location_tiers"];
   onProfileChange: (profile: TaxPlannerProfileState) => void;
   profile: TaxPlannerProfileState;
+  taxFreeAllowance?: string | number | null;
 }) {
+  function handleCategoryToggle(categoryId: TaxpayerCategoryId) {
+    onProfileChange(applyTaxpayerCategoryToggle(profile, categoryId));
+  }
+
+  const allowanceAmount = taxFreeAllowance != null ? toNumber(taxFreeAllowance) : null;
+  const allowanceInsight = buildAboutAllowanceInsight(
+    buildProfilePayload(profile),
+    allowanceAmount ?? 0,
+  );
+
   return (
-    <div className="wealth-tax-step-content">
-      <div className="wealth-tax-workspace-head">
-        <h2>Let&apos;s make this personal</h2>
-        <p className="wealth-muted-copy">A few details help tailor your tax-free allowance.</p>
+    <div className="wealth-tax-step-content wealth-tax-step-content--about">
+      <div className="wealth-tax-workspace-head wealth-tax-workspace-head--about">
+        <h2>Tell us about yourself</h2>
+        <p className="wealth-muted-copy">Your tax area and any special categories shape this estimate.</p>
       </div>
 
-      <div className="wealth-tax-about-row">
-        <div className="wealth-tax-about-field">
-          <span className="wealth-tax-about-field-label">How do you identify?</span>
-          <div className="wealth-tax-pill-group" role="group" aria-label="Gender">
-            {GENDER_OPTIONS.map((option) => (
-              <button
-                aria-pressed={profile.gender === option.value}
-                className={`wealth-tax-pill ${profile.gender === option.value ? "wealth-tax-pill-active" : ""}`}
-                key={option.value}
-                onClick={() => onProfileChange({ ...profile, gender: option.value })}
-                type="button"
-              >
-                {option.label}
-              </button>
-            ))}
+      <div className="wealth-tax-about-stack">
+        <div className="wealth-tax-about-card-grid">
+          <div className="wealth-tax-about-field wealth-tax-about-tax-area-cell">
+            <span className="wealth-tax-about-field-label-row">
+              <span className="wealth-tax-about-field-label">Tax Area</span>
+              <TaxInfoTooltip ariaLabel="Tax area" title="Tax area">
+                Used to determine minimum tax rules.
+              </TaxInfoTooltip>
+            </span>
+            <ResidenceLocationSelect
+              onChange={(locationCode) => onProfileChange({ ...profile, location_code: locationCode })}
+              value={profile.location_code}
+            />
+          </div>
+
+          <div className="wealth-tax-about-categories-heading">
+            <span className="wealth-tax-about-field-label">
+              Special Taxpayer Categories{" "}
+              <span className="wealth-tax-about-field-label-meta">(optional - select if applicable)</span>
+            </span>
+          </div>
+
+          <div className="wealth-tax-taxpayer-list" role="group" aria-label="Special taxpayer categories">
+            {TAXPAYER_CATEGORY_CARDS.map((category) => {
+              const isActive = isTaxpayerCategorySelected(profile, category.id);
+              return (
+                <button
+                  aria-label={category.ariaLabel}
+                  aria-pressed={isActive}
+                  className={`wealth-tax-taxpayer-card ${isActive ? "wealth-tax-taxpayer-card-active" : ""}`}
+                  key={category.id}
+                  onClick={() => handleCategoryToggle(category.id)}
+                  type="button"
+                >
+                  <span aria-hidden="true" className="wealth-tax-taxpayer-card-icon-box">
+                    {category.icon}
+                  </span>
+                  <span className="wealth-tax-taxpayer-card-copy">
+                    <span className="wealth-tax-taxpayer-card-title">{category.title}</span>
+                    <span className="wealth-tax-taxpayer-card-subtitle">{category.subtitle}</span>
+                  </span>
+                  <span className="wealth-tax-taxpayer-card-check" aria-hidden="true">
+                    {isActive ? "✓" : ""}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
 
-        <label className="wealth-tax-about-field wealth-tax-about-age">
-          <span className="wealth-tax-about-field-label">Your age</span>
-          <input
-            inputMode="numeric"
-            onChange={(event) => onProfileChange({ ...profile, age: event.target.value })}
-            placeholder="e.g. 32"
-            type="text"
-            value={profile.age}
-          />
-        </label>
-      </div>
-
-      {locationTiers.length > 0 ? (
-        <label className="wealth-tax-about-field">
-          <span className="wealth-tax-about-field-label">Where do you live?</span>
-          <select
-            onChange={(event) => onProfileChange({ ...profile, location_code: event.target.value })}
-            value={profile.location_code}
-          >
-            <option value="">Use national minimum tax default</option>
-            {locationTiers.map((tier) => (
-              <option key={tier.location_code} value={tier.location_code}>
-                {tier.label}
-              </option>
-            ))}
-          </select>
-        </label>
-      ) : null}
-
-      <div className="wealth-tax-about-field">
-        <span className="wealth-tax-about-field-label">Do any of these apply to you?</span>
-        <p className="wealth-tax-about-field-hint">These can raise your tax-free allowance. Tap any that fit — skip if none do.</p>
-        <div className="wealth-tax-category-grid">
-          {SPECIAL_CATEGORIES.map((category) => {
-            const isActive = profile[category.key];
-            return (
-              <button
-                aria-pressed={isActive}
-                className={`wealth-tax-category-card ${isActive ? "wealth-tax-category-active" : ""}`}
-                key={category.key}
-                onClick={() => onProfileChange({ ...profile, [category.key]: !isActive })}
-                type="button"
-              >
-                <span className="wealth-tax-category-icon" aria-hidden="true">{category.icon}</span>
-                <span className="wealth-tax-category-copy">
-                  <strong>{category.label}</strong>
-                  <small>{category.helper}</small>
-                </span>
-                <span className="wealth-tax-category-check" aria-hidden="true">{isActive ? "✓" : ""}</span>
-              </button>
-            );
-          })}
-        </div>
+        <aside aria-live="polite" className="wealth-tax-about-allowance-insight">
+          <p className="wealth-tax-about-allowance-insight-line">
+            <span>✅ {allowanceInsight.headline}</span>
+            <span aria-hidden="true" className="wealth-tax-about-allowance-insight-sep">
+              ·
+            </span>
+            <span>
+              Tax-free allowance:{" "}
+              <strong>{allowanceAmount != null ? formatWealthCurrency(allowanceAmount) : "—"}</strong>
+            </span>
+          </p>
+        </aside>
       </div>
     </div>
   );
@@ -787,47 +893,60 @@ function IncomeStep({
   onToggleIncomeCard,
   selectedIncomeCards,
 }: {
-  income: NumericInputState<TaxPlannerIncomeInput>;
-  onIncomeChange: (key: keyof TaxPlannerIncomeInput, value: string) => void;
+  income: IncomeFormState;
+  onIncomeChange: (key: IncomeFormKey, value: string) => void;
   onToggleIncomeCard: (cardId: string) => void;
   selectedIncomeCards: string[];
 }) {
   return (
     <div className="wealth-tax-step-content">
-      <div className="wealth-tax-workspace-head">
+      <div className="wealth-tax-workspace-head wealth-tax-workspace-head--income">
         <h2>How do you earn money?</h2>
         <p className="wealth-muted-copy">Pick what applies — yearly amounts only.</p>
       </div>
-      <div className="wealth-tax-card-grid">
+      <div className="wealth-tax-card-grid wealth-tax-card-grid--income">
         {INCOME_CARDS.map((card) => {
           const isSelected = selectedIncomeCards.includes(card.id);
           return (
-            <article className={`wealth-tax-select-card ${isSelected ? "wealth-tax-select-card-active" : ""}`} key={card.id}>
+            <article
+              className={`wealth-tax-select-card wealth-tax-income-card ${isSelected ? "wealth-tax-select-card-active" : ""}`}
+              key={card.id}
+            >
               <button
                 aria-expanded={isSelected}
                 aria-label={`${card.title}. ${isSelected ? "Collapse" : "Expand"} details.`}
+                className="wealth-tax-income-card-toggle"
                 onClick={() => onToggleIncomeCard(card.id)}
                 type="button"
               >
-                <span className="wealth-tax-select-icon" aria-hidden="true">{card.icon}</span>
-                <span className="wealth-tax-select-copy">
-                  <strong>{card.title}</strong>
-                  <small>{card.helper}</small>
+                <span className="wealth-tax-income-card-icon" aria-hidden="true">
+                  {card.icon}
                 </span>
-                <span className="wealth-tax-select-check" aria-hidden="true">{isSelected ? "−" : "+"}</span>
+                <span className="wealth-tax-income-card-title">{card.title}</span>
+                <span className="wealth-tax-select-check" aria-hidden="true">
+                  {isSelected ? "−" : "+"}
+                </span>
               </button>
-              {isSelected ? (
-                <div className="wealth-form-grid">
-                  {card.fields.map(([key, label]) => (
+              <div className={`wealth-tax-income-card-body${isSelected ? " is-open" : ""}`}>
+                <div className="wealth-tax-income-card-fields">
+                  {card.fields.map((field) => (
                     <TaxInput
-                      key={key}
-                      label={label}
-                      onChange={(value) => onIncomeChange(key as keyof TaxPlannerIncomeInput, value)}
-                      value={income[key as keyof TaxPlannerIncomeInput]}
+                      compact
+                      key={field.key}
+                      label={field.label}
+                      onChange={(value) => onIncomeChange(field.key, value)}
+                      placeholder={field.placeholder}
+                      value={income[field.key]}
                     />
                   ))}
                 </div>
-              ) : null}
+                <p className="wealth-tax-income-card-coverage">
+                  <span aria-hidden="true" className="wealth-tax-income-card-coverage-icon">
+                    i
+                  </span>
+                  <span className="wealth-tax-income-card-coverage-text">{card.helper}</span>
+                </p>
+              </div>
             </article>
           );
         })}
@@ -845,7 +964,7 @@ function InvestmentStep({
   plannerConfig,
   selectedInvestmentCards,
 }: {
-  income: NumericInputState<TaxPlannerIncomeInput>;
+  income: IncomeFormState;
   investmentCategories: TaxPlannerInvestmentCategoryConfig[];
   investments: DetailedInvestmentState;
   onInvestmentChange: (key: keyof DetailedInvestmentState, value: string) => void;
@@ -966,7 +1085,7 @@ function ReviewStep({
   onStepChange,
   profile,
 }: {
-  income: NumericInputState<TaxPlannerIncomeInput>;
+  income: IncomeFormState;
   investments: DetailedInvestmentState;
   onStepChange: (step: WizardStep) => void;
   profile: TaxPlannerProfileState;
@@ -1745,26 +1864,30 @@ function SavingsJar({
 }
 
 function TaxInput({
+  compact = false,
   helper,
   hint,
   infoTooltip,
   inputMode = "decimal",
   label,
   onChange,
+  placeholder = "0",
   value,
 }: {
+  compact?: boolean;
   helper?: string;
   hint?: string;
   infoTooltip?: ReactNode;
   inputMode?: "decimal" | "numeric" | "text";
   label: string;
   onChange: (value: string) => void;
+  placeholder?: string;
   value: string;
 }) {
   const inputId = `tax-input-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
 
   return (
-    <div className="wealth-field">
+    <div className={`wealth-field${compact ? " wealth-field--compact" : ""}`}>
       <div className="wealth-field-label-row">
         <label className="wealth-field-label" htmlFor={inputId}>
           {label}
@@ -1778,7 +1901,7 @@ function TaxInput({
         id={inputId}
         inputMode={inputMode}
         onChange={(event) => onChange(event.target.value)}
-        placeholder="0"
+        placeholder={placeholder}
         type="text"
         value={value}
       />
@@ -1811,7 +1934,7 @@ function ReviewBlock({ onEdit, title, value }: { onEdit: () => void; title: stri
 function buildPayload(
   mode: TaxPlannerMode,
   profile: TaxPlannerProfileState,
-  income: NumericInputState<TaxPlannerIncomeInput>,
+  income: IncomeFormState,
   investments: DetailedInvestmentState,
   quickTaxSavingInvestments: string,
   simulationAdditionalInvestment: number,
@@ -1824,16 +1947,73 @@ function buildPayload(
   };
 }
 
-function buildIncomePayload(mode: TaxPlannerMode, income: NumericInputState<TaxPlannerIncomeInput>): TaxPlannerIncomeInput {
+function buildIncomePayload(mode: TaxPlannerMode, income: IncomeFormState): TaxPlannerIncomeInput {
+  const employmentIncome = toNumber(income.employment_income);
+
   if (mode === "QUICK") {
     return {
       ...zeroIncomePayload(),
-      annual_salary: toNumber(income.annual_salary),
+      annual_salary: employmentIncome,
       other_yearly_income: toNumber(income.other_yearly_income),
     };
   }
 
-  return Object.fromEntries(Object.entries(income).map(([key, value]) => [key, toNumber(value)])) as TaxPlannerIncomeInput;
+  const depositSavingsIncome = toNumber(income.deposit_savings_income);
+  const otherTaxableIncome = toNumber(income.other_income);
+
+  return {
+    annual_salary: employmentIncome,
+    other_yearly_income: toNumber(income.other_yearly_income),
+    festival_bonus: 0,
+    other_employment_benefits: 0,
+    self_employment_income: toNumber(income.self_employment_income),
+    rental_income: 0,
+    bank_interest: depositSavingsIncome,
+    fdr_profit: 0,
+    dps_profit: 0,
+    sanchayapatra_profit: 0,
+    dividend_income: 0,
+    other_income: otherTaxableIncome,
+  };
+}
+
+function normalizeIncomeDraft(income: Partial<IncomeFormState> & Partial<NumericInputState<TaxPlannerIncomeInput>>): IncomeFormState {
+  const legacyDepositTotal =
+    toNumber(income.bank_interest) +
+    toNumber(income.fdr_profit) +
+    toNumber(income.dps_profit) +
+    toNumber(income.sanchayapatra_profit);
+  const hasLegacyEmploymentSplit = income.festival_bonus != null || income.other_employment_benefits != null;
+  const employmentIncome =
+    income.employment_income != null
+      ? toNumber(income.employment_income)
+      : hasLegacyEmploymentSplit
+        ? toNumber(income.annual_salary) + toNumber(income.festival_bonus) + toNumber(income.other_employment_benefits)
+        : toNumber(income.annual_salary ?? DEFAULT_INCOME.employment_income);
+  const hasLegacyRentalOrDividend = income.rental_income != null || income.dividend_income != null;
+  const otherTaxableIncome = hasLegacyRentalOrDividend
+    ? toNumber(income.other_income) + toNumber(income.rental_income) + toNumber(income.dividend_income)
+    : toNumber(income.other_income ?? DEFAULT_INCOME.other_income);
+
+  return {
+    employment_income: String(employmentIncome),
+    other_yearly_income: income.other_yearly_income ?? DEFAULT_INCOME.other_yearly_income,
+    self_employment_income: income.self_employment_income ?? DEFAULT_INCOME.self_employment_income,
+    deposit_savings_income:
+      income.deposit_savings_income ?? (legacyDepositTotal > 0 ? String(legacyDepositTotal) : DEFAULT_INCOME.deposit_savings_income),
+    other_income: String(otherTaxableIncome),
+  };
+}
+
+function normalizeSelectedIncomeCards(cardIds: string[]): string[] {
+  const removedIds = new Set(["rental", "dividend"]);
+  const normalized = cardIds.filter((id) => !removedIds.has(id));
+
+  if (cardIds.some((id) => removedIds.has(id)) && !normalized.includes("other")) {
+    normalized.push("other");
+  }
+
+  return normalized.length > 0 ? normalized : ["salary"];
 }
 
 function buildInvestmentPayload(
@@ -1868,7 +2048,7 @@ function buildProfilePayload(profile: TaxPlannerProfileState): TaxPlannerProfile
   return {
     resident_individual: profile.resident_individual,
     gender: profile.gender,
-    age: profile.age ? toNumber(profile.age) : null,
+    age: null,
     senior_citizen: profile.senior_citizen,
     person_with_disability: profile.person_with_disability,
     freedom_fighter: profile.freedom_fighter,
@@ -1877,7 +2057,20 @@ function buildProfilePayload(profile: TaxPlannerProfileState): TaxPlannerProfile
 }
 
 function zeroIncomePayload(): TaxPlannerIncomeInput {
-  return Object.fromEntries(Object.keys(DEFAULT_INCOME).map((key) => [key, 0])) as TaxPlannerIncomeInput;
+  return {
+    annual_salary: 0,
+    other_yearly_income: 0,
+    festival_bonus: 0,
+    other_employment_benefits: 0,
+    self_employment_income: 0,
+    rental_income: 0,
+    bank_interest: 0,
+    fdr_profit: 0,
+    dps_profit: 0,
+    sanchayapatra_profit: 0,
+    dividend_income: 0,
+    other_income: 0,
+  };
 }
 
 function zeroInvestmentPayload(): TaxPlannerInvestmentInput {
@@ -1917,20 +2110,66 @@ function effectiveTaxRate(finalTax: string | number, totalIncome: string | numbe
   return Math.round((toNumber(finalTax) / income) * 10000) / 100;
 }
 
+function normalizeProfileDraft(profile: TaxPlannerProfileState & { age?: string }): TaxPlannerProfileState {
+  const gender =
+    profile.gender === "OTHER" || profile.gender === "PREFER_NOT_TO_SAY" ? "MALE" : profile.gender;
+  const location_code = profile.location_code === "RURAL" ? "" : profile.location_code;
+
+  return {
+    resident_individual: profile.resident_individual ?? true,
+    gender,
+    senior_citizen: profile.senior_citizen ?? false,
+    person_with_disability: profile.person_with_disability ?? false,
+    freedom_fighter: profile.freedom_fighter ?? false,
+    location_code,
+  };
+}
+
+function isTaxpayerCategorySelected(profile: TaxPlannerProfileState, categoryId: TaxpayerCategoryId) {
+  if (categoryId === "woman") {
+    return profile.gender === "FEMALE";
+  }
+  return profile[categoryId];
+}
+
+function applyTaxpayerCategoryToggle(
+  profile: TaxPlannerProfileState,
+  categoryId: TaxpayerCategoryId,
+): TaxPlannerProfileState {
+  if (categoryId === "woman") {
+    return { ...profile, gender: profile.gender === "FEMALE" ? "MALE" : "FEMALE" };
+  }
+  return { ...profile, [categoryId]: !profile[categoryId] };
+}
+
+function getMinimumTaxAreaLabel(locationCode: string) {
+  const normalizedCode = locationCode === "RURAL" ? "" : locationCode;
+  return (
+    MINIMUM_TAX_AREA_OPTIONS.find((option) => option.value === normalizedCode)?.label ??
+    MINIMUM_TAX_AREA_OPTIONS[2].label
+  );
+}
+
 function profileSummary(profile: TaxPlannerProfileState) {
-  const parts = [profile.resident_individual ? "Resident individual" : "Outside resident scope"];
+  const parts: string[] = [];
+
   if (profile.gender === "FEMALE") {
-    parts.push("Female");
+    parts.push("Woman Taxpayer");
   }
   if (profile.senior_citizen) {
-    parts.push("Senior citizen");
+    parts.push("Senior Citizen (65 or more)");
   }
   if (profile.person_with_disability) {
-    parts.push("Disability allowance");
+    parts.push("Person with Disability");
   }
   if (profile.freedom_fighter) {
-    parts.push("Freedom fighter");
+    parts.push("Freedom Fighter");
   }
+  if (parts.length === 0) {
+    parts.push("General taxpayer");
+  }
+
+  parts.push(getMinimumTaxAreaLabel(profile.location_code));
   return parts.join(" · ");
 }
 

@@ -224,17 +224,16 @@ class TaxPlannerService:
         )
 
     def _resolve_tax_free_allowance(self, profile: TaxPlannerProfileInput, thresholds) -> Decimal:
-        if profile.freedom_fighter:
-            return thresholds.freedom_fighter
+        candidates = [thresholds.general]
+        if profile.gender == TaxPlannerGender.FEMALE:
+            candidates.append(thresholds.woman_or_senior)
+        if profile.senior_citizen:
+            candidates.append(thresholds.woman_or_senior)
         if profile.person_with_disability:
-            return thresholds.person_with_disability
-        if (
-            profile.senior_citizen
-            or (profile.age is not None and profile.age >= 65)
-            or profile.gender == TaxPlannerGender.FEMALE
-        ):
-            return thresholds.woman_or_senior
-        return thresholds.general
+            candidates.append(thresholds.person_with_disability)
+        if profile.freedom_fighter:
+            candidates.append(thresholds.freedom_fighter)
+        return max(candidates)
 
     def _build_insights(
         self,

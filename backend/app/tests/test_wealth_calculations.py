@@ -159,6 +159,40 @@ def test_tax_planner_special_threshold_override() -> None:
     assert response.final_tax == Decimal("0.00")
 
 
+def test_tax_planner_allowance_uses_highest_applicable_threshold() -> None:
+    woman_response = _calculate_tax_planner(
+        TaxPlannerCalculateRequest(
+            profile=TaxPlannerProfileInput(gender="FEMALE"),
+            income=TaxPlannerIncomeInput(annual_salary=Decimal("400000")),
+        )
+    )
+    assert woman_response.tax_free_allowance == Decimal("425000")
+
+    woman_and_freedom_fighter_response = _calculate_tax_planner(
+        TaxPlannerCalculateRequest(
+            profile=TaxPlannerProfileInput(gender="FEMALE", freedom_fighter=True),
+            income=TaxPlannerIncomeInput(annual_salary=Decimal("400000")),
+        )
+    )
+    assert woman_and_freedom_fighter_response.tax_free_allowance == Decimal("525000")
+
+    disability_and_freedom_fighter_response = _calculate_tax_planner(
+        TaxPlannerCalculateRequest(
+            profile=TaxPlannerProfileInput(person_with_disability=True, freedom_fighter=True),
+            income=TaxPlannerIncomeInput(annual_salary=Decimal("400000")),
+        )
+    )
+    assert disability_and_freedom_fighter_response.tax_free_allowance == Decimal("525000")
+
+    senior_and_woman_response = _calculate_tax_planner(
+        TaxPlannerCalculateRequest(
+            profile=TaxPlannerProfileInput(gender="FEMALE", senior_citizen=True),
+            income=TaxPlannerIncomeInput(annual_salary=Decimal("400000")),
+        )
+    )
+    assert senior_and_woman_response.tax_free_allowance == Decimal("425000")
+
+
 def test_tax_planner_generates_structured_insights() -> None:
     response = _calculate_tax_planner(
         TaxPlannerCalculateRequest(

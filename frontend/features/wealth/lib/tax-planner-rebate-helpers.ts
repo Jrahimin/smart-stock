@@ -64,6 +64,57 @@ export function resolveAllowanceLabel(profile: TaxPlannerProfileInput): string {
   return "General taxpayer allowance";
 }
 
+export function countSpecialTaxpayerCategories(profile: TaxPlannerProfileInput): number {
+  let count = 0;
+  if (profile.gender === "FEMALE") {
+    count += 1;
+  }
+  if (profile.senior_citizen) {
+    count += 1;
+  }
+  if (profile.person_with_disability) {
+    count += 1;
+  }
+  if (profile.freedom_fighter) {
+    count += 1;
+  }
+  return count;
+}
+
+export function buildAboutAllowanceInsight(
+  profile: TaxPlannerProfileInput,
+  taxFreeAllowance: number,
+): { headline: string; amount: number } {
+  const selectedCount = countSpecialTaxpayerCategories(profile);
+
+  if (selectedCount === 0) {
+    return {
+      headline: "General taxpayer allowance applies.",
+      amount: taxFreeAllowance,
+    };
+  }
+
+  if (selectedCount === 1) {
+    if (profile.freedom_fighter) {
+      return { headline: "Freedom fighter allowance applies.", amount: taxFreeAllowance };
+    }
+    if (profile.person_with_disability) {
+      return { headline: "Person with disability allowance applies.", amount: taxFreeAllowance };
+    }
+    if (profile.senior_citizen) {
+      return { headline: "Senior citizen allowance applies.", amount: taxFreeAllowance };
+    }
+    if (profile.gender === "FEMALE") {
+      return { headline: "Woman taxpayer allowance applies.", amount: taxFreeAllowance };
+    }
+  }
+
+  return {
+    headline: "Highest applicable allowance will be used automatically.",
+    amount: taxFreeAllowance,
+  };
+}
+
 export function getRebateConfig(
   result: TaxPlannerCalculateResponse,
   plannerConfig?: TaxPlannerConfigResponse | null,
