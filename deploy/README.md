@@ -192,7 +192,103 @@ Set `CF_API_TOKEN` and `CF_ZONE_ID` in `.env` to purge Cloudflare automatically 
 
 ---
 
-## Remote database access (DBeaver via SSH tunnel)
+## 8. Useful Docker commands
+
+Run all commands from the **repo root** (where `docker-compose.yml` lives), e.g. `/opt/smart-stock`.
+
+**Compose services:** `postgres`, `redis`, `backend-api` (HTTP only), `backend-scheduler` (background jobs), `frontend`, `nginx`.
+
+> **Note:** `docker compose down` affects the **entire stack**, not a single service. There is no `docker compose down frontend`. To replace one service, use `up` with a service name and `--no-deps`.
+
+### Stack lifecycle
+
+| Command | Purpose | Key flags / params | Outcome |
+|---------|---------|-------------------|---------|
+| `docker compose up -d` | Start all services (create if missing) | `-d` = detached (background) | All containers running; uses existing images unless config changed |
+| `docker compose down` | Stop and remove **all** containers | *(none)* | Site offline; **named volumes kept** (`postgres_data` survives) |
+| `docker compose down -v` | Stop stack and delete volumes | `-v` = remove named volumes | **Destructive** — wipes Postgres data unless you have a backup |
+| `docker compose ps` | Show container status | | Running / healthy / exited per service |
+| `docker compose logs <service>` | Tail service logs | `--tail=100`, `-f` (follow) | Debug crashes, scheduler jobs, API errors |
+| `docker compose restart <service>` | Restart without rebuild | e.g. `backend-api` | New process, **same image**; picks up `.env` changes after recreate may be needed for some vars |
+
+### Deploy / rebuild (manual)
+
+Prefer `bash deploy/scripts/deploy-frontend.sh` or `deploy.sh` for version checks and Cloudflare purge. Manual equivalents:
+
+| Command | Purpose | Key flags / params | Outcome |
+|---------|---------|-------------------|---------|
+| `docker compose build` | Rebuild **all** images | | New images tagged `smart-stock-backend:latest`, `smart-stock-frontend:latest` |
+| `docker compose build frontend` | Rebuild frontend only | | Required after UI/CSS/JS or `NEXT_PUBLIC_*` changes |
+| `docker compose build backend-api backend-scheduler` | Rebuild backend image | Both services share `smart-stock-backend:latest` | Required after Python/API code changes |
+| `docker compose up -d --force-recreate` | Recreate all containers | `--force-recreate` = replace even if config unchanged | Full stack uses freshly built images |
+| `docker compose up -d --build --no-deps frontend` | Frontend-only quick deploy | `--build` = build first; `--no-deps` = don't touch api/scheduler/postgres/nginx | New frontend container; brief frontend-only rollout |
+| `docker compose build frontend && docker compose up -d --force-recreate --no-deps frontend` | Frontend-only (script equivalent) | `--force-recreate` guarantees new container from new image | Same as `deploy-frontend.sh` without verification/purge |
+
+### Frontend only
+
+| Command | Purpose | Key flags / params | Outcome |
+|---------|---------|-------------------|---------|
+| `bash deploy/scripts/deploy-frontend.sh` | **Recommended** frontend deploy | Sets `APP_VERSION` / `GIT_SHA` / `BUILD_TIME`; optional Cloudflare purge | Build → recreate `frontend` → health + `build-info.json` checks |
+| `docker compose up -d --build --no-deps frontend` | Manual frontend deploy | | Rebuilds and starts `frontend` only |
+| `docker compose stop frontend` | Stop frontend container | | Site 502 via nginx until started again |
+| `docker compose rm -f frontend` | Remove frontend container | | Container gone; image remains; follow with `up` |
+| `docker compose logs -f frontend` | Follow frontend logs | | Next.js / Node startup errors |
+
+### Backend — API only (`backend-api`)
+
+HTTP API only. **`RUN_SCHEDULER=false`** — no market sync or scheduled jobs in this container.
+
+| Command | Purpose | Key flags / params | Outcome |
+|---------|---------|-------------------|---------|
+| `docker compose up -d --build --no-deps backend-api` | Rebuild and restart API | `--no-deps` | New API processes (Gunicorn workers); scheduler **unchanged** |
+| `docker compose restart backend-api` | Quick restart after `.env` change | | Same image; `get_settings()` cache cleared on new process |
+| `docker compose exec backend-api alembic upgrade head` | Run DB migrations | | Schema updated; run after backend deploys with migrations |
+| `docker compose exec backend-api python -m app.scripts.seed_stocks` | Bootstrap stock universe | First-time / recovery | Data seed only |
+| `docker compose logs -f backend-api` | Follow API logs | | Request errors, DB connection issues |
+
+### Backend — full functionality (API + scheduler)
+
+Production needs **both** `backend-api` and `backend-scheduler`. The scheduler runs market snapshots, daily sync, and other jobs (`RUN_SCHEDULER=true`). Restarting only `backend-api` does **not** reload scheduler jobs.
+
+| Command | Purpose | Key flags / params | Outcome |
+|---------|---------|-------------------|---------|
+| `bash deploy/scripts/deploy.sh` | **Recommended** full deploy | Build all → recreate all → `alembic upgrade head` → version check | API + scheduler + frontend + nginx all updated |
+| `docker compose build backend-api backend-scheduler` | Rebuild shared backend image | Single image used by both services | New `smart-stock-backend:latest` |
+| `docker compose up -d --force-recreate --no-deps backend-api backend-scheduler` | Redeploy API + scheduler | `--no-deps` | Both use new image; frontend/nginx keep running |
+| `docker compose restart backend-scheduler` | Restart jobs process | | Scheduler re-reads env; jobs restart; **no HTTP** on this container |
+| `docker compose logs -f backend-scheduler` | Verify scheduler health | | Expect `RUN_SCHEDULER=true`, job start lines, no crash loop |
+| `docker compose exec backend-api alembic upgrade head` | Migrations after backend deploy | Always run after schema changes | Required for API; scheduler depends on same DB schema |
+
+### Data layer & edge
+
+| Command | Purpose | Key flags / params | Outcome |
+|---------|---------|-------------------|---------|
+| `docker compose up -d postgres` | Start / recreate Postgres | | DB available on `127.0.0.1:5432` on host (SSH tunnel only) |
+| `docker compose up -d redis` | Start Redis | Optional cache | Dashboard section cache; omit `REDIS_URL` in `.env` to run without |
+| `docker compose restart nginx` | Reload edge proxy | | Picks up cert/config volume changes after file edits on host |
+| `docker compose up -d --force-recreate --no-deps nginx` | Recreate nginx container | After `deploy/nginx/` or cert changes | New container mounting current `deploy/certs/` |
+
+### Inspect running version
+
+| Command | Purpose | Outcome |
+|---------|---------|---------|
+| `curl -s https://api.stockwealthbd.com/api/v1/system \| jq .data` | Backend version | `version`, `git_sha`, `build_time` |
+| `curl -s https://stockwealthbd.com/build-info.json \| jq .` | Frontend version | Should match backend after full deploy |
+| `docker compose exec -T frontend wget -qO- http://127.0.0.1:3000/build-info.json` | Frontend version inside container | Bypasses Cloudflare |
+
+### Flags cheat sheet
+
+| Flag | Meaning |
+|------|---------|
+| `-d` | Detached — run in background |
+| `--build` | Build image(s) before starting |
+| `--force-recreate` | Replace container even if Compose thinks nothing changed |
+| `--no-deps` | Do not start/recreate dependency services (use for single-service deploys) |
+| `-v` (on `down`) | Remove named volumes — **deletes Postgres data** |
+
+---
+
+## 9. Remote database access (DBeaver via SSH tunnel)
 
 Postgres is published on the VPS **loopback only** (`127.0.0.1:5432`). It is not reachable from the public internet. Do **not** open port 5432 in UFW.
 
@@ -237,7 +333,7 @@ Local and production should be on the same Alembic migration head before a data-
 
 ---
 
-## Troubleshooting
+## 10. Troubleshooting
 
 | Issue | Check |
 |-------|-------|
@@ -251,7 +347,7 @@ Local and production should be on the same Alembic migration head before a data-
 
 ---
 
-## Future: automated migrations
+## 11. Future: automated migrations
 
 When ready to automate deploys, add a one-shot compose service:
 
