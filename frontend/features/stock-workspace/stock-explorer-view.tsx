@@ -17,7 +17,6 @@ import { MarketActivityLoader } from "@/components/ui/market-activity-loader";
 import { WorkspacePageHero } from "@/components/layout/workspace-page-hero";
 import { WatchlistStarToggle } from "@/features/watchlist/components/watchlist-star-toggle";
 import { useUserWatchlist } from "@/features/watchlist/hooks/use-user-watchlist";
-import type { WatchlistFilterMode } from "@/features/watchlist/types/watchlist-types";
 import { useMarketUniverse } from "@/features/market-dashboard/hooks/use-market-universe";
 import { formatCompactNumber, formatNumber, formatPercent } from "@/lib/formatters/financial-formatters";
 import type { StockIntelligenceModel } from "@/lib/market/market-intelligence-types";
@@ -27,6 +26,8 @@ import { buildStockDetailPath } from "@/lib/seo/stock-page-seo";
 
 const columnHelper = createColumnHelper<StockIntelligenceModel>();
 const NUMERIC_EXPLORER_COLUMNS = new Set(["latestPrice", "change", "turnover", "volume", "rsi", "confidence"]);
+
+type ExplorerPortfolioScope = "ALL" | "WATCHLIST" | "HOLDINGS";
 
 export function StockExplorerView() {
   const searchParams = useSearchParams();
@@ -39,10 +40,8 @@ export function StockExplorerView() {
     [universe],
   );
   const [search, setSearch] = useState("");
-  const [watchlistFilter, setWatchlistFilter] = useState<WatchlistFilterMode>("ALL");
+  const [portfolioScope, setPortfolioScope] = useState<ExplorerPortfolioScope>("ALL");
   const deferredSearch = useDeferredValue(search);
-  const [dataQualityFilter, setDataQualityFilter] = useState("ALL");
-  const [riskFilter, setRiskFilter] = useState("ALL");
   const [signalFilter, setSignalFilter] = useState("ALL");
   const [volumeFilter, setVolumeFilter] = useState("ALL");
   const [sorting, setSorting] = useState<SortingState>([{ id: "change", desc: true }]);
@@ -62,21 +61,24 @@ export function StockExplorerView() {
         (stock.stock.category ?? "").toLowerCase().includes(query) ||
         stock.sector.toLowerCase().includes(query);
       const matchesSignal = signalFilter === "ALL" || decision.recommendation === signalFilter;
-      const matchesRisk = riskFilter === "ALL" || decision.riskLabel === riskFilter;
-      const matchesDataQuality = dataQualityFilter === "ALL" || stock.dataQuality === dataQualityFilter;
       const matchesVolume = volumeFilter === "ALL" || getVolumeBehaviorId(stock) === volumeFilter;
       const stockId = stock.stock.id;
       const isWatched = watchedStockIds.has(stockId);
       const isHolding = holdingStockIds.has(stockId);
-      const matchesWatchlist =
-        watchlistFilter === "ALL" ||
-        (watchlistFilter === "WATCHLISTED" && isWatched) ||
-        (watchlistFilter === "NOT_WATCHLISTED" && !isWatched) ||
-        (watchlistFilter === "HOLDINGS" && isHolding);
-      return matchesSearch && matchesSignal && matchesRisk && matchesDataQuality && matchesVolume && matchesWatchlist;
+      const matchesPortfolioScope =
+        portfolioScope === "ALL" ||
+        (portfolioScope === "WATCHLIST" && isWatched) ||
+        (portfolioScope === "HOLDINGS" && isHolding);
+      return matchesSearch && matchesSignal && matchesVolume && matchesPortfolioScope;
     });
-  }, [dataQualityFilter, decisionByStockId, deferredSearch, holdingStockIds, riskFilter, signalFilter, universe, volumeFilter, watchlistFilter, watchedStockIds]);
+  }, [decisionByStockId, deferredSearch, holdingStockIds, portfolioScope, signalFilter, universe, volumeFilter, watchedStockIds]);
   const visibleUniverse = useMemo(() => filteredUniverse.slice(0, visibleCount), [filteredUniverse, visibleCount]);
+  const showEmptyResults = !isLoading && !isError && filteredUniverse.length === 0;
+  const emptyResultsMessage = useMemo(() => getEmptyResultsMessage(portfolioScope, deferredSearch), [deferredSearch, portfolioScope]);
+
+  function togglePortfolioScope(scope: Exclude<ExplorerPortfolioScope, "ALL">) {
+    setPortfolioScope((current) => (current === scope ? "ALL" : scope));
+  }
 
   useEffect(() => {
     const initialSearch = searchParams.get("search");
@@ -88,7 +90,7 @@ export function StockExplorerView() {
   useEffect(() => {
     setVisibleCount(120);
     tableContainerRef.current?.scrollTo({ top: 0 });
-  }, [dataQualityFilter, deferredSearch, riskFilter, signalFilter, volumeFilter, watchlistFilter]);
+  }, [deferredSearch, portfolioScope, signalFilter, volumeFilter]);
 
   useEffect(() => {
     return () => {
@@ -259,45 +261,41 @@ export function StockExplorerView() {
             <option value="HOLD">HOLD</option>
             <option value="SELL">SELL</option>
           </select>
-          <select value={riskFilter} onChange={(event) => setRiskFilter(event.target.value)}>
-            <option value="ALL">All risk</option>
-            <option value="LOW">Low risk</option>
-            <option value="MEDIUM">Medium risk</option>
-            <option value="HIGH">High risk</option>
-            <option value="SPECULATIVE">Speculative</option>
-          </select>
-          <select value={dataQualityFilter} onChange={(event) => setDataQualityFilter(event.target.value)}>
-            <option value="ALL">All quality</option>
-            <option value="OK">OK</option>
-            <option value="PARTIAL">Partial</option>
-            <option value="SUSPICIOUS">Source check</option>
-          </select>
           <select value={volumeFilter} onChange={(event) => setVolumeFilter(event.target.value)}>
             <option value="ALL">All volume</option>
             <option value="EXPANSION">Volume expansion</option>
             <option value="NORMAL">Normal volume</option>
             <option value="THIN">Thin volume</option>
           </select>
-          <div className="explorer-controls-watchlist" role="group" aria-label="Watchlist filters">
-            <select value={watchlistFilter} onChange={(event) => setWatchlistFilter(event.target.value as WatchlistFilterMode)}>
-              <option value="ALL">All stocks</option>
-              <option value="WATCHLISTED">Watchlisted only</option>
-              <option value="NOT_WATCHLISTED">Not watchlisted</option>
-              <option value="HOLDINGS">Holdings only</option>
-            </select>
-            <button
-              className={`explorer-watchlist-quick ${watchlistFilter === "WATCHLISTED" ? "is-active" : ""}`}
-              onClick={() => setWatchlistFilter("WATCHLISTED")}
-              type="button"
-            >
-              My watchlist
-            </button>
+          <div className="explorer-scope-filters" role="group" aria-label="Portfolio scope">
+            <label className={`explorer-scope-toggle ${portfolioScope === "WATCHLIST" ? "is-active" : ""}`}>
+              <input
+                checked={portfolioScope === "WATCHLIST"}
+                onChange={() => togglePortfolioScope("WATCHLIST")}
+                type="checkbox"
+              />
+              <span>Watchlist</span>
+            </label>
+            <label className={`explorer-scope-toggle ${portfolioScope === "HOLDINGS" ? "is-active" : ""}`}>
+              <input
+                checked={portfolioScope === "HOLDINGS"}
+                onChange={() => togglePortfolioScope("HOLDINGS")}
+                type="checkbox"
+              />
+              <span>Holdings</span>
+            </label>
           </div>
         </div>
       </WorkspacePageHero>
       {isError ? <div className="data-warning">Could not load stock explorer data.</div> : null}
       {isLoading ? <MarketActivityLoader /> : null}
-      <div className="stock-table-shell" onScroll={handleTableScroll} ref={tableContainerRef}>
+      {showEmptyResults ? (
+        <div className="stock-explorer-empty-state">
+          <strong>{emptyResultsMessage.title}</strong>
+          <p>{emptyResultsMessage.body}</p>
+        </div>
+      ) : (
+        <div className="stock-table-shell" onScroll={handleTableScroll} ref={tableContainerRef}>
         <table className="stock-explorer-table">
           <thead>
             {table.getHeaderGroups().map((headerGroup) => (
@@ -343,9 +341,38 @@ export function StockExplorerView() {
             {isPaging ? "Loading more rows..." : "Scroll down to load more rows"}
           </div>
         ) : null}
-      </div>
+        </div>
+      )}
     </section>
   );
+}
+
+function getEmptyResultsMessage(portfolioScope: ExplorerPortfolioScope, search: string) {
+  if (portfolioScope === "WATCHLIST") {
+    return {
+      title: "No watchlist matches",
+      body: "Star stocks from the explorer to build your watchlist, or turn off the Watchlist filter to browse everything.",
+    };
+  }
+
+  if (portfolioScope === "HOLDINGS") {
+    return {
+      title: "No holdings match",
+      body: "Linked portfolio holdings will appear here. Turn off the Holdings filter to browse the full universe.",
+    };
+  }
+
+  if (search.trim()) {
+    return {
+      title: "No stocks match your search",
+      body: "Try another symbol, name, or sector — or reset the action and volume filters.",
+    };
+  }
+
+  return {
+    title: "No stocks match these filters",
+    body: "Adjust the action or volume filters to widen the result set.",
+  };
 }
 
 function getExplorerCellClassName(columnId: string) {

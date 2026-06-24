@@ -4029,12 +4029,17 @@ button {
 .stock-workspace-view,
 .watchlist-workspace-view,
 .wealth-workspace-view {
+  align-items: start;
   display: grid;
   gap: 10px;
   max-width: 100%;
   min-width: 0;
   overflow-x: clip;
   width: 100%;
+}
+
+.stock-explorer-view > .explorer-hero {
+  align-self: start;
 }
 
 .trader-workspace-topbar,
@@ -4096,18 +4101,23 @@ button {
 }
 
 .explorer-hero {
+  align-items: start;
   background: var(--hero-gradient);
   border: 1px solid var(--border);
   border-radius: 22px;
   box-shadow: var(--card-shadow);
   display: grid;
   gap: 20px;
+  grid-auto-rows: min-content;
+  height: fit-content;
   padding: 16px 18px 14px;
   position: relative;
 }
 
 .explorer-hero-head {
+  align-self: start;
   padding-right: min(240px, 36%);
+  width: 100%;
 }
 
 .explorer-hero-copy {
@@ -4116,11 +4126,13 @@ button {
 
 .explorer-hero-controls {
   align-items: center;
+  align-self: start;
   border-top: 1px solid color-mix(in srgb, var(--border) 42%, transparent);
   display: flex;
   gap: 20px;
   justify-content: space-between;
-  padding-top: 14px;
+  padding-top: 6px;
+  width: 100%;
 }
 
 .explorer-hero-filters {
@@ -4150,9 +4162,14 @@ button {
   margin: 4px 0;
 }
 
-.explorer-hero-copy span,
+.explorer-hero-copy span {
+  color: var(--muted);
+}
+
 .explorer-hero-subtitle {
   color: var(--muted);
+  line-height: 1.45;
+  min-height: 2.9em;
 }
 
 .workspace-page-search {
@@ -4373,6 +4390,88 @@ button {
   gap: 8px;
   margin-left: 2px;
   padding-left: 10px;
+}
+
+.explorer-scope-filters {
+  align-items: center;
+  border-left: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  display: inline-flex;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  gap: 6px;
+  margin-left: 2px;
+  padding-left: 10px;
+}
+
+.explorer-scope-toggle {
+  align-items: center;
+  background: var(--subtle);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  box-sizing: border-box;
+  color: var(--muted);
+  cursor: pointer;
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-size: 0.78rem;
+  font-weight: 700;
+  gap: 6px;
+  height: 36px;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  min-height: 36px;
+  padding: 0 12px;
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease,
+    box-shadow 0.16s ease;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.explorer-scope-toggle input {
+  accent-color: var(--primary);
+  cursor: pointer;
+  flex-shrink: 0;
+  height: 14px;
+  margin: 0;
+  width: 14px;
+}
+
+.explorer-scope-toggle span {
+  white-space: nowrap;
+}
+
+.explorer-scope-toggle:hover {
+  border-color: color-mix(in srgb, var(--primary) 28%, var(--border));
+  color: var(--foreground);
+}
+
+.explorer-scope-toggle.is-active {
+  background: color-mix(in srgb, var(--accent) 16%, var(--subtle));
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--foreground);
+}
+
+.stock-explorer-empty-state {
+  align-items: center;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  color: var(--muted);
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  min-height: 220px;
+  padding: 28px 20px;
+  text-align: center;
+}
+
+.stock-explorer-empty-state p {
+  margin: 0;
+  max-width: 36ch;
 }
 
 .explorer-watchlist-quick.is-active {
@@ -7529,13 +7628,21 @@ button {
   }
 
   .explorer-header,
-  .explorer-hero,
   .stock-workspace-header,
   .explorer-controls,
   .trader-workspace-topbar,
   .explorer-hero-controls {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .explorer-hero {
+    align-items: start;
+  }
+
+  .explorer-hero-head,
+  .explorer-hero-controls {
+    align-self: start;
   }
 
   .explorer-hero-controls {
@@ -7632,6 +7739,33 @@ button {
 
   .explorer-command-input {
     font-size: 0.92rem;
+  }
+
+  .explorer-scope-filters {
+    border-left: none;
+    grid-column: 1 / -1;
+    justify-content: stretch;
+    margin-left: 0;
+    padding-left: 0;
+    width: 100%;
+  }
+
+  .explorer-hero-filters .explorer-controls {
+    display: grid;
+    gap: 8px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .explorer-hero-filters .explorer-controls select {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .explorer-scope-toggle {
+    flex: 1 1 0;
+    justify-content: center;
+    min-width: 0;
   }
 
   .explorer-controls-watchlist {
