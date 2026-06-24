@@ -4032,14 +4032,18 @@ button {
   align-items: start;
   display: grid;
   gap: 10px;
+  grid-auto-rows: min-content;
   max-width: 100%;
   min-width: 0;
   overflow-x: clip;
   width: 100%;
 }
 
-.stock-explorer-view > .explorer-hero {
+.stock-explorer-view > .explorer-hero,
+.stock-explorer-view > .stock-table-shell,
+.stock-explorer-view > .stock-explorer-empty-state {
   align-self: start;
+  width: 100%;
 }
 
 .trader-workspace-topbar,
@@ -4570,6 +4574,7 @@ button {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 20px;
+  height: fit-content;
   max-height: 68vh;
   max-width: 100%;
   min-width: 0;
