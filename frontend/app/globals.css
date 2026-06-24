@@ -854,37 +854,37 @@ button {
   padding: 0;
 }
 
-.terminal-shell-collapsed .wealth-workspace-nav-tile {
+.terminal-shell-collapsed .terminal-sidebar .wealth-workspace-nav-tile {
   align-items: center;
   justify-content: center;
   min-width: 50px;
   width: 50px;
 }
 
-.terminal-shell-collapsed .wealth-workspace-nav-tile:hover {
+.terminal-shell-collapsed .terminal-sidebar .wealth-workspace-nav-tile:hover {
   transform: translateY(-1px);
 }
 
-.terminal-shell-collapsed .wealth-workspace-nav-tile:active {
+.terminal-shell-collapsed .terminal-sidebar .wealth-workspace-nav-tile:active {
   transform: translateY(0) scale(0.96);
 }
 
-.terminal-shell-collapsed .wealth-workspace-nav-tile-body,
-.terminal-shell-collapsed .wealth-workspace-nav-tile-chevron {
+.terminal-shell-collapsed .terminal-sidebar .wealth-workspace-nav-tile-body,
+.terminal-shell-collapsed .terminal-sidebar .wealth-workspace-nav-tile-chevron {
   display: none;
 }
 
-.terminal-shell-collapsed .wealth-workspace-nav-tile > .wealth-workspace-nav-insight-dot {
+.terminal-shell-collapsed .terminal-sidebar .wealth-workspace-nav-tile > .wealth-workspace-nav-insight-dot {
   right: 6px;
   top: 6px;
 }
 
-.terminal-shell-collapsed .wealth-workspace-nav-tile-icon-plaque {
+.terminal-shell-collapsed .terminal-sidebar .wealth-workspace-nav-tile-icon-plaque {
   height: 32px;
   width: 32px;
 }
 
-.terminal-shell-collapsed .wealth-workspace-nav-tile-icon {
+.terminal-shell-collapsed .terminal-sidebar .wealth-workspace-nav-tile-icon {
   height: 18px;
   width: 18px;
 }
@@ -13002,6 +13002,14 @@ button {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  max-width: 100%;
+  min-width: 0;
+  width: 100%;
+}
+
+.wealth-tax-planner-workspace > * {
+  max-width: 100%;
+  min-width: 0;
 }
 
 .wealth-tax-section-eyebrow {
@@ -13036,6 +13044,7 @@ button {
 }
 
 .wealth-tax-hero-content {
+  min-width: 0;
   position: relative;
   z-index: 1;
 }
@@ -13163,6 +13172,7 @@ button {
   gap: 6px;
   grid-template-columns: auto minmax(0, 1fr);
   justify-items: start;
+  min-width: 0;
   position: relative;
   z-index: 1;
 }
@@ -13520,11 +13530,15 @@ button {
 .wealth-tax-workspace-card {
   display: grid;
   gap: 14px;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .wealth-tax-wizard {
   display: grid;
   gap: 12px;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .wealth-tax-workspace-head h2 {
@@ -13573,8 +13587,16 @@ button {
   font-size: 0.74rem;
   font-weight: 700;
   gap: 6px;
+  min-width: 0;
   padding: 7px 10px;
   width: 100%;
+}
+
+.wealth-tax-step-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .wealth-tax-step-index {
@@ -13829,12 +13851,13 @@ button {
   gap: 2px;
   left: 0;
   margin: 0;
+  max-width: 100%;
   min-width: 100%;
   overflow: hidden;
   padding: 4px;
   position: absolute;
   top: 100%;
-  width: max-content;
+  width: 100%;
   z-index: 40;
 }
 
@@ -15577,6 +15600,9 @@ button {
   --wealth-tax-slider-thumb-size: 18px;
   display: grid;
   gap: 6px;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
   padding-bottom: 18px;
   position: relative;
 }
@@ -15764,6 +15790,10 @@ button {
   font-size: 0.58rem;
   font-weight: 700;
   line-height: 1.1;
+  max-width: 3.5rem;
+  overflow: hidden;
+  text-align: center;
+  text-overflow: ellipsis;
   text-shadow: 0 1px 0 color-mix(in srgb, var(--panel) 80%, transparent);
   white-space: nowrap;
 }
@@ -15916,8 +15946,12 @@ button {
 }
 
 .wealth-tax-journey-flow-wrap {
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
   padding: 4px 0 0;
   position: relative;
+  -webkit-overflow-scrolling: touch;
 }
 
 .wealth-tax-journey-connector {
@@ -16874,6 +16908,11 @@ button {
 .wealth-tax-insight-neutral .wealth-tax-insight-icon { background: color-mix(in srgb, var(--neutral) 20%, transparent); }
 
 /* ---------- Footer disclaimer ---------- */
+.wealth-tax-results-region {
+  max-width: 100%;
+  min-width: 0;
+}
+
 .wealth-tax-footer-disclaimer {
   color: var(--muted);
   font-size: 0.72rem;
@@ -16891,10 +16930,9 @@ button {
   }
 
   .wealth-tax-about-card-grid {
-    gap: 6px;
-    grid-template-columns: repeat(4, minmax(72px, 1fr));
-    overflow-x: auto;
-    padding-bottom: 2px;
+    gap: 8px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow-x: visible;
   }
 
   .wealth-tax-taxpayer-list {
@@ -16906,8 +16944,19 @@ button {
   }
 
   .wealth-tax-hero-aside {
-    grid-template-columns: auto minmax(0, 1fr);
+    gap: 10px;
+    grid-template-columns: 1fr;
+    justify-items: center;
     order: -1;
+    text-align: center;
+  }
+
+  .wealth-tax-hero .wealth-tax-jar {
+    width: clamp(72px, 20vw, 110px);
+  }
+
+  .wealth-tax-edu-chips-row {
+    justify-content: center;
   }
 
   .wealth-tax-story-grid,
@@ -16947,31 +16996,83 @@ button {
     min-width: 0;
   }
 
-  .wealth-tax-journey-flow {
-    flex-wrap: nowrap;
-  }
-
-  .wealth-tax-journey-item {
-    min-width: 120px;
-  }
-
-  .wealth-tax-journey-node {
-    height: 196px;
-    grid-template-rows: auto auto auto 58px 14px;
-  }
-
-  .wealth-tax-journey-visual-slot {
-    height: 58px;
-  }
-
-  .wealth-tax-journey-rebate-ring,
-  .wealth-tax-journey-rebate-ring svg {
-    height: 58px;
-    width: 58px;
-  }
-
   .wealth-tax-journey-connector {
     display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .wealth-tax-mode-segment {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .wealth-tax-mode-segment-track {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .wealth-tax-mode-segment-track button {
+    justify-content: center;
+    padding: 8px 10px;
+    text-align: center;
+  }
+
+  .wealth-tax-step {
+    flex: 1 1 calc(50% - 6px);
+  }
+
+  .wealth-tax-about-card-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .wealth-tax-about-allowance-insight-line {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+
+  .wealth-tax-about-allowance-insight-sep {
+    display: none;
+  }
+
+  .wealth-tax-play-metrics,
+  .wealth-tax-play-metrics-action {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .wealth-tax-stat-pill strong {
+    white-space: normal;
+  }
+
+  .wealth-tax-wizard-nav {
+    flex-wrap: wrap;
+  }
+
+  .wealth-tax-wizard-nav .wealth-tax-back-button,
+  .wealth-tax-wizard-nav .wealth-tax-next-button {
+    flex: 1 1 calc(50% - 5px);
+    min-width: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .wealth-tax-hero {
+    padding: 14px 12px;
+  }
+
+  .wealth-tax-investment-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .wealth-tax-step {
+    flex: 1 1 100%;
+  }
+
+  .wealth-tax-journey-metrics {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -17554,13 +17655,17 @@ button {
     0 4px 20px rgb(0 0 0 / 14%),
     inset 0 1px 0 rgb(255 255 255 / 6%),
     var(--card-inner-highlight);
+  box-sizing: border-box;
   display: flex;
   flex-wrap: wrap;
   gap: 4px 6px;
+  max-width: 100%;
   min-height: 36px;
+  min-width: 0;
   padding: 5px 8px 5px 5px;
   position: sticky;
   top: 8px;
+  width: 100%;
   z-index: 30;
 }
 
@@ -17854,17 +17959,24 @@ button {
 
 @media (max-width: 720px) {
   .wealth-sub-nav-shell {
+    align-items: stretch;
     border-radius: 14px;
     padding: 6px;
   }
 
   .wealth-sub-nav-brand {
+    align-self: flex-start;
     font-size: 0.64rem;
     padding: 4px 8px 4px 6px;
   }
 
   .wealth-sub-nav-divider {
     display: none;
+  }
+
+  .wealth-sub-nav {
+    flex: 1 1 100%;
+    width: 100%;
   }
 
   .wealth-sub-nav-item {
@@ -24603,6 +24715,27 @@ button {
 .mobile-nav-drawer-section .terminal-nav-wealth-module {
   margin-top: 0;
   padding: 0 0 4px;
+}
+
+.mobile-nav-drawer-section .wealth-workspace-nav-tile {
+  gap: 10px;
+  min-height: 56px;
+  min-width: 0;
+  padding: 10px 12px;
+  width: 100%;
+}
+
+.mobile-nav-drawer-section .wealth-workspace-nav-tile-body {
+  display: flex;
+  min-width: 0;
+}
+
+.mobile-nav-drawer-section .wealth-workspace-nav-tile-title {
+  color: var(--foreground);
+}
+
+.mobile-nav-drawer-section .wealth-workspace-nav-tile-subtitle {
+  color: color-mix(in srgb, var(--muted) 70%, var(--foreground));
 }
 
 .terminal-nav-link-ops {
