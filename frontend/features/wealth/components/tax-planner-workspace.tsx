@@ -1,5 +1,6 @@
 "use client";
 
+import { Banknote, CircleMinus, Coins, FileText, Percent, Shield, Sprout, Target, Wallet } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { TaxInfoTooltip } from "@/features/wealth/components/tax-info-tooltip";
@@ -232,21 +233,20 @@ const INVESTMENT_FIELD_KEYS = [
 ] as const;
 
 const JOURNEY_STEPS = [
-  { key: "gross_salary", label: "Gross Salary", icon: "💼", tone: "info", caption: "Before exemption" },
+  { key: "gross_salary", label: "Gross Salary", tone: "info", caption: "Before exemption" },
   {
     key: "employment_income_exemption",
     label: "Employment Exemption",
-    icon: "🧾",
     tone: "positive",
     caption: "Deducted from salary",
   },
-  { key: "taxable_salary", label: "Taxable Salary", icon: "📋", tone: "neutral", caption: "After exemption" },
-  { key: "total_income", label: "Total Income", icon: "💰", tone: "info", caption: "Includes other income" },
-  { key: "tax_free_allowance", label: "Tax-Free", icon: "🛡️", tone: "positive", caption: "" },
-  { key: "taxable_income", label: "Taxable Income", icon: "🧾", tone: "neutral", caption: "" },
-  { key: "gross_tax", label: "Gross Tax", icon: "％", tone: "warning", caption: "Before savings" },
-  { key: "rebate", label: "Investment Rebate", icon: "🌱", tone: "positive", caption: "" },
-  { key: "final_tax", label: "Final Tax", icon: "🎯", tone: "primary", caption: "" },
+  { key: "taxable_salary", label: "Taxable Salary", tone: "neutral", caption: "Salary after exemption" },
+  { key: "total_income", label: "Combined Income", tone: "info", caption: "Salary + other income" },
+  { key: "tax_free_allowance", label: "Tax-Free", tone: "positive", caption: "" },
+  { key: "taxable_income", label: "Taxable Income", tone: "neutral", caption: "" },
+  { key: "gross_tax", label: "Gross Tax", tone: "warning", caption: "Before savings" },
+  { key: "rebate", label: "Investment Rebate", tone: "positive", caption: "" },
+  { key: "final_tax", label: "Final Tax", tone: "primary", caption: "" },
 ] as const;
 
 const SIMULATION_DEBOUNCE_MS = 120;
@@ -1168,7 +1168,15 @@ function TaxSnapshot({
           <strong>{formatWealthNumber(effectiveRate)}%</strong>
         </span>
         <span className="wealth-tax-stat-pill" role="listitem">
-          <span>Total income</span>
+          <span className="wealth-tax-stat-pill-label">
+            Before allowance
+            <TaxInfoTooltip
+              ariaLabel="What income before allowance means"
+              title="Taxable salary (after employment exemption) plus any other income — before your personal tax-free allowance."
+            >
+              Taxable salary plus other income, after employment exemption and before your personal tax-free allowance.
+            </TaxInfoTooltip>
+          </span>
           <strong>{formatWealthCurrency(baseResult.total_income)}</strong>
         </span>
         <span className="wealth-tax-stat-pill" role="listitem">
@@ -1469,7 +1477,8 @@ function TaxJourney({
   const grossSalary = toNumber(result.gross_salary);
   const employmentExemption = toNumber(result.employment_income_exemption);
   const taxableSalary = toNumber(result.taxable_salary);
-  const totalIncome = toNumber(result.total_income);
+  const otherTaxableIncome = toNumber(result.other_taxable_income);
+  const totalIncome = toNumber(result.total_income) || taxableSalary + otherTaxableIncome;
   const allowance = toNumber(result.tax_free_allowance);
   const taxableIncome = toNumber(result.taxable_income);
   const rebate = toNumber(result.rebate);
@@ -1487,6 +1496,35 @@ function TaxJourney({
     potentialSaving,
     utilizationPct,
   });
+  const journeySteps = JOURNEY_STEPS.filter(
+    (step) => step.key !== "total_income" || otherTaxableIncome > 0,
+  );
+
+  function journeyStepCaption(stepKey: (typeof JOURNEY_STEPS)[number]["key"]) {
+    if (stepKey === "employment_income_exemption") {
+      return grossSalary > 0 ? "min(⅓ salary, cap)" : "No salary income";
+    }
+    if (stepKey === "total_income") {
+      return `Taxable salary + ${formatWealthCurrency(otherTaxableIncome)} other`;
+    }
+    if (stepKey === "taxable_income") {
+      return `${taxablePct}% taxable`;
+    }
+    if (stepKey === "rebate") {
+      return "Rebate unlocked";
+    }
+    if (stepKey === "final_tax") {
+      return `${formatWealthNumber(effectiveRate)}% of income`;
+    }
+    return JOURNEY_STEPS.find((step) => step.key === stepKey)?.caption ?? "";
+  }
+
+  function journeyStepLabel(stepKey: (typeof JOURNEY_STEPS)[number]["key"]) {
+    if (stepKey === "total_income") {
+      return "Salary + Other";
+    }
+    return JOURNEY_STEPS.find((step) => step.key === stepKey)?.label ?? stepKey;
+  }
 
   function handleExploreSavings() {
     onExploreSavings();
@@ -1504,19 +1542,8 @@ function TaxJourney({
       <div className="wealth-tax-journey-flow-wrap">
         <div aria-hidden="true" className="wealth-tax-journey-connector" />
         <div className="wealth-tax-journey-flow">
-          {JOURNEY_STEPS.map((step, index) => {
-            const caption =
-              step.key === "employment_income_exemption"
-                ? grossSalary > 0
-                  ? `min(⅓ salary, cap)`
-                  : "No salary income"
-                : step.key === "taxable_income"
-                ? `${taxablePct}% taxable`
-                : step.key === "rebate"
-                  ? "Rebate unlocked"
-                  : step.key === "final_tax"
-                    ? `${formatWealthNumber(effectiveRate)}% of income`
-                    : step.caption;
+          {journeySteps.map((step, index) => {
+            const caption = journeyStepCaption(step.key);
 
             const displayAmount =
               step.key === "employment_income_exemption"
@@ -1533,23 +1560,23 @@ function TaxJourney({
                   className={`wealth-tax-journey-node wealth-tax-node-${step.tone} wealth-tax-journey-node-${step.key}${step.key === "final_tax" ? " wealth-tax-journey-node-destination" : ""}`}
                 >
                   <span className="wealth-tax-journey-icon-wrap" aria-hidden="true">
-                    <span className="wealth-tax-journey-icon">{step.icon}</span>
+                    <span className="wealth-tax-journey-icon">
+                      <JourneyStepIcon stepKey={step.key} />
+                    </span>
                   </span>
-                  <span className="wealth-tax-journey-label">{step.label}</span>
+                  <span className="wealth-tax-journey-label">{journeyStepLabel(step.key)}</span>
 
-                  {step.key === "rebate" ? (
-                    <strong className="wealth-tax-journey-amount wealth-tax-journey-rebate-saved">
-                      {formatWealthCurrency(rebate)} Saved
-                    </strong>
-                  ) : step.key === "employment_income_exemption" ? (
+                  {step.key === "employment_income_exemption" ? (
                     <strong className="wealth-tax-journey-amount wealth-tax-journey-exemption-amount">
                       −{formatWealthCurrency(employmentExemption)}
                     </strong>
                   ) : (
                     <strong
-                      className={`wealth-tax-journey-amount${step.key === "final_tax" ? " wealth-tax-journey-final-amount" : ""}`}
+                      className={`wealth-tax-journey-amount${step.key === "final_tax" ? " wealth-tax-journey-final-amount" : ""}${step.key === "rebate" ? " wealth-tax-journey-rebate-amount" : ""}`}
                     >
-                      {formatWealthCurrency(displayAmount)}
+                      {formatWealthCurrency(
+                        step.key === "final_tax" ? finalTax : displayAmount,
+                      )}
                     </strong>
                   )}
 
@@ -1571,7 +1598,7 @@ function TaxJourney({
                     {caption || "\u00A0"}
                   </p>
                 </article>
-                {index < JOURNEY_STEPS.length - 1 ? (
+                {index < journeySteps.length - 1 ? (
                   <span aria-hidden="true" className="wealth-tax-journey-arrow-node">
                     <span className="wealth-tax-journey-arrow-glow" />
                     <span className="wealth-tax-journey-arrow-icon">→</span>
@@ -1586,10 +1613,15 @@ function TaxJourney({
       <div className="wealth-tax-journey-metrics" role="list">
         <article className="wealth-tax-journey-metric wealth-tax-journey-metric-income" role="listitem">
           <span className="wealth-tax-journey-metric-icon-wrap" aria-hidden="true">
-            <span className="wealth-tax-journey-metric-icon">💰</span>
+            <span className="wealth-tax-journey-metric-icon">
+              <Coins size={18} strokeWidth={2} />
+            </span>
           </span>
           <div className="wealth-tax-journey-metric-body">
-            <span className="wealth-tax-journey-metric-label">Income</span>
+            <span className="wealth-tax-journey-metric-label">Before Allowance</span>
+            <span className="wealth-tax-journey-metric-hint">
+              {otherTaxableIncome > 0 ? "Taxable salary + other" : "After salary exemption"}
+            </span>
             <strong>{formatWealthCurrency(totalIncome)}</strong>
           </div>
         </article>
@@ -1669,6 +1701,33 @@ function valuesForStep(stepKey: (typeof JOURNEY_STEPS)[number]["key"], result: T
       return result.gross_tax;
     default:
       return 0;
+  }
+}
+
+function JourneyStepIcon({ stepKey }: { stepKey: (typeof JOURNEY_STEPS)[number]["key"] }) {
+  const iconProps = { size: 22, strokeWidth: 2, className: "wealth-tax-journey-step-svg" };
+
+  switch (stepKey) {
+    case "gross_salary":
+      return <Banknote {...iconProps} />;
+    case "employment_income_exemption":
+      return <CircleMinus {...iconProps} />;
+    case "taxable_salary":
+      return <Wallet {...iconProps} />;
+    case "total_income":
+      return <Coins {...iconProps} />;
+    case "tax_free_allowance":
+      return <Shield {...iconProps} />;
+    case "taxable_income":
+      return <FileText {...iconProps} />;
+    case "gross_tax":
+      return <Percent {...iconProps} />;
+    case "rebate":
+      return <Sprout {...iconProps} />;
+    case "final_tax":
+      return <Target {...iconProps} />;
+    default:
+      return null;
   }
 }
 
@@ -1752,7 +1811,7 @@ function JourneyCardVisual({
     case "gross_salary":
       return (
         <div aria-hidden="true" className="wealth-tax-journey-visual wealth-tax-journey-visual-gross-salary">
-          <span />
+          <span style={{ width: "100%" }} />
         </div>
       );
     case "employment_income_exemption": {
@@ -1808,7 +1867,15 @@ function JourneyCardVisual({
         </div>
       );
     case "rebate":
-      return <RebateProgressRing percent={rebatePct} />;
+      return (
+        <div
+          aria-hidden="true"
+          className="wealth-tax-journey-visual wealth-tax-journey-visual-rebate"
+          title={`${rebatePct}% of available rebate unlocked`}
+        >
+          <span style={{ width: `${Math.min(100, Math.max(0, rebatePct))}%` }} />
+        </div>
+      );
     case "final_tax":
       return (
         <div aria-hidden="true" className="wealth-tax-journey-visual wealth-tax-journey-visual-destination">
@@ -1819,31 +1886,6 @@ function JourneyCardVisual({
     default:
       return null;
   }
-}
-
-function RebateProgressRing({ percent }: { percent: number }) {
-  const clamped = Math.min(100, Math.max(0, percent));
-  const radius = 26;
-  const circumference = 2 * Math.PI * radius;
-  const offset = circumference - (clamped / 100) * circumference;
-
-  return (
-    <div aria-hidden="true" className="wealth-tax-journey-rebate-ring">
-      <svg viewBox="0 0 60 60">
-        <circle className="wealth-tax-journey-rebate-ring-track" cx="30" cy="30" r={radius} />
-        <circle
-          className="wealth-tax-journey-rebate-ring-fill"
-          cx="30"
-          cy="30"
-          r={radius}
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-          transform="rotate(-90 30 30)"
-        />
-      </svg>
-      <span>{clamped}%</span>
-    </div>
-  );
 }
 
 function jarFillLevel(percent: number): "empty" | "partial" | "half" | "full" {

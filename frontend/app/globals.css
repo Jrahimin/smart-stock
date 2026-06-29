@@ -16265,12 +16265,23 @@ button {
 .wealth-tax-journey-icon {
   align-items: center;
   border-radius: 999px;
+  color: inherit;
   display: inline-flex;
-  font-size: 1.55rem;
   height: 48px;
   justify-content: center;
   width: 48px;
 }
+
+.wealth-tax-journey-step-svg {
+  display: block;
+  flex-shrink: 0;
+}
+
+.wealth-tax-node-info .wealth-tax-journey-step-svg { color: color-mix(in srgb, var(--foreground) 72%, var(--primary)); }
+.wealth-tax-node-positive .wealth-tax-journey-step-svg { color: var(--positive); }
+.wealth-tax-node-neutral .wealth-tax-journey-step-svg { color: color-mix(in srgb, var(--foreground) 70%, var(--primary)); }
+.wealth-tax-node-warning .wealth-tax-journey-step-svg { color: var(--warning); }
+.wealth-tax-node-primary .wealth-tax-journey-step-svg { color: color-mix(in srgb, var(--foreground) 78%, var(--primary)); }
 
 .wealth-tax-node-info .wealth-tax-journey-icon { background: color-mix(in srgb, var(--primary) 24%, transparent); }
 .wealth-tax-node-positive .wealth-tax-journey-icon { background: color-mix(in srgb, var(--positive) 24%, transparent); }
@@ -16299,7 +16310,7 @@ button {
 .wealth-tax-node-neutral .wealth-tax-journey-amount { color: color-mix(in srgb, var(--foreground) 80%, var(--primary)); }
 .wealth-tax-node-warning .wealth-tax-journey-amount { color: var(--warning); }
 
-.wealth-tax-journey-rebate-saved {
+.wealth-tax-journey-rebate-amount {
   color: var(--positive);
 }
 
@@ -16337,8 +16348,7 @@ button {
 }
 
 .wealth-tax-journey-visual-slot .wealth-tax-journey-visual-slabs,
-.wealth-tax-journey-visual-slot .wealth-tax-journey-visual-destination,
-.wealth-tax-journey-visual-slot .wealth-tax-journey-rebate-ring {
+.wealth-tax-journey-visual-slot .wealth-tax-journey-visual-destination {
   height: 100%;
 }
 
@@ -16421,9 +16431,10 @@ button {
   box-shadow: 0 0 8px color-mix(in srgb, var(--primary) 20%, transparent);
 }
 
-.wealth-tax-journey-visual-gross-salary span,
+.wealth-tax-journey-visual-gross-salary,
 .wealth-tax-journey-visual-exemption,
-.wealth-tax-journey-visual-taxable-salary {
+.wealth-tax-journey-visual-taxable-salary,
+.wealth-tax-journey-visual-rebate {
   align-self: center;
   background: color-mix(in srgb, var(--border) 65%, transparent);
   border-radius: 999px;
@@ -16435,23 +16446,33 @@ button {
   width: 100%;
 }
 
-.wealth-tax-journey-visual-gross-salary span {
-  background: linear-gradient(90deg, color-mix(in srgb, var(--primary) 85%, white), var(--primary));
-  display: block;
-  height: 100%;
-  width: 100%;
-}
-
+.wealth-tax-journey-visual-gross-salary span,
 .wealth-tax-journey-visual-exemption span,
-.wealth-tax-journey-visual-taxable-salary span {
-  background: linear-gradient(90deg, color-mix(in srgb, var(--positive) 88%, white), var(--positive));
+.wealth-tax-journey-visual-taxable-salary span,
+.wealth-tax-journey-visual-rebate span {
   display: block;
   height: 100%;
   min-width: 0;
 }
 
+.wealth-tax-journey-visual-gross-salary span {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--primary) 85%, white), var(--primary));
+  box-shadow: 0 0 8px color-mix(in srgb, var(--primary) 20%, transparent);
+}
+
+.wealth-tax-journey-visual-exemption span,
+.wealth-tax-journey-visual-taxable-salary span {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--positive) 88%, white), var(--positive));
+}
+
 .wealth-tax-journey-visual-taxable-salary span {
   background: linear-gradient(90deg, color-mix(in srgb, var(--primary) 85%, white), var(--primary));
+  box-shadow: 0 0 8px color-mix(in srgb, var(--primary) 20%, transparent);
+}
+
+.wealth-tax-journey-visual-rebate span {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--positive) 88%, white), var(--positive));
+  box-shadow: 0 0 8px color-mix(in srgb, var(--positive) 24%, transparent);
 }
 
 .wealth-tax-journey-exemption-amount {
@@ -16649,6 +16670,7 @@ button {
   align-items: center;
   background: color-mix(in srgb, var(--panel) 80%, transparent);
   border-radius: 999px;
+  color: color-mix(in srgb, var(--foreground) 72%, var(--primary));
   display: inline-flex;
   font-size: 1.1rem;
   height: 32px;
@@ -16668,6 +16690,13 @@ button {
   color: color-mix(in srgb, var(--muted) 96%, var(--foreground));
   font-size: 0.62rem;
   font-weight: 500;
+}
+
+.wealth-tax-journey-metric-hint {
+  color: color-mix(in srgb, var(--muted) 88%, var(--foreground));
+  font-size: 0.54rem;
+  font-weight: 500;
+  line-height: 1.2;
 }
 
 .wealth-tax-journey-metric strong {
