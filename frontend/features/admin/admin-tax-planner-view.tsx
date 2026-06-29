@@ -251,6 +251,23 @@ function TaxRulesPanel() {
       <AdminSection className="admin-section-compact" title="Tax Limits">
         <div className="admin-tax-planner-limits">
           <div className="admin-tax-planner-subsection">
+            <span className="admin-tax-planner-subsection-title">Employment Income Exemption</span>
+            <p className="admin-tax-planner-rebate-hint">
+              Exemption applied to gross salary before other income is added: min(one-third of gross salary, configured
+              maximum).
+            </p>
+            <div className="admin-composer-grid admin-tax-planner-grid-compact">
+              <AdminField label="Maximum Employment Income Exemption" suffix="BDT">
+                <input
+                  inputMode="numeric"
+                  onChange={(event) => updateConfigField("max_salary_exemption", event.target.value)}
+                  type="text"
+                  value={formatDisplayNumber(config.max_salary_exemption)}
+                />
+              </AdminField>
+            </div>
+          </div>
+          <div className="admin-tax-planner-subsection">
             <span className="admin-tax-planner-subsection-title">Tax-Free Income Thresholds</span>
             <div className="admin-composer-grid admin-composer-grid-4 admin-tax-planner-grid-compact">
               {THRESHOLD_FIELDS.map((field) => (

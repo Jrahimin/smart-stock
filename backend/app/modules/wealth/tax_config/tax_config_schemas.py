@@ -84,6 +84,7 @@ class TaxPlannerConfigScalarsRead(BaseModel):
     rebate_taxable_income_limit_pct: Decimal
     rebate_investment_pct: Decimal
     rebate_maximum_amount: Decimal
+    max_salary_exemption: Decimal
     minimum_tax_national: Decimal
     minimum_tax_dhaka_ctg: Decimal
     minimum_tax_other_city: Decimal
@@ -104,6 +105,7 @@ class TaxPlannerConfigScalarsWrite(BaseModel):
     rebate_taxable_income_limit_pct: Decimal
     rebate_investment_pct: Decimal
     rebate_maximum_amount: Decimal
+    max_salary_exemption: Decimal
     minimum_tax_national: Decimal
     minimum_tax_dhaka_ctg: Decimal
     minimum_tax_other_city: Decimal

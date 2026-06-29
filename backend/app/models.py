@@ -1114,6 +1114,7 @@ class TaxPlannerSettings(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     rebate_taxable_income_limit_pct: Mapped[Decimal] = mapped_column(Numeric(8, 4), nullable=False)
     rebate_investment_pct: Mapped[Decimal] = mapped_column(Numeric(8, 4), nullable=False)
     rebate_maximum_amount: Mapped[Decimal] = mapped_column(Numeric(20, 4), nullable=False)
+    max_salary_exemption: Mapped[Decimal] = mapped_column(Numeric(20, 4), nullable=False)
     minimum_tax_national: Mapped[Decimal] = mapped_column(Numeric(20, 4), nullable=False)
     minimum_tax_dhaka_ctg: Mapped[Decimal] = mapped_column(Numeric(20, 4), nullable=False)
     minimum_tax_other_city: Mapped[Decimal] = mapped_column(Numeric(20, 4), nullable=False)

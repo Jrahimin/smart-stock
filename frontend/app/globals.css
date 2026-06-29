@@ -16170,6 +16170,18 @@ button {
   z-index: 1;
 }
 
+.wealth-tax-journey-node-gross_salary::before {
+  background: radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--primary) 24%, transparent), transparent 72%);
+}
+
+.wealth-tax-journey-node-employment_income_exemption::before {
+  background: radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--positive) 24%, transparent), transparent 72%);
+}
+
+.wealth-tax-journey-node-taxable_salary::before {
+  background: radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--primary) 20%, transparent), transparent 72%);
+}
+
 .wealth-tax-journey-node-total_income::before {
   background: radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--primary) 28%, transparent), transparent 72%);
 }
@@ -16407,6 +16419,43 @@ button {
 .wealth-tax-journey-visual-income-split span:last-child {
   background: linear-gradient(90deg, color-mix(in srgb, var(--primary) 85%, white), var(--primary));
   box-shadow: 0 0 8px color-mix(in srgb, var(--primary) 20%, transparent);
+}
+
+.wealth-tax-journey-visual-gross-salary span,
+.wealth-tax-journey-visual-exemption,
+.wealth-tax-journey-visual-taxable-salary {
+  align-self: center;
+  background: color-mix(in srgb, var(--border) 65%, transparent);
+  border-radius: 999px;
+  display: flex;
+  flex: none;
+  height: 10px;
+  max-width: 80px;
+  overflow: hidden;
+  width: 100%;
+}
+
+.wealth-tax-journey-visual-gross-salary span {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--primary) 85%, white), var(--primary));
+  display: block;
+  height: 100%;
+  width: 100%;
+}
+
+.wealth-tax-journey-visual-exemption span,
+.wealth-tax-journey-visual-taxable-salary span {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--positive) 88%, white), var(--positive));
+  display: block;
+  height: 100%;
+  min-width: 0;
+}
+
+.wealth-tax-journey-visual-taxable-salary span {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--primary) 85%, white), var(--primary));
+}
+
+.wealth-tax-journey-exemption-amount {
+  color: var(--positive);
 }
 
 .wealth-tax-journey-visual-shield {

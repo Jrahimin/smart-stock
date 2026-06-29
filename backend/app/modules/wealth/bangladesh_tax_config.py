@@ -38,6 +38,7 @@ class BangladeshTaxConfig:
     thresholds: TaxFreeThresholds
     slabs: tuple[TaxSlab, ...]
     investment_rebate: InvestmentRebateConfig
+    max_salary_exemption: Decimal
     disclaimer: str = TAX_PLANNER_DISCLAIMER
     minimum_tax_note: str = MINIMUM_TAX_V1_NOTE
 
@@ -64,6 +65,7 @@ ACTIVE_BANGLADESH_TAX_CONFIG = BangladeshTaxConfig(
         investment_rebate_pct=Decimal("15"),
         maximum_rebate_amount=Decimal("1000000"),
     ),
+    max_salary_exemption=Decimal("500000"),
 )
 
 

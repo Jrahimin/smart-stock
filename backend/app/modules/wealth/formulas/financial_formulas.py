@@ -123,6 +123,18 @@ def calculate_zakat_amount(
     return (wealth * rate).quantize(Decimal("0.01"))
 
 
+def calculate_employment_income_exemption(
+    gross_employment_income: Decimal | float | int,
+    maximum_exemption: Decimal | float | int,
+) -> Decimal:
+    gross = max(_to_decimal(gross_employment_income), Decimal("0"))
+    cap = max(_to_decimal(maximum_exemption), Decimal("0"))
+    if gross <= 0:
+        return Decimal("0.00")
+    one_third = (gross / Decimal("3")).quantize(Decimal("0.01"))
+    return min(one_third, cap).quantize(Decimal("0.01"))
+
+
 def calculate_progressive_tax(
     taxable_base: Decimal | float | int,
     slabs: tuple[ProgressiveTaxSlab, ...],

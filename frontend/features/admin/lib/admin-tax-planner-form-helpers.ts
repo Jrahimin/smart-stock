@@ -10,6 +10,7 @@ export type AdminTaxConfigScalars = {
   rebate_taxable_income_limit_pct: string | number;
   rebate_investment_pct: string | number;
   rebate_maximum_amount: string | number;
+  max_salary_exemption: string | number;
   minimum_tax_national: string | number;
   minimum_tax_dhaka_ctg: string | number;
   minimum_tax_other_city: string | number;
@@ -147,6 +148,7 @@ export function prepareConfigPayload(config: AdminTaxConfigScalars): Record<stri
     rebate_taxable_income_limit_pct: coerceNumericPayload(config.rebate_taxable_income_limit_pct),
     rebate_investment_pct: coerceNumericPayload(config.rebate_investment_pct),
     rebate_maximum_amount: coerceNumericPayload(config.rebate_maximum_amount),
+    max_salary_exemption: coerceNumericPayload(config.max_salary_exemption),
     minimum_tax_national: coerceNumericPayload(config.minimum_tax_national),
     minimum_tax_dhaka_ctg: coerceNumericPayload(config.minimum_tax_dhaka_ctg),
     minimum_tax_other_city: coerceNumericPayload(config.minimum_tax_other_city),

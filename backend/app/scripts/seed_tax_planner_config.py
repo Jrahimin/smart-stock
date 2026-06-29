@@ -58,6 +58,7 @@ async def seed_tax_planner_config() -> None:
                     rebate_taxable_income_limit_pct=python_config.investment_rebate.taxable_income_limit_pct,
                     rebate_investment_pct=python_config.investment_rebate.investment_rebate_pct,
                     rebate_maximum_amount=python_config.investment_rebate.maximum_rebate_amount,
+                    max_salary_exemption=python_config.max_salary_exemption,
                     minimum_tax_national=Decimal("5000"),
                     minimum_tax_dhaka_ctg=Decimal("5000"),
                     minimum_tax_other_city=Decimal("4000"),

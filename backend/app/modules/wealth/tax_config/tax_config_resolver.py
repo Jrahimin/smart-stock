@@ -128,6 +128,7 @@ class TaxConfigResolver:
                 for row in slabs
             ),
             investment_rebate=rebate_from_settings(settings),
+            max_salary_exemption=settings.max_salary_exemption,
             minimum_tax_rules=minimum_tax_rules_from_settings(settings),
             investment_categories=categories,
             disclaimer=settings.disclaimer,

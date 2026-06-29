@@ -50,6 +50,7 @@ def build_fallback_resolved_config() -> ResolvedTaxPlannerConfig:
             investment_rebate_pct=python_config.investment_rebate.investment_rebate_pct,
             maximum_rebate_amount=python_config.investment_rebate.maximum_rebate_amount,
         ),
+        max_salary_exemption=python_config.max_salary_exemption,
         minimum_tax_rules=(),
         investment_categories=categories,
         disclaimer=python_config.disclaimer,

@@ -4,6 +4,7 @@ from unittest.mock import MagicMock
 from app.modules.wealth.formulas.financial_formulas import (
     calculate_cagr,
     calculate_emi,
+    calculate_employment_income_exemption,
     calculate_future_value_annuity,
     calculate_inflation_adjusted_value,
     calculate_tax_rebate,
@@ -67,6 +68,12 @@ def test_zakat_below_nisab() -> None:
     assert result == Decimal("0.00")
 
 
+def test_employment_income_exemption_uses_one_third_up_to_cap() -> None:
+    assert calculate_employment_income_exemption(1200000, 500000) == Decimal("400000.00")
+    assert calculate_employment_income_exemption(1600000, 500000) == Decimal("500000.00")
+    assert calculate_employment_income_exemption(0, 500000) == Decimal("0.00")
+
+
 def test_progressive_tax_uses_configured_slabs() -> None:
     config = get_active_tax_config()
     tax, breakdown = calculate_progressive_tax(1300000, config.slabs)
@@ -119,21 +126,26 @@ def test_tax_planner_quick_estimate_returns_raw_values() -> None:
     )
 
     assert response.mode == "QUICK"
-    assert response.total_income == Decimal("1300000.00")
+    assert response.gross_salary == Decimal("1200000.00")
+    assert response.employment_income_exemption == Decimal("400000.00")
+    assert response.taxable_salary == Decimal("800000.00")
+    assert response.other_taxable_income == Decimal("100000.00")
+    assert response.total_income == Decimal("900000.00")
     assert response.tax_free_allowance == Decimal("375000")
-    assert response.gross_tax == Decimal("135000.00")
-    assert response.rebate == Decimal("22500.00")
-    assert response.final_tax == Decimal("112500.00")
+    assert response.taxable_income == Decimal("525000.00")
+    assert response.gross_tax == Decimal("63750.00")
+    assert response.rebate == Decimal("15750.00")
+    assert response.final_tax == Decimal("48000.00")
     assert response.current_investment == Decimal("150000.00")
-    assert response.income_limited_rebate == Decimal("27750.00")
+    assert response.income_limited_rebate == Decimal("15750.00")
     assert response.cap_limited_rebate == Decimal("1000000.00")
-    assert response.maximum_available_rebate == Decimal("27750.00")
-    assert response.required_investment_for_full_rebate == Decimal("185000.00")
-    assert response.additional_investment_needed == Decimal("35000.00")
-    assert response.potential_additional_tax_saving == Decimal("5250.00")
-    assert response.rebate_utilization_pct == Decimal("81.08")
-    assert response.maximum_eligible_investment == Decimal("185000.00")
-    assert response.remaining_eligible_investment == Decimal("35000.00")
+    assert response.maximum_available_rebate == Decimal("15750.00")
+    assert response.required_investment_for_full_rebate == Decimal("105000.00")
+    assert response.additional_investment_needed == Decimal("0.00")
+    assert response.potential_additional_tax_saving == Decimal("0.00")
+    assert response.rebate_utilization_pct == Decimal("100.00")
+    assert response.maximum_eligible_investment == Decimal("105000.00")
+    assert response.remaining_eligible_investment == Decimal("0.00")
 
 
 def test_tax_planner_below_threshold_has_zero_tax() -> None:
@@ -223,7 +235,23 @@ def test_tax_planner_simulation_does_not_require_saved_state() -> None:
     )
 
     assert response.current_investment == Decimal("150000.00")
-    assert response.rebate == Decimal("22500.00")
+    assert response.rebate == Decimal("12750.00")
+
+
+def test_tax_planner_employment_income_exemption_reduces_taxable_salary() -> None:
+    response = _calculate_tax_planner(
+        TaxPlannerCalculateRequest(
+            income=TaxPlannerIncomeInput(annual_salary=Decimal("1600000")),
+        )
+    )
+
+    assert response.gross_salary == Decimal("1600000.00")
+    assert response.employment_income_exemption == Decimal("500000.00")
+    assert response.taxable_salary == Decimal("1100000.00")
+    assert response.total_income == Decimal("1100000.00")
+    assert response.taxable_income == Decimal("725000.00")
+    assert response.gross_tax == Decimal("95000.00")
+    assert response.final_tax == Decimal("95000.00")
 
 
 def test_tax_planner_minimum_tax_floor_applies_when_configured() -> None:
@@ -243,7 +271,7 @@ def test_tax_planner_minimum_tax_floor_applies_when_configured() -> None:
     )
     response = _calculate_tax_planner(
         TaxPlannerCalculateRequest(
-            income=TaxPlannerIncomeInput(annual_salary=Decimal("400000")),
+            income=TaxPlannerIncomeInput(annual_salary=Decimal("600000")),
         ),
         config=config,
     )
@@ -276,7 +304,6 @@ def test_tax_planner_disabled_investment_category_excluded() -> None:
     )
 
     assert response.current_investment == Decimal("50000.00")
-
 
 def test_fdr_tool_calculation() -> None:
     service = WealthCalculationService()

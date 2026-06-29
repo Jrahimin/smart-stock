@@ -75,6 +75,10 @@ export type TaxPlannerInsight = {
 export type TaxPlannerCalculateResponse = {
   tax_year_label: string;
   mode: TaxPlannerMode;
+  gross_salary: string | number;
+  employment_income_exemption: string | number;
+  taxable_salary: string | number;
+  other_taxable_income: string | number;
   total_income: string | number;
   tax_free_allowance: string | number;
   taxable_income: string | number;

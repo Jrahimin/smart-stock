@@ -232,7 +232,16 @@ const INVESTMENT_FIELD_KEYS = [
 ] as const;
 
 const JOURNEY_STEPS = [
-  { key: "total_income", label: "Income", icon: "💰", tone: "info", caption: "" },
+  { key: "gross_salary", label: "Gross Salary", icon: "💼", tone: "info", caption: "Before exemption" },
+  {
+    key: "employment_income_exemption",
+    label: "Employment Exemption",
+    icon: "🧾",
+    tone: "positive",
+    caption: "Deducted from salary",
+  },
+  { key: "taxable_salary", label: "Taxable Salary", icon: "📋", tone: "neutral", caption: "After exemption" },
+  { key: "total_income", label: "Total Income", icon: "💰", tone: "info", caption: "Includes other income" },
   { key: "tax_free_allowance", label: "Tax-Free", icon: "🛡️", tone: "positive", caption: "" },
   { key: "taxable_income", label: "Taxable Income", icon: "🧾", tone: "neutral", caption: "" },
   { key: "gross_tax", label: "Gross Tax", icon: "％", tone: "warning", caption: "Before savings" },
@@ -1457,6 +1466,9 @@ function TaxJourney({
   onExploreSavings: () => void;
   result: TaxPlannerCalculateResponse;
 }) {
+  const grossSalary = toNumber(result.gross_salary);
+  const employmentExemption = toNumber(result.employment_income_exemption);
+  const taxableSalary = toNumber(result.taxable_salary);
   const totalIncome = toNumber(result.total_income);
   const allowance = toNumber(result.tax_free_allowance);
   const taxableIncome = toNumber(result.taxable_income);
@@ -1494,13 +1506,26 @@ function TaxJourney({
         <div className="wealth-tax-journey-flow">
           {JOURNEY_STEPS.map((step, index) => {
             const caption =
-              step.key === "taxable_income"
+              step.key === "employment_income_exemption"
+                ? grossSalary > 0
+                  ? `min(⅓ salary, cap)`
+                  : "No salary income"
+                : step.key === "taxable_income"
                 ? `${taxablePct}% taxable`
                 : step.key === "rebate"
                   ? "Rebate unlocked"
                   : step.key === "final_tax"
                     ? `${formatWealthNumber(effectiveRate)}% of income`
                     : step.caption;
+
+            const displayAmount =
+              step.key === "employment_income_exemption"
+                ? employmentExemption
+                : step.key === "final_tax"
+                  ? finalTax
+                  : step.key === "rebate"
+                    ? rebate
+                    : valuesForStep(step.key, result);
 
             return (
               <div className="wealth-tax-journey-item" key={step.key}>
@@ -1516,22 +1541,27 @@ function TaxJourney({
                     <strong className="wealth-tax-journey-amount wealth-tax-journey-rebate-saved">
                       {formatWealthCurrency(rebate)} Saved
                     </strong>
+                  ) : step.key === "employment_income_exemption" ? (
+                    <strong className="wealth-tax-journey-amount wealth-tax-journey-exemption-amount">
+                      −{formatWealthCurrency(employmentExemption)}
+                    </strong>
                   ) : (
                     <strong
                       className={`wealth-tax-journey-amount${step.key === "final_tax" ? " wealth-tax-journey-final-amount" : ""}`}
                     >
-                      {formatWealthCurrency(
-                        step.key === "final_tax" ? finalTax : valuesForStep(step.key, result),
-                      )}
+                      {formatWealthCurrency(displayAmount)}
                     </strong>
                   )}
 
                   <div className="wealth-tax-journey-visual-slot">
                     <JourneyCardVisual
+                      employmentExemption={employmentExemption}
+                      grossSalary={grossSalary}
                       rebatePct={utilizationPct}
                       stepKey={step.key}
                       taxFreePct={taxFreePct}
                       taxablePct={taxablePct}
+                      taxableSalary={taxableSalary}
                     />
                   </div>
 
@@ -1623,6 +1653,12 @@ function TaxJourney({
 
 function valuesForStep(stepKey: (typeof JOURNEY_STEPS)[number]["key"], result: TaxPlannerCalculateResponse) {
   switch (stepKey) {
+    case "gross_salary":
+      return result.gross_salary;
+    case "employment_income_exemption":
+      return result.employment_income_exemption;
+    case "taxable_salary":
+      return result.taxable_salary;
     case "total_income":
       return result.total_income;
     case "tax_free_allowance":
@@ -1696,17 +1732,49 @@ function buildTaxJourneyInsightCards({
 }
 
 function JourneyCardVisual({
+  employmentExemption,
+  grossSalary,
   rebatePct,
   stepKey,
   taxFreePct,
   taxablePct,
+  taxableSalary,
 }: {
+  employmentExemption: number;
+  grossSalary: number;
   rebatePct: number;
   stepKey: (typeof JOURNEY_STEPS)[number]["key"];
   taxFreePct: number;
   taxablePct: number;
+  taxableSalary: number;
 }) {
   switch (stepKey) {
+    case "gross_salary":
+      return (
+        <div aria-hidden="true" className="wealth-tax-journey-visual wealth-tax-journey-visual-gross-salary">
+          <span />
+        </div>
+      );
+    case "employment_income_exemption": {
+      const exemptionPct = grossSalary > 0 ? Math.round((employmentExemption / grossSalary) * 100) : 0;
+      return (
+        <div
+          aria-hidden="true"
+          className="wealth-tax-journey-visual wealth-tax-journey-visual-exemption"
+          title={`${exemptionPct}% of gross salary exempted`}
+        >
+          <span style={{ width: `${Math.min(100, Math.max(0, exemptionPct))}%` }} />
+        </div>
+      );
+    }
+    case "taxable_salary": {
+      const taxableSalaryPct = grossSalary > 0 ? Math.round((taxableSalary / grossSalary) * 100) : 0;
+      return (
+        <div aria-hidden="true" className="wealth-tax-journey-visual wealth-tax-journey-visual-taxable-salary">
+          <span style={{ width: `${Math.min(100, Math.max(0, taxableSalaryPct))}%` }} />
+        </div>
+      );
+    }
     case "total_income":
       return (
         <div

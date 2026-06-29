@@ -7,6 +7,7 @@ from app.core.exception_handlers import AppError
 from app.modules.wealth.tax_config.tax_config_builder import minimum_tax_rules_from_settings
 from app.modules.wealth.tax_config.tax_config_validation import (
     SlabInput,
+    validate_max_salary_exemption,
     validate_minimum_tax_amounts,
     validate_profile_thresholds,
     validate_slabs,
@@ -53,6 +54,13 @@ def test_validate_minimum_tax_amounts_rejects_negative_values() -> None:
             other_city=Decimal("4000"),
             rural=Decimal("3000"),
         )
+
+
+def test_validate_max_salary_exemption_rejects_negative_values() -> None:
+    with pytest.raises(AppError, match="Max salary exemption"):
+        validate_max_salary_exemption(Decimal("-1"))
+
+    validate_max_salary_exemption(Decimal("500000"))
 
 
 def test_validate_slabs_enforces_single_allowance_band() -> None:

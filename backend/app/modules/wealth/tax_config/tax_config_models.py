@@ -52,6 +52,7 @@ class ResolvedTaxPlannerConfig:
     thresholds: ResolvedTaxFreeThresholds
     slabs: tuple[ResolvedTaxSlab, ...]
     investment_rebate: ResolvedInvestmentRebateConfig
+    max_salary_exemption: Decimal
     minimum_tax_rules: tuple[ResolvedMinimumTaxRule, ...]
     investment_categories: tuple[ResolvedInvestmentCategory, ...]
     disclaimer: str

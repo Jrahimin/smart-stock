@@ -4,7 +4,11 @@ from decimal import Decimal
 from fastapi import Depends
 
 from app.core.enums import TaxPlannerGender, TaxPlannerInsightType, TaxPlannerMode, WealthInsightSeverity
-from app.modules.wealth.formulas.financial_formulas import calculate_progressive_tax, calculate_tax_rebate
+from app.modules.wealth.formulas.financial_formulas import (
+    calculate_employment_income_exemption,
+    calculate_progressive_tax,
+    calculate_tax_rebate,
+)
 from app.modules.wealth.tax_config.tax_config_models import ResolvedTaxPlannerConfig
 from app.modules.wealth.tax_config.tax_config_resolver import TaxConfigResolver, get_tax_config_resolver
 from app.modules.wealth.wealth_schemas import (
@@ -48,7 +52,14 @@ class TaxPlannerService:
         profile = payload.profile
         investments = payload.investments
 
-        total_income = self._calculate_total_income(income).quantize(Decimal("0.01"))
+        gross_salary = self._calculate_gross_employment_income(income).quantize(Decimal("0.01"))
+        employment_income_exemption = calculate_employment_income_exemption(
+            gross_salary,
+            config.max_salary_exemption,
+        )
+        taxable_salary = max(gross_salary - employment_income_exemption, Decimal("0")).quantize(Decimal("0.01"))
+        other_taxable_income = self._calculate_other_taxable_income(income).quantize(Decimal("0.01"))
+        total_income = (taxable_salary + other_taxable_income).quantize(Decimal("0.01"))
         tax_free_allowance = self._resolve_tax_free_allowance(profile, config.thresholds)
         taxable_income = max(total_income - tax_free_allowance, Decimal("0")).quantize(Decimal("0.01"))
 
@@ -101,6 +112,10 @@ class TaxPlannerService:
         return TaxPlannerCalculateResponse(
             tax_year_label=config.tax_year_label,
             mode=payload.mode,
+            gross_salary=gross_salary,
+            employment_income_exemption=employment_income_exemption,
+            taxable_salary=taxable_salary,
+            other_taxable_income=other_taxable_income,
             total_income=total_income,
             tax_free_allowance=tax_free_allowance,
             taxable_income=taxable_income,
@@ -125,6 +140,11 @@ class TaxPlannerService:
             assumptions_used={
                 "tax_year_label": config.tax_year_label,
                 "config_source": config.source,
+                "gross_salary": str(gross_salary),
+                "employment_income_exemption": str(employment_income_exemption),
+                "taxable_salary": str(taxable_salary),
+                "other_taxable_income": str(other_taxable_income),
+                "max_salary_exemption": str(config.max_salary_exemption),
                 "tax_free_allowance": str(tax_free_allowance),
                 "total_investment": str(total_investment),
                 "income_limited_rebate": str(rebate_result.income_limited_rebate),
@@ -165,13 +185,20 @@ class TaxPlannerService:
 
         return Decimal("0"), None
 
-    def _calculate_total_income(self, income: TaxPlannerIncomeInput) -> Decimal:
+    def _calculate_gross_employment_income(self, income: TaxPlannerIncomeInput) -> Decimal:
         return sum(
             (
                 _non_negative(income.annual_salary),
-                _non_negative(income.other_yearly_income),
                 _non_negative(income.festival_bonus),
                 _non_negative(income.other_employment_benefits),
+            ),
+            Decimal("0"),
+        )
+
+    def _calculate_other_taxable_income(self, income: TaxPlannerIncomeInput) -> Decimal:
+        return sum(
+            (
+                _non_negative(income.other_yearly_income),
                 _non_negative(income.self_employment_income),
                 _non_negative(income.rental_income),
                 _non_negative(income.bank_interest),

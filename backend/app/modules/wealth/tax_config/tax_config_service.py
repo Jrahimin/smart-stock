@@ -27,6 +27,7 @@ from app.modules.wealth.tax_config.tax_config_schemas import (
 )
 from app.modules.wealth.tax_config.tax_config_validation import (
     SlabInput,
+    validate_max_salary_exemption,
     validate_minimum_tax_amounts,
     validate_profile_thresholds,
     validate_rebate_config,
@@ -133,6 +134,7 @@ class TaxConfigService:
             other_city=payload.minimum_tax_other_city,
             rural=payload.minimum_tax_rural,
         )
+        validate_max_salary_exemption(payload.max_salary_exemption)
 
         settings = await self.repository.get_settings(country_code)
         if settings is None:

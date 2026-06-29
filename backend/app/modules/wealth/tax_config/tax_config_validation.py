@@ -48,6 +48,10 @@ def validate_minimum_tax_amounts(
     validate_non_negative_amount(rural, field_name="Rural minimum tax")
 
 
+def validate_max_salary_exemption(max_exemption: Decimal) -> None:
+    validate_non_negative_amount(max_exemption, field_name="Max salary exemption")
+
+
 class SlabInput:
     __slots__ = ("sort_order", "is_allowance_band")
 

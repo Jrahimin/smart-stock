@@ -124,6 +124,10 @@ class TaxPlannerInsight(BaseModel):
 class TaxPlannerCalculateResponse(BaseModel):
     tax_year_label: str
     mode: TaxPlannerMode
+    gross_salary: Decimal
+    employment_income_exemption: Decimal
+    taxable_salary: Decimal
+    other_taxable_income: Decimal
     total_income: Decimal
     tax_free_allowance: Decimal
     taxable_income: Decimal
