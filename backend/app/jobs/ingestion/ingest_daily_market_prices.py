@@ -11,6 +11,7 @@ from app.core.enums import ExchangeCode
 from app.core.market_cache import invalidate_market_caches_for_exchange
 from app.core.security_config import UserContext
 from app.jobs.ingestion.dse_market_data_source import DseMarketDataSource
+from app.jobs.market_session_validation import validate_market_session
 from app.jobs.ingestion.ingestion_source_base import MarketDataSource
 from app.jobs.ingestion.market_data_source_factory import (
     build_primary_market_data_source,
@@ -103,16 +104,63 @@ async def _ingest_with_optional_fallback(
     return result
 
 
+def _skipped_snapshot_result(
+    *,
+    exchange: ExchangeCode,
+    trade_date: date,
+    reason: str | None,
+) -> MarketSnapshotSyncResult:
+    return MarketSnapshotSyncResult(
+        exchange=exchange,
+        trade_date=trade_date,
+        source="",
+        fetched_count=0,
+        created_count=0,
+        skipped_unknown_symbol_count=0,
+        suspicious_count=0,
+        index_summary_upserted=False,
+        index_summary_error=None,
+        session_skipped=True,
+        session_skip_reason=reason,
+    )
+
+
+def _skipped_daily_news_result(
+    *,
+    exchange: ExchangeCode,
+    trade_date: date,
+    reason: str | None,
+) -> DailyNewsSyncResult:
+    return DailyNewsSyncResult(
+        exchange=exchange,
+        trade_date=trade_date,
+        session_skipped=True,
+        session_skip_reason=reason,
+    )
+
+
 async def sync_market_snapshot(
     trade_date: date | None = None,
     *,
     exchange: ExchangeCode = ExchangeCode.DSE,
     settings: Settings | None = None,
     skip_validation: bool = False,
+    skip_session_validation: bool = False,
 ) -> MarketSnapshotSyncResult:
     """Intraday snapshot: per-stock prices + DSEX summary (no news)."""
     resolved_settings = settings or get_settings()
     resolved_trade_date = trade_date or datetime.now(DHAKA_TIMEZONE).date()
+
+    if not skip_session_validation:
+        session = await validate_market_session(settings=resolved_settings)
+        if not session.should_sync:
+            return _skipped_snapshot_result(
+                exchange=exchange,
+                trade_date=resolved_trade_date,
+                reason=session.reason,
+            )
+        resolved_trade_date = session.trade_date
+
     validation = None if skip_validation else resolve_validation_source(resolved_settings)
 
     async with AsyncSessionLocal() as session:
@@ -149,10 +197,21 @@ async def run_daily_market_sync(
     settings: Settings | None = None,
     include_snapshot: bool = False,
     skip_validation: bool = False,
+    skip_session_validation: bool = False,
 ) -> DailyNewsSyncResult:
     """Once-per-day orchestration: news ingestion (optional final snapshot)."""
     resolved_settings = settings or get_settings()
     resolved_trade_date = trade_date or datetime.now(DHAKA_TIMEZONE).date()
+
+    if not skip_session_validation:
+        session_validation = await validate_market_session(settings=resolved_settings)
+        if not session_validation.should_sync:
+            return _skipped_daily_news_result(
+                exchange=exchange,
+                trade_date=resolved_trade_date,
+                reason=session_validation.reason,
+            )
+        resolved_trade_date = session_validation.trade_date
 
     if include_snapshot:
         await sync_market_snapshot(
@@ -160,6 +219,7 @@ async def run_daily_market_sync(
             exchange=exchange,
             settings=resolved_settings,
             skip_validation=skip_validation,
+            skip_session_validation=True,
         )
 
     async with AsyncSessionLocal() as session:

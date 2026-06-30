@@ -45,6 +45,11 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         action="store_true",
         help="Skip StockNow validation on snapshot when enabled in settings",
     )
+    parser.add_argument(
+        "--skip-session-validation",
+        action="store_true",
+        help="Skip AmarStock index API session-date gate (not recommended for production)",
+    )
     return parser.parse_args(argv)
 
 
@@ -64,8 +69,19 @@ def _warn_snapshot_past_date(trade_date: date) -> None:
         )
 
 
-async def _run_snapshot(trade_date: date, *, skip_validation: bool) -> None:
-    result = await sync_market_snapshot(trade_date, skip_validation=skip_validation)
+async def _run_snapshot(trade_date: date, *, skip_validation: bool, skip_session_validation: bool) -> None:
+    result = await sync_market_snapshot(
+        trade_date,
+        skip_validation=skip_validation,
+        skip_session_validation=skip_session_validation,
+    )
+    if result.session_skipped:
+        logger.info(
+            "Snapshot skipped (non-trading session): trade_date=%s reason=%s",
+            result.trade_date,
+            result.session_skip_reason,
+        )
+        return
     logger.info(
         "Snapshot done: trade_date=%s source=%s fetched=%s upserted=%s unknown=%s "
         "suspicious=%s dsex_upserted=%s dsex_error=%s",
@@ -82,8 +98,19 @@ async def _run_snapshot(trade_date: date, *, skip_validation: bool) -> None:
         logger.error("No rows from primary source (possible API outage or empty parse)")
 
 
-async def _run_news(trade_date: date) -> None:
-    daily = await run_daily_market_sync(trade_date, include_snapshot=False)
+async def _run_news(trade_date: date, *, skip_session_validation: bool) -> None:
+    daily = await run_daily_market_sync(
+        trade_date,
+        include_snapshot=False,
+        skip_session_validation=skip_session_validation,
+    )
+    if daily.session_skipped:
+        logger.info(
+            "News sync skipped (non-trading session): trade_date=%s reason=%s",
+            daily.trade_date,
+            daily.session_skip_reason,
+        )
+        return
     logger.info(
         "News sync done: news_upserted=%s news_skipped=%s error=%s",
         daily.news_upserted,
@@ -96,13 +123,17 @@ async def _run(args: argparse.Namespace) -> None:
     trade_date = _resolve_trade_date(args.date)
 
     if args.news_only:
-        await _run_news(trade_date)
+        await _run_news(trade_date, skip_session_validation=args.skip_session_validation)
         return
 
     _warn_snapshot_past_date(trade_date)
-    await _run_snapshot(trade_date, skip_validation=args.no_validation)
+    await _run_snapshot(
+        trade_date,
+        skip_validation=args.no_validation,
+        skip_session_validation=args.skip_session_validation,
+    )
     if args.with_news:
-        await _run_news(trade_date)
+        await _run_news(trade_date, skip_session_validation=args.skip_session_validation)
 
 
 def main(argv: list[str] | None = None) -> None:

@@ -115,6 +115,7 @@ Session helpers live in `market_session_schedule.py` (shared with `GET /market/f
 
 * Natural key: `stock_id + trade_date`
 * Snapshot ingest: upsert; backfill default: insert-only (skip existing rows)
+* **Session gate:** before snapshot or daily sync writes, `validate_market_session()` calls the AmarStock index API and requires `DateEpoch` trade date to equal today (Asia/Dhaka). Mismatch (public holiday, stale feed, API lag) skips all writes for that run. `MarketStatus` is logged only. Override: `skip_session_validation=True` on sync functions or `--skip-session-validation` on the CLI.
 * Unknown symbols skipped — run `seed_stocks` on a fresh DB
 * Official breadth from index API only; do not aggregate LatestPrice `ChangePer` as exchange breadth
 * Derived on write: `price_change`, `price_change_percent`, `day_range`, `vwap`, etc.

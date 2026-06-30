@@ -146,6 +146,8 @@ class MarketSnapshotSyncResult(BaseModel):
     suspicious_count: int = 0
     index_summary_upserted: bool = False
     index_summary_error: str | None = None
+    session_skipped: bool = False
+    session_skip_reason: str | None = None
 
 
 class DailyNewsSyncResult(BaseModel):
@@ -154,6 +156,8 @@ class DailyNewsSyncResult(BaseModel):
     news_upserted: int = 0
     news_skipped: int = 0
     news_error: str | None = None
+    session_skipped: bool = False
+    session_skip_reason: str | None = None
 
 
 class MarketFreshnessRead(BaseModel):

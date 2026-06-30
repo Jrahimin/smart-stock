@@ -48,7 +48,11 @@ async def test_sync_market_snapshot_runs_snapshot_enrichment_not_news(monkeypatc
         lambda _session: mock_service,
     )
 
-    result = await sync_market_snapshot(date(2026, 6, 11), skip_validation=True)
+    result = await sync_market_snapshot(
+        date(2026, 6, 11),
+        skip_validation=True,
+        skip_session_validation=True,
+    )
 
     mock_service.run_snapshot_enrichment.assert_awaited_once()
     mock_service.run_daily_news_sync.assert_not_called()
@@ -82,7 +86,11 @@ async def test_run_daily_market_sync_runs_news_not_snapshot_enrichment(monkeypat
         AsyncMock(),
     )
 
-    result = await run_daily_market_sync(date(2026, 6, 11), include_snapshot=False)
+    result = await run_daily_market_sync(
+        date(2026, 6, 11),
+        include_snapshot=False,
+        skip_session_validation=True,
+    )
 
     mock_service.run_daily_news_sync.assert_awaited_once()
     mock_service.run_snapshot_enrichment.assert_not_called()
