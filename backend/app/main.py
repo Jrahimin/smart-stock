@@ -17,6 +17,9 @@ from app.middlewares.request_logging_middleware import request_logging_middlewar
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     _ = app
     settings = get_settings()
+    from app.jobs.market_cache_spawn import warm_market_read_cache_if_cold
+
+    await warm_market_read_cache_if_cold(settings=settings)
     if settings.run_scheduler:
         await start_application_schedulers()
     try:

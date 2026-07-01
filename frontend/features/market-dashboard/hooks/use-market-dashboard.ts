@@ -26,6 +26,14 @@ import {
 } from "@/lib/market/market-cache-policy";
 import { isSectionLoading } from "@/lib/ui/section-loading";
 
+function isSectionAwaitingData<T>(
+  data: T | undefined,
+  isFetching: boolean,
+  isPending: boolean,
+): boolean {
+  return data === undefined && (isFetching || isPending);
+}
+
 export function useMarketDashboard() {
   const refreshMarketCaches = useMarketCacheRefresh();
   const freshnessQuery = useMarketDataFreshness("DSE");
@@ -145,7 +153,7 @@ export function useMarketDashboard() {
       (overviewQuery.data !== undefined && isSectionLoading(sectorsQuery.isLoading, sectorsQuery.data)),
     breadth: isSectionLoading(overviewQuery.isLoading, overviewQuery.data),
     movers: isSectionLoading(moversQuery.isLoading, moversQuery.data),
-    signals: isSectionLoading(signalsQuery.isLoading, signalsQuery.data),
+    signals: isSectionAwaitingData(signalsQuery.data, signalsQuery.isFetching, signalsQuery.isPending),
     timeline: isSectionLoading(alertsQuery.isLoading, alertsQuery.data),
     heatmap: isSectionLoading(heatmapQuery.isLoading, heatmapQuery.data),
     insights: isSectionLoading(sentimentQuery.isLoading, sentimentQuery.data),
@@ -162,11 +170,11 @@ export function useMarketDashboard() {
     sectionLoading,
     isLoading: isCoreLoading,
     isDeferredLoading: sectionLoading.heatmap || sectionLoading.insights,
+    signalsSectionError: signalsQuery.isError,
     isError:
       overviewQuery.isError ||
       moversQuery.isError ||
       sectorsQuery.isError ||
-      signalsQuery.isError ||
       alertsQuery.isError ||
       heatmapQuery.isError ||
       sentimentQuery.isError,

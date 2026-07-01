@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -72,6 +73,42 @@ def test_dashboard_service_does_not_import_universe_service() -> None:
     assert "build_scored_universe_rows" not in source
 
 
+@pytest.mark.asyncio
+async def test_warm_market_read_cache_if_cold_spawns_when_universe_missing(monkeypatch) -> None:
+    from app.jobs.market_cache_spawn import warm_market_read_cache_if_cold
+
+    spawned: list[ExchangeCode] = []
+    redis = MagicMock(is_available=True)
+    redis.get_json = AsyncMock(return_value=None)
+
+    monkeypatch.setattr(
+        "app.jobs.market_cache_spawn.spawn_rebuild_market_read_cache",
+        lambda exchange, settings=None: spawned.append(exchange),
+    )
+
+    await warm_market_read_cache_if_cold(ExchangeCode.DSE, settings=Settings(), redis=redis)
+
+    assert spawned == [ExchangeCode.DSE]
+
+
+@pytest.mark.asyncio
+async def test_warm_market_read_cache_if_cold_skips_when_scored_present(monkeypatch) -> None:
+    from app.jobs.market_cache_spawn import warm_market_read_cache_if_cold
+
+    spawned: list[ExchangeCode] = []
+    redis = MagicMock(is_available=True)
+    redis.get_json = AsyncMock(return_value={"rows": []})
+
+    monkeypatch.setattr(
+        "app.jobs.market_cache_spawn.spawn_rebuild_market_read_cache",
+        lambda exchange, settings=None: spawned.append(exchange),
+    )
+
+    await warm_market_read_cache_if_cold(ExchangeCode.DSE, settings=Settings(), redis=redis)
+
+    assert spawned == []
+
+
 def test_build_dashboard_service_factory() -> None:
     from app.jobs.market_cache_rebuild import _build_dashboard_service
 
@@ -81,3 +118,102 @@ def test_build_dashboard_service_factory() -> None:
         redis=MagicMock(is_available=False),
     )
     assert service is not None
+
+
+@pytest.mark.asyncio
+async def test_spawn_rebuild_universe_read_cache_dedupes_inflight(monkeypatch) -> None:
+    import app.jobs.market_cache_spawn as spawn_module
+    from app.jobs.market_cache_spawn import spawn_rebuild_universe_read_cache
+
+    spawn_module._inflight_rebuilds.clear()
+    spawn_module._rebuild_tasks.clear()
+
+    call_count = 0
+    started = asyncio.Event()
+    release = asyncio.Event()
+
+    async def slow_rebuild(*_args, **_kwargs):
+        nonlocal call_count
+        call_count += 1
+        started.set()
+        await release.wait()
+
+    monkeypatch.setattr(
+        "app.jobs.market_cache_rebuild.rebuild_universe_read_cache",
+        slow_rebuild,
+    )
+
+    assert spawn_rebuild_universe_read_cache(ExchangeCode.DSE) is True
+    await asyncio.wait_for(started.wait(), timeout=1)
+
+    assert spawn_rebuild_universe_read_cache(ExchangeCode.DSE) is False
+    assert call_count == 1
+
+    release.set()
+    await asyncio.sleep(0.05)
+    assert spawn_module._inflight_rebuilds == {}
+
+
+@pytest.mark.asyncio
+async def test_spawn_rebuild_universe_skips_when_market_read_inflight(monkeypatch) -> None:
+    import app.jobs.market_cache_spawn as spawn_module
+    from app.jobs.market_cache_spawn import spawn_rebuild_market_read_cache, spawn_rebuild_universe_read_cache
+
+    spawn_module._inflight_rebuilds.clear()
+    spawn_module._rebuild_tasks.clear()
+
+    universe_calls = 0
+    market_started = asyncio.Event()
+    release = asyncio.Event()
+
+    async def slow_market_rebuild(*_args, **_kwargs):
+        market_started.set()
+        await release.wait()
+        return MagicMock(success=True, steps=[])
+
+    async def slow_universe_rebuild(*_args, **_kwargs):
+        nonlocal universe_calls
+        universe_calls += 1
+        await release.wait()
+
+    monkeypatch.setattr("app.jobs.market_cache_rebuild.rebuild_market_read_cache", slow_market_rebuild)
+    monkeypatch.setattr("app.jobs.market_cache_rebuild.rebuild_universe_read_cache", slow_universe_rebuild)
+
+    assert spawn_rebuild_market_read_cache(ExchangeCode.DSE) is True
+    await asyncio.wait_for(market_started.wait(), timeout=1)
+
+    assert spawn_rebuild_universe_read_cache(ExchangeCode.DSE) is False
+    assert universe_calls == 0
+
+    release.set()
+    await asyncio.sleep(0.05)
+
+
+@pytest.mark.asyncio
+async def test_spawn_rebuild_market_read_cache_dedupes_inflight(monkeypatch) -> None:
+    import app.jobs.market_cache_spawn as spawn_module
+    from app.jobs.market_cache_spawn import spawn_rebuild_market_read_cache
+
+    spawn_module._inflight_rebuilds.clear()
+    spawn_module._rebuild_tasks.clear()
+
+    call_count = 0
+    started = asyncio.Event()
+    release = asyncio.Event()
+
+    async def slow_market_rebuild(*_args, **_kwargs):
+        nonlocal call_count
+        call_count += 1
+        started.set()
+        await release.wait()
+        return MagicMock(success=True, steps=[])
+
+    monkeypatch.setattr("app.jobs.market_cache_rebuild.rebuild_market_read_cache", slow_market_rebuild)
+
+    assert spawn_rebuild_market_read_cache(ExchangeCode.DSE) is True
+    await asyncio.wait_for(started.wait(), timeout=1)
+    assert spawn_rebuild_market_read_cache(ExchangeCode.DSE) is False
+    assert call_count == 1
+
+    release.set()
+    await asyncio.sleep(0.05)

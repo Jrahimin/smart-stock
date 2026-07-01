@@ -36,7 +36,7 @@ const InsightSidebar = dynamic(
 );
 
 export function MarketDashboardView() {
-  const { model, isError, sectionLoading } = useMarketDashboard();
+  const { model, isError, sectionLoading, signalsSectionError } = useMarketDashboard();
 
   return (
     <div className="market-dashboard-view">
@@ -75,7 +75,19 @@ export function MarketDashboardView() {
           {sectionLoading.timeline ? <MarketTimelineSkeleton /> : <MarketTimeline items={model.timeline} />}
         </div>
         <div className="dashboard-secondary-column">
-          {sectionLoading.signals ? <SmartSignalFeedSkeleton /> : <SmartSignalFeed signals={model.signals} />}
+          {sectionLoading.signals ? (
+            <SmartSignalFeedSkeleton />
+          ) : signalsSectionError ? (
+            <section className="workspace-card">
+              <div className="section-heading">
+                <p className="eyebrow">Smart Signals</p>
+                <h2>Explanation-first feed</h2>
+              </div>
+              <div className="empty-state">Trader signals are warming up after startup. This section should populate shortly.</div>
+            </section>
+          ) : (
+            <SmartSignalFeed signals={model.signals} />
+          )}
         </div>
         <div className="dashboard-tertiary-column">
           {sectionLoading.insights ? <InsightSidebarSkeleton /> : <InsightSidebar insights={model.insights} />}
