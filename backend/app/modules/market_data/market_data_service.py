@@ -10,20 +10,19 @@ from fastapi import Depends
 from app.api.dependencies.auth_dependencies import get_current_user_context
 from app.core.core_config import get_settings
 from app.core.enums import DataQualityFlag, ExchangeCode
-from app.core.market_cache import invalidate_market_caches_for_exchange
+from app.jobs.market_cache_spawn import spawn_rebuild_market_read_cache
 from app.jobs.ingestion.amarstock_daily_enrichment import (
     PostDailyAmarstockStats,
     run_daily_news_enrichment,
     run_snapshot_market_enrichment,
 )
-from app.jobs.ingestion.amarstock_index_api_source import (
-    AmarStockDsexPerformanceMetrics,
-    AmarStockIndexApiSource,
-)
+from app.core.perf_timing import PerfReport, async_perf_stage
+from app.jobs.ingestion.amarstock_index_api_source import AmarStockIndexApiSource
 from app.core.exception_handlers import NotFoundError
 from app.core.security_config import UserContext
 from app.jobs.ingestion.ingestion_source_base import IngestedDailyPrice, MarketDataSource
 from app.models import DailyMarketSummary, DailyPrice, Stock
+from app.modules.market_data.dsex_metrics import build_dsex_performance_snapshot
 from app.modules.market_data.market_data_repository import MarketDataRepository, get_market_data_repository
 from app.jobs.market_session_schedule import (
     build_freshness_label,
@@ -118,7 +117,7 @@ class MarketDataService:
         daily_price = await self.repository.create(prepared_values)
         await self.repository.commit()
         await self.repository.refresh(daily_price)
-        await invalidate_market_caches_for_exchange(stock.exchange)
+        spawn_rebuild_market_read_cache(stock.exchange)
         return daily_price
 
     async def ingest_daily_prices(
@@ -154,7 +153,7 @@ class MarketDataService:
                 suspicious_count=0,
             )
             if invalidate_market_cache:
-                await invalidate_market_caches_for_exchange(exchange)
+                spawn_rebuild_market_read_cache(exchange)
             return result
 
         suspicious_count = self._apply_close_price_validation(
@@ -210,7 +209,7 @@ class MarketDataService:
             suspicious_count,
         )
         if invalidate_market_cache:
-            await invalidate_market_caches_for_exchange(exchange)
+            spawn_rebuild_market_read_cache(exchange)
         return DailyPriceIngestionResult(
             exchange=exchange,
             trade_date=trade_date,
@@ -437,16 +436,27 @@ class MarketDataService:
             index_name=summary_data.index_name,
         )
 
-    async def get_dsex_index_snapshot(self, *, exchange: ExchangeCode = ExchangeCode.DSE) -> DsexIndexSnapshotRead:
+    async def get_dsex_index_snapshot(
+        self,
+        *,
+        exchange: ExchangeCode = ExchangeCode.DSE,
+        summaries: list[DailyMarketSummary] | None = None,
+        report: PerfReport | None = None,
+    ) -> DsexIndexSnapshotRead:
         settings = get_settings()
         now = datetime.now(ZoneInfo("Asia/Dhaka"))
         market_status = resolve_market_status(now, settings).value
+        perf = report or PerfReport("dsex.snapshot")
 
-        summaries = await self.repository.list_daily_market_summaries(
-            exchange=exchange,
-            limit=280,
-            offset=0,
-        )
+        summaries_provided = summaries is not None
+        if summaries is None:
+            async with async_perf_stage(perf, "db.summaries"):
+                summaries = await self.repository.list_daily_market_summaries(
+                    exchange=exchange,
+                    limit=280,
+                    offset=0,
+                )
+
         dsex_history = sorted(
             (
                 summary
@@ -455,6 +465,25 @@ class MarketDataService:
             ),
             key=lambda summary: summary.trade_date,
         )
+
+        # Dashboard overview passes a shallow summary batch (all indices, ~30 rows).
+        # Reload full history for horizon metrics without bloating the overview payload.
+        if summaries_provided and len(dsex_history) <= TRADING_DAYS_1Y:
+            async with async_perf_stage(perf, "db.summaries.deep"):
+                summaries = await self.repository.list_daily_market_summaries(
+                    exchange=exchange,
+                    limit=280,
+                    offset=0,
+                )
+            dsex_history = sorted(
+                (
+                    summary
+                    for summary in summaries
+                    if summary.index_name == DSEX_SUMMARY_INDEX and summary.index_close is not None
+                ),
+                key=lambda summary: summary.trade_date,
+            )
+
         if not dsex_history:
             raise NotFoundError("DSEX index snapshot is not available")
 
@@ -471,53 +500,23 @@ class MarketDataService:
         day_high = max(index_close, day_open)
         day_low = min(index_close, day_open)
 
-        historical_closes = [summary.index_close for summary in dsex_history if summary.index_close is not None]
-
-        performance_metrics = await self._fetch_dsex_performance_metrics()
-        range_52w_low = performance_metrics.range_52w_low if performance_metrics else None
-        range_52w_high = performance_metrics.range_52w_high if performance_metrics else None
-        if range_52w_low is None or range_52w_high is None:
-            if historical_closes:
-                range_52w_low = min(historical_closes)
-                range_52w_high = max(historical_closes)
-            else:
-                range_52w_low = day_low
-                range_52w_high = day_high
+        async with async_perf_stage(perf, "metrics.local"):
+            performance = await build_dsex_performance_snapshot(
+                summaries,
+                index_close=index_close,
+                day_low=day_low,
+                day_high=day_high,
+                exchange=exchange,
+                settings=settings,
+            )
 
         range_position_percent = self._compute_range_position_percent(
             index_close,
-            range_52w_low,
-            range_52w_high,
+            performance.range_52w_low or day_low,
+            performance.range_52w_high or day_high,
         )
 
-        return_1m_percent = (
-            performance_metrics.return_1m_percent
-            if performance_metrics and performance_metrics.return_1m_percent is not None
-            else self._compute_index_return_percent(
-                index_close,
-                dsex_history,
-                trading_days_back=TRADING_DAYS_1M,
-            )
-        )
-        return_6m_percent = (
-            performance_metrics.return_6m_percent
-            if performance_metrics and performance_metrics.return_6m_percent is not None
-            else self._compute_index_return_percent(
-                index_close,
-                dsex_history,
-                trading_days_back=TRADING_DAYS_6M,
-            )
-        )
-        return_1y_percent = (
-            performance_metrics.return_1y_percent
-            if performance_metrics and performance_metrics.return_1y_percent is not None
-            else self._compute_index_return_percent(
-                index_close,
-                dsex_history,
-                trading_days_back=TRADING_DAYS_1Y,
-            )
-        )
-
+        perf.log_summary()
         return DsexIndexSnapshotRead(
             trade_date=latest.trade_date,
             market_status=market_status,
@@ -527,12 +526,12 @@ class MarketDataService:
             day_open=day_open,
             day_high=day_high,
             day_low=day_low,
-            range_52w_low=range_52w_low,
-            range_52w_high=range_52w_high,
+            range_52w_low=performance.range_52w_low or day_low,
+            range_52w_high=performance.range_52w_high or day_high,
             range_position_percent=range_position_percent,
-            return_1m_percent=return_1m_percent,
-            return_6m_percent=return_6m_percent,
-            return_1y_percent=return_1y_percent,
+            return_1m_percent=performance.return_1m_percent,
+            return_6m_percent=performance.return_6m_percent,
+            return_1y_percent=performance.return_1y_percent,
             total_volume=latest.total_volume,
             total_turnover=latest.total_turnover,
             total_trades=latest.total_trades,
@@ -590,14 +589,6 @@ class MarketDataService:
             return None
 
         return (current_close - past_close) / past_close * Decimal("100")
-
-    async def _fetch_dsex_performance_metrics(self) -> AmarStockDsexPerformanceMetrics | None:
-        try:
-            source = AmarStockIndexApiSource.from_settings(get_settings())
-            return await source.fetch_dsex_performance_metrics()
-        except Exception as exc:
-            logger.warning("DSEX performance metrics unavailable; using stored history only: %s", exc)
-            return None
 
     def _compute_range_position_percent(
         self,

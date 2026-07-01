@@ -12,13 +12,13 @@ import {
   WorkspaceCardSkeleton,
 } from "@/components/ui/shimmer";
 
-export function MarketPulseStripSkeleton() {
+export function MarketPulseCoreSkeleton({ leadersLoading = true }: { leadersLoading?: boolean }) {
   return (
     <section className="market-pulse-panel market-pulse-panel-loading" aria-busy="true" aria-label="Loading market pulse">
       <LoadingStatus className="market-dashboard-loading-status" label="Loading market pulse" />
       <div className="market-pulse-card">
         <div className="market-pulse-strip market-pulse-strip-skeleton" role="list">
-          {Array.from({ length: 5 }).map((_, index) => (
+          {Array.from({ length: 4 }).map((_, index) => (
             <div className="pulse-widget pulse-widget-skeleton-shell" key={index} role="listitem">
               <Shimmer className="ui-shimmer-pulse-widget-category" delayMs={index * 70} />
               <Shimmer className="ui-shimmer-pulse-widget-value" delayMs={index * 70 + 40} />
@@ -26,11 +26,28 @@ export function MarketPulseStripSkeleton() {
               <Shimmer className="ui-shimmer-pulse-widget-footer" delayMs={index * 70 + 120} />
             </div>
           ))}
+          {leadersLoading ? <MarketPulseLeadersSkeleton /> : null}
         </div>
       </div>
       <Shimmer className="ui-shimmer-ticker" delayMs={200} />
     </section>
   );
+}
+
+export function MarketPulseLeadersSkeleton() {
+  return (
+    <div className="pulse-widget pulse-widget-skeleton-shell" role="listitem">
+      <Shimmer className="ui-shimmer-pulse-widget-category" delayMs={280} />
+      <Shimmer className="ui-shimmer-pulse-widget-value" delayMs={320} />
+      <Shimmer className="ui-shimmer-pulse-widget-meter" delayMs={360} />
+      <Shimmer className="ui-shimmer-pulse-widget-footer" delayMs={400} />
+    </div>
+  );
+}
+
+/** @deprecated Use MarketPulseCoreSkeleton — full strip blocks on leaders. */
+export function MarketPulseStripSkeleton() {
+  return <MarketPulseCoreSkeleton />;
 }
 
 export function MarketBreadthPanelSkeleton() {

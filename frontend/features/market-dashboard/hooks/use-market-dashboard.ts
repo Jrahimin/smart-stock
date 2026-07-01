@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 
 import { buildMarketDashboardModel } from "@/features/market-dashboard/view-models/market-dashboard-view-model";
 import { useMarketCacheRefresh } from "@/hooks/market/use-market-cache-coordinator";
@@ -10,7 +10,6 @@ import {
   mapDashboardHeatmapDto,
   mapDashboardSectorsToLeadersContext,
   mapDashboardSentimentDto,
-  mapDashboardSignalsDto,
 } from "@/features/market-dashboard/view-models/dashboard-sections-mapper";
 import { useDashboardHeatmap } from "@/features/market-dashboard/hooks/use-dashboard-heatmap";
 import { useDashboardMarketAlerts } from "@/features/market-dashboard/hooks/use-dashboard-market-alerts";
@@ -19,6 +18,7 @@ import { useDashboardMovers } from "@/features/market-dashboard/hooks/use-dashbo
 import { useDashboardOverview } from "@/features/market-dashboard/hooks/use-dashboard-overview";
 import { useDashboardSectors } from "@/features/market-dashboard/hooks/use-dashboard-sectors";
 import { useDashboardStocksInFocus } from "@/features/market-dashboard/hooks/use-dashboard-stocks-in-focus";
+import { setMarketPersistentCacheTtlMs } from "@/lib/api/backend-api-client";
 import { useMarketDataFreshness } from "@/hooks/market/use-market-data-freshness";
 import {
   getDashboardRefetchIntervalMs,
@@ -30,14 +30,43 @@ export function useMarketDashboard() {
   const refreshMarketCaches = useMarketCacheRefresh();
   const freshnessQuery = useMarketDataFreshness("DSE");
   const freshness = freshnessQuery.data;
-  const staleTimeMs = getDashboardStaleTimeMs(freshness);
-  const refetchIntervalMs = getDashboardRefetchIntervalMs(freshness);
+  const dashboardCacheTtlSeconds = freshness?.dashboard_cache_ttl_seconds ?? null;
+  const marketStatus = freshness?.market_status;
+  const snapshotIntervalMinutes = freshness?.snapshot_interval_minutes ?? null;
+
+  useEffect(() => {
+    if (dashboardCacheTtlSeconds == null) {
+      return;
+    }
+    setMarketPersistentCacheTtlMs(dashboardCacheTtlSeconds * 1000);
+  }, [dashboardCacheTtlSeconds]);
+
+  const staleTimeMs = useMemo(
+    () => getDashboardStaleTimeMs(freshness),
+    [dashboardCacheTtlSeconds],
+  );
+  const refetchIntervalMs = useMemo(
+    () => getDashboardRefetchIntervalMs(freshness),
+    [dashboardCacheTtlSeconds, marketStatus, snapshotIntervalMinutes],
+  );
 
   const overviewQuery = useDashboardOverview({ staleTimeMs, refetchIntervalMs });
-  const moversQuery = useDashboardMovers({ staleTimeMs, refetchIntervalMs });
+  const moversQuery = useDashboardMovers({
+    staleTimeMs,
+    refetchIntervalMs,
+    enabled: Boolean(overviewQuery.data),
+  });
   const sectorsQuery = useDashboardSectors({ staleTimeMs, refetchIntervalMs });
-  const signalsQuery = useDashboardStocksInFocus({ staleTimeMs, refetchIntervalMs });
-  const alertsQuery = useDashboardMarketAlerts({ staleTimeMs, refetchIntervalMs });
+  const signalsQuery = useDashboardStocksInFocus({
+    staleTimeMs,
+    refetchIntervalMs,
+    enabled: Boolean(overviewQuery.data),
+  });
+  const alertsQuery = useDashboardMarketAlerts({
+    staleTimeMs,
+    refetchIntervalMs,
+    enabled: Boolean(overviewQuery.data),
+  });
   const heatmapQuery = useDashboardHeatmap({
     staleTimeMs,
     refetchIntervalMs,
@@ -54,7 +83,7 @@ export function useMarketDashboard() {
     [moversQuery.data],
   );
   const mappedSignals = useMemo(
-    () => (signalsQuery.data ? mapDashboardSignalsDto(signalsQuery.data) : undefined),
+    () => signalsQuery.data?.signals,
     [signalsQuery.data],
   );
   const mappedTimeline = useMemo(
@@ -95,7 +124,9 @@ export function useMarketDashboard() {
       ),
     [
       overviewQuery.data,
-      freshness,
+      freshness?.trade_date,
+      freshness?.market_status,
+      freshness?.freshness_label,
       mappedMovers,
       mappedHeatmap,
       mappedSignals,
@@ -107,6 +138,8 @@ export function useMarketDashboard() {
   );
 
   const sectionLoading = {
+    pulseCore: isSectionLoading(overviewQuery.isLoading, overviewQuery.data),
+    leaders: isSectionLoading(sectorsQuery.isLoading, sectorsQuery.data),
     pulse:
       isSectionLoading(overviewQuery.isLoading, overviewQuery.data) ||
       (overviewQuery.data !== undefined && isSectionLoading(sectorsQuery.isLoading, sectorsQuery.data)),
@@ -119,7 +152,7 @@ export function useMarketDashboard() {
   };
 
   const isCoreLoading =
-    sectionLoading.pulse ||
+    sectionLoading.pulseCore ||
     sectionLoading.movers ||
     sectionLoading.signals ||
     sectionLoading.timeline;

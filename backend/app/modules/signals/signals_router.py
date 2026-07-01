@@ -1,7 +1,7 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.core.enums import ExchangeCode
 from app.core.pagination import PaginationParams, get_pagination_params
@@ -10,6 +10,7 @@ from app.modules.signals.signals_schemas import StockTraderDecisionRead, Trading
 from app.modules.signals.signals_service import SignalsService, get_signals_service
 from app.modules.signals.trader_decisions_service import TraderDecisionsService, get_trader_decisions_service
 from app.modules.stocks.stocks_schemas import StockRead
+from app.modules.market_universe.market_universe_service import UniverseCacheUnavailableError
 
 router = APIRouter(tags=["signals"])
 
@@ -21,12 +22,18 @@ async def list_latest_trader_decisions(
     exchange: ExchangeCode | None = None,
     price_window_limit: Annotated[int, Query(ge=1, le=260)] = 90,
 ) -> ApiResponse[list[StockTraderDecisionRead]]:
-    rows = await service.list_latest_trader_decisions(
-        exchange=exchange,
-        limit=pagination.limit,
-        offset=pagination.offset,
-        price_window_limit=price_window_limit,
-    )
+    try:
+        rows = await service.list_latest_trader_decisions(
+            exchange=exchange,
+            limit=pagination.limit,
+            offset=pagination.offset,
+            price_window_limit=price_window_limit,
+        )
+    except UniverseCacheUnavailableError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
     items = [
         StockTraderDecisionRead(
             stock=row.stock,

@@ -8,7 +8,8 @@ import {
   InstitutionalHeatmapSkeleton,
   MarketBreadthPanelSkeleton,
   MarketMoversPanelSkeleton,
-  MarketPulseStripSkeleton,
+  MarketPulseCoreSkeleton,
+  MarketPulseLeadersSkeleton,
   MarketTimelineSkeleton,
   SmartSignalFeedSkeleton,
 } from "@/features/market-dashboard/components/dashboard-skeletons";
@@ -40,7 +41,11 @@ export function MarketDashboardView() {
   return (
     <div className="market-dashboard-view">
       <MarketDashboardHeader />
-      {sectionLoading.pulse ? <MarketPulseStripSkeleton /> : <MarketPulsePanel model={model} />}
+      {sectionLoading.pulseCore ? (
+        <MarketPulseCoreSkeleton leadersLoading={sectionLoading.leaders} />
+      ) : (
+        <MarketPulsePanel leadersLoading={sectionLoading.leaders} model={model} />
+      )}
       {isError ? (
         <div className="data-warning">
           Backend data is unavailable. Showing resilient workspace placeholders based on current contracts.

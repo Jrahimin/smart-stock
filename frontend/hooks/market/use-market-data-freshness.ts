@@ -1,7 +1,9 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
 
+import { setMarketPersistentCacheTtlMs } from "@/lib/api/backend-api-client";
 import { getMarketFreshness } from "@/lib/api/market-data-api";
 import type { BackendMarketFreshnessDto, ExchangeCode } from "@/lib/api/backend-api-types";
 
@@ -17,6 +19,25 @@ export function useMarketDataFreshness(
     staleTime: 60_000,
     refetchInterval: options?.refetchInterval ?? FRESHNESS_POLL_MS,
   });
+}
+
+/** Sync IndexedDB TTL from freshness; pass `ttlSeconds` from an existing freshness query to avoid duplicate subscriptions. */
+export function useMarketPersistentCacheTtl(
+  exchange: ExchangeCode = "DSE",
+  ttlSeconds?: number | null,
+) {
+  const shouldSubscribe = ttlSeconds === undefined;
+  const { data } = useMarketDataFreshness(exchange, {
+    refetchInterval: shouldSubscribe ? undefined : false,
+  });
+  const resolvedTtlSeconds = ttlSeconds ?? data?.dashboard_cache_ttl_seconds ?? null;
+
+  useEffect(() => {
+    if (resolvedTtlSeconds == null) {
+      return;
+    }
+    setMarketPersistentCacheTtlMs(resolvedTtlSeconds * 1000);
+  }, [resolvedTtlSeconds]);
 }
 
 export type MarketFreshnessViewModel = {

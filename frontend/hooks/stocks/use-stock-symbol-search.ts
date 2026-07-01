@@ -18,6 +18,8 @@ type UseStockSymbolSearchOptions = {
   onFilterTable?: (query: string) => void;
 };
 
+const EMPTY_SEARCH_RESULTS: BackendStockDto[] = [];
+
 export function useStockSymbolSearch(options: UseStockSymbolSearchOptions = {}) {
   const router = useRouter();
   const [query, setQuery] = useState("");
@@ -39,7 +41,7 @@ export function useStockSymbolSearch(options: UseStockSymbolSearchOptions = {}) 
     enabled: debouncedQuery.length >= 1,
   });
 
-  const results = searchQuery.data ?? [];
+  const results = searchQuery.data ?? EMPTY_SEARCH_RESULTS;
 
   const exactMatch = useMemo(() => {
     const normalizedQuery = query.trim().toUpperCase();

@@ -10,7 +10,7 @@
 |----------|---------|
 | `GET /api/v1/market/universe-rows` | `ScoredUniverseRow[]` + `listed_stock_count` meta |
 
-Serves from Redis `universe:scored:{exchange}` on cache hit; computes on miss.
+Serves from Redis `universe:scored:{exchange}` on cache hit. On miss, serves stale `universe:scored:prev:{exchange}` if present and spawns background rebuild. Cold miss returns HTTP 503 — **no inline compute on the HTTP request path**.
 
 ## `ScoredUniverseRow` contract
 
@@ -50,28 +50,16 @@ Frontend-only pulse display does **not** trigger promotion.
 
 ```text
 universe:scored:{exchange}          # foundation — lightweight ScoredUniverseRow list
-dashboard:{section}:{exchange}      # presentation — derived from scored rows
-pulse:{section}:{exchange}          # presentation — derived from scored rows + briefing
+universe:scored:prev:{exchange}     # stale fallback during rebuild
+dashboard:{section}:{exchange}      # presentation — lightweight snapshot (no universe)
+pulse:{section}:{exchange}          # presentation — still uses scored rows + briefing
 ```
 
-`invalidate_market_caches()` deletes presentation keys first, then `universe:scored`. Stock-workspace keys are **not** invalidated on sync.
-
-### When Redis is invalidated
-
-See [market_caching.md](market_caching.md) for the full backend + frontend caching guide, TTL alignment, and end-to-end journeys.
-
-Exchange-wide keys are cleared (best-effort) after:
-
-- `MarketDataService.ingest_daily_prices()` (default; backfill passes `invalidate_market_cache=False` and invalidates once at end)
-- `MarketDataService.create_daily_price()`
-- `run_daily_market_sync()` after news ingestion
-- `compute_daily_indicators()` and `generate_daily_signals()` batch jobs
-
-Scheduled snapshots invalidate via price ingest above. Prefer these entry points over ad-hoc deletes in new code.
+Background rebuild (`rebuild_market_read_cache`) writes `universe:scored` as step 3 after dashboard overview/sectors. Indicator/signal jobs spawn universe-only rebuild. See [market_caching.md](market_caching.md).
 
 ## Historical price windows
 
-Consumer modules (dashboard, pulse, explorer, scanner, signals, watchlist) **must not** call `GET /market/price-windows` or `list_market_price_windows` directly.
+Consumer modules (pulse, explorer, scanner, signals, watchlist) **must not** call `GET /market/price-windows` or `list_market_price_windows` directly. **Dashboard** uses `market_snapshot` instead — it is not a universe consumer.
 
 To extend historical context:
 
@@ -87,7 +75,7 @@ Per-stock chart OHLCV (`GET /stock-details/{exchange}/{symbol}/workspace`) is ou
 |------|----------------|
 | `market_universe_schemas.py` | `ScoredUniverseRow`, `UniverseRowsRead` |
 | `market_universe_compute.py` | `group_price_window_rows`, `build_scored_universe_rows` |
-| `market_universe_service.py` | `get_scored_universe`, Redis get/set |
+| `market_universe_service.py` | `get_scored_universe`, `recompute_scored_universe`, Redis get/set |
 | `market_universe_router.py` | HTTP route |
 | `market_universe_cache.py` | Key helpers |
 
@@ -95,7 +83,6 @@ Per-stock chart OHLCV (`GET /stock-details/{exchange}/{symbol}/workspace`) is ou
 
 | Module | Integration |
 |--------|-------------|
-| `market_dashboard_service` | `get_scored_universe()` + section presentation caches |
 | `market_pulse_service` | `get_scored_universe()` + pulse score + briefing presentation |
 | `trader_decisions_service` | Delegates to universe service |
 | Frontend `useMarketUniverse` | `GET /market/universe-rows` |

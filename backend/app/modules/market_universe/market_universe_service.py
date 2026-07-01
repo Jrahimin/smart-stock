@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Annotated
 
 from fastapi import Depends
@@ -7,10 +8,11 @@ from fastapi import Depends
 from app.core.constants.trading_constants import PULSE_PRICE_WINDOW_LIMIT, PULSE_UNIVERSE_LIMIT
 from app.core.core_config import Settings, get_settings
 from app.core.enums import ExchangeCode
+from app.core.perf_timing import PerfReport, async_perf_stage
 from app.core.redis_client import OptionalRedisClient, get_redis_client
 from app.jobs.market_session_schedule import current_cache_ttl_seconds
 from app.modules.market_data.market_data_repository import MarketDataRepository, get_market_data_repository
-from app.modules.market_universe.market_universe_cache import universe_cache_key
+from app.modules.market_universe.market_universe_cache import universe_cache_key, universe_prev_cache_key
 from app.modules.market_universe.market_universe_compute import (
     build_scored_universe_rows,
     group_price_window_rows,
@@ -22,6 +24,12 @@ from app.modules.market_universe.market_universe_schemas import (
     UniverseRowsRead,
 )
 from app.modules.stocks.stocks_repository import StocksRepository, get_stocks_repository
+
+logger = logging.getLogger(__name__)
+
+
+class UniverseCacheUnavailableError(RuntimeError):
+    """Raised when scored universe is not cached and no stale fallback exists."""
 
 
 class MarketUniverseService:
@@ -36,6 +44,11 @@ class MarketUniverseService:
         self.stocks_repository = stocks_repository
         self.redis = redis
         self.settings = settings
+        self._last_compute_ms: float | None = None
+
+    @property
+    def last_compute_ms(self) -> float | None:
+        return self._last_compute_ms
 
     async def _cache_get(self, cache_key: str) -> dict | None:
         return await self.redis.get_json(cache_key)
@@ -45,27 +58,56 @@ class MarketUniverseService:
         await self.redis.set_json(cache_key, payload, ttl_seconds=ttl_seconds)
 
     async def get_scored_universe(self, *, exchange: ExchangeCode) -> list[ScoredUniverseRow]:
+        if not self.redis.is_available:
+            return await self.recompute_scored_universe(exchange)
+
         cache_key = universe_cache_key("scored", exchange)
         cached = await self._cache_get(cache_key)
         if cached is not None:
             return ScoredUniverseCacheRead.model_validate(cached).rows
 
-        rows = await self._compute_scored_universe(exchange)
-        await self._cache_set(
-            cache_key,
-            ScoredUniverseCacheRead(rows=rows).model_dump(mode="json"),
+        prev_key = universe_prev_cache_key(exchange)
+        stale = await self._cache_get(prev_key)
+        if stale is not None:
+            logger.info("Serving stale universe:scored:prev for %s while rebuild runs", exchange.value)
+            from app.jobs.market_cache_spawn import spawn_rebuild_universe_read_cache
+
+            spawn_rebuild_universe_read_cache(exchange, settings=self.settings)
+            return ScoredUniverseCacheRead.model_validate(stale).rows
+
+        from app.jobs.market_cache_spawn import spawn_rebuild_universe_read_cache
+
+        spawn_rebuild_universe_read_cache(exchange, settings=self.settings)
+        raise UniverseCacheUnavailableError(
+            f"Scored universe cache miss for {exchange.value}; background rebuild started",
         )
+
+    async def recompute_scored_universe(self, exchange: ExchangeCode) -> list[ScoredUniverseRow]:
+        perf = PerfReport("universe.rebuild")
+        async with async_perf_stage(perf, "db.price_windows"):
+            window_rows = await self.market_repository.list_market_price_windows(
+                exchange=exchange,
+                limit=PULSE_UNIVERSE_LIMIT,
+                offset=0,
+                price_window_limit=PULSE_PRICE_WINDOW_LIMIT,
+            )
+        async with async_perf_stage(perf, "compute.scored_rows"):
+            grouped = group_price_window_rows(window_rows)
+            rows = build_scored_universe_rows(grouped)
+        perf.log_summary()
+        self._last_compute_ms = perf.total_ms
         return rows
 
-    async def _compute_scored_universe(self, exchange: ExchangeCode) -> list[ScoredUniverseRow]:
-        window_rows = await self.market_repository.list_market_price_windows(
-            exchange=exchange,
-            limit=PULSE_UNIVERSE_LIMIT,
-            offset=0,
-            price_window_limit=PULSE_PRICE_WINDOW_LIMIT,
-        )
-        grouped = group_price_window_rows(window_rows)
-        return build_scored_universe_rows(grouped)
+    async def cache_scored_universe(self, exchange: ExchangeCode, rows: list[ScoredUniverseRow]) -> None:
+        cache_key = universe_cache_key("scored", exchange)
+        payload = ScoredUniverseCacheRead(rows=rows).model_dump(mode="json")
+
+        current = await self._cache_get(cache_key)
+        if current is not None:
+            prev_key = universe_prev_cache_key(exchange)
+            await self._cache_set(prev_key, current)
+
+        await self._cache_set(cache_key, payload)
 
     async def get_universe_rows(self, *, exchange: ExchangeCode) -> UniverseRowsRead:
         session_trade_date, _ = await self.market_repository.get_market_price_freshness(exchange=exchange)
