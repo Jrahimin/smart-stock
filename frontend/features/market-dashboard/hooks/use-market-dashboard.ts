@@ -118,7 +118,7 @@ export function useMarketDashboard() {
           insights: mappedSentiment?.insights,
           leadersContext: mappedLeadersContext,
           marketMood: mappedSentiment?.marketMood,
-          priceBackedCount: mappedSentiment?.priceBackedCount ?? signalsQuery.data?.evaluated_count,
+          priceBackedCount: mappedSentiment?.priceBackedCount ?? signalsQuery.data?.evaluatedCount,
           turnoverLabel: mappedSentiment?.turnoverLabel,
         },
       ),
@@ -133,7 +133,7 @@ export function useMarketDashboard() {
       mappedTimeline,
       mappedSentiment,
       mappedLeadersContext,
-      signalsQuery.data?.evaluated_count,
+      signalsQuery.data?.evaluatedCount,
     ],
   );
 
@@ -170,7 +170,7 @@ export function useMarketDashboard() {
       alertsQuery.isError ||
       heatmapQuery.isError ||
       sentimentQuery.isError,
-    priceBackedCount: mappedSentiment?.priceBackedCount ?? signalsQuery.data?.evaluated_count ?? 0,
+    priceBackedCount: mappedSentiment?.priceBackedCount ?? signalsQuery.data?.evaluatedCount ?? 0,
     refetch: refreshMarketCaches,
   };
 }
