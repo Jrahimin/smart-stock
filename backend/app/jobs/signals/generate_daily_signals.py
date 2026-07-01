@@ -2,7 +2,7 @@ from datetime import date
 from typing import Any
 
 from app.core.enums import ExchangeCode
-from app.core.market_cache import invalidate_market_caches_for_exchange
+from app.jobs.market_cache_spawn import spawn_rebuild_universe_read_cache
 
 STRATEGY_NAME = "deterministic_trader_v1"
 
@@ -30,5 +30,5 @@ async def generate_daily_signals(trade_date: date) -> dict[str, Any]:
         "strategy_name": STRATEGY_NAME,
         "note": "Batch persistence hook reserved; live decisions use the shared decision engine.",
     }
-    await invalidate_market_caches_for_exchange(ExchangeCode.DSE)
+    spawn_rebuild_universe_read_cache(ExchangeCode.DSE)
     return result

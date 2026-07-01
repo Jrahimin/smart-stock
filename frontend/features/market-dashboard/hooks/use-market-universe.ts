@@ -8,8 +8,10 @@ import { useMarketCacheRefresh } from "@/hooks/market/use-market-cache-coordinat
 import { useMarketDataFreshness } from "@/hooks/market/use-market-data-freshness";
 import { getMarketRefetchIntervalMs, getMarketStaleTimeMs } from "@/lib/market/market-cache-policy";
 import { mapUniverseRowToListRow } from "@/lib/market/universe-row-mapper";
+import type { BackendScoredUniverseRowDto } from "@/lib/api/backend-api-types";
 
 const DEFAULT_MARKET_UNIVERSE_LIMIT = 500;
+const EMPTY_UNIVERSE_ROWS: BackendScoredUniverseRowDto[] = [];
 
 type UseMarketUniverseOptions = {
   stockLimit?: number;
@@ -36,7 +38,7 @@ export function useMarketUniverse(options: UseMarketUniverseOptions = {}) {
     refetchInterval,
   });
 
-  const rows = universeQuery.data?.rows ?? [];
+  const rows = universeQuery.data?.rows ?? EMPTY_UNIVERSE_ROWS;
   const stocks = useMemo(() => rows.map((row) => row.stock), [rows]);
 
   const universe = useMemo(

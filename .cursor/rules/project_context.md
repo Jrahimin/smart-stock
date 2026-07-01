@@ -68,8 +68,9 @@ Market data workflow (split):
 3. Clean and validate (optional StockNow validation when enabled)
 4. Store in database (upsert by `stock_id + trade_date`)
 5. Compute indicators and generate signals downstream
+6. **Background cache rebuild** — after snapshot ingest, `spawn_rebuild_market_read_cache()` warms Redis in priority order: `dashboard:overview` → `dashboard:sectors` → `universe:scored` (fire-and-forget; scheduler does not await)
 
-`GET /market/freshness` exposes snapshot timing and `market_status` for the frontend (no hardcoded session times in UI). The app-level **market cache coordinator** polls this endpoint every ~2 minutes; when `last_synced_at` advances after a backend sync, it clears browser IndexedDB market caches and invalidates TanStack market queries so dashboard, explorer, scanner, signals, and pulse refetch without a page reload. See `backend/docs/market_caching.md`.
+`GET /market/freshness` exposes snapshot timing and `market_status` for the frontend (no hardcoded session times in UI). The app-level **market cache coordinator** polls this endpoint every ~2 minutes; when `last_synced_at` advances after a backend sync, it invalidates TanStack market queries (dashboard, universe, pulse, signals) so those surfaces refetch without a page reload. IndexedDB is **not** wiped on sync — only on manual refresh. Market IndexedDB TTL follows `dashboard_cache_ttl_seconds` from freshness when available. See `backend/docs/market_caching.md`.
 
 The system must be reliable and repeatable.
 
@@ -222,7 +223,25 @@ Each active feature module keeps schemas, repository, service, and router files 
   * Repository: `backend/app/modules/market_data/market_data_repository.py`
   * Service: `backend/app/modules/market_data/market_data_service.py`
   * Routes: `backend/app/modules/market_data/market_data_router.py`
+  * DSEX metrics: `backend/app/modules/market_data/dsex_metrics.py` — DB-first index performance; AmarStock fallback when local history shallow
   * Includes per-stock daily prices and market-wide daily summaries.
+
+* Market universe (trader surfaces only — not dashboard):
+  * Schemas: `backend/app/modules/market_universe/market_universe_schemas.py`
+  * Compute: `backend/app/modules/market_universe/market_universe_compute.py`
+  * Service: `backend/app/modules/market_universe/market_universe_service.py`
+  * Routes: `backend/app/modules/market_universe/market_universe_router.py`
+  * `GET /api/v1/market/universe-rows` — scored rows + decision; Redis `universe:scored`; stale `universe:scored:prev` on miss; cold miss → 503
+  * Docs: `backend/docs/market_universe.md`
+
+* Market dashboard (lightweight snapshot — no decision engine):
+  * Service: `backend/app/modules/market_dashboard/market_dashboard_service.py`
+  * Snapshot loader: `backend/app/modules/market_dashboard/market_snapshot.py`
+  * Compute: `backend/app/modules/market_dashboard/market_dashboard_compute.py`
+  * Routes: `backend/app/modules/market_dashboard/market_dashboard_router.py`
+  * `GET /api/v1/dashboard/*` — overview (pulse core), sectors (leaders), movers, heatmap, alerts, sentiment
+  * `GET /api/v1/signals/decisions/latest` — Smart Signals / trader decisions (universe cache)
+  * Docs: `backend/docs/market_dashboard.md`
 
 * Market Pulse:
   * Schemas: `backend/app/modules/market_pulse/market_pulse_schemas.py`
@@ -276,6 +295,8 @@ Pipeline jobs live under `backend/app/jobs/`:
 * Feature generation: `backend/app/jobs/features/`
 * Indicator computation: `backend/app/jobs/indicators/`
 * Signal generation: `backend/app/jobs/signals/`
+* Market cache rebuild: `backend/app/jobs/market_cache_rebuild.py` (sequential overview → sectors → universe); spawn: `backend/app/jobs/market_cache_spawn.py`
+* Perf instrumentation: `backend/app/core/perf_timing.py`
 
 Market data ingestion context:
 
@@ -290,6 +311,7 @@ Market data ingestion context:
 * Snapshot scheduler runs between configurable `market_open_time` and `market_close_time` (default 10:00–15:00 Asia/Dhaka) every `market_snapshot_interval_minutes` (default 15). Daily news runs at `daily_market_sync_time` (default 15:15). StockNow validation/fallback is optional and off by default.
 * If AmarStock and StockNow close prices differ by more than `0.50%`, an otherwise `OK` AmarStock row is marked `SUSPICIOUS` and `daily_market_summaries` gets a `SOURCE_VALIDATION` row with `has_suspicious_prices = true`.
 * Ingestion upserts `daily_prices` by `stock_id + trade_date` and skips database writes when a source parse returns no rows.
+* After ingest commit, `spawn_rebuild_market_read_cache()` refreshes Redis read caches (does not delete keys first). `sync_market_snapshot` passes `invalidate_market_cache=False` to price ingest and spawns rebuild after enrichment.
 * **Enrichment split**: snapshot path runs DSEX index summary only (`run_snapshot_market_enrichment`). Daily path runs news only (`run_daily_news_enrichment`). LatestPrice trade-stat patch is disabled by default (`amarstock_daily_latest_price_patch_enabled=false`). Details: `backend/docs/market_data.md`.
 
 Stock details ingestion context:
@@ -332,8 +354,9 @@ Root: `frontend/`
 * Shared list intelligence: `frontend/lib/market/universe-row-mapper.ts`, `universe-intelligence.ts`, `trader-decision.ts`, `trend-display.ts`
 * Shared list hook: `frontend/hooks/market/use-enriched-universe-intelligence.ts` (`intelligenceByStockId` from universe rows + persisted signals)
 * Market universe hook: `frontend/features/market-dashboard/hooks/use-market-universe.ts` (raw rows + mapped list models)
-* Market cache coordinator: `frontend/lib/market/market-cache-coordinator.ts` (IndexedDB clear + TanStack invalidation); `frontend/hooks/market/use-market-cache-coordinator.ts`; mounted via `frontend/components/market/market-cache-sync-coordinator.tsx` in `frontend/app/providers.tsx`
-* Market dashboard feature: `frontend/features/market-dashboard/`
+* Market cache coordinator: `frontend/lib/market/market-cache-coordinator.ts` (TanStack invalidation on sync; full IndexedDB clear on manual refresh); `frontend/hooks/market/use-market-cache-coordinator.ts`; `useMarketPersistentCacheTtl` in `use-market-data-freshness.ts`; mounted via `frontend/components/market/market-cache-sync-coordinator.tsx` in `frontend/app/providers.tsx`
+* Market cache policy: `frontend/lib/market/market-cache-policy.ts` (`staleTime` / OPEN `refetchInterval` from freshness + snapshot cadence)
+* Market dashboard feature: `frontend/features/market-dashboard/` — pulse `pulseCore` (overview) and `leaders` (sectors) load independently
 * Stock workspace feature: `frontend/features/stock-workspace/`
 * Stock detail SEO (server, App Router):
   * Config: `frontend/lib/seo/site-config.ts` (`NEXT_PUBLIC_SITE_URL`)
@@ -349,15 +372,14 @@ Root: `frontend/`
 Current frontend product flow:
 
 * Market Pulse loads the backend briefing endpoint and maps the response into editorial page sections (hero, focus stocks, insight, changes, alerts).
-* Dashboard loads active stocks and recent per-stock OHLCV to derive heatmap tiles, movers, breadth, market condition, deterministic signals, and timeline context.
+* Dashboard loads section endpoints (`GET /dashboard/*`): pulse core from overview (DSEX, turnover, volume, breadth); leaders widget from sectors (non-blocking skeleton); movers, heatmap, alerts, and sentiment as secondary/deferred sections. Smart Signals loads `GET /signals/decisions/latest`. No scored-universe or decision-engine dependency on the dashboard backend read path.
 * Stock Explorer uses TanStack Table over derived stock intelligence models for trader-focused discovery.
 * Explorer, Scanner, Signal Center, and Watchlist resolve **Action**, **RSI**, and **Trend** from the shared enriched universe map (`useEnrichedUniverseIntelligence` → `resolveTraderDecision` + `trend-display`). Do not read watchlist-only `trader_decision` when universe intelligence exists.
 * Stock Detail Workspace uses exchange/symbol lookup, historical OHLCV, candlestick charting, technical summary, deterministic insights, and available stock fundamentals. The route is also the SEO surface: server `generateMetadata` (canonical, OG/Twitter), BreadcrumbList + Organization JSON-LD, and inclusion in `/sitemap.xml` via `GET /stocks/active-symbols`. Visible UI is unchanged; only the browser tab title and crawler-facing head tags differ.
 * Signal Center and Scanner reuse deterministic signal and stock intelligence models instead of static placeholders.
 * Watchlist joins user items to the same `intelligenceByStockId` map; API `technical_snapshot` is fallback only when a symbol is outside the universe payload.
-* Until a backend market-wide latest-prices endpoint exists, the frontend uses per-stock price requests for Trader-usable V1 and should keep this logic isolated in feature hooks/view models.
-* Dashboard listed-stock count should represent active stock-master coverage; price-backed analytics can use a smaller capped universe for performance.
-* DSEX and total exchange turnover depend on real `daily_market_summaries` index rows. `SOURCE_VALIDATION` rows are data-quality records and should not be presented as DSEX index values.
+* Dashboard listed-stock count should represent active stock-master coverage; price-backed analytics use latest-price snapshot rows (not the full scored universe).
+* DSEX and total exchange turnover depend on real `daily_market_summaries` index rows; 6M/1Y may use cached AmarStock fallback until local DSEX depth is sufficient. `SOURCE_VALIDATION` rows are data-quality records and should not be presented as DSEX index values.
 * Settings route: `frontend/app/settings/page.tsx`; theme preference is stored in `frontend/stores/use-workspace-store.ts`.
 
 ## Current Backend Patterns

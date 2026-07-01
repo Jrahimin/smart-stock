@@ -9,17 +9,20 @@ type UseDashboardMoversOptions = {
   exchange?: ExchangeCode;
   staleTimeMs: number;
   refetchIntervalMs?: number | false;
+  enabled?: boolean;
 };
 
 export function useDashboardMovers({
   exchange = "DSE",
   staleTimeMs,
   refetchIntervalMs = false,
+  enabled = true,
 }: UseDashboardMoversOptions) {
   return useQuery({
     queryKey: ["dashboard", "movers", exchange],
     queryFn: () => getDashboardMovers(exchange),
     staleTime: staleTimeMs,
     refetchInterval: refetchIntervalMs,
+    enabled,
   });
 }

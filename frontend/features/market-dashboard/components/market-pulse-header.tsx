@@ -6,6 +6,7 @@ import { ArrowUpDown, Banknote, BarChart3, Trophy, type LucideIcon } from "lucid
 
 import { WorkspaceCommandSearch } from "@/components/command/workspace-command-search";
 import { MarketDataFreshnessBar } from "@/components/layout/market-data-freshness-bar";
+import { MarketPulseLeadersSkeleton } from "@/features/market-dashboard/components/dashboard-skeletons";
 import type { MarketDashboardModel } from "@/features/market-dashboard/types/market-dashboard-types";
 import type { PulseTone } from "@/lib/market/market-pulse-metrics";
 
@@ -30,9 +31,10 @@ export function MarketDashboardHeader() {
 
 type MarketPulsePanelProps = {
   model: MarketDashboardModel;
+  leadersLoading?: boolean;
 };
 
-export function MarketPulsePanel({ model }: MarketPulsePanelProps) {
+export function MarketPulsePanel({ model, leadersLoading = false }: MarketPulsePanelProps) {
   const { pulse } = model;
   const indexArrow = pulse.indexTone === "positive" ? "▲" : pulse.indexTone === "negative" ? "▼" : "•";
 
@@ -53,7 +55,7 @@ export function MarketPulsePanel({ model }: MarketPulsePanelProps) {
           <TurnoverWidgetCard context={pulse.turnoverContext} footer={pulse.turnoverHelper} />
           <VolumeWidgetCard context={pulse.volumeContext} footer={pulse.volumeHelper} />
           <BreadthWidgetCard context={pulse.breadthContext} />
-          <LeadersWidgetCard context={pulse.leadersContext} />
+          {leadersLoading ? <MarketPulseLeadersSkeleton /> : <LeadersWidgetCard context={pulse.leadersContext} />}
         </div>
       </div>
 

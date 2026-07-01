@@ -11,3 +11,7 @@ def universe_cache_key(section: str, exchange) -> str:
     else:
         exchange_value = str(exchange)
     return f"universe:{section}:{exchange_value}"
+
+
+def universe_prev_cache_key(exchange) -> str:
+    return universe_cache_key("scored:prev", exchange)

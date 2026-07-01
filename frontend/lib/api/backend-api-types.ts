@@ -94,6 +94,12 @@ export type BackendTraderDecisionSummaryDto = {
   risk_label: "LOW" | "MEDIUM" | "HIGH" | "SPECULATIVE";
 };
 
+export type BackendStockTraderDecisionDto = {
+  stock: BackendStockDto;
+  decision: BackendTraderDecisionSummaryDto;
+  latest_trade_date: string | null;
+};
+
 export type BackendTechnicalSnapshotDto = {
   latest_price: number | null;
   previous_close: number | null;

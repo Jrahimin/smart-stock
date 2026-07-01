@@ -1,4 +1,4 @@
-import { backendApiGetMarket } from "@/lib/api/backend-api-client";
+import { backendApiGetFresh, backendApiGetMarket } from "@/lib/api/backend-api-client";
 import type {
   BackendDashboardHeatmapDto,
   BackendDashboardMarketAlertsDto,
@@ -11,7 +11,7 @@ import type {
 } from "@/lib/api/backend-api-types";
 
 export function getDashboardOverview(exchange: ExchangeCode = "DSE") {
-  return backendApiGetMarket<BackendDashboardOverviewDto>("/dashboard/overview", { exchange });
+  return backendApiGetFresh<BackendDashboardOverviewDto>("/dashboard/overview", { exchange });
 }
 
 export function getDashboardMovers(exchange: ExchangeCode = "DSE") {
@@ -27,7 +27,7 @@ export function getDashboardMarketAlerts(exchange: ExchangeCode = "DSE") {
 }
 
 export function getDashboardStocksInFocus(exchange: ExchangeCode = "DSE") {
-  return backendApiGetMarket<BackendDashboardStocksInFocusDto>("/dashboard/stocks-in-focus", { exchange });
+  return backendApiGetFresh<BackendDashboardStocksInFocusDto>("/dashboard/stocks-in-focus", { exchange });
 }
 
 export function getDashboardHeatmap(exchange: ExchangeCode = "DSE") {

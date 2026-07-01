@@ -120,11 +120,21 @@ type CachedApiPayload<T> = {
 
 export type BackendApiPersistentCache = "default" | "market" | "off";
 
+let marketPersistentCacheTtlMs: number | null = null;
+
+/** Override IndexedDB TTL for market GETs (e.g. from `/market/freshness`). */
+export function setMarketPersistentCacheTtlMs(ttlMs: number | null) {
+  marketPersistentCacheTtlMs = ttlMs;
+}
+
 function getPersistentCacheTtlMs(mode: BackendApiPersistentCache): number | null {
   if (mode === "off") {
     return null;
   }
   if (mode === "market") {
+    if (marketPersistentCacheTtlMs !== null) {
+      return marketPersistentCacheTtlMs;
+    }
     return frontendConfig.marketCacheMinutes * 60 * 1000;
   }
   if (frontendConfig.cacheHours <= 0) {

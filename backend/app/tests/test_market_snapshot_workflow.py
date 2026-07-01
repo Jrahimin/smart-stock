@@ -61,6 +61,58 @@ async def test_sync_market_snapshot_runs_snapshot_enrichment_not_news(monkeypatc
 
 
 @pytest.mark.asyncio
+async def test_sync_market_snapshot_spawns_rebuild_without_awaiting(monkeypatch: pytest.MonkeyPatch) -> None:
+    price_result = DailyPriceIngestionResult(
+        exchange=ExchangeCode.DSE,
+        trade_date=date(2026, 6, 11),
+        source="AMARSTOCK_LATEST_PRICE_API",
+        fetched_count=10,
+        created_count=10,
+        skipped_existing_count=0,
+        skipped_unknown_symbol_count=0,
+        suspicious_count=0,
+    )
+    enrich_stats = PostDailyAmarstockStats(index_summary_upserted=True)
+
+    mock_service = MagicMock()
+    mock_service.ingest_daily_prices = AsyncMock(return_value=price_result)
+    mock_service.run_snapshot_enrichment = AsyncMock(return_value=enrich_stats)
+
+    mock_session = MagicMock()
+    mock_session_cm = MagicMock()
+    mock_session_cm.__aenter__ = AsyncMock(return_value=mock_session)
+    mock_session_cm.__aexit__ = AsyncMock(return_value=None)
+
+    spawn_mock = MagicMock()
+    monkeypatch.setattr(
+        "app.jobs.ingestion.ingest_daily_market_prices.AsyncSessionLocal",
+        lambda: mock_session_cm,
+    )
+    monkeypatch.setattr(
+        "app.jobs.ingestion.ingest_daily_market_prices._build_service",
+        lambda _session: mock_service,
+    )
+    monkeypatch.setattr(
+        "app.jobs.ingestion.ingest_daily_market_prices._ingest_with_optional_fallback",
+        AsyncMock(return_value=price_result),
+    )
+    monkeypatch.setattr(
+        "app.jobs.ingestion.ingest_daily_market_prices.spawn_rebuild_market_read_cache",
+        spawn_mock,
+    )
+
+    result = await sync_market_snapshot(
+        date(2026, 6, 11),
+        skip_validation=True,
+        skip_session_validation=True,
+    )
+
+    spawn_mock.assert_called_once()
+    assert spawn_mock.call_args.kwargs.get("settings") is not None or len(spawn_mock.call_args.args) >= 1
+    assert result.fetched_count == 10
+
+
+@pytest.mark.asyncio
 async def test_run_daily_market_sync_runs_news_not_snapshot_enrichment(monkeypatch: pytest.MonkeyPatch) -> None:
     enrich_stats = PostDailyAmarstockStats(news_upserted=3, news_skipped=1)
 

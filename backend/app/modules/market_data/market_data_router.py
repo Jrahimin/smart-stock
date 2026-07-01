@@ -2,7 +2,7 @@ from datetime import date
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.core.enums import DataQualityFlag, ExchangeCode
 from app.core.pagination import PaginationParams, get_pagination_params
@@ -22,7 +22,11 @@ from app.modules.market_data.market_data_schemas import (
     MarketPriceWindowRead,
 )
 from app.modules.market_data.market_data_service import MarketDataService, get_market_data_service
-from app.modules.market_universe.market_universe_service import MarketUniverseService, get_market_universe_service
+from app.modules.market_universe.market_universe_service import (
+    MarketUniverseService,
+    UniverseCacheUnavailableError,
+    get_market_universe_service,
+)
 from app.modules.stocks.stocks_schemas import StockRead
 
 router = APIRouter(tags=["market data"])
@@ -94,7 +98,13 @@ async def list_market_price_windows(
     price_window_limit: Annotated[int, Query(ge=1, le=260)] = 90,
 ) -> ApiResponse[list[MarketPriceWindowRead]]:
     resolved_exchange = exchange or ExchangeCode.DSE
-    scored_rows = await universe_service.get_scored_universe(exchange=resolved_exchange)
+    try:
+        scored_rows = await universe_service.get_scored_universe(exchange=resolved_exchange)
+    except UniverseCacheUnavailableError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
     decisions_by_stock_id = {str(row.stock.id): row.decision for row in scored_rows}
 
     rows = await service.list_market_price_windows(

@@ -123,31 +123,41 @@ Feature-specific query params, such as `exchange`, `indicator_type`, or date ran
 
 ### Market Universe (`modules/market_universe/`)
 
-`market_universe_service` is the **single exchange-wide compute source**. Dashboard, Pulse, Explorer, Scanner, Signals, and Watchlist consume `ScoredUniverseRow` from `GET /api/v1/market/universe-rows` — they do not run parallel `price-windows` + decision loops.
+`market_universe_service` is the **single exchange-wide scored-universe source for trader surfaces**. Pulse, Explorer, Scanner, Signals, and Watchlist consume `ScoredUniverseRow` from `GET /api/v1/market/universe-rows` — they do not run parallel `price-windows` + decision loops.
+
+**Dashboard is not a universe consumer.** The trader dashboard uses a separate lightweight snapshot path (`market_snapshot.py`) with no decision engine on the HTTP read path.
 
 | File | Responsibility |
 |------|----------------|
-| `market_universe_router.py` | HTTP only |
-| `market_universe_service.py` | Compute-on-miss + Redis `universe:scored:{exchange}` |
-| `market_universe_compute.py` | `build_scored_universe_rows` — only place OHLCV is held in memory for exchange-wide reads |
+| `market_universe_router.py` | HTTP only; cold cache miss → HTTP 503 |
+| `market_universe_service.py` | Redis `universe:scored:{exchange}`; stale `universe:scored:prev:{exchange}` on miss; background rebuild only (no inline compute on request) |
+| `market_universe_compute.py` | `build_scored_universe_rows` — only place OHLCV is held in memory for exchange-wide scored reads |
 | `market_universe_schemas.py` | `ScoredUniverseRow` contract |
 
-Presentation caches (`dashboard:*`, `pulse:*`) layer on scored rows. `invalidate_market_caches()` deletes presentation keys then foundation. See `backend/docs/market_universe.md`.
+Background rebuild (`rebuild_market_read_cache` in `jobs/market_cache_rebuild.py`) writes `universe:scored` as step 3 after dashboard overview/sectors. Spawn entry point: `jobs/market_cache_spawn.py`. See `backend/docs/market_universe.md`.
 
 ### Trader Dashboard (`modules/market_dashboard/`)
 
-Section endpoints under `GET /api/v1/dashboard/*` replace the old dashboard `price-windows` fan-out. Compute-on-miss only — no sync-time aggregation, no cache warming.
+Section endpoints under `GET /api/v1/dashboard/*`. **Lightweight snapshot only** — no `get_scored_universe`, no `compute_trader_decision_from_prices` on the request path.
 
 | Layer | Role |
 |-------|------|
-| `market_dashboard_router.py` | HTTP only |
-| `market_dashboard_service.py` | Orchestration + **all** Redis get/set/delete |
-| `market_dashboard_compute.py` | Pure section logic (movers, signals, heatmap, mood, etc.) |
+| `market_dashboard_router.py` | HTTP only; optional `X-Market-Compute-Ms` in local/dev |
+| `market_dashboard_service.py` | Orchestration + Redis get/set; `compute_*` for background rebuild |
+| `market_snapshot.py` | `load_dashboard_market_snapshot` — latest prices + summaries, technical snapshot only |
+| `dsex_metrics.py` (in `market_data/`) | DB-first DSEX 1M/6M/1Y; AmarStock fallback only when local depth insufficient |
+| `market_dashboard_compute.py` | Pure snapshot helpers (movers, sectors, mood, heatmap, alerts) |
 | `market_data_repository` | Reused queries — no parallel SQL in dashboard |
 
-**Redis (optional):** `REDIS_URL` unset → compute every request. Keys: `dashboard:{section}:{exchange}` (`overview`, `movers`, `sectors`, `market-alerts`, `stocks-in-focus`, `heatmap`, `market-sentiment`). TTL: `max(60, min(600, market_sync_interval_seconds))`. `sync_market_snapshot` deletes all keys explicitly (best-effort); failures are logged, never fatal.
+**Data sources by section:** overview/sentiment DSEX → summaries + `dsex_metrics`; sectors/alerts/sentiment breadth → snapshot; movers/heatmap → `list_latest_daily_prices`; Smart Signals widget → `GET /signals/decisions/latest` (universe cache, not dashboard compute).
 
-**Frontend:** TanStack Query per section; `staleTime` / `refetchInterval` from `GET /market/freshness` → `dashboard_cache_ttl_seconds`. App-level `MarketCacheSyncCoordinator` polls freshness and busts IndexedDB + TanStack market queries when `last_synced_at` advances. See `backend/docs/market_dashboard.md` and `backend/docs/market_caching.md`.
+**Redis (optional):** `REDIS_URL` unset → compute every request. Keys: `dashboard:{section}:{exchange}`. After sync, `spawn_rebuild_market_read_cache()` warms overview → sectors → universe in priority order (fire-and-forget; scheduler does not await). Keys are overwritten on success — not deleted before rebuild.
+
+**Frontend pulse load tiers:** `pulseCore` (overview: DSEX, turnover, volume, breadth) renders independently of `leaders` (sectors widget with its own skeleton). TanStack `staleTime` / `refetchInterval` from `GET /market/freshness`. Sync coordinator invalidates TanStack market queries only on `last_synced_at` change; manual refresh still clears IndexedDB. Market IndexedDB TTL follows `dashboard_cache_ttl_seconds` when freshness is loaded. See `backend/docs/market_dashboard.md` and `backend/docs/market_caching.md`.
+
+### Market cache rebuild (`jobs/market_cache_rebuild.py`, `jobs/market_cache_spawn.py`)
+
+After price ingest / `sync_market_snapshot`, call `spawn_rebuild_market_read_cache(exchange)` — never await in the scheduler. Sequential priority: `dashboard:overview` → `dashboard:sectors` → `universe:scored`. Failed steps keep the previous Redis value. Indicator/signal batch jobs spawn universe-only rebuild via `spawn_rebuild_universe_read_cache`. Instrumentation: `core/perf_timing.py` (`PerfReport`, `async_perf_stage`); logs INFO when total > 1000ms.
 
 ---
 
@@ -173,7 +183,10 @@ Section endpoints under `GET /api/v1/dashboard/*` replace the old dashboard `pri
 * Generic catch-all folders like `common/` that become dumping grounds ❌
 * Mixing scraping, logic, and DB in one place ❌
 * Large monolithic service files ❌
-* Hardcoded values ❌
+* Mixing dashboard compute with scored universe or the decision engine on the HTTP request path ❌
+* Calling `get_scored_universe()` from `market_dashboard_service` ❌
+* Awaiting `rebuild_market_read_cache()` from sync/scheduler paths ❌
+* Deleting Redis dashboard/universe keys before a successful rebuild (overwrite on success instead) ❌
 
 ---
 
@@ -278,14 +291,14 @@ The product uses daily synced data, not live streaming. **Three browser-side cac
 
 | Layer | Where | TTL / behavior |
 |-------|--------|----------------|
-| Redis (optional) | Backend services | `dashboard_cache_ttl_seconds`; invalidated on sync |
-| TanStack Query | Feature hooks | Market hooks: `staleTime` + `refetchInterval` from freshness during OPEN/PRE_OPEN |
-| IndexedDB | `backendApiGetMarket` in `backend-api-client.ts` | Market GETs: 5–10 min (`NEXT_PUBLIC_MARKET_CACHE_MINUTES`); other GETs: 2h |
-| **Sync coordinator** | `market-cache-coordinator.ts` + `MarketCacheSyncCoordinator` in `providers.tsx` | Polls `/market/freshness` every ~2 min; on `last_synced_at` change → clear IndexedDB + invalidate TanStack roots (`dashboard`, `market-universe-rows`, `market-pulse-*`, `signals`) |
+| Redis (optional) | Backend services | `dashboard_cache_ttl_seconds`; background rebuild after sync (overwrite, not delete-first) |
+| TanStack Query | Feature hooks | Market hooks: `staleTime` + `refetchInterval` from freshness during OPEN/PRE_OPEN; OPEN refetch aligned to `snapshot_interval_minutes` (~15 min) |
+| IndexedDB | `backendApiGetMarket` in `backend-api-client.ts` | Market GETs: `dashboard_cache_ttl_seconds` from freshness when loaded; fallback 5–10 min (`NEXT_PUBLIC_MARKET_CACHE_MINUTES`); other GETs: 2h |
+| **Sync coordinator** | `market-cache-coordinator.ts` + `MarketCacheSyncCoordinator` in `providers.tsx` | Polls `/market/freshness` every ~2 min; on `last_synced_at` change → invalidate TanStack roots only (`dashboard`, `market-universe-rows`, `market-pulse-*`, `signals`) — **does not** clear IndexedDB |
 
-Dashboard loads via `/dashboard/*` only (no `price-windows`). Explorer, scanner, and signals share `market-universe-rows` — no separate TanStack keys.
+Dashboard loads via `/dashboard/*` only (no `price-windows`, no universe on dashboard compute path). Explorer, scanner, and signals share `market-universe-rows` — no separate TanStack keys.
 
-**Manual refresh:** `MarketDataFreshnessBar` refresh button and feature-hook `refetch()` both call `refreshMarketClientCaches()` via `useMarketCacheRefresh()`. Do not duplicate invalidation logic in feature hooks.
+**Manual refresh:** `MarketDataFreshnessBar` refresh button and feature-hook `refetch()` call `refreshMarketClientCaches()` via `useMarketCacheRefresh()` (full IndexedDB wipe + TanStack invalidation). Do not duplicate invalidation logic in feature hooks.
 
 Full end-to-end flow: `backend/docs/market_caching.md`.
 

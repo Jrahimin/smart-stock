@@ -214,15 +214,15 @@ async def test_run_daily_market_sync_skips_news_on_non_trading_session(monkeypat
         "app.jobs.ingestion.ingest_daily_market_prices._build_service",
         lambda _session: mock_service,
     )
-    invalidate_mock = AsyncMock()
+    spawn_mock = MagicMock()
     monkeypatch.setattr(
-        "app.jobs.ingestion.ingest_daily_market_prices.invalidate_market_caches_for_exchange",
-        invalidate_mock,
+        "app.jobs.ingestion.ingest_daily_market_prices.spawn_rebuild_market_read_cache",
+        spawn_mock,
     )
 
     result = await run_daily_market_sync(today, include_snapshot=False)
 
     mock_service.run_daily_news_sync.assert_not_called()
-    invalidate_mock.assert_not_called()
+    spawn_mock.assert_not_called()
     assert result.session_skipped is True
     assert result.news_upserted == 0

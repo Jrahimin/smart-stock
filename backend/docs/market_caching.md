@@ -9,9 +9,9 @@ Related module docs: [market_universe.md](market_universe.md), [market_dashboard
 ## Design principles
 
 1. **PostgreSQL is the source of truth.** Caches are performance layers only.
-2. **Sync-driven freshness on the backend.** Scheduled and manual data writes invalidate Redis; TTL is a safety net, not the primary refresh mechanism.
-3. **Sync-aligned freshness in the browser.** `MarketCacheSyncCoordinator` polls `/market/freshness` and busts IndexedDB + TanStack market queries when `last_synced_at` advances — client caches stay aligned with backend sync without a page reload.
-4. **Compute-on-miss, no cache warming.** After invalidation, the next request pays full compute cost.
+2. **Sync-driven freshness on the backend.** Scheduled data writes spawn background cache rebuilds; TTL is a safety net. Keys are overwritten on success — not deleted before rebuild.
+3. **Sync-aligned freshness in the browser.** `MarketCacheSyncCoordinator` polls `/market/freshness` and invalidates TanStack market queries when `last_synced_at` advances. IndexedDB is **not** wiped on sync (manual refresh still clears it).
+4. **Background rebuild, compute-on-miss fallback.** After sync, `spawn_rebuild_market_read_cache()` warms overview → sectors → universe in priority order. HTTP misses compute inline for dashboard; universe serves stale `universe:scored:prev` or returns 503.
 5. **Redis is optional.** Unset `REDIS_URL` → backend always computes; behavior is correct, only slower.
 6. **Browser fetches the API directly.** Next.js does not proxy or server-cache market JSON; all client caching happens in the browser.
 
@@ -49,7 +49,9 @@ Related module docs: [market_universe.md](market_universe.md), [market_dashboard
 │ backend-scheduler                                                       │
 │                                                                         │
 │  sync_market_snapshot / backfill / admin jobs → write DB                │
-│                                              → invalidate Redis keys    │
+│                                              → spawn rebuild (async)    │
+│                                                 overview → sectors      │
+│                                                 → universe:scored       │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -59,7 +61,7 @@ Three **independent** client-side layers (do not conflate), plus one **coordinat
 |-------|--------|-------------|-----------|
 | **Redis** | Backend services | `dashboard_cache_ttl_seconds` (default 600s) | Sync interval + invalidation |
 | **TanStack Query** | React hooks | Same as backend TTL during OPEN/PRE_OPEN | `GET /market/freshness` |
-| **IndexedDB** | `backend-api-client.ts` | Market: 5–10 min; other GETs: 2h | Build-time env |
+| **IndexedDB** | `backend-api-client.ts` | From `dashboard_cache_ttl_seconds` when freshness loaded; fallback 5–10 min | Freshness hook + build-time env |
 | **Sync coordinator** | `market-cache-coordinator.ts` | N/A (event-driven) | `last_synced_at` change on `/market/freshness` poll |
 
 **Coordinator invalidates TanStack roots:** `dashboard`, `market-universe-rows`, `market-pulse-summary`, `market-pulse-briefing`, `signals`. Scanner, signals, and stock explorer consume `market-universe-rows` — no separate keys.
@@ -81,17 +83,19 @@ Storage format: `SET key JSON EX=<ttl_seconds>` (not `SETEX` by name, same effec
 ### Cache hierarchy
 
 ```text
-universe:scored:{exchange}           ← foundation (ScoredUniverseRow list)
-dashboard:{section}:{exchange}       ← presentation (7 sections)
+universe:scored:{exchange}           ← trader foundation (ScoredUniverseRow list)
+universe:scored:prev:{exchange}    ← stale fallback during rebuild
+dashboard:{section}:{exchange}     ← lightweight snapshot presentation (no decision engine)
 pulse:{response|summary}:{exchange}  ← presentation
 stock-workspace:{section}:{ex}:{sym}:{trade_date}  ← per-symbol (isolated)
 ```
 
-**Foundation vs presentation**
+**Dashboard vs universe (split)**
 
-- `universe:scored` is shared by dashboard sections, pulse, explorer, scanner, signals, watchlist.
-- Dashboard and pulse keys are derived from scored rows + extra presentation logic.
-- Stock workspace keys are **not** invalidated on exchange-wide sync (trade-date versioning + TTL only).
+| Layer | Data source | Decision engine? | Used by |
+|-------|-------------|------------------|---------|
+| Lightweight market snapshot | `daily_prices` latest row + summaries | No | Dashboard pulse, movers, heatmap, alerts, sentiment |
+| Scored universe | `list_market_price_windows` 500×90 | Yes | Scanner, signals, watchlist, stock workspace — **not dashboard** |
 
 ### Registered exchange-wide keys (10 total)
 
@@ -111,26 +115,31 @@ GET /dashboard/movers
   → miss: compute from DB / universe → SET EX ttl → return
 ```
 
-Universe rows follow the same pattern in `MarketUniverseService.get_scored_universe()`.
+Universe rows: Redis GET `universe:scored` → on miss serve `universe:scored:prev` and spawn background rebuild; cold miss returns HTTP 503. Dashboard sections compute from lightweight snapshot only (no `get_scored_universe`).
 
-### When Redis is invalidated
+### Background rebuild (`rebuild_market_read_cache`)
 
-All paths call `invalidate_market_caches_for_exchange()` in `app/core/market_cache.py`, which deletes the 10 registered keys (best-effort).
+| Step | Key | Target latency |
+|------|-----|----------------|
+| 1 | `dashboard:overview` | ~2s (pulse-critical) |
+| 2 | `dashboard:sectors` | ~1s (leaders widget) |
+| 3 | `universe:scored` | ~15s (trader surfaces only) |
+
+Spawned fire-and-forget after `sync_market_snapshot` commit via `spawn_rebuild_market_read_cache()` in `app/jobs/market_cache_spawn.py`. Scheduler does **not** await rebuild. Failed steps keep the previous Redis value (no delete-first).
+
+### When caches are refreshed
 
 | Trigger | Location | Notes |
 |---------|----------|-------|
-| Price ingest (default) | `MarketDataService.ingest_daily_prices()` | After commit; default `invalidate_market_cache=True` |
-| Single price create | `MarketDataService.create_daily_price()` | Uses stock's exchange |
-| Daily news sync | `run_daily_market_sync()` | After news ingestion |
-| Historical backfill | `backfill_daily_prices()` | Once after full date loop; ingest uses `invalidate_market_cache=False` per day |
-| Indicator batch job | `compute_daily_indicators()` | DSE exchange |
-| Signal batch job | `generate_daily_signals()` | DSE exchange |
+| Price ingest (default) | `MarketDataService.ingest_daily_prices()` | `spawn_rebuild_market_read_cache` when `invalidate_market_cache=True` |
+| Intraday snapshot | `sync_market_snapshot()` | Ingest with `invalidate_market_cache=False`, then spawn full rebuild |
+| Single price create | `MarketDataService.create_daily_price()` | Spawn rebuild |
+| Daily news sync | `run_daily_market_sync()` | Spawn rebuild after news |
+| Historical backfill | `backfill_daily_prices()` | Spawn rebuild once at end |
+| Indicator batch job | `compute_daily_indicators()` | Spawn universe-only rebuild |
+| Signal batch job | `generate_daily_signals()` | Spawn universe-only rebuild |
 
-Scheduled intraday snapshots call `sync_market_snapshot()` → price ingest → invalidation via the service layer above.
-
-**Not invalidated on exchange-wide sync:** `stock-workspace:*` keys.
-
-**Rule for new code:** mutate market data through the entry points above, or call `invalidate_market_caches_for_exchange()` explicitly. Do not scatter ad-hoc Redis deletes in routers.
+`invalidate_market_caches_for_exchange()` remains for admin/manual use but is no longer the default sync path.
 
 ### Freshness metadata (not cached in Redis)
 
@@ -289,12 +298,13 @@ Coordinator has not fired (last_synced_at unchanged).
 ```text
 backend-scheduler:
   1. Fetch AmarStock LatestPrice + index API
-  2. MarketDataService.ingest_daily_prices() → upsert daily_prices
+  2. MarketDataService.ingest_daily_prices(invalidate_market_cache=False) → upsert daily_prices
   3. run_snapshot_enrichment() → DSEX summary
-  4. invalidate_market_caches_for_exchange(DSE)
-     → DELETE dashboard:*, pulse:*, universe:scored:DSE
+  4. spawn_rebuild_market_read_cache(DSE)   [fire-and-forget; scheduler returns immediately]
+     → rebuild overview (~2s) → sectors (~1s) → universe:scored (~15s)
+     → overwrites Redis keys on success; previous keys kept until overwrite
 
-PostgreSQL now has fresh prices. Redis exchange-wide keys are empty.
+PostgreSQL now has fresh prices. Redis keys update progressively (overview first).
 last_synced_at advances in DB.
 ```
 
@@ -302,13 +312,12 @@ last_synced_at advances in DB.
 
 ```text
 MarketCacheSyncCoordinator observes new last_synced_at
-→ invalidateMarketClientCaches(queryClient)
-   → clearBackendApiCache() (IndexedDB wiped)
+→ invalidateMarketTanStackQueries(queryClient)   [IndexedDB retained]
    → invalidateQueries dashboard, market-universe-rows, market-pulse-*, signals
 
 Active TanStack queries refetch immediately
-→ backendApiGetMarket → network (IndexedDB miss)
-→ Backend Redis miss → compute from fresh DB → SET EX=600
+→ backendApiGetMarket → network or IndexedDB (if within TTL)
+→ Backend: dashboard overview likely Redis hit after rebuild step 1
 → UI updates with new prices (no page reload)
 ```
 
@@ -317,8 +326,8 @@ Active TanStack queries refetch immediately
 ```text
 useMarketUniverse → invalidated with market-universe-rows
 → backendApiGetMarket("/market/universe-rows")
-→ Backend: universe:scored miss (invalidated at sync) → full compute → cache
-→ Fresh ScoredUniverseRow list in UI
+→ Backend: universe:scored hit after rebuild step 3, or stale universe:scored:prev while rebuild runs
+→ ScoredUniverseRow list in UI (may lag overview by <20s)
 ```
 
 ---
@@ -332,12 +341,12 @@ useMarketUniverse → invalidated with market-universe-rows
    → ingest_daily_prices(invalidate_market_cache=False)   [no Redis churn per day]
 
 3. After loop:
-   → invalidate_market_caches_for_exchange(DSE) once
+   → spawn_rebuild_market_read_cache(DSE) once
 
 4. Browser users:
    → Coordinator detects new last_synced_at on next freshness poll (≤2 min)
-   → IndexedDB cleared + TanStack market queries invalidated automatically
-   → Or user clicks refresh on MarketDataFreshnessBar / calls useMarketCacheRefresh()
+   → TanStack market queries invalidated automatically (IndexedDB retained)
+   → Or user clicks refresh on MarketDataFreshnessBar / calls useMarketCacheRefresh() for full IndexedDB wipe
 ```
 
 ---

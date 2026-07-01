@@ -194,6 +194,8 @@ async def test_scored_universe_redis_cache_payload_is_lightweight() -> None:
         Settings(market_snapshot_interval_minutes=15),
     )
 
+    rows = await service.recompute_scored_universe(exchange=ExchangeCode.DSE)
+    await service.cache_scored_universe(exchange=ExchangeCode.DSE, rows=rows)
     await service.get_scored_universe(exchange=ExchangeCode.DSE)
 
     cache_key = universe_cache_key("scored", ExchangeCode.DSE)
@@ -283,13 +285,14 @@ def test_briefing_module_has_no_forbidden_imports() -> None:
     assert "list_market_price_windows" not in contents
 
 
-def test_dashboard_service_has_no_forbidden_price_window_imports() -> None:
+def test_dashboard_service_has_no_forbidden_universe_imports() -> None:
     import app.modules.market_dashboard.market_dashboard_service as module
 
     source = module.__file__
     assert source is not None
     contents = open(source, encoding="utf-8").read()
-    assert "list_market_price_windows" not in contents
+    assert "get_scored_universe" not in contents
+    assert "MarketUniverseService" not in contents
 
 
 def test_pulse_service_has_no_forbidden_price_window_imports() -> None:

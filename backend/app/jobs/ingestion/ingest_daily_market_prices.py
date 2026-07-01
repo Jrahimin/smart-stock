@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 
 from app.core.core_config import Settings, get_settings
 from app.core.enums import ExchangeCode
-from app.core.market_cache import invalidate_market_caches_for_exchange
+from app.jobs.market_cache_spawn import spawn_rebuild_market_read_cache
 from app.core.security_config import UserContext
 from app.jobs.ingestion.dse_market_data_source import DseMarketDataSource
 from app.jobs.market_session_validation import validate_market_session
@@ -52,6 +52,7 @@ async def _ingest_with_optional_fallback(
     settings: Settings,
     source: MarketDataSource | None = None,
     validation_source: MarketDataSource | None = None,
+    invalidate_market_cache: bool = False,
 ) -> DailyPriceIngestionResult:
     primary = source or build_primary_market_data_source(settings)
     validation = (
@@ -67,6 +68,7 @@ async def _ingest_with_optional_fallback(
             trade_date=trade_date,
             source=primary,
             validation_source=validation,
+            invalidate_market_cache=invalidate_market_cache,
         )
     except BaseException as exc:
         primary_error = exc
@@ -97,6 +99,7 @@ async def _ingest_with_optional_fallback(
             trade_date=trade_date,
             source=fallback,
             validation_source=None,
+            invalidate_market_cache=invalidate_market_cache,
         )
     elif primary_error is not None:
         raise primary_error
@@ -154,6 +157,7 @@ async def sync_market_snapshot(
     if not skip_session_validation:
         session = await validate_market_session(settings=resolved_settings)
         if not session.should_sync:
+            spawn_rebuild_market_read_cache(exchange, settings=resolved_settings)
             return _skipped_snapshot_result(
                 exchange=exchange,
                 trade_date=resolved_trade_date,
@@ -171,11 +175,14 @@ async def sync_market_snapshot(
             trade_date=resolved_trade_date,
             settings=resolved_settings,
             validation_source=validation,
+            invalidate_market_cache=False,
         )
         enrich = await service.run_snapshot_enrichment(
             exchange=exchange,
             trade_date=resolved_trade_date,
         )
+
+    spawn_rebuild_market_read_cache(exchange, settings=resolved_settings)
 
     return MarketSnapshotSyncResult(
         exchange=exchange,
@@ -229,7 +236,7 @@ async def run_daily_market_sync(
             trade_date=resolved_trade_date,
         )
 
-    await invalidate_market_caches_for_exchange(exchange, settings=resolved_settings)
+    spawn_rebuild_market_read_cache(exchange, settings=resolved_settings)
 
     return DailyNewsSyncResult(
         exchange=exchange,
@@ -320,5 +327,5 @@ async def backfill_daily_prices(
         results.append(result)
         day += timedelta(days=1)
 
-    await invalidate_market_caches_for_exchange(exchange)
+    spawn_rebuild_market_read_cache(exchange)
     return _merge_ingestion_results(results)

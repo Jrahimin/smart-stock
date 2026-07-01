@@ -138,7 +138,7 @@ export function WorkspaceCommandSearch({
 
   useEffect(() => {
     setActiveIndex(menuItems.length ? 0 : -1);
-  }, [menuItems]);
+  }, [menuItems.length, isSearchEnabled, query]);
 
   function closeMenu() {
     setIsOpen(false);

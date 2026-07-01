@@ -12,6 +12,7 @@ from app.core.enums import DataQualityFlag, TraderRecommendation, TrendDirection
 from app.models import DailyMarketSummary, Stock
 from app.modules.market_data.market_mover_rules import is_eligible_session_mover
 from app.modules.market_universe.market_universe_compute import technical_snapshot_from_read
+from app.modules.market_dashboard.market_snapshot import DashboardSnapshotRow
 from app.modules.market_universe.market_universe_schemas import ScoredUniverseRow
 from app.modules.stock_details.decision.technical import TechnicalSnapshot, build_technical_snapshot
 
@@ -24,6 +25,139 @@ def _average(values: list[float]) -> float | None:
     if not values:
         return None
     return sum(values) / len(values)
+
+
+def derive_market_breadth_from_snapshot(rows: list[DashboardSnapshotRow]) -> tuple[int, int, int, int]:
+    advancing = sum(1 for row in rows if (row.technical.price_change_percent or 0) > 0)
+    declining = sum(1 for row in rows if (row.technical.price_change_percent or 0) < 0)
+    unchanged = sum(1 for row in rows if (row.technical.price_change_percent or 0) == 0)
+    return advancing, declining, unchanged, len(rows)
+
+
+def derive_market_mood_from_snapshot(
+    rows: list[DashboardSnapshotRow],
+    *,
+    advancing: int,
+    declining: int,
+) -> str:
+    if not rows:
+        return "Unknown"
+
+    average_move = _average([row.technical.price_change_percent or 0 for row in rows]) or 0
+    average_volatility = _average([row.technical.volatility or 0 for row in rows]) or 0
+    volume_expansion = sum(
+        1
+        for row in rows
+        if row.technical.average_volume
+        and row.technical.average_volume > 0
+        and row.technical.volume > row.technical.average_volume * 1.5
+    )
+
+    if average_volatility >= 3.2:
+        return "High volatility"
+    if advancing > declining * 1.3 and average_move > 0.5 and volume_expansion > len(rows) * 0.15:
+        return "Accumulation"
+    if advancing > declining * 1.2 and average_move > 0:
+        return "Bullish"
+    if declining > advancing * 1.25 and average_move < -0.35:
+        return "Bearish"
+    if average_move > 0 and declining >= advancing:
+        return "Weak recovery"
+    return "Cautious"
+
+
+def build_market_alerts_from_snapshot(
+    rows: list[DashboardSnapshotRow],
+    *,
+    latest_summary: DailyMarketSummary | None,
+    session_trade_date: date | None,
+) -> list[dict[str, str]]:
+    items: list[dict[str, str]] = []
+    suspicious_count = sum(
+        1 for row in rows if row.technical.data_quality == DataQualityFlag.SUSPICIOUS
+    )
+
+    if latest_summary is not None and (
+        latest_summary.has_suspicious_prices or suspicious_count > 0
+    ):
+        items.append(
+            {
+                "time": "Data quality",
+                "title": "Suspicious activity flagged",
+                "description": f"{suspicious_count or 'Some'} instruments need source validation before acting on signals.",
+            }
+        )
+
+    eligible = [
+        row
+        for row in rows
+        if is_eligible_session_mover(row.technical, session_trade_date)
+    ]
+    if eligible:
+        leader = max(eligible, key=lambda row: row.technical.price_change_percent or 0)
+        change = leader.technical.price_change_percent or 0
+        items.append(
+            {
+                "time": leader.technical.latest_trade_date or "Latest",
+                "title": f"{leader.stock.symbol} {change:+.2f}%",
+                "description": f"Top session mover in the latest snapshot ({leader.stock.name}).",
+            }
+        )
+
+    trade_date_label = (
+        latest_summary.trade_date.isoformat()
+        if latest_summary is not None
+        else session_trade_date.isoformat()
+        if session_trade_date is not None
+        else "Latest"
+    )
+    items.append(
+        {
+            "time": trade_date_label,
+            "title": "Market snapshot ready",
+            "description": f"{len(rows)} active instruments in the latest price snapshot.",
+        }
+    )
+    return items
+
+
+def build_sector_snapshots_from_snapshot(
+    rows: list[DashboardSnapshotRow],
+    *,
+    session_trade_date: date | None,
+) -> tuple[list[dict[str, object]], dict[str, object] | None]:
+    eligible = [
+        row
+        for row in rows
+        if is_eligible_session_mover(row.technical, session_trade_date)
+    ]
+    sector_buckets: dict[str, list[float]] = {}
+    for row in eligible:
+        sector = (row.stock.sector or row.stock.category or "Unclassified").strip() or "Unclassified"
+        sector_buckets.setdefault(sector, []).append(row.technical.price_change_percent or 0)
+
+    sectors = [
+        {
+            "name": name,
+            "change_percent": Decimal(str(sum(changes) / len(changes))),
+            "stock_count": len(changes),
+        }
+        for name, changes in sector_buckets.items()
+        if len(changes) >= DASHBOARD_SECTOR_MIN_STOCKS
+    ]
+    sectors.sort(key=lambda item: float(item["change_percent"]), reverse=True)
+
+    top_gainer = None
+    if eligible:
+        leader = max(eligible, key=lambda row: row.technical.price_change_percent or 0)
+        change = leader.technical.price_change_percent or 0
+        top_gainer = {
+            "symbol": leader.stock.symbol,
+            "name": leader.stock.name,
+            "change_percent": Decimal(str(change)),
+        }
+
+    return sectors, top_gainer
 
 
 def derive_market_breadth(rows: list[ScoredUniverseRow]) -> tuple[int, int, int, int]:
@@ -72,6 +206,22 @@ def _is_actionable(recommendation: TraderRecommendation) -> bool:
     return recommendation in {TraderRecommendation.BUY, TraderRecommendation.SELL}
 
 
+def count_actionable_decisions(rows: list[ScoredUniverseRow]) -> int:
+    return sum(
+        1
+        for row in rows
+        if row.decision is not None and _is_actionable(row.decision.recommendation)
+    )
+
+
+def _format_generated_at(latest_trade_date: date | str | None) -> str:
+    if latest_trade_date is None:
+        return "Awaiting price data"
+    if isinstance(latest_trade_date, str):
+        return latest_trade_date
+    return latest_trade_date.isoformat()
+
+
 def _supporting_context(row: ScoredUniverseRow) -> list[str]:
     snapshot = row.technical_snapshot
     context: list[str] = []
@@ -110,7 +260,7 @@ def build_signal_feed(rows: list[ScoredUniverseRow], *, limit: int = DASHBOARD_S
                 "risk": decision.risk_label.value,
                 "priority": _decision_priority(decision.confidence),
                 "supporting_context": _supporting_context(row),
-                "generated_at": row.technical_snapshot.latest_trade_date or "Awaiting price data",
+                "generated_at": _format_generated_at(row.technical_snapshot.latest_trade_date),
             }
         )
     return feed

@@ -84,9 +84,14 @@ export function useMarketPulse() {
       return;
     }
 
+    const lastSyncedAt = freshnessQuery.data?.last_synced_at;
+    if (!lastSyncedAt) {
+      return;
+    }
+
     writeMarketPulseSnapshot({
       ...buildMarketPulseSnapshotFromDto(pulseDto),
-      lastSyncedAt: freshnessQuery.data?.last_synced_at ?? new Date().toISOString(),
+      lastSyncedAt,
     });
   }, [freshnessQuery.data?.last_synced_at, pulseDto]);
 

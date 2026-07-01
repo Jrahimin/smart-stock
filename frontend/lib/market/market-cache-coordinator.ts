@@ -20,6 +20,11 @@ export async function invalidateMarketTanStackQueries(queryClient: QueryClient):
   );
 }
 
+/** TanStack-only invalidation after backend sync (IndexedDB entries are kept). */
+export async function syncMarketClientCachesOnBackendUpdate(queryClient: QueryClient): Promise<void> {
+  await invalidateMarketTanStackQueries(queryClient);
+}
+
 /** Clears IndexedDB market API cache and invalidates active market TanStack queries. */
 export async function invalidateMarketClientCaches(queryClient: QueryClient): Promise<void> {
   await clearBackendApiCache();

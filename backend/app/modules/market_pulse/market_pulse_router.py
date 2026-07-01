@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.core.enums import ExchangeCode
 from app.core.response_handler import ApiResponse, success_response
@@ -10,8 +10,19 @@ from app.modules.market_pulse.market_pulse_service import (
     get_market_pulse_service,
     parse_previous_snapshot,
 )
+from app.modules.market_universe.market_universe_service import UniverseCacheUnavailableError
 
 router = APIRouter(tags=["market pulse"])
+
+
+async def _run_pulse_request(handler):
+    try:
+        return await handler()
+    except UniverseCacheUnavailableError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
 
 
 @router.get("/market/pulse", response_model=ApiResponse[MarketPulseRead])
@@ -22,11 +33,15 @@ async def get_market_pulse(
     display_name: Annotated[str | None, Query(max_length=160)] = None,
 ) -> ApiResponse[MarketPulseRead]:
     previous = parse_previous_snapshot(previous_snapshot)
-    pulse = await service.get_market_pulse(
-        exchange=exchange,
-        previous=previous,
-        display_name=display_name,
-    )
+
+    async def _load():
+        return await service.get_market_pulse(
+            exchange=exchange,
+            previous=previous,
+            display_name=display_name,
+        )
+
+    pulse = await _run_pulse_request(_load)
     return success_response(data=pulse, message="Market pulse retrieved")
 
 
@@ -38,11 +53,15 @@ async def get_market_pulse_summary(
     display_name: Annotated[str | None, Query(max_length=160)] = None,
 ) -> ApiResponse[MarketPulseSummaryRead]:
     previous = parse_previous_snapshot(previous_snapshot)
-    summary = await service.get_market_pulse_summary(
-        exchange=exchange,
-        previous=previous,
-        display_name=display_name,
-    )
+
+    async def _load():
+        return await service.get_market_pulse_summary(
+            exchange=exchange,
+            previous=previous,
+            display_name=display_name,
+        )
+
+    summary = await _run_pulse_request(_load)
     return success_response(data=summary, message="Market pulse summary retrieved")
 
 
@@ -52,5 +71,8 @@ async def get_market_pulse_briefing(
     exchange: ExchangeCode = ExchangeCode.DSE,
     display_name: Annotated[str | None, Query(max_length=160)] = None,
 ) -> ApiResponse[MarketBriefingRead]:
-    briefing = await service.get_market_pulse_briefing(exchange=exchange, display_name=display_name)
+    async def _load():
+        return await service.get_market_pulse_briefing(exchange=exchange, display_name=display_name)
+
+    briefing = await _run_pulse_request(_load)
     return success_response(data=briefing, message="Market pulse briefing retrieved")

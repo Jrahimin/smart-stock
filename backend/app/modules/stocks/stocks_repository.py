@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from fastapi import Depends
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -48,6 +50,13 @@ class StocksRepository(BaseRepository[Stock]):
             statement = statement.where(Stock.is_active.is_(is_active))
         result = await self.session.scalar(statement)
         return int(result or 0)
+
+    async def get_stocks_by_ids(self, stock_ids: list[UUID]) -> list[Stock]:
+        if not stock_ids:
+            return []
+        statement = select(Stock).where(Stock.id.in_(stock_ids))
+        result = await self.session.scalars(statement)
+        return list(result.all())
 
     async def list_active_symbols(self, *, exchange: ExchangeCode | None = None) -> list[tuple[ExchangeCode, str]]:
         statement = (
