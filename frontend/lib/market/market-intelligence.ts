@@ -114,19 +114,34 @@ function buildVolumeBars(prices: BackendDailyPriceDto[]): VolumeBarModel[] {
   });
 }
 
-function inferTrend(latestPrice: number | null, sma20: number | null, ema20: number | null, changePercent: number | null): TrendDirection {
-  if (latestPrice === null || sma20 === null || ema20 === null || changePercent === null) {
+// Keep in sync with backend `infer_trend` in
+// backend/app/modules/stock_details/decision/technical.py. This is only a
+// chart-only fallback; list/detail decisions come from the backend engine.
+// Structural rule: price vs SMA20/SMA50 — no single-session sign dependency.
+function inferTrend(latestPrice: number | null, sma20: number | null, sma50: number | null): TrendDirection {
+  if (latestPrice === null || sma20 === null) {
     return "UNKNOWN";
   }
 
-  if (latestPrice > sma20 && latestPrice > ema20 && changePercent > 0) {
+  const above = latestPrice > sma20;
+  const below = latestPrice < sma20;
+
+  if (sma50 !== null) {
+    if (above && sma20 > sma50) {
+      return "UPTREND";
+    }
+    if (below && sma20 < sma50) {
+      return "DOWNTREND";
+    }
+    return "SIDEWAYS";
+  }
+
+  if (above) {
     return "UPTREND";
   }
-
-  if (latestPrice < sma20 && latestPrice < ema20 && changePercent < 0) {
+  if (below) {
     return "DOWNTREND";
   }
-
   return "SIDEWAYS";
 }
 
@@ -359,8 +374,9 @@ export function buildStockIntelligence(stock: BackendStockDto, prices: BackendDa
   const volatility = getStandardDeviation(dailyChanges);
   const sma20 = calculateSma(closes, 20);
   const ema20 = calculateEma(closes, 20);
+  const sma50 = calculateSma(closes, 50);
   const rsi = calculateRsi(closes);
-  const trend = inferTrend(latestPrice, sma20, ema20, priceChangePercent);
+  const trend = inferTrend(latestPrice, sma20, sma50);
   const weekPrices = sortedPrices.slice(-252).flatMap((price) => [toNumber(price.low_price), toNumber(price.high_price)]).filter((value): value is number => value !== null);
   const support = sortedPrices.slice(-20).map((price) => toNumber(price.low_price)).filter((value): value is number => value !== null).sort((a, b) => a - b)[0] ?? null;
   const resistance = sortedPrices.slice(-20).map((price) => toNumber(price.high_price)).filter((value): value is number => value !== null).sort((a, b) => b - a)[0] ?? null;

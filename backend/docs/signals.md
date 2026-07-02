@@ -12,6 +12,15 @@ All user-facing **Action** badges (`BUY`, `HOLD`, `WAIT`, `SELL`) come from the 
 
 The engine uses the most recent `DECISION_RECOMMENDATION_LOOKBACK` sessions (90 by default) so list and detail surfaces stay aligned.
 
+The recommendation applies, in order: a global reward/risk gate, breakout-aware
+near-resistance handling, a lower-high/lower-low structure cap, an
+ex-date/anomalous-drop guard (suppresses false `SELL`s → `WAIT`), and a market
+regime gate (bearish regime downgrades fresh `BUY` → `HOLD`). Confidence is a
+reliability score with conflict penalties and liquidity/staleness caps. The
+market regime is resolved identically for list and detail from
+`daily_market_summaries` via `decision/market_regime.py`. See
+`backend/docs/stock_decision_support.md` for the full model.
+
 ## Runtime API Surfaces
 
 | Endpoint | Purpose |
@@ -49,7 +58,7 @@ Mapping when persisting engine output to legacy rows:
 - Market Scanner (`/scanner`)
 - Dashboard smart signal feed (`/dashboard`)
 
-Scanner category rules (RSI, volume, trend) are independent **filters** on the same universe; badges on scan results still use `trader_decision`.
+Scanner category rules are independent **filters** on the same universe; badges on scan results still use `trader_decision`. Scans read shared engine fields (`is_breakout`, `return_20d_percent`, turnover-based liquidity), apply a BDT turnover floor to every scan, and use confirmed-rebound rules (oversold **and** turning up) rather than bare RSI thresholds.
 
 ## Missing Data
 

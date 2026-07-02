@@ -118,6 +118,14 @@ export type BackendTechnicalSnapshotDto = {
   data_quality: DataQualityFlag;
   latest_trade_date: string | null;
   ohlcv_row_count: number;
+  sma50?: number | null;
+  atr14?: number | null;
+  average_turnover?: number | null;
+  return_5d_percent?: number | null;
+  return_20d_percent?: number | null;
+  is_breakout?: boolean;
+  structure?: string;
+  gap_frequency_percent?: number | null;
 };
 
 export type BackendUniverseSessionDto = {

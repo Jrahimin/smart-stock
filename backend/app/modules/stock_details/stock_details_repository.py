@@ -14,6 +14,7 @@ from app.modules.stock_details.decision.fundamentals_snapshot import LatestFinan
 from app.modules.stock_details.decision.financial_trends import FinancialMetricHistoryRow
 from app.models import (
     CorporateAction,
+    DailyMarketSummary,
     DailyPrice,
     DividendEvent,
     FinancialMetricDefinition,
@@ -106,6 +107,18 @@ class StockDetailsRepository(BaseRepository[StockDetailsSyncJob]):
             .limit(limit)
         )
         return list((await self.session.scalars(statement)).all())
+
+    async def list_recent_market_summaries(
+        self, *, exchange: ExchangeCode, limit: int
+    ) -> list[DailyMarketSummary]:
+        statement = (
+            select(DailyMarketSummary)
+            .where(DailyMarketSummary.exchange == exchange)
+            .order_by(DailyMarketSummary.trade_date.desc(), DailyMarketSummary.id.desc())
+            .limit(limit)
+        )
+        result = await self.session.scalars(statement)
+        return list(result.all())
 
     async def list_dividend_events(self, *, stock_id: UUID, limit: int = 10) -> list[DividendEvent]:
         statement = (

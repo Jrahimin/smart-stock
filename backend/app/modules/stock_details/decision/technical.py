@@ -4,13 +4,28 @@ from dataclasses import dataclass
 from decimal import Decimal
 
 from app.core.constants.trading_constants import (
+    ATR_PERIOD,
+    DEFAULT_LONG_MOVING_AVERAGE_PERIOD,
     DEFAULT_RSI_PERIOD,
     DEFAULT_SHORT_MOVING_AVERAGE_PERIOD,
+    GAP_RISK_THRESHOLD_PERCENT,
+    RETURN_MEDIUM_LOOKBACK,
+    RETURN_SHORT_LOOKBACK,
     SPARKLINE_CLOSE_LIMIT,
+    STRUCTURE_HIGHER,
+    STRUCTURE_LOWER,
+    STRUCTURE_NEUTRAL,
     SUPPORT_RESISTANCE_LOOKBACK,
+    SUPPORT_RESISTANCE_SWING_CONFIRM_BARS,
+    TREND_SLOPE_LOOKBACK,
+    VOLUME_EXPANSION_RATIO,
 )
 from app.core.enums import DataQualityFlag, TrendDirection
 from app.models import DailyPrice
+
+# Swing-point detection lives here so support/resistance and the pattern engine
+# share a single implementation (patterns.py re-imports these names).
+SWING_POINT_LOOKBACK = 3
 
 
 def _to_float(value: Decimal | float | int | None) -> float | None:
@@ -45,18 +60,54 @@ def calculate_ema(values: list[float], period: int) -> float | None:
 
 
 def calculate_rsi(values: list[float], period: int = DEFAULT_RSI_PERIOD) -> float | None:
+    """Wilder-smoothed RSI.
+
+    Returns 50.0 (neutral) for a perfectly flat series so dormant / floor-price
+    names are not misread as maximally overbought.
+    """
     if len(values) <= period:
         return None
     changes = [values[index + 1] - values[index] for index in range(len(values) - 1)]
-    recent = changes[-period:]
-    gains = [max(change, 0) for change in recent]
-    losses = [abs(min(change, 0)) for change in recent]
-    avg_gain = average(gains) or 0.0
-    avg_loss = average(losses) or 0.0
+    gains = [max(change, 0.0) for change in changes]
+    losses = [abs(min(change, 0.0)) for change in changes]
+
+    avg_gain = sum(gains[:period]) / period
+    avg_loss = sum(losses[:period]) / period
+    for index in range(period, len(changes)):
+        avg_gain = (avg_gain * (period - 1) + gains[index]) / period
+        avg_loss = (avg_loss * (period - 1) + losses[index]) / period
+
+    if avg_gain == 0 and avg_loss == 0:
+        return 50.0
     if avg_loss == 0:
         return 100.0
     relative_strength = avg_gain / avg_loss
     return 100 - 100 / (1 + relative_strength)
+
+
+def calculate_atr(
+    highs: list[float],
+    lows: list[float],
+    closes: list[float],
+    period: int = ATR_PERIOD,
+) -> float | None:
+    """Average True Range using true-range values (captures gaps, unlike close std-dev)."""
+    count = min(len(highs), len(lows), len(closes))
+    if count < 2:
+        return None
+    true_ranges: list[float] = []
+    for index in range(1, count):
+        prev_close = closes[index - 1]
+        true_range = max(
+            highs[index] - lows[index],
+            abs(highs[index] - prev_close),
+            abs(lows[index] - prev_close),
+        )
+        true_ranges.append(true_range)
+    if not true_ranges:
+        return None
+    window = true_ranges[-period:] if len(true_ranges) >= period else true_ranges
+    return average(window)
 
 
 def standard_deviation(values: list[float]) -> float | None:
@@ -67,30 +118,168 @@ def standard_deviation(values: list[float]) -> float | None:
     return variance**0.5
 
 
+def _return_percent(closes: list[float], lookback: int) -> float | None:
+    if len(closes) <= lookback:
+        return None
+    past = closes[-1 - lookback]
+    if past == 0:
+        return None
+    return (closes[-1] / past - 1) * 100
+
+
 def infer_trend(
     latest_price: float | None,
     sma20: float | None,
-    ema20: float | None,
-    change_percent: float | None,
+    sma50: float | None,
+    sma20_slope: float | None,
 ) -> TrendDirection:
-    if latest_price is None or sma20 is None or ema20 is None or change_percent is None:
+    """Structural trend that does not flip on a single session's sign.
+
+    - With >= 50 rows: UPTREND requires price > SMA20 > SMA50 (mirrored for DOWNTREND).
+    - With shorter history: fall back to price vs SMA20 plus a rising/falling SMA20 slope.
+    """
+    if latest_price is None or sma20 is None:
         return TrendDirection.UNKNOWN
-    if latest_price > sma20 and latest_price > ema20 and change_percent > 0:
-        return TrendDirection.UPTREND
-    if latest_price < sma20 and latest_price < ema20 and change_percent < 0:
-        return TrendDirection.DOWNTREND
+
+    above = latest_price > sma20
+    below = latest_price < sma20
+
+    if sma50 is not None:
+        if above and sma20 > sma50:
+            return TrendDirection.UPTREND
+        if below and sma20 < sma50:
+            return TrendDirection.DOWNTREND
+        return TrendDirection.SIDEWAYS
+
+    if sma20_slope is not None:
+        if above and sma20_slope > 0:
+            return TrendDirection.UPTREND
+        if below and sma20_slope < 0:
+            return TrendDirection.DOWNTREND
     return TrendDirection.SIDEWAYS
 
 
-def compute_support_resistance(prices: list[DailyPrice], lookback: int = SUPPORT_RESISTANCE_LOOKBACK) -> tuple[float | None, float | None]:
+@dataclass(frozen=True)
+class SwingPoint:
+    index: int
+    date: str
+    price: float
+    kind: str
+
+
+def detect_swing_points(prices: list[DailyPrice], lookback: int = SWING_POINT_LOOKBACK) -> list[SwingPoint]:
+    sorted_prices = sorted(prices, key=lambda price: price.trade_date)
+    highs = [_to_float(price.high_price) for price in sorted_prices]
+    lows = [_to_float(price.low_price) for price in sorted_prices]
+    swings: list[SwingPoint] = []
+    for index in range(lookback, len(sorted_prices) - lookback):
+        high = highs[index]
+        low = lows[index]
+        if high is None or low is None:
+            continue
+        left_highs = [value for value in highs[index - lookback : index] if value is not None]
+        right_highs = [value for value in highs[index + 1 : index + lookback + 1] if value is not None]
+        left_lows = [value for value in lows[index - lookback : index] if value is not None]
+        right_lows = [value for value in lows[index + 1 : index + lookback + 1] if value is not None]
+        if left_highs and right_highs and high >= max(left_highs) and high >= max(right_highs):
+            swings.append(
+                SwingPoint(
+                    index=index,
+                    date=sorted_prices[index].trade_date.isoformat(),
+                    price=high,
+                    kind="high",
+                )
+            )
+        if left_lows and right_lows and low <= min(left_lows) and low <= min(right_lows):
+            swings.append(
+                SwingPoint(
+                    index=index,
+                    date=sorted_prices[index].trade_date.isoformat(),
+                    price=low,
+                    kind="low",
+                )
+            )
+    return sorted(swings, key=lambda point: point.index)
+
+
+@dataclass(frozen=True)
+class LevelResult:
+    support: float | None
+    resistance: float | None
+    prior_swing_high: float | None
+
+
+def _donchian(prices: list[DailyPrice], lookback: int) -> tuple[float | None, float | None]:
     window = prices[-lookback:] if len(prices) >= lookback else prices
-    lows = [_to_float(price.low_price) for price in window]
-    highs = [_to_float(price.high_price) for price in window]
-    lows = [value for value in lows if value is not None]
-    highs = [value for value in highs if value is not None]
+    lows = [value for value in (_to_float(price.low_price) for price in window) if value is not None]
+    highs = [value for value in (_to_float(price.high_price) for price in window) if value is not None]
     if not lows or not highs:
         return None, None
     return min(lows), max(highs)
+
+
+def resolve_levels(
+    prices: list[DailyPrice],
+    latest_price: float | None,
+    lookback: int = SUPPORT_RESISTANCE_LOOKBACK,
+) -> LevelResult:
+    """Swing-based support/resistance with Donchian fallback.
+
+    Resistance prefers the nearest confirmed swing high overhead; support prefers
+    the nearest confirmed swing low below price. Confirmed = at least
+    ``SUPPORT_RESISTANCE_SWING_CONFIRM_BARS`` sessions old so a fresh breakout bar
+    is never mistaken for resistance. ``prior_swing_high`` exposes the highest
+    confirmed swing high for breakout detection.
+    """
+    sorted_prices = sorted(prices, key=lambda price: price.trade_date)
+    donchian_support, donchian_resistance = _donchian(sorted_prices, lookback)
+
+    swings = detect_swing_points(sorted_prices)
+    confirm_before_index = len(sorted_prices) - 1 - SUPPORT_RESISTANCE_SWING_CONFIRM_BARS
+    confirmed_highs = [point.price for point in swings if point.kind == "high" and point.index <= confirm_before_index]
+    confirmed_lows = [point.price for point in swings if point.kind == "low" and point.index <= confirm_before_index]
+
+    prior_swing_high = max(confirmed_highs) if confirmed_highs else None
+
+    resistance = donchian_resistance
+    if confirmed_highs:
+        overhead = [price for price in confirmed_highs if latest_price is None or price >= latest_price]
+        resistance = min(overhead) if overhead else max(confirmed_highs)
+
+    support = donchian_support
+    if confirmed_lows:
+        below = [price for price in confirmed_lows if latest_price is None or price <= latest_price]
+        support = max(below) if below else min(confirmed_lows)
+
+    return LevelResult(support=support, resistance=resistance, prior_swing_high=prior_swing_high)
+
+
+def compute_support_resistance(
+    prices: list[DailyPrice], lookback: int = SUPPORT_RESISTANCE_LOOKBACK
+) -> tuple[float | None, float | None]:
+    """Backwards-compatible 2-tuple accessor for support/resistance levels."""
+    latest_price = _to_float(prices[-1].close_price) if prices else None
+    levels = resolve_levels(prices, latest_price, lookback)
+    return levels.support, levels.resistance
+
+
+def classify_structure(swings: list[SwingPoint]) -> str:
+    """Higher-high/higher-low vs lower-high/lower-low from the last two swings.
+
+    Shared signal that lets the recommendation stay coherent with visible market
+    structure on every surface (both list and detail compute it identically).
+    """
+    highs = [point.price for point in swings if point.kind == "high"]
+    lows = [point.price for point in swings if point.kind == "low"]
+    if len(highs) < 2 or len(lows) < 2:
+        return STRUCTURE_NEUTRAL
+    higher = highs[-1] > highs[-2] and lows[-1] > lows[-2]
+    lower = highs[-1] < highs[-2] and lows[-1] < lows[-2]
+    if higher:
+        return STRUCTURE_HIGHER
+    if lower:
+        return STRUCTURE_LOWER
+    return STRUCTURE_NEUTRAL
 
 
 @dataclass(frozen=True)
@@ -113,6 +302,14 @@ class TechnicalSnapshot:
     latest_trade_date: str | None
     ohlcv_row_count: int
     sparkline_closes: tuple[float, ...] = ()
+    sma50: float | None = None
+    atr14: float | None = None
+    average_turnover: float | None = None
+    return_5d_percent: float | None = None
+    return_20d_percent: float | None = None
+    is_breakout: bool = False
+    structure: str = STRUCTURE_NEUTRAL
+    gap_frequency_percent: float | None = None
 
 
 def build_technical_snapshot(prices: list[DailyPrice]) -> TechnicalSnapshot | None:
@@ -126,6 +323,9 @@ def build_technical_snapshot(prices: list[DailyPrice]) -> TechnicalSnapshot | No
     if not closes:
         return None
 
+    highs = [value for value in (_to_float(price.high_price) for price in sorted_prices) if value is not None]
+    lows = [value for value in (_to_float(price.low_price) for price in sorted_prices) if value is not None]
+
     latest_price = _to_float(latest.close_price)
     previous_close = _to_float(latest.previous_close_price) or (closes[-2] if len(closes) >= 2 else None)
     price_change = _to_float(latest.price_change)
@@ -135,19 +335,68 @@ def build_technical_snapshot(prices: list[DailyPrice]) -> TechnicalSnapshot | No
     if price_change_percent is None and price_change is not None and previous_close not in (None, 0):
         price_change_percent = (price_change / previous_close) * 100
 
-    volume_window = [price.volume for price in sorted_prices[-SUPPORT_RESISTANCE_LOOKBACK:]]
-    average_volume = average([float(volume) for volume in volume_window])
+    # Average volume/turnover exclude the latest session so the current bar is
+    # measured against its own baseline rather than being diluted into it.
+    baseline_prices = sorted_prices[-(SUPPORT_RESISTANCE_LOOKBACK + 1) : -1]
+    if not baseline_prices:
+        baseline_prices = sorted_prices[:-1] or sorted_prices
+    average_volume = average([float(price.volume) for price in baseline_prices])
+    turnover_window = [value for value in (_to_float(price.turnover) for price in baseline_prices) if value is not None]
+    average_turnover = average(turnover_window)
+
     daily_changes = [
         _to_float(price.price_change_percent)
         for price in sorted_prices[-SUPPORT_RESISTANCE_LOOKBACK:]
     ]
     daily_changes = [value for value in daily_changes if value is not None]
     volatility = standard_deviation(daily_changes)
+
+    # Gap frequency: share of sessions opening more than the threshold away from
+    # the prior close — a proxy for jumpy, gap-prone (harder to stop) names.
+    gap_window = sorted_prices[-SUPPORT_RESISTANCE_LOOKBACK:]
+    gap_count = 0
+    gap_total = 0
+    for previous_price, current_price in zip(gap_window, gap_window[1:]):
+        open_value = _to_float(current_price.open_price)
+        prev_close = _to_float(previous_price.close_price)
+        if open_value is None or prev_close is None or prev_close <= 0:
+            continue
+        gap_total += 1
+        if abs(open_value - prev_close) / prev_close * 100 > GAP_RISK_THRESHOLD_PERCENT:
+            gap_count += 1
+    gap_frequency_percent = (gap_count / gap_total * 100) if gap_total else None
+
     sma20 = calculate_sma(closes, DEFAULT_SHORT_MOVING_AVERAGE_PERIOD)
     ema20 = calculate_ema(closes, DEFAULT_SHORT_MOVING_AVERAGE_PERIOD)
+    sma50 = calculate_sma(closes, DEFAULT_LONG_MOVING_AVERAGE_PERIOD)
     rsi = calculate_rsi(closes)
-    support, resistance = compute_support_resistance(sorted_prices)
-    trend = infer_trend(latest_price, sma20, ema20, price_change_percent)
+    atr14 = calculate_atr(highs, lows, closes)
+
+    sma20_slope: float | None = None
+    if len(closes) > DEFAULT_SHORT_MOVING_AVERAGE_PERIOD + TREND_SLOPE_LOOKBACK:
+        sma20_prev = calculate_sma(closes[:-TREND_SLOPE_LOOKBACK], DEFAULT_SHORT_MOVING_AVERAGE_PERIOD)
+        if sma20 is not None and sma20_prev is not None:
+            sma20_slope = sma20 - sma20_prev
+
+    return_5d = _return_percent(closes, RETURN_SHORT_LOOKBACK)
+    return_20d = _return_percent(closes, RETURN_MEDIUM_LOOKBACK)
+
+    levels = resolve_levels(sorted_prices, latest_price)
+    support, resistance = levels.support, levels.resistance
+    structure = classify_structure(detect_swing_points(sorted_prices))
+
+    is_breakout = False
+    if (
+        levels.prior_swing_high is not None
+        and latest_price is not None
+        and latest_price > levels.prior_swing_high
+        and average_volume
+        and average_volume > 0
+        and latest.volume / average_volume >= VOLUME_EXPANSION_RATIO
+    ):
+        is_breakout = True
+
+    trend = infer_trend(latest_price, sma20, sma50, sma20_slope)
 
     return TechnicalSnapshot(
         latest_price=latest_price,
@@ -168,4 +417,12 @@ def build_technical_snapshot(prices: list[DailyPrice]) -> TechnicalSnapshot | No
         latest_trade_date=latest.trade_date.isoformat(),
         ohlcv_row_count=len(sorted_prices),
         sparkline_closes=tuple(closes[-SPARKLINE_CLOSE_LIMIT:]),
+        sma50=sma50,
+        atr14=atr14,
+        average_turnover=average_turnover,
+        return_5d_percent=return_5d,
+        return_20d_percent=return_20d,
+        is_breakout=is_breakout,
+        structure=structure,
+        gap_frequency_percent=gap_frequency_percent,
     )

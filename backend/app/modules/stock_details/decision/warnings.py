@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from app.core.constants.trading_constants import (
     HIGH_VOLATILITY_THRESHOLD,
     NEAR_LEVEL_PERCENT_THRESHOLD,
+    OVEREXTENSION_ABOVE_SMA20_PERCENT,
+    OVEREXTENSION_RETURN_20D_PERCENT,
     RSI_OVERBOUGHT_THRESHOLD,
     RSI_OVERSOLD_THRESHOLD,
     VOLUME_EXPANSION_RATIO,
@@ -35,6 +37,8 @@ def generate_warnings(
     category: str | None,
     pattern_name: str | None = None,
     pattern_bearish: bool = False,
+    pattern_confirmed: bool = False,
+    suspected_adjustment: bool = False,
 ) -> list[SmartWarning]:
     warnings: list[SmartWarning] = []
 
@@ -47,7 +51,16 @@ def generate_warnings(
                 severity=WarningSeverity.WARNING,
             )
         )
-    if is_below_support(snapshot):
+    if suspected_adjustment:
+        warnings.append(
+            SmartWarning(
+                code="possible_corporate_action",
+                title="Possible corporate action",
+                message="A sharp single-session drop may reflect an ex-dividend/bonus adjustment rather than a breakdown.",
+                severity=WarningSeverity.INFO,
+            )
+        )
+    elif is_below_support(snapshot):
         warnings.append(
             SmartWarning(
                 code="below_support",
@@ -90,6 +103,22 @@ def generate_warnings(
                 title="Volume not confirming",
                 message="Opportunity is present but volume has not expanded enough to confirm.",
                 severity=WarningSeverity.INFO,
+            )
+        )
+    overextended_by_return = (
+        snapshot.return_20d_percent is not None and snapshot.return_20d_percent > OVEREXTENSION_RETURN_20D_PERCENT
+    )
+    above_sma20 = None
+    if snapshot.sma20 and snapshot.sma20 > 0 and snapshot.latest_price is not None:
+        above_sma20 = (snapshot.latest_price - snapshot.sma20) / snapshot.sma20 * 100
+    overextended_by_sma = above_sma20 is not None and above_sma20 > OVEREXTENSION_ABOVE_SMA20_PERCENT
+    if overextended_by_return or overextended_by_sma:
+        warnings.append(
+            SmartWarning(
+                code="overextended",
+                title="Overextended price",
+                message="Price is stretched far above its recent mean; mean-reversion risk is elevated.",
+                severity=WarningSeverity.WARNING,
             )
         )
     if snapshot.volatility is not None and snapshot.volatility >= HIGH_VOLATILITY_THRESHOLD:
@@ -160,9 +189,13 @@ def generate_warnings(
         warnings.append(
             SmartWarning(
                 code="bearish_pattern",
-                title="Bearish pattern forming",
-                message=f"{pattern_name} suggests downside risk until invalidated.",
-                severity=WarningSeverity.WARNING,
+                title="Bearish pattern confirmed" if pattern_confirmed else "Bearish pattern forming",
+                message=(
+                    f"{pattern_name} has confirmed; downside risk is elevated until invalidated."
+                    if pattern_confirmed
+                    else f"{pattern_name} suggests downside risk until invalidated."
+                ),
+                severity=WarningSeverity.CRITICAL if pattern_confirmed else WarningSeverity.WARNING,
             )
         )
     if snapshot.support is not None and snapshot.support > 0 and snapshot.latest_price is not None:

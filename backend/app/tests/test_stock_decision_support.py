@@ -1,11 +1,18 @@
+from dataclasses import replace
 from datetime import date
 from decimal import Decimal
 from uuid import uuid4
 
 import pytest
 
-from app.core.enums import DataQualityFlag, TrendDirection
+from app.core.constants.trading_constants import (
+    MARKET_REGIME_BEARISH,
+    STRUCTURE_LOWER,
+    TRADE_PLAN_MAX_RISK_PERCENT,
+)
+from app.core.enums import DataQualityFlag, TraderRecommendation, TrendDirection
 from app.models import DailyPrice
+from app.modules.stock_details.decision.engine import compute_trader_decision_from_prices
 from app.modules.stock_details.decision.patterns import detect_patterns
 from app.modules.stock_details.decision.scoring import compute_opportunity_score, compute_recommendation, compute_risk_score
 from app.modules.stock_details.decision.technical import build_technical_snapshot, calculate_rsi, calculate_sma
@@ -225,5 +232,119 @@ def test_poor_risk_reward_without_near_resistance_allows_buy_or_hold() -> None:
 
     assert risk.label.value == "LOW"
     assert decision.recommendation.value in {"BUY", "HOLD"}
+
+
+# --- Overhaul phase fixtures -------------------------------------------------
+
+
+def _bullish_snapshot():
+    """A clean, BUY-worthy uptrend snapshot (moderate RSI, room to resistance)."""
+    base = build_technical_snapshot(_build_uptrend_prices(40))
+    assert base is not None
+    price = base.latest_price or 30.0
+    return replace(base, rsi=60.0, resistance=price * 1.15, support=price * 0.9)
+
+
+def _decide(snapshot, *, near_resistance=False, below_support=False, risk_reward=2.0, market_regime=None):
+    liquidity = compute_liquidity(snapshot)
+    risk = compute_risk_score(snapshot, "A", liquidity.label, is_stale=False, is_sparse=False)
+    opportunity = compute_opportunity_score(snapshot, risk.score, liquidity.label)
+    return compute_recommendation(
+        snapshot,
+        opportunity,
+        risk,
+        near_resistance=near_resistance,
+        below_support=below_support,
+        risk_reward=risk_reward,
+        is_stale=False,
+        is_sparse=False,
+        liquidity_label=liquidity.label,
+        market_regime=market_regime,
+    )
+
+
+def test_rsi_flat_series_is_neutral() -> None:
+    assert calculate_rsi([25.0] * 30) == 50.0
+
+
+def test_trend_survives_single_red_day() -> None:
+    prices = _build_uptrend_prices(40)
+    # Replace the last session with a red day that still sits above SMA20.
+    last_date = prices[-1].trade_date
+    prices[-1] = _price(last_date, close=29.0, high=29.4, low=28.6, volume=1_500_000, change_percent=-2.5)
+    snapshot = build_technical_snapshot(prices)
+    assert snapshot is not None
+    assert snapshot.trend == TrendDirection.UPTREND
+
+
+def test_breakout_bypasses_near_resistance_block() -> None:
+    base = _bullish_snapshot()
+    breakout = replace(base, is_breakout=True, resistance=(base.latest_price or 30) * 1.01)
+    decision = _decide(breakout, near_resistance=True, risk_reward=0.5)
+    assert decision.recommendation == TraderRecommendation.BUY
+
+
+def test_deep_stop_is_risk_capped() -> None:
+    base = build_technical_snapshot(_build_uptrend_prices(40))
+    assert base is not None
+    price = base.latest_price or 30.0
+    # Support far below and a large ATR would push the stop out; it must be capped.
+    deep = replace(base, support=price * 0.7, atr14=price * 0.1)
+    plan = compute_trade_plan(deep)
+    entry_mid = (plan.entry_zone_low + plan.entry_zone_high) / 2
+    risk_percent = (entry_mid - plan.stop_loss) / entry_mid * 100
+    assert risk_percent <= TRADE_PLAN_MAX_RISK_PERCENT + 0.01
+
+
+def test_bearish_structure_caps_buy_at_hold() -> None:
+    base = _bullish_snapshot()
+    assert _decide(base).recommendation == TraderRecommendation.BUY
+
+    bearish_structure = replace(base, structure=STRUCTURE_LOWER)
+    decision = _decide(bearish_structure)
+    assert decision.recommendation == TraderRecommendation.HOLD
+    assert any("structure" in reason.lower() for reason in decision.reasoning)
+
+
+def test_bearish_regime_downgrades_buy() -> None:
+    base = _bullish_snapshot()
+    assert _decide(base).recommendation == TraderRecommendation.BUY
+
+    decision = _decide(base, market_regime=MARKET_REGIME_BEARISH)
+    assert decision.recommendation == TraderRecommendation.HOLD
+    assert any("regime" in reason.lower() for reason in decision.reasoning)
+
+
+def test_monotonic_uptrend_has_no_reversal_patterns() -> None:
+    snapshot = build_technical_snapshot(_build_uptrend_prices(60))
+    assert snapshot is not None
+    patterns = detect_patterns(snapshot, _build_uptrend_prices(60))
+    names = {pattern.name for pattern in patterns}
+    assert "Double Top" not in names
+    assert "Double Bottom" not in names
+    assert "Head and Shoulders" not in names
+
+
+def test_ex_date_drop_waits_instead_of_sell() -> None:
+    prices: list[DailyPrice] = []
+    for index in range(30):
+        close = 100.0 + (index % 2) * 0.5
+        prices.append(
+            _price(
+                date(2026, 1, 1).replace(day=min(28, 1 + index)),
+                close=close,
+                high=close + 0.4,
+                low=close - 0.4,
+                volume=1_000_000,
+                change_percent=0.1,
+            )
+        )
+    drop_date = date(2026, 2, 2)
+    prices.append(_price(drop_date, close=84.0, high=99.0, low=83.5, volume=1_200_000, change_percent=-16.0))
+
+    bundle = compute_trader_decision_from_prices(prices, category="A", reference_date=drop_date)
+    assert bundle is not None
+    assert bundle.suspected_adjustment is True
+    assert bundle.decision.recommendation != TraderRecommendation.SELL
 
 

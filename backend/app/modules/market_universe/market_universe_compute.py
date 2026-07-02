@@ -47,6 +47,14 @@ def technical_snapshot_to_read(snapshot: TechnicalSnapshot) -> TechnicalSnapshot
         latest_trade_date=snapshot.latest_trade_date,
         ohlcv_row_count=snapshot.ohlcv_row_count,
         sparkline_closes=list(snapshot.sparkline_closes),
+        sma50=snapshot.sma50,
+        atr14=snapshot.atr14,
+        average_turnover=snapshot.average_turnover,
+        return_5d_percent=snapshot.return_5d_percent,
+        return_20d_percent=snapshot.return_20d_percent,
+        is_breakout=snapshot.is_breakout,
+        structure=snapshot.structure,
+        gap_frequency_percent=snapshot.gap_frequency_percent,
     )
 
 
@@ -70,6 +78,14 @@ def technical_snapshot_from_read(read: TechnicalSnapshotRead) -> TechnicalSnapsh
         latest_trade_date=read.latest_trade_date,
         ohlcv_row_count=read.ohlcv_row_count,
         sparkline_closes=tuple(read.sparkline_closes),
+        sma50=read.sma50,
+        atr14=read.atr14,
+        average_turnover=read.average_turnover,
+        return_5d_percent=read.return_5d_percent,
+        return_20d_percent=read.return_20d_percent,
+        is_breakout=read.is_breakout,
+        structure=read.structure,
+        gap_frequency_percent=read.gap_frequency_percent,
     )
 
 
@@ -86,7 +102,11 @@ def session_from_latest_price(price: DailyPrice) -> UniverseSessionRead:
     )
 
 
-def build_scored_universe_rows(grouped: dict[str, dict[str, object]]) -> list[ScoredUniverseRow]:
+def build_scored_universe_rows(
+    grouped: dict[str, dict[str, object]],
+    *,
+    market_regime: str | None = None,
+) -> list[ScoredUniverseRow]:
     scored: list[ScoredUniverseRow] = []
     for entry in grouped.values():
         stock = entry["stock"]
@@ -103,6 +123,7 @@ def build_scored_universe_rows(grouped: dict[str, dict[str, object]]) -> list[Sc
             sorted_prices,
             category=stock.category,
             snapshot=snapshot,
+            market_regime=market_regime,
         )
         decision = build_trader_decision_summary(bundle) if bundle is not None else None
         latest_price = sorted_prices[-1]

@@ -5,7 +5,11 @@ from typing import Annotated
 
 from fastapi import Depends
 
-from app.core.constants.trading_constants import PULSE_PRICE_WINDOW_LIMIT, PULSE_UNIVERSE_LIMIT
+from app.core.constants.trading_constants import (
+    PULSE_PRICE_WINDOW_LIMIT,
+    PULSE_UNIVERSE_LIMIT,
+    REGIME_SUMMARY_FETCH_LIMIT,
+)
 from app.core.core_config import Settings, get_settings
 from app.core.enums import ExchangeCode
 from app.core.perf_timing import PerfReport, async_perf_stage
@@ -23,6 +27,7 @@ from app.modules.market_universe.market_universe_schemas import (
     UniverseRowsMetaRead,
     UniverseRowsRead,
 )
+from app.modules.stock_details.decision.market_regime import resolve_regime_from_summaries
 from app.modules.stocks.stocks_repository import StocksRepository, get_stocks_repository
 
 logger = logging.getLogger(__name__)
@@ -91,9 +96,16 @@ class MarketUniverseService:
                 offset=0,
                 price_window_limit=PULSE_PRICE_WINDOW_LIMIT,
             )
+        async with async_perf_stage(perf, "db.market_regime"):
+            summaries = await self.market_repository.list_daily_market_summaries(
+                exchange=exchange,
+                limit=REGIME_SUMMARY_FETCH_LIMIT,
+                offset=0,
+            )
+            market_regime = resolve_regime_from_summaries(summaries)
         async with async_perf_stage(perf, "compute.scored_rows"):
             grouped = group_price_window_rows(window_rows)
-            rows = build_scored_universe_rows(grouped)
+            rows = build_scored_universe_rows(grouped, market_regime=market_regime)
         perf.log_summary()
         self._last_compute_ms = perf.total_ms
         return rows

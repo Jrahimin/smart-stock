@@ -4,10 +4,15 @@ from dataclasses import dataclass
 
 from app.core.constants.trading_constants import (
     DEFAULT_RISK_REWARD_TARGET,
+    LIQUIDITY_TURNOVER_NORMAL,
+    LIQUIDITY_TURNOVER_STRONG,
+    LIQUIDITY_TURNOVER_THIN,
     MIN_RISK_REWARD_RATIO,
     NEAR_LEVEL_PERCENT_THRESHOLD,
     RECOMMENDATION_WAIT_NEAR_RESISTANCE_PERCENT,
     STOP_LOSS_VOLATILITY_BUFFER_MULTIPLIER,
+    TRADE_PLAN_ATR_STOP_MULTIPLIER,
+    TRADE_PLAN_MAX_RISK_PERCENT,
     VOLUME_CONSISTENCY_MIN_RATIO,
     VOLUME_EXPANSION_RATIO,
     VOLUME_THIN_RATIO,
@@ -92,6 +97,19 @@ def is_below_support(snapshot: TechnicalSnapshot) -> bool:
     return snapshot.latest_price < snapshot.support * (1 - NEAR_LEVEL_PERCENT_THRESHOLD / 200)
 
 
+def _liquidity_from_volume(average_volume: float | None, ratio: float | None) -> tuple[LiquidityLabel, str]:
+    """Fallback classification when BDT turnover history is unavailable."""
+    if average_volume is None or average_volume <= 0:
+        return LiquidityLabel.ILLIQUID, "Average volume baseline unavailable; treat liquidity as uncertain."
+    if average_volume >= 1_000_000 and (ratio or 0) >= 0.8:
+        return LiquidityLabel.STRONG, "Volume supports active participation (turnover baseline unavailable)."
+    if average_volume >= 250_000:
+        return LiquidityLabel.NORMAL, "Liquidity is adequate for standard position sizing."
+    if average_volume >= 50_000:
+        return LiquidityLabel.THIN, "Average volume is thin; use smaller size and wider confirmation."
+    return LiquidityLabel.ILLIQUID, "Very low average volume increases slippage and gap risk."
+
+
 def compute_liquidity(snapshot: TechnicalSnapshot) -> LiquidityAnalysisResult:
     ratio = None
     consistency = 50
@@ -106,28 +124,29 @@ def compute_liquidity(snapshot: TechnicalSnapshot) -> LiquidityAnalysisResult:
         else:
             consistency = 20
 
-    if snapshot.average_volume is None or snapshot.average_volume <= 0:
-        label = LiquidityLabel.ILLIQUID
-        explanation = "Average volume baseline unavailable; treat liquidity as uncertain."
-    elif snapshot.average_volume >= 1_000_000 and (ratio or 0) >= 0.8:
-        label = LiquidityLabel.STRONG
-        explanation = "Volume and turnover support active participation."
-    elif snapshot.average_volume >= 250_000:
-        label = LiquidityLabel.NORMAL
-        explanation = "Liquidity is adequate for standard position sizing."
-    elif snapshot.average_volume >= 50_000:
-        label = LiquidityLabel.THIN
-        explanation = "Average volume is thin; use smaller size and wider confirmation."
+    average_turnover = snapshot.average_turnover
+    if average_turnover is not None and average_turnover > 0:
+        if average_turnover >= LIQUIDITY_TURNOVER_STRONG:
+            label = LiquidityLabel.STRONG
+            explanation = "Daily turnover is deep; large positions can trade with low slippage."
+        elif average_turnover >= LIQUIDITY_TURNOVER_NORMAL:
+            label = LiquidityLabel.NORMAL
+            explanation = "Turnover is adequate for standard position sizing."
+        elif average_turnover >= LIQUIDITY_TURNOVER_THIN:
+            label = LiquidityLabel.THIN
+            explanation = "Turnover is thin; use smaller size and expect wider spreads."
+        else:
+            label = LiquidityLabel.ILLIQUID
+            explanation = "Very low turnover increases slippage, gap, and manipulation risk."
     else:
-        label = LiquidityLabel.ILLIQUID
-        explanation = "Very low average volume increases slippage and gap risk."
+        label, explanation = _liquidity_from_volume(snapshot.average_volume, ratio)
 
     return LiquidityAnalysisResult(
         label=label,
         average_volume=snapshot.average_volume,
         latest_volume_ratio=ratio,
         volume_consistency_score=consistency,
-        average_turnover=snapshot.turnover,
+        average_turnover=average_turnover,
         explanation=explanation,
     )
 
@@ -149,15 +168,30 @@ def compute_trade_plan(snapshot: TechnicalSnapshot) -> TradePlanResult:
         entry_low = min(entry_low, snapshot.sma20 * 0.995)
         entry_high = max(entry_high, price)
 
-    stop = support * (1 - volatility_buffer) if _is_positive(support) else price * (1 - 0.04 - volatility_buffer)
+    entry_mid = (entry_low + entry_high) / 2
+
+    # Structural stop below support (or a fixed % floor when support is unknown).
+    structural_stop = support * (1 - volatility_buffer) if _is_positive(support) else price * (1 - 0.04 - volatility_buffer)
+    stop = structural_stop
+    # When support sits far below, an ATR-based stop pulls risk back to a tradeable
+    # distance (take the closer of the two).
+    if _is_positive(snapshot.atr14):
+        atr_stop = entry_mid - TRADE_PLAN_ATR_STOP_MULTIPLIER * snapshot.atr14
+        stop = max(structural_stop, atr_stop)
+    # Hard cap: never risk more than TRADE_PLAN_MAX_RISK_PERCENT from entry.
+    max_risk_stop = entry_mid * (1 - TRADE_PLAN_MAX_RISK_PERCENT / 100)
+    stop = max(stop, max_risk_stop)
+    # Keep the stop strictly below entry and positive.
+    stop = min(stop, entry_mid * 0.999)
+    stop = max(stop, 0.0)
+
     target_high = resistance if _is_positive(resistance) and resistance > price else price * (1 + DEFAULT_RISK_REWARD_TARGET * 0.03)
     target_low = target_high * 0.97 if target_high else None
-    entry_mid = (entry_low + entry_high) / 2
     risk = entry_mid - stop
     reward = (target_high - entry_mid) if target_high is not None else None
     risk_reward = (reward / risk) if reward is not None and risk > 0 else None
 
-    explanation = "Entry near current/support context with stop below support and target at resistance."
+    explanation = "Entry near current/support context with stop capped by ATR/support and target at resistance."
     if risk_reward is not None and risk_reward < MIN_RISK_REWARD_RATIO:
         explanation = "Risk/reward is below preferred threshold; treat as a watchlist setup."
 

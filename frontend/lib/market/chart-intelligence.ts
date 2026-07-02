@@ -1,13 +1,5 @@
 import type { ChartCandleModel, VolumeBarModel } from "@/lib/market/market-intelligence-types";
 
-export type ChartPatternTone = "positive" | "negative" | "neutral" | "warning";
-
-export type ChartPatternModel = {
-  label: string;
-  tone: ChartPatternTone;
-  description: string;
-};
-
 export type ChartEventMarkerModel = {
   time: string;
   position: "aboveBar" | "belowBar";
@@ -20,76 +12,6 @@ export type ChartLinePointModel = {
   time: string;
   value: number;
 };
-
-export function classifyCandlePattern(candles: ChartCandleModel[]): ChartPatternModel {
-  const latest = candles.at(-1);
-  const previous = candles.at(-2);
-
-  if (!latest) {
-    return {
-      label: "Awaiting candles",
-      tone: "warning",
-      description: "No candle history is available yet.",
-    };
-  }
-
-  const body = Math.abs(latest.close - latest.open);
-  const range = latest.high - latest.low;
-  const upperWick = latest.high - Math.max(latest.open, latest.close);
-  const lowerWick = Math.min(latest.open, latest.close) - latest.low;
-
-  if (range > 0 && body / range < 0.18) {
-    return {
-      label: "Doji / indecision",
-      tone: "warning",
-      description: "The latest candle shows narrow body participation and limited directional conviction.",
-    };
-  }
-
-  if (lowerWick > body * 2 && upperWick < body) {
-    return {
-      label: "Hammer-like support test",
-      tone: "positive",
-      description: "Lower-price rejection suggests buyers defended the session low.",
-    };
-  }
-
-  if (upperWick > body * 2 && lowerWick < body) {
-    return {
-      label: "Shooting-star rejection",
-      tone: "negative",
-      description: "Upper-price rejection suggests sellers capped the latest advance.",
-    };
-  }
-
-  if (previous && latest.close > latest.open && previous.close < previous.open && latest.close > previous.open && latest.open < previous.close) {
-    return {
-      label: "Bullish engulfing",
-      tone: "positive",
-      description: "Latest candle reclaimed the prior bearish body with a stronger close.",
-    };
-  }
-
-  if (previous && latest.close < latest.open && previous.close > previous.open && latest.open > previous.close && latest.close < previous.open) {
-    return {
-      label: "Bearish engulfing",
-      tone: "negative",
-      description: "Latest candle overwhelmed the prior bullish body with a weaker close.",
-    };
-  }
-
-  return latest.close >= latest.open
-    ? {
-        label: "Bullish candle",
-        tone: "positive",
-        description: "The latest candle closed at or above its open.",
-      }
-    : {
-        label: "Bearish candle",
-        tone: "negative",
-        description: "The latest candle closed below its open.",
-      };
-}
 
 export function buildSmaLine(candles: ChartCandleModel[], period: number): ChartLinePointModel[] {
   return candles.flatMap((candle, index) => {

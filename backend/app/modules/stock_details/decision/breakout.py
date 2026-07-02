@@ -37,36 +37,46 @@ def analyze_breakout(snapshot: TechnicalSnapshot, patterns: list[PatternDetectio
             explanation="Latest volume exceeds the 20-day average materially." if volume_increasing else "Volume has not expanded enough.",
         )
     )
-    trend_aligned = snapshot.trend in {TrendDirection.UPTREND, TrendDirection.SIDEWAYS}
+    # Only a genuine uptrend counts as aligned — a sideways base is not a
+    # continuation setup and should not inflate breakout odds.
+    trend_aligned = snapshot.trend == TrendDirection.UPTREND
     factors.append(
         BreakoutFactor(
             label="Trend aligned",
             matched=trend_aligned,
-            explanation="Trend supports upside continuation." if trend_aligned else "Trend is not aligned for bullish breakout.",
+            explanation="Uptrend supports upside continuation." if trend_aligned else "Trend is not aligned for a bullish breakout.",
         )
     )
     near_resistance = False
     if snapshot.latest_price is not None and snapshot.resistance is not None:
         distance = ((snapshot.resistance - snapshot.latest_price) / snapshot.latest_price) * 100
         near_resistance = 0 <= distance <= BREAKOUT_NEAR_RESISTANCE_PERCENT
+    # A confirmed breakout already through prior resistance also qualifies here.
+    coiled = near_resistance or snapshot.is_breakout
     factors.append(
         BreakoutFactor(
-            label="Near resistance",
-            matched=near_resistance,
-            explanation="Price is close enough to resistance for a breakout attempt." if near_resistance else "Price is not near resistance.",
+            label="At breakout zone",
+            matched=coiled,
+            explanation=(
+                "Price is testing or clearing prior resistance."
+                if coiled
+                else "Price is not near a breakout level."
+            ),
         )
     )
     active_pattern = next((pattern for pattern in patterns if pattern.status.value in {"Active", "Confirmed"}), None)
+    bullish_active = active_pattern is not None and active_pattern.direction == "bullish"
     factors.append(
         BreakoutFactor(
             label="Pattern active",
-            matched=active_pattern is not None,
-            explanation=active_pattern.name if active_pattern else "No active pattern detected.",
+            matched=bullish_active,
+            explanation=active_pattern.name if bullish_active else "No active bullish pattern detected.",
         )
     )
 
     matched_count = sum(1 for factor in factors if factor.matched)
-    probability = min(92, 25 + matched_count * 18 + (active_pattern.confidence // 10 if active_pattern else 0))
+    # No artificial floor: with no supporting evidence, breakout odds are low.
+    probability = min(92, matched_count * 20 + (active_pattern.confidence // 10 if bullish_active else 0))
     breakout_level = active_pattern.breakout_level if active_pattern else snapshot.resistance
     confirmation_level = breakout_level * 1.01 if breakout_level is not None else None
     projected_target = active_pattern.target_estimate if active_pattern else (

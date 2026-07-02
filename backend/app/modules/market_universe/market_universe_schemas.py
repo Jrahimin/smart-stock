@@ -29,6 +29,14 @@ class TechnicalSnapshotRead(BaseModel):
     latest_trade_date: str | None = None
     ohlcv_row_count: int = 0
     sparkline_closes: list[float] = Field(default_factory=list, max_length=12)
+    sma50: float | None = None
+    atr14: float | None = None
+    average_turnover: float | None = None
+    return_5d_percent: float | None = None
+    return_20d_percent: float | None = None
+    is_breakout: bool = False
+    structure: str = "neutral"
+    gap_frequency_percent: float | None = None
 
 
 class UniverseSessionRead(BaseModel):

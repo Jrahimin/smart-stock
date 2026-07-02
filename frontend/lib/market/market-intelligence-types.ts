@@ -103,6 +103,11 @@ export type StockIntelligenceModel = {
   signal: DerivedSignalModel;
   persistedSignal?: PersistedSignalContext | null;
   traderDecision?: BackendTraderDecisionSummaryDto | null;
+  isBreakout?: boolean;
+  returnFiveDayPercent?: number | null;
+  returnTwentyDayPercent?: number | null;
+  averageTurnover?: number | null;
+  structure?: string | null;
 };
 
 export type MarketBreadthStats = {

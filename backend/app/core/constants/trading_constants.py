@@ -24,6 +24,15 @@ VOLUME_EXPANSION_RATIO = 1.8
 VOLUME_THIN_RATIO = 0.45
 VOLUME_CONSISTENCY_MIN_RATIO = 0.55
 
+# Technical foundation (Phase 1 overhaul)
+ATR_PERIOD = 14
+TREND_SLOPE_LOOKBACK = 10
+RETURN_SHORT_LOOKBACK = 5
+RETURN_MEDIUM_LOOKBACK = 20
+# A swing high/low must be at least this many sessions old to count as a
+# confirmed structural level (avoids treating the latest bar as resistance).
+SUPPORT_RESISTANCE_SWING_CONFIRM_BARS = 3
+
 # Opportunity score component weights (positive components; risk applied as penalty)
 OPPORTUNITY_WEIGHT_TREND = 0.28
 OPPORTUNITY_WEIGHT_MOMENTUM = 0.22
@@ -32,11 +41,18 @@ OPPORTUNITY_WEIGHT_PRICE_POSITION = 0.20
 OPPORTUNITY_WEIGHT_RISK_PENALTY = 0.10
 
 # Risk score component weights
-RISK_WEIGHT_VOLATILITY = 0.30
+RISK_WEIGHT_VOLATILITY = 0.25
 RISK_WEIGHT_CATEGORY = 0.20
-RISK_WEIGHT_LIQUIDITY = 0.25
+RISK_WEIGHT_LIQUIDITY = 0.20
 RISK_WEIGHT_DATA_QUALITY = 0.15
 RISK_WEIGHT_STALE_DATA = 0.10
+RISK_WEIGHT_OVEREXTENSION = 0.10
+
+# Overextension (operator-pump proxy) and gap-risk thresholds.
+OVEREXTENSION_RETURN_20D_PERCENT = 25.0
+OVEREXTENSION_ABOVE_SMA20_PERCENT = 20.0
+GAP_RISK_THRESHOLD_PERCENT = 3.0
+GAP_RISK_VOLATILITY_BONUS = 15.0
 
 # Decision confidence alignment weights
 CONFIDENCE_WEIGHT_TREND = 0.22
@@ -45,6 +61,15 @@ CONFIDENCE_WEIGHT_VOLUME = 0.18
 CONFIDENCE_WEIGHT_RISK = 0.18
 CONFIDENCE_WEIGHT_PRICE_POSITION = 0.14
 CONFIDENCE_WEIGHT_DATA = 0.10
+
+# Confidence v2: conflicting evidence lowers confidence, and unreliable context caps it.
+CONFIDENCE_CONFLICT_PENALTY = 10
+CONFIDENCE_CONFLICT_BULLISH_MAX = 45  # pillar score below this conflicts with a bullish call
+CONFIDENCE_CONFLICT_BEARISH_MIN = 55  # pillar score above this conflicts with a bearish call
+CONFIDENCE_CAP_ILLIQUID = 40
+CONFIDENCE_CAP_THIN = 60
+CONFIDENCE_CAP_STALE_OR_SPARSE = 50
+CONFIDENCE_HOLD_WAIT_MAX = 72
 
 # Recommendation thresholds
 RECOMMENDATION_BUY_OPPORTUNITY_MIN = 55
@@ -60,6 +85,17 @@ RECOMMENDATION_BREAKOUT_VOLUME_RATIO = 1.0
 STOP_LOSS_VOLATILITY_BUFFER_MULTIPLIER = 0.5
 MIN_RISK_REWARD_RATIO = 1.2
 DEFAULT_RISK_REWARD_TARGET = 2.0
+# ATR-based stop distance and the hard cap on how far a stop may sit from entry.
+# DSE gap/circuit behaviour makes very tight stops unrealistic and very wide
+# stops unacceptable, so risk is bounded on both ends.
+TRADE_PLAN_ATR_STOP_MULTIPLIER = 2.0
+TRADE_PLAN_MAX_RISK_PERCENT = 8.0
+
+# Liquidity thresholds expressed in BDT average daily turnover (not share count),
+# which is the meaningful liquidity measure on DSE.
+LIQUIDITY_TURNOVER_STRONG = 50_000_000.0
+LIQUIDITY_TURNOVER_NORMAL = 10_000_000.0
+LIQUIDITY_TURNOVER_THIN = 2_000_000.0
 
 # Category risk mapping (DSE categories)
 CATEGORY_RISK_SCORES: dict[str, int] = {
@@ -74,6 +110,39 @@ CATEGORY_RISK_SCORES: dict[str, int] = {
 PATTERN_SWING_LOOKBACK = 3
 PATTERN_MIN_CANDLES = 30
 PATTERN_TOLERANCE_VOLATILITY_MULTIPLIER = 0.8
+# Validity filters: reversal patterns need a preceding trend and enough time
+# between the two structural points to be meaningful.
+PATTERN_MIN_SWING_SEPARATION = 5
+PATTERN_PRIOR_TREND_MIN_PERCENT = 8.0
+# Evidence-based confidence (replaces hardcoded per-pattern numbers).
+PATTERN_BASE_CONFIDENCE = 45
+PATTERN_EVIDENCE_TIGHT = 10
+PATTERN_EVIDENCE_VOLUME = 12
+PATTERN_EVIDENCE_PRIOR_TREND = 10
+PATTERN_EVIDENCE_COMPLETION = 13
+PATTERN_EVIDENCE_LEVEL = 8
+
+# Swing structure signal (shared by recommendation coherence)
+STRUCTURE_HIGHER = "higher_high_higher_low"
+STRUCTURE_LOWER = "lower_high_lower_low"
+STRUCTURE_NEUTRAL = "neutral"
+
+# Ex-date / corporate-action guard: a one-session drop larger than this that is
+# not part of a pre-existing downtrend is treated as a likely price adjustment
+# (bonus/dividend/rights) rather than a genuine breakdown.
+ANOMALOUS_DROP_PERCENT = 12.0
+ANOMALOUS_DROP_PRIOR_WINDOW = 5
+
+# Market regime (from index level vs its trend and market breadth)
+MARKET_REGIME_BULLISH = "BULLISH"
+MARKET_REGIME_NEUTRAL = "NEUTRAL"
+MARKET_REGIME_BEARISH = "BEARISH"
+REGIME_INDEX_LOOKBACK = 50
+REGIME_INDEX_BAND_PERCENT = 0.5
+REGIME_BREADTH_BULLISH_RATIO = 0.55
+REGIME_BREADTH_BEARISH_RATIO = 0.40
+REGIME_SUMMARY_FETCH_LIMIT = 220
+REGIME_BEARISH_CONFIDENCE_CAP = 60
 
 # Breakout analysis
 BREAKOUT_NEAR_RESISTANCE_PERCENT = 4.0

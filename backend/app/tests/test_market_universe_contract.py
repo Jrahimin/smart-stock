@@ -182,6 +182,9 @@ async def test_scored_universe_redis_cache_payload_is_lightweight() -> None:
         async def list_market_price_windows(self, **kwargs):
             return [(stock, price) for price in prices]
 
+        async def list_daily_market_summaries(self, **kwargs):
+            return []
+
     class FakeStocksRepository:
         async def count_stocks(self, **kwargs):
             return 1

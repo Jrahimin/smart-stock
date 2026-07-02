@@ -5,11 +5,12 @@ from datetime import date
 
 from fastapi import Depends
 
-from app.core.constants.trading_constants import DECISION_PATTERN_RESPONSE_LIMIT
+from app.core.constants.trading_constants import DECISION_PATTERN_RESPONSE_LIMIT, REGIME_SUMMARY_FETCH_LIMIT
 from app.core.enums import ExchangeCode
 from app.core.exception_handlers import NotFoundError
 from app.modules.stock_details.decision.breakout import analyze_breakout
 from app.modules.stock_details.decision.engine import compute_trader_decision_from_prices
+from app.modules.stock_details.decision.market_regime import resolve_regime_from_summaries
 from app.modules.stock_details.decision.events import build_event_timeline
 from app.modules.stock_details.decision.ownership import build_ownership_insights
 from app.modules.stock_details.decision.patterns import detect_patterns
@@ -33,7 +34,20 @@ class StockDetailsDecisionService:
             raise NotFoundError("Stock was not found")
 
         prices = await self.repository.list_daily_prices_window(stock_id=stock.id)
-        decision_bundle = compute_trader_decision_from_prices(prices, category=stock.category)
+        dividend_events = await self.repository.list_dividend_events(stock_id=stock.id)
+        ex_dividend_dates = {
+            event.ex_dividend_date for event in dividend_events if event.ex_dividend_date is not None
+        }
+        market_summaries = await self.repository.list_recent_market_summaries(
+            exchange=exchange, limit=REGIME_SUMMARY_FETCH_LIMIT
+        )
+        market_regime = resolve_regime_from_summaries(market_summaries)
+        decision_bundle = compute_trader_decision_from_prices(
+            prices,
+            category=stock.category,
+            ex_dividend_dates=ex_dividend_dates or None,
+            market_regime=market_regime,
+        )
         if decision_bundle is None:
             raise NotFoundError("Insufficient OHLCV data for decision support")
 
@@ -51,6 +65,11 @@ class StockDetailsDecisionService:
         patterns = detect_patterns(snapshot, prices)[:DECISION_PATTERN_RESPONSE_LIMIT]
         primary_pattern = patterns[0] if patterns else None
         pattern_bearish = primary_pattern.direction == "bearish" if primary_pattern else False
+        pattern_confirmed = (
+            pattern_bearish
+            and primary_pattern is not None
+            and primary_pattern.status.value in {"Active", "Confirmed"}
+        )
         warnings = generate_warnings(
             snapshot,
             opportunity,
@@ -61,6 +80,8 @@ class StockDetailsDecisionService:
             category=stock.category,
             pattern_name=primary_pattern.name if primary_pattern else None,
             pattern_bearish=pattern_bearish,
+            pattern_confirmed=pattern_confirmed,
+            suspected_adjustment=decision_bundle.suspected_adjustment,
         )
         breakout = analyze_breakout(snapshot, patterns)
 
@@ -68,13 +89,11 @@ class StockDetailsDecisionService:
             shareholding,
             valuation,
             market_events,
-            dividend_events,
             corporate_actions,
         ) = await asyncio.gather(
             self.repository.get_latest_shareholding_snapshot(stock.id),
             self.repository.get_latest_valuation_snapshot(stock.id),
             self.repository.list_market_events(stock_id=stock.id),
-            self.repository.list_dividend_events(stock_id=stock.id),
             self.repository.list_corporate_actions(stock_id=stock.id),
         )
 

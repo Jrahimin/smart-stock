@@ -71,5 +71,10 @@ export function mapUniverseRowToListRow(row: BackendScoredUniverseRowDto): Stock
     trend: mapTrend(snapshot.trend),
     signal,
     traderDecision: decision,
+    isBreakout: snapshot.is_breakout ?? false,
+    returnFiveDayPercent: snapshot.return_5d_percent ?? null,
+    returnTwentyDayPercent: snapshot.return_20d_percent ?? null,
+    averageTurnover: snapshot.average_turnover ?? null,
+    structure: snapshot.structure ?? null,
   };
 }
