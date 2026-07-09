@@ -1,7 +1,7 @@
 /**
- * Temporary shared mark-to-market helpers for older workspace payloads that omit
- * `display_metrics`. Prefer backend `display_metrics` (Rule #1). Do not add new
- * call sites — migrate consumers to the workspace aggregate field instead.
+ * Legacy fallback only — mirrors backend `display_metrics.py` for older workspace payloads.
+ * Prefer `workspace.display_metrics` from `StockWorkspaceRead` (Rule #1).
+ * Do not add new call sites; remove this module once all clients send display_metrics.
  */
 
 export function resolveLivePeRatio(

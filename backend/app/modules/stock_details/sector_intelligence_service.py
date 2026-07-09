@@ -5,6 +5,7 @@ from uuid import UUID
 
 from fastapi import Depends
 
+from app.core.constants.trading_constants import RETURN_MEDIUM_LOOKBACK, RETURN_SHORT_LOOKBACK
 from app.core.core_config import Settings, get_settings
 from app.jobs.market_session_schedule import current_cache_ttl_seconds
 from app.core.enums import ExchangeCode
@@ -19,7 +20,7 @@ from app.modules.stock_details.decision.sector_intelligence import (
     build_sector_ranks,
     resolve_sector_trend_window,
 )
-from app.modules.stock_details.decision.technical import return_percent_over_lookback
+from app.modules.stock_details.decision.technical import build_technical_snapshot
 from app.modules.stock_details.stock_details_cache import stock_sector_context_cache_key
 from app.modules.stock_details.stock_details_repository import (
     StockDetailsRepository,
@@ -34,11 +35,15 @@ from app.modules.stock_details.stock_details_workspace_schemas import (
 
 
 def _price_change_percent(prices: list[DailyPrice], trading_day_window: int) -> float | None:
-    if len(prices) <= trading_day_window:
+    """Reuse the same technical snapshot as universe rows / scanner (Rule #1)."""
+    snapshot = build_technical_snapshot(prices)
+    if snapshot is None:
         return None
-    sorted_prices = sorted(prices, key=lambda row: row.trade_date)
-    closes = [float(price.close_price) for price in sorted_prices]
-    return return_percent_over_lookback(closes, trading_day_window)
+    if trading_day_window == RETURN_SHORT_LOOKBACK:
+        return snapshot.return_5d_percent
+    if trading_day_window == RETURN_MEDIUM_LOOKBACK:
+        return snapshot.return_20d_percent
+    return None
 
 
 def _build_price_changes(

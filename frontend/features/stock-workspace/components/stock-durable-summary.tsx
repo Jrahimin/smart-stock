@@ -16,15 +16,13 @@ export function StockDurableSummary({ workspace }: StockDurableSummaryProps) {
   const freshness = decision.data_freshness;
   const prices = [...(workspace.prices ?? [])].sort((a, b) => a.trade_date.localeCompare(b.trade_date));
   const latest = prices.at(-1);
-  const previous = prices.at(-2);
   const latestPrice = display?.current_price ?? (latest ? Number(latest.close_price) : null);
   const changePercent =
-    latest && previous && Number(previous.close_price) > 0
-      ? ((Number(latest.close_price) - Number(previous.close_price)) / Number(previous.close_price)) * 100
-      : latest?.price_change_percent != null
-        ? Number(latest.price_change_percent)
-        : null;
-  const marketCap = display?.market_cap ?? decision.valuation?.market_cap ?? (stock.market_cap != null ? Number(stock.market_cap) : null);
+    latest?.price_change_percent != null ? Number(latest.price_change_percent) : null;
+  const marketCap =
+    display?.market_cap ??
+    decision.valuation?.market_cap ??
+    (stock.market_cap != null ? Number(stock.market_cap) : null);
 
   const freshnessLabel = freshness.is_stale ? "Stale" : freshness.is_sparse ? "Sparse" : "Fresh";
   const uncertaintyBits = [
