@@ -37,6 +37,7 @@ from app.modules.stock_details.decision.dividend_intelligence import build_divid
 from app.modules.stock_details.decision.financial_trends import build_financial_trends
 from app.modules.stock_details.decision.fundamentals_snapshot import (
     FUNDAMENTALS_PERFORMANCE_METRIC_CODES,
+    FUNDAMENTALS_SNAPSHOT_QUERY_METRIC_CODES,
     build_fundamentals_snapshot,
 )
 from app.modules.stock_details.decision.valuation_context import build_valuation_context
@@ -93,7 +94,7 @@ class StockDetailsWorkspaceService:
             self.decision_service.get_decision_support(exchange=exchange, symbol=symbol),
             self.repository.list_latest_metric_values(
                 stock_id=stock.id,
-                metric_codes=list(FUNDAMENTALS_PERFORMANCE_METRIC_CODES),
+                metric_codes=list(FUNDAMENTALS_SNAPSHOT_QUERY_METRIC_CODES),
             ),
             self.repository.list_metric_histories(
                 stock_id=stock.id,

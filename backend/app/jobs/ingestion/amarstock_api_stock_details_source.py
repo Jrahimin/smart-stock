@@ -11,7 +11,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
-from app.core.enums import DataQualityFlag, MarketEventType
+from app.core.enums import DataQualityFlag, MarketEventType, ReportPeriodType, ReportStatus
 from app.jobs.ingestion.stock_details_api_source_base import (
     ApiDailyPrice,
     ApiFinancialMetric,
@@ -340,6 +340,7 @@ class AmarStockApiStockDetailsSource:
             value = self._to_decimal(snapshot.get(source_field))
             if value is None:
                 continue
+            is_quarterly_eps = metric_code in {"Q1_EPS", "Q2_EPS", "Q3_EPS", "Q4_EPS"}
             metrics.append(
                 ApiFinancialMetric(
                     fiscal_year=scrape_date.year,
@@ -349,6 +350,8 @@ class AmarStockApiStockDetailsSource:
                     as_of_date=scrape_date,
                     source_label=source_field,
                     source_value=str(snapshot.get(source_field)),
+                    period_type=ReportPeriodType.QUARTERLY if is_quarterly_eps else ReportPeriodType.ANNUAL,
+                    report_status=ReportStatus.UNAUDITED if is_quarterly_eps else ReportStatus.AUDITED,
                     metadata={"source": "snapshot_api"},
                 )
             )
