@@ -9,7 +9,6 @@ import { StockDetailWorkspaceView } from "@/features/stock-workspace/stock-detai
 import { buildStockDecisionViewModel } from "@/features/stock-workspace/view-models/stock-decision-view-model";
 import { buildStockSemanticSummary } from "@/features/stock-workspace/view-models/stock-semantic-summary-view-model";
 import { buildStockWorkspaceModel } from "@/features/stock-workspace/view-models/stock-workspace-view-model";
-import { STOCK_DETAIL_REVALIDATE_SECONDS } from "@/lib/seo/stock-detail-cache";
 import {
   buildStockBreadcrumbJsonLd,
   buildStockDetailCanonical,
@@ -18,7 +17,9 @@ import {
 } from "@/lib/seo/stock-page-seo";
 import { siteConfig } from "@/lib/seo/site-config";
 
-export const revalidate = STOCK_DETAIL_REVALIDATE_SECONDS;
+// Must be a literal — Next.js cannot statically analyze imported segment config.
+// Keep in sync with STOCK_DETAIL_REVALIDATE_SECONDS in lib/seo/stock-detail-cache.ts.
+export const revalidate = 60;
 
 type StockDetailPageProps = {
   params: Promise<{
