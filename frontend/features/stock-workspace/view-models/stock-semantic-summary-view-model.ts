@@ -2,21 +2,20 @@ import type { StockDecisionViewModel } from "@/features/stock-workspace/view-mod
 import type { StockWorkspaceModel } from "@/features/stock-workspace/view-models/stock-workspace-view-model";
 import { formatMarketCapBdt } from "@/lib/formatters/financial-formatters";
 
-function resolveAction(model: StockWorkspaceModel, decision: StockDecisionViewModel) {
+function resolveAction(decision: StockDecisionViewModel) {
   if (decision.available && decision.recommendation !== "—") {
     return decision.recommendation;
   }
 
-  return model.header.signal;
+  return null;
 }
 
-function resolveConfidence(model: StockWorkspaceModel, decision: StockDecisionViewModel) {
+function resolveConfidence(decision: StockDecisionViewModel) {
   if (decision.available && decision.confidence > 0) {
     return decision.confidence;
   }
 
-  const parsed = Number.parseInt(model.header.confidence.replace("%", ""), 10);
-  return Number.isFinite(parsed) ? parsed : null;
+  return null;
 }
 
 function resolveMarketCapPhrase(model: StockWorkspaceModel, decision: StockDecisionViewModel) {
@@ -37,8 +36,8 @@ export function buildStockSemanticSummary(model: StockWorkspaceModel, decision: 
   const symbol = model.header.symbol;
   const sector = model.header.sector;
   const exchange = model.header.exchange;
-  const action = resolveAction(model, decision);
-  const confidence = resolveConfidence(model, decision);
+  const action = resolveAction(decision);
+  const confidence = resolveConfidence(decision);
   const marketCapPhrase = resolveMarketCapPhrase(model, decision);
 
   const introSector = sector && sector !== "Unclassified" ? `a ${sector}` : "a listed";
@@ -48,12 +47,18 @@ export function buildStockSemanticSummary(model: StockWorkspaceModel, decision: 
     parts.push(`${marketCapPhrase}.`);
   }
 
-  if (action && action !== "N/A" && action !== "—") {
+  if (action) {
     if (confidence !== null && confidence > 0) {
-      parts.push(`The stock currently carries a ${action} outlook with ${confidence}% confidence.`);
+      parts.push(
+        `Decision support currently shows ${action} with ${confidence}% model confidence (not investment advice).`,
+      );
     } else {
-      parts.push(`The stock currently carries a ${action} outlook.`);
+      parts.push(`Decision support currently shows ${action} (not investment advice).`);
     }
+  }
+
+  if (decision.available && decision.freshness.label) {
+    parts.push(`Market data status: ${decision.freshness.label} (${decision.freshness.helper}).`);
   }
 
   return parts.join(" ");

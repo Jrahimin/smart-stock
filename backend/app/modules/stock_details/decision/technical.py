@@ -118,13 +118,18 @@ def standard_deviation(values: list[float]) -> float | None:
     return variance**0.5
 
 
-def _return_percent(closes: list[float], lookback: int) -> float | None:
+def return_percent_over_lookback(closes: list[float], lookback: int) -> float | None:
+    """Percent return from `lookback` trading sessions before the latest close."""
     if len(closes) <= lookback:
         return None
     past = closes[-1 - lookback]
     if past == 0:
         return None
     return (closes[-1] / past - 1) * 100
+
+
+def _return_percent(closes: list[float], lookback: int) -> float | None:
+    return return_percent_over_lookback(closes, lookback)
 
 
 def infer_trend(

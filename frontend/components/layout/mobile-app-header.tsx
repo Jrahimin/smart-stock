@@ -30,7 +30,7 @@ export function MobileAppHeader({ isMenuOpen, menuButtonRef, onMenuToggle }: Mob
   }
 
   return (
-    <header className="mobile-app-header" suppressHydrationWarning>
+    <header className="mobile-app-header">
       <button
         ref={menuButtonRef}
         aria-controls={MOBILE_NAV_DRAWER_ID}

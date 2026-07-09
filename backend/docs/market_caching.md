@@ -87,8 +87,14 @@ universe:scored:{exchange}           ← trader foundation (ScoredUniverseRow li
 universe:scored:prev:{exchange}    ← stale fallback during rebuild
 dashboard:{section}:{exchange}     ← lightweight snapshot presentation (no decision engine)
 pulse:{response|summary}:{exchange}  ← presentation
-stock-workspace:{section}:{ex}:{sym}:{trade_date}  ← per-symbol (isolated)
+stock-workspace:{section}:{ex}:{sym}:{trade_date}  ← per-symbol page aggregate (isolated)
 ```
+
+**Stock workspace freshness (important):**
+
+* **Cross-day:** `latest_trade_date` in the key is the hard invalidation when the session day advances.
+* **Same-day intraday:** snapshot upserts rewrite the same trade date; Redis TTL (`current_cache_ttl_seconds` / dashboard TTL) is the same-day safety net. There is no per-symbol fan-out on `sync_market_snapshot`.
+* Frontend stock-detail ISR / TanStack staleTime should follow that TTL (default 600s), not a shorter unrelated interval that fights IndexedDB.
 
 **Dashboard vs universe (split)**
 

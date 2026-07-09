@@ -25,8 +25,8 @@ function getChangeTone(changePercent: string): "positive" | "negative" | "neutra
 export function StockWorkspaceHeader({ model, decision, stockId }: StockWorkspaceHeaderProps) {
   const action: SignalType | TraderRecommendation = decision?.available
     ? (decision.recommendation as TraderRecommendation)
-    : (model.header.signal as SignalType);
-  const confidence = decision?.available ? decision.confidenceLabel : model.header.confidence;
+    : (model.header.chartContextSignal as SignalType);
+  const confidence = decision?.available ? decision.confidenceLabel : model.header.chartContextConfidence;
   const actionLabel = "Action";
   const sector = model.header.sector;
   const sectorHref =

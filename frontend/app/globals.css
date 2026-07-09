@@ -4092,7 +4092,8 @@ button {
 }
 
 .explorer-header h1,
-.stock-workspace-header h1 {
+.stock-workspace-header h1,
+.stock-workspace-header .stock-header-symbol {
   font-size: clamp(1.55rem, 2.55vw, 2.4rem);
   letter-spacing: -0.055em;
   line-height: 0.98;
@@ -5072,7 +5073,8 @@ button {
     padding: 10px 12px;
   }
 
-  .stock-workspace-header h1 {
+  .stock-workspace-header h1,
+  .stock-workspace-header .stock-header-symbol {
     font-size: 1.45rem;
   }
 
@@ -5454,6 +5456,88 @@ button {
   border-bottom-color: var(--primary);
   color: var(--foreground);
   font-weight: 700;
+}
+
+.stock-durable-summary {
+  border-bottom: 1px solid var(--border);
+  display: grid;
+  gap: 12px;
+  margin: 0 0 8px;
+  padding: 8px 0 14px;
+}
+
+.stock-durable-summary-symbol {
+  font-size: clamp(1.6rem, 2vw, 2rem);
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+.stock-durable-summary-name {
+  color: var(--muted);
+  margin: 2px 0 0;
+}
+
+.stock-durable-summary-metrics {
+  display: grid;
+  gap: 10px 18px;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  margin: 0;
+}
+
+.stock-durable-summary-metrics div {
+  min-width: 0;
+}
+
+.stock-durable-summary-metrics dt {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.stock-durable-summary-metrics dd {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  margin: 2px 0 0;
+}
+
+.stock-durable-summary-confidence {
+  color: var(--muted);
+  font-size: 0.85em;
+  font-weight: 550;
+}
+
+.stock-durable-summary-disclaimer {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  margin: 0;
+  max-width: 72ch;
+}
+
+.stock-header-symbol {
+  font-size: inherit;
+  font-weight: 750;
+  margin: 0;
+}
+
+.stock-workspace-header-compact {
+  align-items: center;
+  padding-block: 6px;
+}
+
+.stock-evidence-rail-note {
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.45;
+  margin: 0 0 10px;
+  max-width: 68ch;
+}
+
+.trader-decision-freshness-warning {
+  color: var(--warning, #b45309);
 }
 
 .company-snapshot-strip {

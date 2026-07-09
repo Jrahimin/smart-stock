@@ -74,6 +74,7 @@ export function StockDetailWorkspaceView({
     decisionModel,
     fundamentalsModel,
     decisionRaw,
+    displayMetrics,
     isError,
     isLoading,
     isDecisionLoading,
@@ -157,7 +158,10 @@ export function StockDetailWorkspaceView({
     return () => observer.disconnect();
   }, [enableSectorContext]);
 
-  const companySnapshotCells = useMemo(() => buildCompanySnapshotStrip(model, decisionModel), [decisionModel, model]);
+  const companySnapshotCells = useMemo(
+    () => buildCompanySnapshotStrip(model, decisionModel, displayMetrics),
+    [decisionModel, displayMetrics, model],
+  );
   const semanticSummary = useMemo(() => buildStockSemanticSummary(model, decisionModel), [decisionModel, model]);
 
   if (isLoading) {
@@ -180,9 +184,12 @@ export function StockDetailWorkspaceView({
     <div className="stock-workspace-view stock-workspace-view-v2 trader-workspace-fade-in" data-testid="stock-workspace-loaded">
       {isError ? <div className="data-warning">Could not load stock workspace data for {symbol}.</div> : null}
       {isDecisionError ? <div className="data-warning">Decision support unavailable; chart remains active.</div> : null}
-
       <div className="trader-workspace-topbar">
-        <StockWorkspaceHeader decision={decisionModel} model={model} stockId={model.intelligence?.stock.id} />
+        <StockWorkspaceHeader
+          decision={decisionModel}
+          model={model}
+          stockId={model.intelligence?.stock.id}
+        />
         <div className="trader-workspace-topbar-rail">
           <MarketDataFreshnessBar variant="inline" />
           <WorkspaceCommandSearch filterContextName="stocks" showQuickActions={false} variant="compact" />

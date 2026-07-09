@@ -19,6 +19,7 @@ from app.modules.stock_details.decision.sector_intelligence import (
     build_sector_ranks,
     resolve_sector_trend_window,
 )
+from app.modules.stock_details.decision.technical import return_percent_over_lookback
 from app.modules.stock_details.stock_details_cache import stock_sector_context_cache_key
 from app.modules.stock_details.stock_details_repository import (
     StockDetailsRepository,
@@ -35,11 +36,9 @@ from app.modules.stock_details.stock_details_workspace_schemas import (
 def _price_change_percent(prices: list[DailyPrice], trading_day_window: int) -> float | None:
     if len(prices) <= trading_day_window:
         return None
-    latest = float(prices[0].close_price)
-    prior = float(prices[trading_day_window].close_price)
-    if prior == 0:
-        return None
-    return ((latest - prior) / prior) * 100
+    sorted_prices = sorted(prices, key=lambda row: row.trade_date)
+    closes = [float(price.close_price) for price in sorted_prices]
+    return return_percent_over_lookback(closes, trading_day_window)
 
 
 def _build_price_changes(

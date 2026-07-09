@@ -14,6 +14,8 @@ import {
   buildStockWorkspaceModel,
   type StockWorkspaceModel,
 } from "@/features/stock-workspace/view-models/stock-workspace-view-model";
+import { useMarketDataFreshness } from "@/hooks/market/use-market-data-freshness";
+import { getMarketStaleTimeMs } from "@/lib/market/market-cache-policy";
 import { STOCK_DETAIL_STALE_TIME_MS } from "@/lib/seo/stock-detail-cache";
 
 export type StockWorkspaceLoadState = "loading" | "loaded" | "notFound" | "error";
@@ -31,12 +33,17 @@ export function useStockWorkspace({
   sectorContext,
   initialWorkspace = null,
 }: UseStockWorkspaceOptions) {
+  const freshnessQuery = useMarketDataFreshness(exchange);
+  const staleTimeMs = freshnessQuery.data
+    ? getMarketStaleTimeMs(freshnessQuery.data)
+    : STOCK_DETAIL_STALE_TIME_MS;
+
   const workspaceQuery = useQuery({
     queryKey: ["stock-workspace", exchange, symbol],
     queryFn: () => getStockWorkspace(exchange, symbol),
     initialData: initialWorkspace ?? undefined,
-    initialDataUpdatedAt: initialWorkspace ? Date.now() : undefined,
-    staleTime: STOCK_DETAIL_STALE_TIME_MS,
+    initialDataUpdatedAt: initialWorkspace ? 0 : undefined,
+    staleTime: staleTimeMs,
     retry: false,
   });
 
@@ -52,6 +59,8 @@ export function useStockWorkspace({
     }
     return "loaded";
   }, [workspaceQuery.data, workspaceQuery.isError, workspaceQuery.isLoading]);
+
+  const displayMetrics = workspaceQuery.data?.display_metrics ?? null;
 
   const model: StockWorkspaceModel = useMemo(() => {
     if (loadState === "loading") {
@@ -72,6 +81,7 @@ export function useStockWorkspace({
 
     return buildStockWorkspaceModel(workspaceQuery.data.stock, workspaceQuery.data.prices ?? [], {
       decisionSupport: workspaceQuery.data.decision_support,
+      displayMetrics: workspaceQuery.data.display_metrics,
     });
   }, [exchange, loadState, symbol, workspaceQuery.data]);
 
@@ -86,9 +96,16 @@ export function useStockWorkspace({
         decisionModel,
         workspaceQuery.data?.fundamentals_snapshot ?? null,
         sectorContext,
-        model.intelligence?.latestPrice ?? null,
+        displayMetrics?.current_price ?? model.intelligence?.latestPrice ?? null,
+        displayMetrics,
       ),
-    [decisionModel, model.intelligence?.latestPrice, sectorContext, workspaceQuery.data?.fundamentals_snapshot],
+    [
+      decisionModel,
+      displayMetrics,
+      model.intelligence?.latestPrice,
+      sectorContext,
+      workspaceQuery.data?.fundamentals_snapshot,
+    ],
   );
 
   return {
@@ -96,6 +113,8 @@ export function useStockWorkspace({
     decisionModel,
     fundamentalsModel,
     decisionRaw: workspaceQuery.data?.decision_support ?? null,
+    displayMetrics,
+    workspace: workspaceQuery.data ?? null,
     loadState,
     isLoading: loadState === "loading",
     isDecisionLoading: loadState === "loading",

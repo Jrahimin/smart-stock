@@ -5,7 +5,11 @@ import logging
 from app.core.core_config import Settings, get_settings
 from app.core.enums import ExchangeCode
 from app.core.redis_client import OptionalRedisClient, build_redis_client
-from app.modules.market_universe.market_universe_cache import UNIVERSE_CACHE_KEY_NAMES, universe_cache_key
+from app.modules.market_universe.market_universe_cache import (
+    UNIVERSE_CACHE_KEY_NAMES,
+    universe_cache_key,
+    universe_prev_cache_key,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +65,22 @@ async def invalidate_market_caches(
             await redis.delete(key)
         except Exception:
             logger.warning("Failed to delete universe cache key %s", key, exc_info=True)
+
+    try:
+        await redis.delete(universe_prev_cache_key(exchange))
+    except Exception:
+        logger.warning("Failed to delete universe prev cache for %s", exchange.value, exc_info=True)
+
+    for pattern in (
+        f"stock-sector-context:{exchange.value}:*",
+        f"stock-workspace:*:{exchange.value}:*",
+    ):
+        try:
+            deleted = await redis.delete_by_pattern(pattern)
+            if deleted:
+                logger.info("Deleted %s Redis keys matching %s", deleted, pattern)
+        except Exception:
+            logger.warning("Failed to delete stock detail cache keys for pattern %s", pattern, exc_info=True)
 
 
 async def invalidate_dashboard_cache(

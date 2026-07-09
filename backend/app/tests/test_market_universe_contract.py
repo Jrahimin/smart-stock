@@ -11,6 +11,7 @@ from app.core.enums import DataQualityFlag, ExchangeCode, RiskLevelLabel, Trader
 from app.core.market_cache import DASHBOARD_CACHE_KEY_NAMES, dashboard_cache_key
 from app.modules.market_universe.market_universe_cache import UNIVERSE_CACHE_KEY_NAMES, universe_cache_key
 from app.core.market_cache import PULSE_CACHE_KEY_NAMES, pulse_cache_key, invalidate_market_caches
+from app.modules.market_universe.market_universe_cache import universe_prev_cache_key
 from app.models import DailyPrice, Stock
 from app.modules.market_dashboard.market_dashboard_compute import (
     build_market_insights,
@@ -121,9 +122,14 @@ async def test_invalidate_market_caches_deletes_all_registered_keys() -> None:
         def __init__(self) -> None:
             self.is_available = True
             self.deleted: list[str] = []
+            self.pattern_deletes: list[str] = []
 
         async def delete(self, key: str) -> None:
             self.deleted.append(key)
+
+        async def delete_by_pattern(self, pattern: str) -> int:
+            self.pattern_deletes.append(pattern)
+            return 0
 
     redis = FakeRedis()
     await invalidate_market_caches(redis, ExchangeCode.DSE)
@@ -134,6 +140,9 @@ async def test_invalidate_market_caches_deletes_all_registered_keys() -> None:
         assert pulse_cache_key(section, ExchangeCode.DSE) in redis.deleted
     for section in UNIVERSE_CACHE_KEY_NAMES:
         assert universe_cache_key(section, ExchangeCode.DSE) in redis.deleted
+    assert universe_prev_cache_key(ExchangeCode.DSE) in redis.deleted
+    assert "stock-sector-context:DSE:*" in redis.pattern_deletes
+    assert "stock-workspace:*:DSE:*" in redis.pattern_deletes
 
 
 def test_scored_universe_row_serialization_has_only_allowed_keys() -> None:
@@ -184,6 +193,9 @@ async def test_scored_universe_redis_cache_payload_is_lightweight() -> None:
 
         async def list_daily_market_summaries(self, **kwargs):
             return []
+
+        async def get_market_price_freshness(self, **kwargs):
+            return prices[-1].trade_date, datetime.now()
 
     class FakeStocksRepository:
         async def count_stocks(self, **kwargs):

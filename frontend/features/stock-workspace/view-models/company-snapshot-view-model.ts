@@ -1,7 +1,9 @@
+import type { DisplayMetricsDto } from "@/lib/api/stock-decision-support-types";
 import type { StockDecisionViewModel } from "@/features/stock-workspace/view-models/stock-decision-view-model";
 import type { StockWorkspaceModel } from "@/features/stock-workspace/view-models/stock-workspace-view-model";
 import { formatFinancialDisplay, formatNumber } from "@/lib/formatters/financial-formatters";
 import { formatOwnershipPercent, formatValuationMetric } from "@/features/stock-workspace/view-models/stock-decision-view-model";
+import { resolveLivePeRatio } from "@/features/stock-workspace/view-models/mark-to-market-helpers";
 
 export type CompanySnapshotCell = {
   key: string;
@@ -38,27 +40,27 @@ function formatDividendYield(value: number | null | undefined) {
   return formatFinancialDisplay(value, (parsed) => `${formatNumber(parsed)}%`, { allowZero: true });
 }
 
-function resolveMarketCap(model: StockWorkspaceModel) {
-  return model.header.marketCap;
-}
-
-function resolveLivePe(model: StockWorkspaceModel, decision: StockDecisionViewModel) {
-  const currentPrice = model.intelligence?.latestPrice ?? null;
-  const valuation = decision.valuation;
-  if (
-    currentPrice != null &&
-    currentPrice > 0 &&
-    valuation?.pe_ratio != null &&
-    valuation.close_price != null &&
-    valuation.close_price > 0
-  ) {
-    return formatValuationMetric(valuation.pe_ratio * (currentPrice / valuation.close_price));
+function resolvePeDisplay(
+  model: StockWorkspaceModel,
+  decision: StockDecisionViewModel,
+  displayMetrics?: DisplayMetricsDto | null,
+) {
+  if (displayMetrics && displayMetrics.pe_ratio !== undefined) {
+    return formatValuationMetric(displayMetrics.pe_ratio);
   }
 
-  return formatValuationMetric(valuation?.pe_ratio);
+  const currentPrice = model.intelligence?.latestPrice ?? null;
+  const valuation = decision.valuation;
+  return formatValuationMetric(
+    resolveLivePeRatio(currentPrice, null, valuation?.pe_ratio, valuation?.close_price),
+  );
 }
 
-export function buildCompanySnapshotStrip(model: StockWorkspaceModel, decision: StockDecisionViewModel): CompanySnapshotCell[] {
+export function buildCompanySnapshotStrip(
+  model: StockWorkspaceModel,
+  decision: StockDecisionViewModel,
+  displayMetrics?: DisplayMetricsDto | null,
+): CompanySnapshotCell[] {
   const sector = formatTextValue(model.header.sector, { invalid: ["Unclassified"] });
   const sectorSearch = sector !== EMPTY_LABEL ? sector : null;
 
@@ -82,12 +84,12 @@ export function buildCompanySnapshotStrip(model: StockWorkspaceModel, decision: 
     {
       key: "market-cap",
       label: "Market Cap",
-      value: resolveMarketCap(model),
+      value: model.header.marketCap,
     },
     {
       key: "pe",
       label: "P/E",
-      value: resolveLivePe(model, decision),
+      value: resolvePeDisplay(model, decision, displayMetrics),
     },
     {
       key: "dividend-yield",
