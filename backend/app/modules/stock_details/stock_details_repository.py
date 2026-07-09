@@ -2,14 +2,14 @@ from datetime import date, datetime
 from uuid import UUID
 
 from fastapi import Depends
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.base_repository import BaseRepository
 from app.core.constants.trading_constants import DECISION_OHLCV_WINDOW
 from app.core.database_session import get_db_session
-from app.core.enums import ExchangeCode, IndicatorType, MarketEventType, StockDetailsSyncJobStatus
+from app.core.enums import ExchangeCode, IndicatorType, MarketEventType, ReportPeriodType, StockDetailsSyncJobStatus
 from app.modules.stock_details.decision.fundamentals_snapshot import LatestFinancialMetricRow
 from app.modules.stock_details.decision.financial_trends import FinancialMetricHistoryRow
 from app.models import (
@@ -147,6 +147,14 @@ class StockDetailsRepository(BaseRepository[StockDetailsSyncJob]):
         if not metric_codes:
             return []
 
+        # Prefer newest as-of dates first. When dates collide, prefer quarterly /
+        # half-yearly (often unaudited) over older annual audited FY rows, then
+        # newest fiscal year / update timestamp as tie-breakers.
+        period_rank = case(
+            (FinancialReport.period_type == ReportPeriodType.QUARTERLY, 0),
+            (FinancialReport.period_type == ReportPeriodType.HALF_YEARLY, 1),
+            else_=2,
+        )
         statement = (
             select(
                 FinancialMetricDefinition.metric_code,
@@ -171,6 +179,8 @@ class StockDetailsRepository(BaseRepository[StockDetailsSyncJob]):
             .order_by(
                 FinancialMetricDefinition.metric_code,
                 FinancialMetricValue.as_of_date.desc(),
+                period_rank.asc(),
+                FinancialReport.fiscal_year.desc(),
                 FinancialMetricValue.updated_at.desc(),
             )
         )

@@ -157,7 +157,7 @@ stock-workspace:events:{exchange}:{symbol}:{latest_trade_date}
 
 `GET /api/v1/stock-details/{exchange}/{symbol}/workspace` includes `fundamentals_snapshot` alongside `decision_support`.
 
-* **Performance metrics** (from `financial_metric_values`): latest row per code for `EPS`, `NAV_PER_SHARE`, `REVENUE`, `NET_PROFIT_AFTER_TAX`.
+* **Performance metrics** (from `financial_metric_values`): latest row per code for `EPS`, `NAV_PER_SHARE`, `REVENUE`, `NET_PROFIT_AFTER_TAX`. The snapshot query also loads AmarStock `Q1_EPS`–`Q4_EPS` candidates and resolves the freshest into the `EPS` slot (newer `as_of_date` wins; on ties later quarters beat annual `EPS`).
 * **Valuation metrics** (P/E, P/B, dividend yield, earnings yield) remain on `decision_support.valuation` — not duplicated in `fundamentals_snapshot`.
 * `latest_fiscal_year` / `latest_as_of_date` summarize the newest fiscal period across the performance metrics.
 * Zero stored values are treated as missing in the snapshot builder.
