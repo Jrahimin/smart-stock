@@ -64,6 +64,19 @@ class OptionalRedisClient:
         except Exception:
             logger.warning("Redis DELETE failed for key %s", key, exc_info=True)
 
+    async def delete_by_pattern(self, pattern: str) -> int:
+        if not self.is_available:
+            return 0
+
+        deleted = 0
+        try:
+            async for key in self._redis.scan_iter(match=pattern):
+                await self._redis.delete(key)
+                deleted += 1
+        except Exception:
+            logger.warning("Redis SCAN/DELETE failed for pattern %s", pattern, exc_info=True)
+        return deleted
+
 
 @lru_cache
 def get_redis_client() -> OptionalRedisClient:

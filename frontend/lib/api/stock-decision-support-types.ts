@@ -198,6 +198,18 @@ export type DividendIntelligenceDto = {
   last_dividend_value: string | null;
 };
 
+/** Backend-resolved mark-to-market metrics (Rule #1). Format only on the client. */
+export type DisplayMetricsDto = {
+  current_price: number | null;
+  pe_ratio: number | null;
+  pb_ratio: number | null;
+  earnings_yield: number | null;
+  market_cap: number | null;
+  marked_to_latest_price: boolean;
+  pe_helper: string | null;
+  as_of_trade_date: string | null;
+};
+
 export type StockWorkspaceDto = {
   stock: BackendStockDto;
   prices: BackendDailyPriceDto[];
@@ -207,4 +219,5 @@ export type StockWorkspaceDto = {
   financial_trends: FinancialTrendDto[];
   valuation_context: ValuationContextDto | null;
   dividend_intelligence: DividendIntelligenceDto | null;
+  display_metrics?: DisplayMetricsDto | null;
 };

@@ -1,8 +1,13 @@
 import type { SectorContextDto } from "@/lib/api/stock-details-api";
-import type { FundamentalsSnapshotDto } from "@/lib/api/stock-decision-support-types";
+import type { DisplayMetricsDto, FundamentalsSnapshotDto } from "@/lib/api/stock-decision-support-types";
 import type { StockDecisionViewModel } from "@/features/stock-workspace/view-models/stock-decision-view-model";
 import { formatValuationMetric } from "@/features/stock-workspace/view-models/stock-decision-view-model";
 import { formatComparativeMetricValue } from "@/features/stock-workspace/view-models/sector-context-view-model";
+import {
+  resolveLiveEarningsYield,
+  resolveLivePbRatio,
+  resolveLivePeRatio,
+} from "@/features/stock-workspace/view-models/mark-to-market-helpers";
 import { formatCompactNumber, formatFinancialDisplay, formatNumber } from "@/lib/formatters/financial-formatters";
 
 export type FundamentalsMetricCell = {
@@ -29,16 +34,9 @@ function formatPerformanceMetricValue(metricCode: string, value: number | null |
   return formatFinancialDisplay(value, (parsed) => formatCompactNumber(parsed));
 }
 
-function formatPerformanceHelper(
-  fiscalYear: number | null | undefined,
-  asOfDate: string | null | undefined,
-) {
+function formatPerformanceHelper(fiscalYear: number | null | undefined, asOfDate: string | null | undefined) {
   if (!fiscalYear && !asOfDate) {
     return undefined;
-  }
-
-  if (fiscalYear && asOfDate) {
-    return `FY ${fiscalYear}`;
   }
 
   if (fiscalYear) {
@@ -99,82 +97,12 @@ function hasMeaningfulValue(value: string) {
   return value !== "—";
 }
 
-function resolveLivePeRatio(
-  currentPrice: number | null | undefined,
-  eps: number | null | undefined,
-  valuationPe: number | null | undefined,
-  valuationClose: number | null | undefined,
-) {
-  if (currentPrice != null && currentPrice > 0 && eps != null && eps > 0) {
-    return currentPrice / eps;
-  }
-
-  if (
-    currentPrice != null &&
-    currentPrice > 0 &&
-    valuationPe != null &&
-    valuationPe > 0 &&
-    valuationClose != null &&
-    valuationClose > 0
-  ) {
-    return valuationPe * (currentPrice / valuationClose);
-  }
-
-  return valuationPe ?? null;
-}
-
-function resolveLiveEarningsYield(
-  currentPrice: number | null | undefined,
-  eps: number | null | undefined,
-  valuationEarningsYield: number | null | undefined,
-  valuationClose: number | null | undefined,
-) {
-  if (currentPrice != null && currentPrice > 0 && eps != null && eps > 0) {
-    return (eps / currentPrice) * 100;
-  }
-
-  if (
-    currentPrice != null &&
-    currentPrice > 0 &&
-    valuationEarningsYield != null &&
-    valuationClose != null &&
-    valuationClose > 0
-  ) {
-    return valuationEarningsYield * (valuationClose / currentPrice);
-  }
-
-  return valuationEarningsYield ?? null;
-}
-
-function resolveLivePbRatio(
-  currentPrice: number | null | undefined,
-  nav: number | null | undefined,
-  valuationPb: number | null | undefined,
-  valuationClose: number | null | undefined,
-) {
-  if (currentPrice != null && currentPrice > 0 && nav != null && nav > 0) {
-    return currentPrice / nav;
-  }
-
-  if (
-    currentPrice != null &&
-    currentPrice > 0 &&
-    valuationPb != null &&
-    valuationPb > 0 &&
-    valuationClose != null &&
-    valuationClose > 0
-  ) {
-    return valuationPb * (currentPrice / valuationClose);
-  }
-
-  return valuationPb ?? null;
-}
-
 export function buildFundamentalsViewModel(
   decision: StockDecisionViewModel,
   snapshot: FundamentalsSnapshotDto | null | undefined,
   sectorContext?: SectorContextDto | null,
   currentPrice?: number | null,
+  displayMetrics?: DisplayMetricsDto | null,
 ): FundamentalsViewModel {
   const performanceAsOf = snapshot?.latest_as_of_date ?? null;
   const fiscalPeriodNote =
@@ -187,26 +115,34 @@ export function buildFundamentalsViewModel(
   const valuation = decision.valuation;
   const eps = lookupPerformanceMetric(snapshot, "EPS")?.value ?? null;
   const nav = lookupPerformanceMetric(snapshot, "NAV_PER_SHARE")?.value ?? null;
-  const livePrice = currentPrice ?? valuation?.close_price ?? null;
-  const livePe = resolveLivePeRatio(livePrice, eps, valuation?.pe_ratio, valuation?.close_price);
-  const livePb = resolveLivePbRatio(livePrice, nav, valuation?.pb_ratio, valuation?.close_price);
-  const liveEarningsYield = resolveLiveEarningsYield(
-    livePrice,
-    eps,
-    valuation?.earnings_yield,
-    valuation?.close_price,
-  );
-  const valuationHelper =
-    livePrice != null && valuation?.close_price != null && livePrice !== valuation.close_price
+  const livePrice = displayMetrics?.current_price ?? currentPrice ?? valuation?.close_price ?? null;
+
+  const livePe =
+    displayMetrics?.pe_ratio !== undefined && displayMetrics !== null
+      ? displayMetrics.pe_ratio
+      : resolveLivePeRatio(livePrice, eps, valuation?.pe_ratio, valuation?.close_price);
+  const livePb =
+    displayMetrics?.pb_ratio !== undefined && displayMetrics !== null
+      ? displayMetrics.pb_ratio
+      : resolveLivePbRatio(livePrice, nav, valuation?.pb_ratio, valuation?.close_price);
+  const liveEarningsYield =
+    displayMetrics?.earnings_yield !== undefined && displayMetrics !== null
+      ? displayMetrics.earnings_yield
+      : resolveLiveEarningsYield(livePrice, eps, valuation?.earnings_yield, valuation?.close_price);
+
+  const valuationHelper = displayMetrics?.marked_to_latest_price
+    ? "Marked to latest price"
+    : livePrice != null && valuation?.close_price != null && livePrice !== valuation.close_price
       ? "Marked to latest price"
       : formatValuationHelper(valuation?.valuation_date, performanceAsOf);
 
   const peHelper =
-    livePe == null && eps == null
+    displayMetrics?.pe_helper ??
+    (livePe == null && eps == null
       ? "EPS unavailable"
       : livePe != null && (eps == null || eps <= 0) && valuation?.pe_ratio != null
         ? "From valuation snapshot"
-        : valuationHelper;
+        : valuationHelper);
 
   const performanceMetrics: FundamentalsMetricCell[] = PERFORMANCE_METRIC_ORDER.map((metricCode) => {
     const metric = lookupPerformanceMetric(snapshot, metricCode);
@@ -234,7 +170,7 @@ export function buildFundamentalsViewModel(
       label: "P/E",
       stock: formatValuationMetric(livePe),
       ...buildComparisonColumns(sectorContext, "pe"),
-      helper: peHelper,
+      helper: peHelper ?? undefined,
     },
     {
       key: "pb",

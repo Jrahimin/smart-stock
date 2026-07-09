@@ -281,7 +281,7 @@ List views (Explorer, Scanner, Signals, Watchlist) must not derive action, RSI, 
 | Decisions | `frontend/lib/market/trader-decision.ts` | `resolveTraderDecision()`, session-change helpers — **only** source for action badges |
 | Trend labels | `frontend/lib/market/trend-display.ts` | Shared Bullish/Bearish/Sideways copy and filter keys |
 
-Watchlist fallback when a symbol is missing from the universe payload: use watchlist item `technical_snapshot` + `trader_decision` (same backend compute path). Stock detail workspace still uses `GET /stock-details/.../decision` for the full decision rail; list-level badges stay on the universe contract above.
+Watchlist fallback when a symbol is missing from the universe payload: use watchlist item `technical_snapshot` + `trader_decision` (same backend compute path). Stock detail workspace uses `GET /stock-details/.../workspace` (page aggregate including `decision_support` + `display_metrics`) for the full decision rail; list-level badges stay on the universe contract above. Do not use client `buildStockIntelligence` as the displayed action when decision support is available.
 
 ### Market Session And Cache Policy
 
@@ -294,7 +294,7 @@ The product uses daily synced data, not live streaming. **Three browser-side cac
 | Redis (optional) | Backend services | `dashboard_cache_ttl_seconds`; background rebuild after sync (overwrite, not delete-first) |
 | TanStack Query | Feature hooks | Market hooks: `staleTime` + `refetchInterval` from freshness during OPEN/PRE_OPEN; OPEN refetch aligned to `snapshot_interval_minutes` (~15 min) |
 | IndexedDB | `backendApiGetMarket` in `backend-api-client.ts` | Market GETs: `dashboard_cache_ttl_seconds` from freshness when loaded; fallback 5–10 min (`NEXT_PUBLIC_MARKET_CACHE_MINUTES`); other GETs: 2h |
-| **Sync coordinator** | `market-cache-coordinator.ts` + `MarketCacheSyncCoordinator` in `providers.tsx` | Polls `/market/freshness` every ~2 min; on `last_synced_at` change → invalidate TanStack roots only (`dashboard`, `market-universe-rows`, `market-pulse-*`, `signals`) — **does not** clear IndexedDB |
+| **Sync coordinator** | `market-cache-coordinator.ts` + `MarketCacheSyncCoordinator` in `providers.tsx` | Polls `/market/freshness` every ~2 min; on `last_synced_at` change → invalidate TanStack roots (`dashboard`, `market-universe-rows`, `market-pulse-*`, `signals`, `stock-workspace`, `stock-sector-context`) — **does not** clear IndexedDB |
 
 Dashboard loads via `/dashboard/*` only (no `price-windows`, no universe on dashboard compute path). Explorer, scanner, and signals share `market-universe-rows` — no separate TanStack keys.
 
@@ -308,9 +308,27 @@ Use TanStack Table for stock explorer, signal center, scanner results, and watch
 
 Do not build market-wide pages by issuing one request per stock. Use aggregate backend endpoints: trader dashboard → `GET /api/v1/dashboard/*`; explorer/scanner/signals/watchlist → `GET /api/v1/market/universe-rows`. Per-stock historical endpoints only for chart windows (`GET /api/v1/stock-details/{exchange}/{symbol}/workspace`).
 
+### Stock Detail Page Architecture
+
+Public route `/stocks/{exchange}/{symbol}` is a **hybrid public stock knowledge page + interactive trader workspace**.
+
+Three layers (do not conflate):
+
+1. **Stock Entity (domain)** — persisted market/fundamentals data + deterministic decision engines under `backend/app/modules/stock_details/decision/`.
+2. **Page aggregate** — `StockWorkspaceRead` from `GET /stock-details/{exchange}/{symbol}/workspace` (composed read model, **not** the entity itself). Includes `display_metrics` for mark-to-market values.
+3. **Presentation** — frontend view models format/arrange; they must not invent competing recommendations or recompute live valuation when `display_metrics` is present.
+
+**Rule #1:** one calculation site per financial meaning. Detail-page action/confidence come from `decision_support`, not client `buildStockIntelligence`. List surfaces still use `universe-rows`.
+
+**Rendering:** server-load workspace; render a small durable HTML summary (identity, price, decision-support action, freshness); hydrate chart/modals/watchlist/lazy sections as client. Motivation is trust and progressive enhancement, not crawler-first design.
+
+**Caching:** Redis keys versioned by `latest_trade_date` (cross-day bust); same-day freshness relies on TTL. Align Next ISR / TanStack staleTime with `dashboard_cache_ttl_seconds` from `/market/freshness`. No Cloudflare HTML/API cache for this page.
+
+Docs: `backend/docs/stock_details.md` (domain layers + cache semantics).
+
 ### Stock Detail SEO (P6 Core)
 
-Stock detail pages (`/stocks/{exchange}/{symbol}`) are server-rendered for crawlability. SEO is **head/metadata only** — the trader workspace UI is unchanged.
+Stock detail pages (`/stocks/{exchange}/{symbol}`) use server `generateMetadata` and JSON-LD. A durable on-page summary is part of the hybrid render boundary (trust/clarity); SEO head tags remain separate.
 
 | Piece | Location | Role |
 |-------|----------|------|
@@ -318,6 +336,7 @@ Stock detail pages (`/stocks/{exchange}/{symbol}`) are server-rendered for crawl
 | Page metadata | `frontend/app/stocks/[exchange]/[symbol]/page.tsx` | `generateMetadata`: title, description, canonical, OpenGraph, Twitter |
 | Structured data | `frontend/lib/seo/stock-page-seo.ts` + `components/seo/json-ld-script.tsx` | BreadcrumbList + Organization JSON-LD |
 | Semantic copy | `buildStockSemanticSummary()` | Meta description from deterministic workspace/decision context |
+| Durable summary | `stock-durable-summary.tsx` | Server-visible identity, price, decision-support, freshness |
 | Sitemap | `frontend/app/sitemap.ts` | `/`, `/stocks`, `/market-pulse`, all active stock detail URLs |
 | Robots | `frontend/app/robots.ts` | Allow public routes; disallow auth/admin; point to sitemap |
 | Symbol index API | `GET /api/v1/stocks/active-symbols` | Lean `{ exchange, symbol }[]` for sitemap generation |
@@ -326,7 +345,7 @@ Rules:
 
 * Set `NEXT_PUBLIC_SITE_URL` at **frontend Docker build** (with `NEXT_PUBLIC_API_BASE_URL`); canonicals and sitemap URLs bake in at build time.
 * Title format: `{SYMBOL} Share Price, Dividend, PE Ratio & Analysis — {Name}`.
-* Deferred (P6b): indexable on-page HTML blocks, Dataset/FinancialService schema, company profile narrative.
+* Deferred (P6b): richer Dataset/FinancialService schema, company profile narrative — as consumers of the same aggregate values only.
 
 ### Visualization Strategy
 

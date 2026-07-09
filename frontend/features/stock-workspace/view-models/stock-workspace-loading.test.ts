@@ -24,7 +24,51 @@ describe("stock workspace loading state", () => {
     expect(loadingModel.header.symbol).not.toBe("UNKNOWN");
     expect(loadingModel.header.latestPrice).toBe("—");
     expect(loadingModel.header.marketCap).toBe("—");
-    expect(loadingModel.header.signal).toBe("—");
+    expect(loadingModel.header.chartContextSignal).toBe("—");
+  });
+
+  it("prefers backend display_metrics for market cap and price", () => {
+    const stock = {
+      symbol: "BSC",
+      name: "BSC",
+      exchange: "DSE",
+      market_cap: 6000,
+    } as BackendStockDto;
+    const prices = [
+      { trade_date: "2026-07-08", close_price: 100, open_price: 99, high_price: 101, low_price: 98, volume: 1000 },
+      { trade_date: "2026-07-09", close_price: 120, open_price: 118, high_price: 121, low_price: 117, volume: 1100 },
+    ] as BackendDailyPriceDto[];
+    const decisionSupport = {
+      valuation: {
+        close_price: 100,
+        market_cap: 6600,
+        pe_ratio: 12,
+        pb_ratio: 1.2,
+        dividend_yield: 2,
+        earnings_yield: 8,
+        interpretations: [],
+        valuation_date: "2026-07-08",
+        source: "AMARSTOCK_API",
+      },
+    } as unknown as StockDecisionSupportDto;
+
+    const model = buildStockWorkspaceModel(stock, prices, {
+      decisionSupport,
+      displayMetrics: {
+        current_price: 120,
+        pe_ratio: 14.4,
+        pb_ratio: 1.44,
+        earnings_yield: 6.67,
+        market_cap: 7920,
+        marked_to_latest_price: true,
+        pe_helper: "Marked to latest price",
+        as_of_trade_date: "2026-07-09",
+      },
+    });
+
+    expect(model.header.marketCap).toBe(formatMarketCapBdt(7920));
+    expect(model.header.latestPrice).toBe("120");
+    expect(model.header.chartContextSignal).not.toBe("BUY");
   });
 });
 
@@ -90,7 +134,7 @@ describe("market cap formatting", () => {
 });
 
 describe("reactive fundamentals", () => {
-  it("recomputes P/E from current live price and EPS", () => {
+  it("uses backend display_metrics P/E when present (Rule #1)", () => {
     const decision = {
       available: true,
       valuation: {
@@ -123,10 +167,21 @@ describe("reactive fundamentals", () => {
       },
       null,
       28.1,
+      {
+        current_price: 28.1,
+        pe_ratio: 37.47,
+        pb_ratio: null,
+        earnings_yield: 2.67,
+        market_cap: 1525,
+        marked_to_latest_price: true,
+        pe_helper: "Marked to latest price",
+        as_of_trade_date: "2026-07-09",
+      },
     );
 
     const pe = fundamentals.metrics.find((metric) => metric.key === "pe");
     expect(pe?.stock).toBe("37.47");
+    expect(pe?.helper).toBe("Marked to latest price");
   });
 
   it("shows P/E row with EPS unavailable helper when EPS is missing", () => {

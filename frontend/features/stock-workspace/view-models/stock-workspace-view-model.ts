@@ -1,5 +1,5 @@
 import type { BackendDailyPriceDto, BackendStockDto } from "@/lib/api/backend-api-types";
-import type { StockDecisionSupportDto } from "@/lib/api/stock-decision-support-types";
+import type { DisplayMetricsDto, StockDecisionSupportDto } from "@/lib/api/stock-decision-support-types";
 import { formatCompactNumber, formatNumber, formatPercent } from "@/lib/formatters/financial-formatters";
 import { buildStockIntelligence } from "@/lib/market/market-intelligence";
 import type { StockIntelligenceModel } from "@/lib/market/market-intelligence-types";
@@ -17,8 +17,9 @@ export type StockWorkspaceModel = {
     latestPrice: string;
     changePercent: string;
     marketCap: string;
-    signal: string;
-    confidence: string;
+    /** Display-only chart/context signal from OHLCV helpers — not the page action. */
+    chartContextSignal: string;
+    chartContextConfidence: string;
   };
   technicalSummary: Array<{ label: string; value: string; helper: string }>;
   insights: Array<{
@@ -31,6 +32,7 @@ export type StockWorkspaceModel = {
 
 type BuildStockWorkspaceModelOptions = {
   decisionSupport?: StockDecisionSupportDto | null;
+  displayMetrics?: DisplayMetricsDto | null;
 };
 
 function buildInsights(intelligence: StockIntelligenceModel | null): StockWorkspaceModel["insights"] {
@@ -45,20 +47,7 @@ function buildInsights(intelligence: StockIntelligenceModel | null): StockWorksp
     ];
   }
 
-  const insights: StockWorkspaceModel["insights"] = [
-    {
-      title: `${intelligence.signal.signal} context`,
-      description: intelligence.signal.reason,
-      tone:
-        intelligence.signal.signal === "BUY"
-          ? "positive"
-          : intelligence.signal.signal === "SELL"
-            ? "negative"
-            : "neutral",
-      category:
-        intelligence.signal.signal === "BUY" ? "opportunity" : intelligence.signal.signal === "SELL" ? "risk" : "momentum",
-    },
-  ];
+  const insights: StockWorkspaceModel["insights"] = [];
 
   if (intelligence.volatility !== null && intelligence.volatility > 3) {
     insights.push({
@@ -107,8 +96,8 @@ export function buildEmptyStockWorkspaceModel(options: {
       latestPrice: "—",
       changePercent: "—",
       marketCap: "—",
-      signal: "—",
-      confidence: "—",
+      chartContextSignal: "—",
+      chartContextConfidence: "—",
     },
     technicalSummary: [],
     insights: [],
@@ -120,10 +109,16 @@ export function buildStockWorkspaceModel(
   prices: BackendDailyPriceDto[],
   options: BuildStockWorkspaceModelOptions = {},
 ): StockWorkspaceModel {
+  // Chart candles / volume bars only — not the page decision-support action (Rule #1).
   const intelligence = stock ? buildStockIntelligence(stock, prices) : null;
   const decisionSupport = options.decisionSupport;
+  const displayMetrics = options.displayMetrics;
   const support = decisionSupport?.support ?? intelligence?.support ?? null;
   const resistance = decisionSupport?.resistance ?? intelligence?.resistance ?? null;
+  const latestPrice =
+    displayMetrics?.current_price != null
+      ? formatNumber(displayMetrics.current_price)
+      : formatNumber(intelligence?.latestPrice);
 
   return {
     intelligence,
@@ -134,17 +129,17 @@ export function buildStockWorkspaceModel(
       sector: stock?.sector ?? "Unclassified",
       category: stock?.category ?? "N/A",
       listingDate: stock?.listing_date ?? null,
-      latestPrice: formatNumber(intelligence?.latestPrice),
+      latestPrice,
       changePercent: formatPercent(intelligence?.priceChangePercent),
-      marketCap: resolveDisplayedMarketCap(stock, intelligence, decisionSupport),
-      signal: intelligence?.signal.signal ?? "HOLD",
-      confidence: intelligence ? `${intelligence.signal.confidence}%` : "N/A",
+      marketCap: resolveDisplayedMarketCap(stock, intelligence, decisionSupport, displayMetrics),
+      chartContextSignal: intelligence?.signal.signal ?? "—",
+      chartContextConfidence: intelligence ? `${intelligence.signal.confidence}%` : "—",
     },
     technicalSummary: [
       {
         label: "Trend",
         value: decisionSupport?.trend ?? intelligence?.trend ?? "UNKNOWN",
-        helper: "Derived from price versus moving-average context.",
+        helper: "Canonical trend from the decision engine when available.",
       },
       {
         label: "RSI",

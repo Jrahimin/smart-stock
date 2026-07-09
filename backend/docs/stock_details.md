@@ -4,6 +4,55 @@
 
 The stock details module ingests richer per-stock data from AmarStock APIs without relying on rendered HTML. It complements daily market ingestion by adding multi-year fundamentals, recent historical OHLCV backfill, valuation snapshots, ownership snapshots, and stock-level news/events.
 
+## Domain layers (Stock Entity vs page aggregate)
+
+Do **not** call `StockWorkspaceRead` “the Stock Entity.” Use three layers:
+
+| Layer | What it is | Where |
+|-------|------------|--------|
+| **Stock Entity (domain)** | Persisted truth (`stocks`, `daily_prices`, financial metrics, valuation/shareholding snapshots, events) plus deterministic outputs from decision engines | DB + `decision/` builders |
+| **Page aggregate / read model** | Composed projection for the public stock details page and other consumers | `StockWorkspaceRead` via `GET /stock-details/{exchange}/{symbol}/workspace` |
+| **Presentation models** | Format, label, arrange, hide empty sections, chart interaction | Frontend view models / components |
+
+Conceptual domain groups (not a second DTO):
+
+* Identity — symbol, exchange, name, sector, category, listing date
+* Latest market state — last price, change, volume, latest trade date, market cap
+* Financial state — EPS, NAV, revenue, profit, valuation, dividends, fiscal period
+* Technical state — trend, RSI, MAs, support/resistance, patterns, breakout context
+* Decision-support state — recommendation, confidence, opportunity, risk, liquidity, trade plan, warnings (short-horizon trader decision support, **not** a long-term investment thesis)
+* Freshness / provenance — stale/sparse flags, missing fields, dated metrics
+
+### Rule #1 — no duplicated business logic
+
+One calculation site per financial meaning. Many display sites.
+
+* Backend engines own recommendation, confidence, risk, trend, support/resistance, trade plan, warnings, and resolved mark-to-market **display metrics** (`display_metrics` on the workspace aggregate).
+* Frontend may format and arrange; it must not invent a competing BUY/SELL/HOLD or recompute live P/E / P/B / scaled market cap when `display_metrics` is present.
+* List surfaces keep using `universe-rows`; the detail page uses `/workspace`. Do not dual-fetch `/decision-support` and `/workspace` for the same screen.
+
+### Workspace contract shape
+
+`StockWorkspaceRead` mixes entity-ish state and chart series (`prices`). That is acceptable as a **page aggregate**. Chart OHLCV is a consumer concern of the workspace UI, not the identity of the stock. Split prices out only if measured payload/latency requires it.
+
+Secondary endpoints:
+
+* `/sector-context` — lazy comparative context
+* related stocks — temporary client filter over universe; prefer `/related` later if cold-load cost grows
+* `/decision-support` — focused consumers only; the page prefers `/workspace`
+
+### Cache semantics (workspace)
+
+Per-symbol keys are versioned by `latest_trade_date`:
+
+```text
+stock-workspace:core:{exchange}:{symbol}:{latest_trade_date}
+```
+
+* **Cross-day:** trade-date key change is hard invalidation.
+* **Same-day intraday:** the same trade date is upserted during OPEN (~15 min). TTL is the same-day safety net; there is no per-stock fan-out on snapshot sync (intentional).
+* Frontend ISR / TanStack stale times should follow market freshness TTL, not fight IndexedDB with an unrelated magic interval.
+
 ## Sources
 
 The implementation uses only JSON APIs documented in `backend/app/scraping_sources/amarstock_api_sample.md`:
@@ -150,8 +199,17 @@ stock-workspace:events:{exchange}:{symbol}:{latest_trade_date}
 ```
 
 * **Invalidation:** no per-stock fan-out on `sync_market_snapshot` (intentional).
-* **Freshness:** keys miss naturally when trade date advances; TTL is a same-day intraday safety net.
+* **Cross-day freshness:** keys miss naturally when trade date advances.
+* **Same-day intraday freshness:** TTL is the safety net while the trade date stays constant; workspace JSON may lag the latest snapshot upsert by up to that TTL unless a future explicit rebuild hook is added.
 * **Consistency:** eventually consistent within one sync interval on the same trade date.
+
+## Workspace display metrics (Rule #1)
+
+`GET /api/v1/stock-details/{exchange}/{symbol}/workspace` includes `display_metrics`:
+
+* Resolved live P/E, P/B, earnings yield, and scaled market cap from latest close + fundamentals/valuation.
+* `marked_to_latest_price` and `pe_helper` / `as_of_trade_date` for provenance.
+* Builder: `decision/display_metrics.py`. Frontend formats these values; it must not recompute them when present.
 
 ## Workspace fundamentals snapshot
 

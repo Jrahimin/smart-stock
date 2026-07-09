@@ -1214,12 +1214,15 @@ Run API-only AmarStock stock details ingestion for eligible active stocks. The w
 ### GET /api/v1/stock-details/{exchange}/{symbol}/workspace
 
 **Description**
-Consolidated stock workspace payload: `StockRead`, OHLCV window (260 bars), and full decision-support in one response. Cached in Redis with versioned key `stock-workspace:core:{exchange}:{symbol}:{latest_trade_date}`. TTL follows `market_dashboard_cache_ttl_seconds` as a same-day safety net. **Not** invalidated on exchange-wide sync — eventually consistent by design.
+Page aggregate / read model for the public stock details page (`StockWorkspaceRead`): `StockRead`, OHLCV window (chart series), full `decision_support`, fundamentals, valuation context, dividend intelligence, and backend-resolved `display_metrics` (live P/E, P/B, earnings yield, scaled market cap). This is **not** the Stock Entity itself — it is a composed projection over the Stock domain.
+
+Cached in Redis with versioned key `stock-workspace:core:{exchange}:{symbol}:{latest_trade_date}`. **Cross-day:** trade-date key change busts the cache. **Same-day:** TTL follows `market_dashboard_cache_ttl_seconds` as the intraday safety net. **Not** invalidated on exchange-wide sync — eventually consistent by design.
 
 **Lazy section endpoints**
 
 * `GET .../workspace/patterns` — patterns + breakout (`stock-workspace:patterns:...`)
 * `GET .../workspace/events` — ownership, valuation, timeline (`stock-workspace:events:...`)
+* `GET .../sector-context` — sector comparative context (separate key)
 
 **Path Params**
 
@@ -1249,6 +1252,16 @@ Consolidated stock workspace payload: `StockRead`, OHLCV window (260 bars), and 
       ],
       "latest_fiscal_year": 2024,
       "latest_as_of_date": "2024-12-31"
+    },
+    "display_metrics": {
+      "current_price": 120.0,
+      "pe_ratio": 14.4,
+      "pb_ratio": 1.44,
+      "earnings_yield": 6.94,
+      "market_cap": 7920.0,
+      "marked_to_latest_price": true,
+      "pe_helper": "Marked to latest price",
+      "as_of_trade_date": "2026-06-17"
     }
   }
 }

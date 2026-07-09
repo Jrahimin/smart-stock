@@ -5,6 +5,7 @@ import { JsonLdScript } from "@/components/seo/json-ld-script";
 import { TerminalAppShell } from "@/components/layout/terminal-app-shell";
 import type { ExchangeCode } from "@/lib/api/backend-api-types";
 import { loadStockWorkspace } from "@/lib/api/stock-detail-server";
+import { StockDurableSummary } from "@/features/stock-workspace/components/stock-durable-summary";
 import { StockDetailWorkspaceView } from "@/features/stock-workspace/stock-detail-workspace-view";
 import { buildStockDecisionViewModel } from "@/features/stock-workspace/view-models/stock-decision-view-model";
 import { buildStockSemanticSummary } from "@/features/stock-workspace/view-models/stock-semantic-summary-view-model";
@@ -18,8 +19,9 @@ import {
 import { siteConfig } from "@/lib/seo/site-config";
 
 // Must be a literal — Next.js cannot statically analyze imported segment config.
-// Keep in sync with STOCK_DETAIL_REVALIDATE_SECONDS in lib/seo/stock-detail-cache.ts.
-export const revalidate = 60;
+// Keep in sync with STOCK_DETAIL_REVALIDATE_SECONDS in lib/seo/stock-detail-cache.ts
+// (aligned to market dashboard cache TTL default of 600s; same-day freshness uses Redis TTL).
+export const revalidate = 600;
 
 type StockDetailPageProps = {
   params: Promise<{
@@ -50,6 +52,7 @@ export async function generateMetadata({ params }: StockDetailPageProps): Promis
   const stock = result.data.stock;
   const model = buildStockWorkspaceModel(stock, result.data.prices ?? [], {
     decisionSupport: result.data.decision_support,
+    displayMetrics: result.data.display_metrics,
   });
   const decisionModel = buildStockDecisionViewModel(result.data.decision_support);
   const description = buildStockSemanticSummary(model, decisionModel);
@@ -103,6 +106,7 @@ export default async function StockDetailPage({ params }: StockDetailPageProps) 
   return (
     <TerminalAppShell>
       <JsonLdScript data={structuredData} />
+      <StockDurableSummary workspace={workspace} />
       <StockDetailWorkspaceView exchange={exchange} initialWorkspace={workspace} symbol={normalizedSymbol} />
     </TerminalAppShell>
   );

@@ -84,7 +84,12 @@ export function MarketDataFreshnessBar({ variant = "embedded", exchange = "DSE",
   const { data, isLoading, isError } = useMarketDataFreshness(exchange);
   const refreshMarketCaches = useMarketCacheRefresh();
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [hasMounted, setHasMounted] = useState(false);
   const [, setTick] = useState(0);
+
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
 
   useEffect(() => {
     const timer = window.setInterval(() => setTick((value) => value + 1), 60_000);
@@ -97,8 +102,7 @@ export function MarketDataFreshnessBar({ variant = "embedded", exchange = "DSE",
     .filter(Boolean)
     .join(" ");
   const relativeLabel =
-    model.relativeLastUpdatedLabel ??
-    (data?.last_synced_at ? formatRelativeLastUpdated(data.last_synced_at) : null);
+    hasMounted && data?.last_synced_at ? formatRelativeLastUpdated(data.last_synced_at) : null;
   const refreshDisabled = isManualRefreshDisabled(data?.market_status);
 
   const handleRefresh = () => {
@@ -129,7 +133,13 @@ export function MarketDataFreshnessBar({ variant = "embedded", exchange = "DSE",
     );
   }
 
-  const label = relativeLabel ? `Last updated ${relativeLabel}` : "No snapshot yet";
+  const label = relativeLabel
+    ? `Last updated ${relativeLabel}`
+    : hasMounted
+      ? "No snapshot yet"
+      : model.lastUpdatedLabel
+        ? "Last updated …"
+        : "Syncing…";
 
   return (
     <div className={wrapperClass}>

@@ -5,6 +5,7 @@ import { clearBackendApiCache } from "@/lib/api/backend-api-client";
 /**
  * TanStack Query roots invalidated after a backend market sync or manual refresh.
  * Scanner, signals, and stock explorer consume `market-universe-rows`; no separate keys.
+ * Stock detail page aggregate uses `stock-workspace` (+ lazy `stock-sector-context`).
  */
 export const MARKET_TANSTACK_QUERY_ROOTS = [
   "dashboard",
@@ -12,6 +13,8 @@ export const MARKET_TANSTACK_QUERY_ROOTS = [
   "market-pulse-summary",
   "market-pulse-briefing",
   "signals",
+  "stock-workspace",
+  "stock-sector-context",
 ] as const;
 
 export async function invalidateMarketTanStackQueries(queryClient: QueryClient): Promise<void> {

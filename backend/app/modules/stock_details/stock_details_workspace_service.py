@@ -21,6 +21,7 @@ from app.modules.stock_details.stock_details_repository import (
     get_stock_details_repository,
 )
 from app.modules.stock_details.stock_details_workspace_schemas import (
+    DisplayMetricsRead,
     DividendIntelligenceRead,
     FinancialMetricSnapshotRead,
     FinancialTrendPointRead,
@@ -33,6 +34,7 @@ from app.modules.stock_details.stock_details_workspace_schemas import (
     ValuationMetricContextRead,
 )
 from app.modules.stocks.stocks_schemas import StockRead
+from app.modules.stock_details.decision.display_metrics import build_display_metrics
 from app.modules.stock_details.decision.dividend_intelligence import build_dividend_intelligence
 from app.modules.stock_details.decision.financial_trends import build_financial_trends
 from app.modules.stock_details.decision.fundamentals_snapshot import (
@@ -150,6 +152,14 @@ class StockDetailsWorkspaceService:
             else None
         )
 
+        display_metrics = self._build_display_metrics(
+            prices=prices,
+            latest_trade_date=latest_trade_date,
+            decision_support=decision_support,
+            fundamentals_snapshot=fundamentals_snapshot,
+            stock=stock,
+        )
+
         payload = StockWorkspaceRead(
             stock=stock_read,
             prices=[DailyPriceRead.model_validate(price) for price in prices],
@@ -159,9 +169,55 @@ class StockDetailsWorkspaceService:
             financial_trends=financial_trends,
             valuation_context=valuation_context,
             dividend_intelligence=dividend_intelligence,
+            display_metrics=display_metrics,
         )
         await self._cache_set(cache_key, payload.model_dump(mode="json"))
         return payload
+
+    def _build_display_metrics(
+        self,
+        *,
+        prices,
+        latest_trade_date: str,
+        decision_support,
+        fundamentals_snapshot: FundamentalsSnapshotRead,
+        stock,
+    ) -> DisplayMetricsRead:
+        sorted_prices = sorted(prices, key=lambda price: price.trade_date)
+        current_price = float(sorted_prices[-1].close_price) if sorted_prices else None
+        valuation = decision_support.valuation
+        metrics_by_code = {
+            metric.metric_code: metric.value for metric in fundamentals_snapshot.metrics
+        }
+        eps = metrics_by_code.get("EPS")
+        nav = metrics_by_code.get("NAV_PER_SHARE")
+        stored_market_cap = None
+        if valuation is not None and valuation.market_cap is not None:
+            stored_market_cap = valuation.market_cap
+        elif stock.market_cap is not None:
+            stored_market_cap = float(stock.market_cap)
+
+        result = build_display_metrics(
+            current_price=current_price,
+            eps=eps,
+            nav=nav,
+            valuation_pe=valuation.pe_ratio if valuation else None,
+            valuation_pb=valuation.pb_ratio if valuation else None,
+            valuation_earnings_yield=valuation.earnings_yield if valuation else None,
+            valuation_close=valuation.close_price if valuation else None,
+            stored_market_cap=stored_market_cap,
+            as_of_trade_date=latest_trade_date if latest_trade_date != "unknown" else None,
+        )
+        return DisplayMetricsRead(
+            current_price=result.current_price,
+            pe_ratio=result.pe_ratio,
+            pb_ratio=result.pb_ratio,
+            earnings_yield=result.earnings_yield,
+            market_cap=result.market_cap,
+            marked_to_latest_price=result.marked_to_latest_price,
+            pe_helper=result.pe_helper,
+            as_of_trade_date=result.as_of_trade_date,
+        )
 
     async def _build_valuation_context(self, *, stock, decision_support) -> ValuationContextRead | None:
         sector = (stock.sector or "").strip()

@@ -59,6 +59,19 @@ class DividendIntelligenceRead(BaseModel):
     last_dividend_value: str | None = None
 
 
+class DisplayMetricsRead(BaseModel):
+    """Backend-resolved mark-to-market metrics for page display (Rule #1)."""
+
+    current_price: float | None = None
+    pe_ratio: float | None = None
+    pb_ratio: float | None = None
+    earnings_yield: float | None = None
+    market_cap: float | None = None
+    marked_to_latest_price: bool = False
+    pe_helper: str | None = None
+    as_of_trade_date: str | None = None
+
+
 class SectorPerformerRead(BaseModel):
     symbol: str
     change_percent: float
@@ -93,6 +106,12 @@ class SectorContextRead(BaseModel):
 
 
 class StockWorkspaceRead(BaseModel):
+    """Page aggregate / read model for the public stock details page.
+
+    Not the Stock Entity itself — a composed projection over the Stock domain
+    (persisted facts + decision engines) for one page consumer.
+    """
+
     stock: StockRead
     prices: list[DailyPriceRead]
     latest_trade_date: str
@@ -101,6 +120,7 @@ class StockWorkspaceRead(BaseModel):
     financial_trends: list[FinancialTrendRead] = Field(default_factory=list)
     valuation_context: ValuationContextRead | None = None
     dividend_intelligence: DividendIntelligenceRead | None = None
+    display_metrics: DisplayMetricsRead | None = None
 
 
 class StockWorkspacePatternsRead(BaseModel):

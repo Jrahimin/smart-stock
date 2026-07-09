@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import date
 from typing import Annotated
 
 from fastapi import Depends
@@ -63,29 +64,47 @@ class MarketUniverseService:
         await self.redis.set_json(cache_key, payload, ttl_seconds=ttl_seconds)
 
     async def get_scored_universe(self, *, exchange: ExchangeCode) -> list[ScoredUniverseRow]:
-        if not self.redis.is_available:
-            return await self.recompute_scored_universe(exchange)
+        session_trade_date, _ = await self.market_repository.get_market_price_freshness(exchange=exchange)
 
-        cache_key = universe_cache_key("scored", exchange)
-        cached = await self._cache_get(cache_key)
-        if cached is not None:
-            return ScoredUniverseCacheRead.model_validate(cached).rows
+        if self.redis.is_available:
+            cache_key = universe_cache_key("scored", exchange)
+            cached = await self._cache_get(cache_key)
+            if cached is not None:
+                rows = ScoredUniverseCacheRead.model_validate(cached).rows
+                if self._rows_match_session(rows, session_trade_date):
+                    return rows
+                logger.info(
+                    "Ignoring stale universe:scored for %s (session %s)",
+                    exchange.value,
+                    session_trade_date,
+                )
 
-        prev_key = universe_prev_cache_key(exchange)
-        stale = await self._cache_get(prev_key)
-        if stale is not None:
-            logger.info("Serving stale universe:scored:prev for %s while rebuild runs", exchange.value)
-            from app.jobs.market_cache_spawn import spawn_rebuild_universe_read_cache
+            prev_key = universe_prev_cache_key(exchange)
+            stale = await self._cache_get(prev_key)
+            if stale is not None:
+                rows = ScoredUniverseCacheRead.model_validate(stale).rows
+                if self._rows_match_session(rows, session_trade_date):
+                    logger.info("Serving universe:scored:prev for %s while rebuild runs", exchange.value)
+                    from app.jobs.market_cache_spawn import spawn_rebuild_universe_read_cache
 
-            spawn_rebuild_universe_read_cache(exchange, settings=self.settings)
-            return ScoredUniverseCacheRead.model_validate(stale).rows
+                    spawn_rebuild_universe_read_cache(exchange, settings=self.settings)
+                    return rows
+                logger.info(
+                    "Ignoring stale universe:scored:prev for %s (session %s)",
+                    exchange.value,
+                    session_trade_date,
+                )
 
-        from app.jobs.market_cache_spawn import spawn_rebuild_universe_read_cache
+        rows = await self.recompute_scored_universe(exchange)
+        if self.redis.is_available:
+            await self.cache_scored_universe(exchange, rows)
+        return rows
 
-        spawn_rebuild_universe_read_cache(exchange, settings=self.settings)
-        raise UniverseCacheUnavailableError(
-            f"Scored universe cache miss for {exchange.value}; background rebuild started",
-        )
+    @staticmethod
+    def _rows_match_session(rows: list[ScoredUniverseRow], session_trade_date: date | None) -> bool:
+        if session_trade_date is None or not rows:
+            return False
+        return rows[0].session.latest_trade_date == session_trade_date
 
     async def recompute_scored_universe(self, exchange: ExchangeCode) -> list[ScoredUniverseRow]:
         perf = PerfReport("universe.rebuild")
