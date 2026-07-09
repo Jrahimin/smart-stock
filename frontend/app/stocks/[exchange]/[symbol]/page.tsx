@@ -1,22 +1,24 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 
 import { JsonLdScript } from "@/components/seo/json-ld-script";
 import { TerminalAppShell } from "@/components/layout/terminal-app-shell";
-import type { BackendStockDto, ExchangeCode } from "@/lib/api/backend-api-types";
-import type { StockWorkspaceDto } from "@/lib/api/stock-decision-support-types";
-import { fetchServerApiData } from "@/lib/api/server-backend-api";
+import type { ExchangeCode } from "@/lib/api/backend-api-types";
+import { loadStockWorkspace } from "@/lib/api/stock-detail-server";
 import { StockDetailWorkspaceView } from "@/features/stock-workspace/stock-detail-workspace-view";
 import { buildStockDecisionViewModel } from "@/features/stock-workspace/view-models/stock-decision-view-model";
 import { buildStockSemanticSummary } from "@/features/stock-workspace/view-models/stock-semantic-summary-view-model";
 import { buildStockWorkspaceModel } from "@/features/stock-workspace/view-models/stock-workspace-view-model";
+import { STOCK_DETAIL_REVALIDATE_SECONDS } from "@/lib/seo/stock-detail-cache";
 import {
   buildStockBreadcrumbJsonLd,
   buildStockDetailCanonical,
   buildStockDetailTitle,
   buildStockOrganizationJsonLd,
-  encodeStockSymbolSegment,
 } from "@/lib/seo/stock-page-seo";
 import { siteConfig } from "@/lib/seo/site-config";
+
+export const revalidate = STOCK_DETAIL_REVALIDATE_SECONDS;
 
 type StockDetailPageProps = {
   params: Promise<{
@@ -25,33 +27,28 @@ type StockDetailPageProps = {
   }>;
 };
 
-async function loadStockMetadata(exchange: ExchangeCode, symbol: string) {
-  const normalizedSymbol = symbol.toUpperCase();
-  const [stock, workspace] = await Promise.all([
-    fetchServerApiData<BackendStockDto>(`/stocks/lookup/${exchange}/${encodeStockSymbolSegment(normalizedSymbol)}`),
-    fetchServerApiData<StockWorkspaceDto>(`/stock-details/${exchange}/${encodeStockSymbolSegment(normalizedSymbol)}/workspace`),
-  ]);
-
-  return { stock, workspace };
+function fallbackMetadata(exchange: ExchangeCode, symbol: string): Metadata {
+  return {
+    title: `${symbol} Share Price & Analysis | ${siteConfig.shortName}`,
+    description: "Stock research workspace for the Bangladesh market.",
+    alternates: {
+      canonical: buildStockDetailCanonical(exchange, symbol),
+    },
+  };
 }
 
 export async function generateMetadata({ params }: StockDetailPageProps): Promise<Metadata> {
   const { exchange, symbol } = await params;
   const normalizedSymbol = symbol.toUpperCase();
-  const { stock, workspace } = await loadStockMetadata(exchange, normalizedSymbol);
+  const result = await loadStockWorkspace(exchange, normalizedSymbol);
 
-  if (!stock) {
-    return {
-      title: `${normalizedSymbol} Share Price & Analysis | ${siteConfig.shortName}`,
-      description: "Stock research workspace for the Bangladesh market.",
-      alternates: {
-        canonical: buildStockDetailCanonical(exchange, normalizedSymbol),
-      },
-    };
+  if (result.status !== "ok") {
+    return fallbackMetadata(exchange, normalizedSymbol);
   }
 
-  const model = buildStockWorkspaceModel(stock, workspace?.prices ?? []);
-  const decisionModel = buildStockDecisionViewModel(workspace?.decision_support);
+  const stock = result.data.stock;
+  const model = buildStockWorkspaceModel(stock, result.data.prices ?? []);
+  const decisionModel = buildStockDecisionViewModel(result.data.decision_support);
   const description = buildStockSemanticSummary(model, decisionModel);
   const title = buildStockDetailTitle(stock.symbol, stock.name);
   const canonical = buildStockDetailCanonical(exchange, stock.symbol);
@@ -82,16 +79,28 @@ export async function generateMetadata({ params }: StockDetailPageProps): Promis
 export default async function StockDetailPage({ params }: StockDetailPageProps) {
   const { exchange, symbol } = await params;
   const normalizedSymbol = symbol.toUpperCase();
-  const { stock } = await loadStockMetadata(exchange, normalizedSymbol);
+  const result = await loadStockWorkspace(exchange, normalizedSymbol);
 
-  const structuredData = stock
-    ? [buildStockBreadcrumbJsonLd(exchange, stock.symbol, stock.name), buildStockOrganizationJsonLd(stock)]
-    : [];
+  if (result.status === "not_found") {
+    notFound();
+  }
+
+  if (result.status === "error") {
+    // Do not call notFound() — that would cache a false 404 for transient API failures.
+    throw new Error(result.message);
+  }
+
+  const workspace = result.data;
+  const stock = workspace.stock;
+  const structuredData = [
+    buildStockBreadcrumbJsonLd(exchange, stock.symbol, stock.name),
+    buildStockOrganizationJsonLd(stock),
+  ];
 
   return (
     <TerminalAppShell>
-      {structuredData.length ? <JsonLdScript data={structuredData} /> : null}
-      <StockDetailWorkspaceView exchange={exchange} symbol={normalizedSymbol} />
+      <JsonLdScript data={structuredData} />
+      <StockDetailWorkspaceView exchange={exchange} initialWorkspace={workspace} symbol={normalizedSymbol} />
     </TerminalAppShell>
   );
 }

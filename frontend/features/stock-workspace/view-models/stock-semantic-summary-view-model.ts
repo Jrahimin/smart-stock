@@ -1,6 +1,6 @@
 import type { StockDecisionViewModel } from "@/features/stock-workspace/view-models/stock-decision-view-model";
 import type { StockWorkspaceModel } from "@/features/stock-workspace/view-models/stock-workspace-view-model";
-import { formatCompactNumber } from "@/lib/formatters/financial-formatters";
+import { formatMarketCapBdt } from "@/lib/formatters/financial-formatters";
 
 function resolveAction(model: StockWorkspaceModel, decision: StockDecisionViewModel) {
   if (decision.available && decision.recommendation !== "—") {
@@ -20,8 +20,12 @@ function resolveConfidence(model: StockWorkspaceModel, decision: StockDecisionVi
 }
 
 function resolveMarketCapPhrase(model: StockWorkspaceModel, decision: StockDecisionViewModel) {
+  if (model.header.marketCap && model.header.marketCap !== "—" && model.header.marketCap !== "N/A") {
+    return `Current market cap is BDT ${model.header.marketCap}`;
+  }
+
   const marketCapValue = decision.valuation?.market_cap ?? model.intelligence?.stock.market_cap;
-  const formatted = formatCompactNumber(marketCapValue);
+  const formatted = formatMarketCapBdt(marketCapValue);
   if (formatted === "N/A") {
     return null;
   }

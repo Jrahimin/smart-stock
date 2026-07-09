@@ -1,6 +1,6 @@
 import type { StockDecisionViewModel } from "@/features/stock-workspace/view-models/stock-decision-view-model";
 import type { StockWorkspaceModel } from "@/features/stock-workspace/view-models/stock-workspace-view-model";
-import { formatCompactNumber, formatFinancialDisplay, formatNumber } from "@/lib/formatters/financial-formatters";
+import { formatFinancialDisplay, formatMarketCapBdt, formatNumber } from "@/lib/formatters/financial-formatters";
 import { formatOwnershipPercent, formatValuationMetric } from "@/features/stock-workspace/view-models/stock-decision-view-model";
 
 export type CompanySnapshotCell = {
@@ -43,23 +43,35 @@ function resolveMarketCap(model: StockWorkspaceModel, decision: StockDecisionVie
     return model.header.marketCap;
   }
 
-  return formatMarketCapDisplay(decision.valuation?.market_cap);
-}
-
-function formatMarketCapDisplay(value: number | string | null | undefined) {
-  if (value === null || value === undefined) {
-    return EMPTY_LABEL;
+  const currentPrice = model.intelligence?.latestPrice ?? null;
+  const valuation = decision.valuation;
+  if (
+    currentPrice != null &&
+    currentPrice > 0 &&
+    valuation?.market_cap != null &&
+    valuation.close_price != null &&
+    valuation.close_price > 0
+  ) {
+    return formatMarketCapBdt(valuation.market_cap * (currentPrice / valuation.close_price));
   }
 
-  if (typeof value === "string" && modelHeaderMarketCapIsEmpty(value)) {
-    return EMPTY_LABEL;
-  }
-
-  return formatFinancialDisplay(value, (parsed) => formatCompactNumber(parsed));
+  return formatMarketCapBdt(valuation?.market_cap);
 }
 
-function modelHeaderMarketCapIsEmpty(value: string) {
-  return value === "N/A" || value === "0" || value === "—";
+function resolveLivePe(model: StockWorkspaceModel, decision: StockDecisionViewModel) {
+  const currentPrice = model.intelligence?.latestPrice ?? null;
+  const valuation = decision.valuation;
+  if (
+    currentPrice != null &&
+    currentPrice > 0 &&
+    valuation?.pe_ratio != null &&
+    valuation.close_price != null &&
+    valuation.close_price > 0
+  ) {
+    return formatValuationMetric(valuation.pe_ratio * (currentPrice / valuation.close_price));
+  }
+
+  return formatValuationMetric(valuation?.pe_ratio);
 }
 
 export function buildCompanySnapshotStrip(model: StockWorkspaceModel, decision: StockDecisionViewModel): CompanySnapshotCell[] {
@@ -91,7 +103,7 @@ export function buildCompanySnapshotStrip(model: StockWorkspaceModel, decision: 
     {
       key: "pe",
       label: "P/E",
-      value: formatValuationMetric(decision.valuation?.pe_ratio),
+      value: resolveLivePe(model, decision),
     },
     {
       key: "dividend-yield",

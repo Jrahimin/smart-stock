@@ -1,7 +1,7 @@
 import type { PatternDetectionDto, StockDecisionSupportDto } from "@/lib/api/stock-decision-support-types";
 import {
-  formatCompactNumber,
   formatFinancialDisplay,
+  formatMarketCapBdt,
   formatNumber,
   formatPercent,
 } from "@/lib/formatters/financial-formatters";
@@ -218,7 +218,7 @@ export function formatValuationMetric(value: number | null | undefined) {
 }
 
 export function formatMarketCap(value: number | null | undefined) {
-  return formatFinancialDisplay(value, (parsed) => formatCompactNumber(parsed));
+  return formatFinancialDisplay(value, (parsed) => formatMarketCapBdt(parsed));
 }
 
 

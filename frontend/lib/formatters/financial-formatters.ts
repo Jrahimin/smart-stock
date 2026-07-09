@@ -43,6 +43,32 @@ export function formatCompactNumber(value: NullableNumber) {
   }).format(parsed);
 }
 
+/**
+ * AmarStock MarketCap / PaidUpCap values are stored in million BDT.
+ * Convert to absolute BDT before compact formatting so 25143 → 25.1B, not 25.1K.
+ */
+export function normalizeMarketCapToAbsoluteBdt(value: number) {
+  if (value <= 0) {
+    return value;
+  }
+
+  // Absolute DSE caps are almost always >= 100M BDT. Smaller magnitudes are million-BDT units.
+  if (value < 100_000_000) {
+    return value * 1_000_000;
+  }
+
+  return value;
+}
+
+export function formatMarketCapBdt(value: NullableNumber) {
+  const parsed = toNumber(value);
+  if (parsed === null) {
+    return "N/A";
+  }
+
+  return formatCompactNumber(normalizeMarketCapToAbsoluteBdt(parsed));
+}
+
 /** Missing or non-meaningful stored values (null, undefined, zero). */
 export function isMissingFinancialValue(value: NullableNumber, options: { allowZero?: boolean } = {}) {
   const parsed = toNumber(value);

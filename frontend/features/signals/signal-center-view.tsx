@@ -58,7 +58,11 @@ export function SignalCenterView() {
         eyebrow="Signal Center"
         filterContextName="signal center"
         onFilterTable={setSymbolFilter}
-        subtitle={`${signalRows.length} decision-ready names from the shared deterministic engine`}
+        subtitle={
+          isLoading
+            ? "Loading decision-ready names from the shared deterministic engine"
+            : `${signalRows.length} decision-ready names from the shared deterministic engine`
+        }
         title="Explanation-first trader decisions"
       >
         <div className="explorer-controls">
@@ -85,47 +89,56 @@ export function SignalCenterView() {
         </div>
       </WorkspacePageHero>
       {isError ? <div className="data-warning">Could not load signal data.</div> : null}
-      {isLoading ? <MarketActivityLoader /> : null}
-      <div className="signal-center-list">
-        {signalRows.map((stock) => {
-          const decision = resolveTraderDecision(stock);
-          const supportingContext = buildDecisionSupportingContext(stock);
+      {isLoading ? <MarketActivityLoader label="Loading trader decisions..." /> : null}
+      {!isLoading ? (
+        <div className="signal-center-list">
+          {signalRows.length ? (
+            signalRows.map((stock) => {
+              const decision = resolveTraderDecision(stock);
+              const supportingContext = buildDecisionSupportingContext(stock);
 
-          return (
-            <Link
-              className={`signal-center-item signal-center-item-${decision.recommendation.toLowerCase()} priority-${getDecisionPriority(decision.confidence)}`}
-              href={buildStockDetailPath(stock.stock.exchange, stock.stock.symbol)}
-              key={stock.stock.id}
-            >
-              <div className="signal-center-topline">
-                <div>
-                  <strong>{stock.stock.symbol}</strong>
-                  <br />
-                  <span>{stock.stock.name}</span>
-                </div>
-                <SignalBadge signal={decision.recommendation} />
-              </div>
-              <p>{decision.reason}</p>
-              <div className="signal-visual-row">
-                <div className="signal-confidence-meter" aria-label={`${decision.confidence}% confidence`}>
-                  <span style={{ width: `${decision.confidence}%` }} />
-                </div>
-                <span className={`risk-pill risk-pill-${decision.riskLabel.toLowerCase()}`}>{decision.riskLabel} risk</span>
-                <span className={`momentum-marker momentum-marker-${decision.recommendation.toLowerCase()}`}>
-                  {getDecisionMomentumHint(stock)}
-                </span>
-              </div>
-              <div className="signal-evidence-row">
-                <span>{decision.confidence}% confidence</span>
-                <span>Risk {decision.riskLabel}</span>
-                <span>Decision engine</span>
-                <span>{stock.latestTradeDate ?? "Awaiting price data"}</span>
-              </div>
-              <small>{supportingContext.join(" / ") || "Awaiting stronger technical context"}</small>
-            </Link>
-          );
-        })}
-      </div>
+              return (
+                <Link
+                  className={`signal-center-item signal-center-item-${decision.recommendation.toLowerCase()} priority-${getDecisionPriority(decision.confidence)}`}
+                  href={buildStockDetailPath(stock.stock.exchange, stock.stock.symbol)}
+                  key={stock.stock.id}
+                >
+                  <div className="signal-center-topline">
+                    <div>
+                      <strong>{stock.stock.symbol}</strong>
+                      <br />
+                      <span>{stock.stock.name}</span>
+                    </div>
+                    <SignalBadge signal={decision.recommendation} />
+                  </div>
+                  <p>{decision.reason}</p>
+                  <div className="signal-visual-row">
+                    <div className="signal-confidence-meter" aria-label={`${decision.confidence}% confidence`}>
+                      <span style={{ width: `${decision.confidence}%` }} />
+                    </div>
+                    <span className={`risk-pill risk-pill-${decision.riskLabel.toLowerCase()}`}>{decision.riskLabel} risk</span>
+                    <span className={`momentum-marker momentum-marker-${decision.recommendation.toLowerCase()}`}>
+                      {getDecisionMomentumHint(stock)}
+                    </span>
+                  </div>
+                  <div className="signal-evidence-row">
+                    <span>{decision.confidence}% confidence</span>
+                    <span>Risk {decision.riskLabel}</span>
+                    <span>Decision engine</span>
+                    <span>{stock.latestTradeDate ?? "Awaiting price data"}</span>
+                  </div>
+                  <small>{supportingContext.join(" / ") || "Awaiting stronger technical context"}</small>
+                </Link>
+              );
+            })
+          ) : (
+            <div className="empty-state empty-state-premium">
+              <strong>No decision-ready names match these filters</strong>
+              <span>Adjust action, risk, or symbol filters after the universe finishes loading.</span>
+            </div>
+          )}
+        </div>
+      ) : null}
     </section>
   );
 }
