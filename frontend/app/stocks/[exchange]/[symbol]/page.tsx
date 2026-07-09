@@ -48,7 +48,9 @@ export async function generateMetadata({ params }: StockDetailPageProps): Promis
   }
 
   const stock = result.data.stock;
-  const model = buildStockWorkspaceModel(stock, result.data.prices ?? []);
+  const model = buildStockWorkspaceModel(stock, result.data.prices ?? [], {
+    decisionSupport: result.data.decision_support,
+  });
   const decisionModel = buildStockDecisionViewModel(result.data.decision_support);
   const description = buildStockSemanticSummary(model, decisionModel);
   const title = buildStockDetailTitle(stock.symbol, stock.name);

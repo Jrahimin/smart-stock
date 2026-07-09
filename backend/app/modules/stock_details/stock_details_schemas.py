@@ -189,6 +189,7 @@ class BreakoutAnalysisRead(BaseModel):
     confirmation_level: float | None
     projected_target: float | None
     explanation: str
+    direction: str = "breakout"
 
 
 class OwnershipTrendPointRead(BaseModel):
@@ -389,6 +390,7 @@ class StockDecisionSupportRead(BaseModel):
                 confirmation_level=breakout.confirmation_level,
                 projected_target=breakout.projected_target,
                 explanation=breakout.explanation,
+                direction=breakout.direction,
             ),
             ownership=(
                 OwnershipInsightRead(

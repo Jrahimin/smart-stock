@@ -201,6 +201,13 @@ export function buildFundamentalsViewModel(
       ? "Marked to latest price"
       : formatValuationHelper(valuation?.valuation_date, performanceAsOf);
 
+  const peHelper =
+    livePe == null && eps == null
+      ? "EPS unavailable"
+      : livePe != null && (eps == null || eps <= 0) && valuation?.pe_ratio != null
+        ? "From valuation snapshot"
+        : valuationHelper;
+
   const performanceMetrics: FundamentalsMetricCell[] = PERFORMANCE_METRIC_ORDER.map((metricCode) => {
     const metric = lookupPerformanceMetric(snapshot, metricCode);
     const label =
@@ -227,7 +234,7 @@ export function buildFundamentalsViewModel(
       label: "P/E",
       stock: formatValuationMetric(livePe),
       ...buildComparisonColumns(sectorContext, "pe"),
-      helper: valuationHelper,
+      helper: peHelper,
     },
     {
       key: "pb",
@@ -263,9 +270,11 @@ export function buildFundamentalsViewModel(
       }
     : null;
 
-  const metrics = [...performanceMetrics, ...valuationMetrics, ...(growthMetric ? [growthMetric] : [])].filter((metric) =>
-    hasMeaningfulValue(metric.stock),
-  );
+  const metrics = [
+    ...performanceMetrics.filter((metric) => hasMeaningfulValue(metric.stock)),
+    ...valuationMetrics,
+    ...(growthMetric && hasMeaningfulValue(growthMetric.stock) ? [growthMetric] : []),
+  ];
 
   return {
     fiscalPeriodNote,

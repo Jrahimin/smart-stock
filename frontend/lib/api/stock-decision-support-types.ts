@@ -102,6 +102,7 @@ export type BreakoutAnalysisDto = {
   confirmation_level: number | null;
   projected_target: number | null;
   explanation: string;
+  direction?: "breakout" | "breakdown";
 };
 
 export type OwnershipTrendPointDto = {

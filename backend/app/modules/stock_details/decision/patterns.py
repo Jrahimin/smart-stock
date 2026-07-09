@@ -406,6 +406,33 @@ def _detect_cup_and_handle(snapshot: TechnicalSnapshot, prices: list[DailyPrice]
     )
 
 
+_TRIANGLE_PATTERN_NAMES = frozenset(
+    {"Ascending Triangle", "Descending Triangle", "Symmetrical Triangle"},
+)
+
+
+def _triangle_specificity_rank(name: str) -> int:
+    if name == "Symmetrical Triangle":
+        return 0
+    return 1
+
+
+def _reconcile_patterns(candidates: list[PatternDetection]) -> list[PatternDetection]:
+    triangles = [pattern for pattern in candidates if pattern.name in _TRIANGLE_PATTERN_NAMES]
+    others = [pattern for pattern in candidates if pattern.name not in _TRIANGLE_PATTERN_NAMES]
+
+    if len(triangles) > 1:
+        triangles.sort(
+            key=lambda pattern: (pattern.confidence, _triangle_specificity_rank(pattern.name)),
+            reverse=True,
+        )
+        triangles = [triangles[0]]
+
+    reconciled = others + triangles
+    reconciled.sort(key=lambda pattern: pattern.confidence, reverse=True)
+    return reconciled
+
+
 def detect_patterns(snapshot: TechnicalSnapshot, prices: list[DailyPrice]) -> list[PatternDetection]:
     if len(prices) < PATTERN_MIN_CANDLES:
         return []
@@ -430,4 +457,4 @@ def detect_patterns(snapshot: TechnicalSnapshot, prices: list[DailyPrice]) -> li
         if result is not None:
             candidates.append(result)
     candidates.sort(key=lambda pattern: pattern.confidence, reverse=True)
-    return candidates
+    return _reconcile_patterns(candidates)

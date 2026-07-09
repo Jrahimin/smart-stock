@@ -11,6 +11,10 @@ type BreakoutAnalysisCardProps = {
   decision: StockDecisionViewModel;
 };
 
+function resolveBreakoutScenario(decision: StockDecisionViewModel) {
+  return decision.breakout?.direction === "breakdown" ? "breakdown" : "breakout";
+}
+
 export function BreakoutAnalysisCard({ decision }: BreakoutAnalysisCardProps) {
   const [isOpen, setIsOpen] = useState(false);
   if (!decision.available || !decision.breakout) {
@@ -18,20 +22,38 @@ export function BreakoutAnalysisCard({ decision }: BreakoutAnalysisCardProps) {
   }
 
   const breakout = decision.breakout;
+  const scenario = resolveBreakoutScenario(decision);
+  const isBreakdown = scenario === "breakdown";
   const compactFactors = breakout.factors.slice(0, 3);
+  const title = isBreakdown ? "📉 Breakdown Probability" : "🚀 Breakout Probability";
+  const triggerLabel = isBreakdown ? "Breakdown" : "Breakout";
+  const modalTitle = isBreakdown ? "Breakdown Analysis" : "Breakout Analysis";
+  const levelLabel = isBreakdown ? "Breakdown level" : "Breakout level";
 
   return (
     <>
-      <button className="trader-workspace-strip breakout-strip breakout-strip-clickable" onClick={() => setIsOpen(true)} type="button">
+      <button
+        className={`trader-workspace-strip breakout-strip breakout-strip-clickable${isBreakdown ? " breakdown-strip-bearish" : ""}`}
+        onClick={() => setIsOpen(true)}
+        type="button"
+      >
         <div className="breakout-strip-main">
           <div className="breakout-strip-copy">
-            <span className="breakout-strip-title">🚀 Breakout Probability</span>
+            <span className="breakout-strip-title">{title}</span>
             <div className="breakout-strip-levels">
-              <span>Breakout {formatNumber(breakout.breakout_level)}</span>
+              <span>
+                {triggerLabel} {formatNumber(breakout.breakout_level)}
+              </span>
               <span>Target {formatNumber(breakout.projected_target)}</span>
             </div>
           </div>
-          <CircularProgressRing icon="🚀" label="" score={breakout.probability} size={64} tone="breakout" />
+          <CircularProgressRing
+            icon={isBreakdown ? "📉" : "🚀"}
+            label=""
+            score={breakout.probability}
+            size={64}
+            tone={isBreakdown ? "risk" : "breakout"}
+          />
         </div>
         <ul className="breakout-factor-compact">
           {compactFactors.map((factor) => (
@@ -41,11 +63,11 @@ export function BreakoutAnalysisCard({ decision }: BreakoutAnalysisCardProps) {
           ))}
         </ul>
       </button>
-      <WorkspaceModal isOpen={isOpen} onClose={() => setIsOpen(false)} title="Breakout Analysis">
+      <WorkspaceModal isOpen={isOpen} onClose={() => setIsOpen(false)} title={modalTitle}>
         <div className="breakout-detail-modal">
           <p>{breakout.explanation}</p>
           <p>
-            <strong>Breakout level:</strong> {breakout.breakout_level ?? "N/A"}
+            <strong>{levelLabel}:</strong> {breakout.breakout_level ?? "N/A"}
           </p>
           <p>
             <strong>Confirmation level:</strong> {breakout.confirmation_level ?? "N/A"}

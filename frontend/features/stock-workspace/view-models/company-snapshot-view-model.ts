@@ -1,6 +1,6 @@
 import type { StockDecisionViewModel } from "@/features/stock-workspace/view-models/stock-decision-view-model";
 import type { StockWorkspaceModel } from "@/features/stock-workspace/view-models/stock-workspace-view-model";
-import { formatFinancialDisplay, formatMarketCapBdt, formatNumber } from "@/lib/formatters/financial-formatters";
+import { formatFinancialDisplay, formatNumber } from "@/lib/formatters/financial-formatters";
 import { formatOwnershipPercent, formatValuationMetric } from "@/features/stock-workspace/view-models/stock-decision-view-model";
 
 export type CompanySnapshotCell = {
@@ -38,24 +38,8 @@ function formatDividendYield(value: number | null | undefined) {
   return formatFinancialDisplay(value, (parsed) => `${formatNumber(parsed)}%`, { allowZero: true });
 }
 
-function resolveMarketCap(model: StockWorkspaceModel, decision: StockDecisionViewModel) {
-  if (model.header.marketCap !== "—" && model.header.marketCap !== "N/A") {
-    return model.header.marketCap;
-  }
-
-  const currentPrice = model.intelligence?.latestPrice ?? null;
-  const valuation = decision.valuation;
-  if (
-    currentPrice != null &&
-    currentPrice > 0 &&
-    valuation?.market_cap != null &&
-    valuation.close_price != null &&
-    valuation.close_price > 0
-  ) {
-    return formatMarketCapBdt(valuation.market_cap * (currentPrice / valuation.close_price));
-  }
-
-  return formatMarketCapBdt(valuation?.market_cap);
+function resolveMarketCap(model: StockWorkspaceModel) {
+  return model.header.marketCap;
 }
 
 function resolveLivePe(model: StockWorkspaceModel, decision: StockDecisionViewModel) {
@@ -98,7 +82,7 @@ export function buildCompanySnapshotStrip(model: StockWorkspaceModel, decision: 
     {
       key: "market-cap",
       label: "Market Cap",
-      value: resolveMarketCap(model, decision),
+      value: resolveMarketCap(model),
     },
     {
       key: "pe",
