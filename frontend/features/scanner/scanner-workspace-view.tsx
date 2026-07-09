@@ -159,53 +159,55 @@ export function ScannerWorkspaceView() {
         </div>
       </WorkspacePageHero>
       {isError ? <div className="data-warning">Could not load scanner data.</div> : null}
-      {isLoading ? <MarketActivityLoader /> : null}
-      <div className="scanner-category-grid">
-        {categories.map((category) => (
-          <section className="workspace-card" key={category.title}>
-            <div className="section-heading">
-              <p className="eyebrow">Scanner</p>
-              <h2>{category.title}</h2>
-              <span>{category.description}</span>
-            </div>
-            <div className="scanner-result-list">
-              {category.items.length ? (
-                category.items.map((stock) => {
-                  const decision = resolveTraderDecision(stock);
+      {isLoading ? <MarketActivityLoader label="Scanning market universe..." /> : null}
+      {!isLoading ? (
+        <div className="scanner-category-grid">
+          {categories.map((category) => (
+            <section className="workspace-card" key={category.title}>
+              <div className="section-heading">
+                <p className="eyebrow">Scanner</p>
+                <h2>{category.title}</h2>
+                <span>{category.description}</span>
+              </div>
+              <div className="scanner-result-list">
+                {category.items.length ? (
+                  category.items.map((stock) => {
+                    const decision = resolveTraderDecision(stock);
 
-                  return (
-                    <Link className="scanner-result-card" href={buildStockDetailPath(stock.stock.exchange, stock.stock.symbol)} key={stock.stock.id}>
-                      <div className="scanner-card-topline">
-                        <strong>{stock.stock.symbol}</strong>
-                        <div className="scanner-card-actions">
-                          <WatchlistStarToggle stockId={stock.stock.id} stopPropagation />
-                          <SignalBadge signal={decision.recommendation} />
+                    return (
+                      <Link className="scanner-result-card" href={buildStockDetailPath(stock.stock.exchange, stock.stock.symbol)} key={stock.stock.id}>
+                        <div className="scanner-card-topline">
+                          <strong>{stock.stock.symbol}</strong>
+                          <div className="scanner-card-actions">
+                            <WatchlistStarToggle stockId={stock.stock.id} stopPropagation />
+                            <SignalBadge signal={decision.recommendation} />
+                          </div>
                         </div>
-                      </div>
-                      <span>
-                        {formatNumber(stock.latestPrice)} / {formatPercent(stock.priceChangePercent)}
-                      </span>
-                      <div className="mini-momentum-bar" aria-label="Momentum strength">
-                        <span style={{ width: `${Math.min(100, Math.abs(stock.priceChangePercent ?? 0) * 12)}%` }} />
-                      </div>
-                      <small className="scanner-context-row">
-                        <span>RSI {formatNumber(stock.rsi)}</span>
-                        <span>Vol {formatCompactNumber(stock.volume)}</span>
-                        <span className={`trend-icon trend-icon-${stock.trend.toLowerCase()}`} aria-label={stock.trend} title={stock.trend} />
-                      </small>
-                    </Link>
-                  );
-                })
-              ) : (
-                <div className="empty-state empty-state-premium">
-                  <strong>No names match this scan yet</strong>
-                  <span>This means the current universe has no high-conviction candidates for this condition, not that market data is missing.</span>
-                </div>
-              )}
-            </div>
-          </section>
-        ))}
-      </div>
+                        <span>
+                          {formatNumber(stock.latestPrice)} / {formatPercent(stock.priceChangePercent)}
+                        </span>
+                        <div className="mini-momentum-bar" aria-label="Momentum strength">
+                          <span style={{ width: `${Math.min(100, Math.abs(stock.priceChangePercent ?? 0) * 12)}%` }} />
+                        </div>
+                        <small className="scanner-context-row">
+                          <span>RSI {formatNumber(stock.rsi)}</span>
+                          <span>Vol {formatCompactNumber(stock.volume)}</span>
+                          <span className={`trend-icon trend-icon-${stock.trend.toLowerCase()}`} aria-label={stock.trend} title={stock.trend} />
+                        </small>
+                      </Link>
+                    );
+                  })
+                ) : (
+                  <div className="empty-state empty-state-premium">
+                    <strong>No names match this scan yet</strong>
+                    <span>This means the current universe has no high-conviction candidates for this condition, not that market data is missing.</span>
+                  </div>
+                )}
+              </div>
+            </section>
+          ))}
+        </div>
+      ) : null}
     </section>
   );
 }

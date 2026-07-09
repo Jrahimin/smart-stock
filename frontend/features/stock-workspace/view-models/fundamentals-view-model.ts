@@ -99,10 +99,82 @@ function hasMeaningfulValue(value: string) {
   return value !== "—";
 }
 
+function resolveLivePeRatio(
+  currentPrice: number | null | undefined,
+  eps: number | null | undefined,
+  valuationPe: number | null | undefined,
+  valuationClose: number | null | undefined,
+) {
+  if (currentPrice != null && currentPrice > 0 && eps != null && eps > 0) {
+    return currentPrice / eps;
+  }
+
+  if (
+    currentPrice != null &&
+    currentPrice > 0 &&
+    valuationPe != null &&
+    valuationPe > 0 &&
+    valuationClose != null &&
+    valuationClose > 0
+  ) {
+    return valuationPe * (currentPrice / valuationClose);
+  }
+
+  return valuationPe ?? null;
+}
+
+function resolveLiveEarningsYield(
+  currentPrice: number | null | undefined,
+  eps: number | null | undefined,
+  valuationEarningsYield: number | null | undefined,
+  valuationClose: number | null | undefined,
+) {
+  if (currentPrice != null && currentPrice > 0 && eps != null && eps > 0) {
+    return (eps / currentPrice) * 100;
+  }
+
+  if (
+    currentPrice != null &&
+    currentPrice > 0 &&
+    valuationEarningsYield != null &&
+    valuationClose != null &&
+    valuationClose > 0
+  ) {
+    return valuationEarningsYield * (valuationClose / currentPrice);
+  }
+
+  return valuationEarningsYield ?? null;
+}
+
+function resolveLivePbRatio(
+  currentPrice: number | null | undefined,
+  nav: number | null | undefined,
+  valuationPb: number | null | undefined,
+  valuationClose: number | null | undefined,
+) {
+  if (currentPrice != null && currentPrice > 0 && nav != null && nav > 0) {
+    return currentPrice / nav;
+  }
+
+  if (
+    currentPrice != null &&
+    currentPrice > 0 &&
+    valuationPb != null &&
+    valuationPb > 0 &&
+    valuationClose != null &&
+    valuationClose > 0
+  ) {
+    return valuationPb * (currentPrice / valuationClose);
+  }
+
+  return valuationPb ?? null;
+}
+
 export function buildFundamentalsViewModel(
   decision: StockDecisionViewModel,
   snapshot: FundamentalsSnapshotDto | null | undefined,
   sectorContext?: SectorContextDto | null,
+  currentPrice?: number | null,
 ): FundamentalsViewModel {
   const performanceAsOf = snapshot?.latest_as_of_date ?? null;
   const fiscalPeriodNote =
@@ -113,7 +185,21 @@ export function buildFundamentalsViewModel(
         : null;
 
   const valuation = decision.valuation;
-  const valuationHelper = formatValuationHelper(valuation?.valuation_date, performanceAsOf);
+  const eps = lookupPerformanceMetric(snapshot, "EPS")?.value ?? null;
+  const nav = lookupPerformanceMetric(snapshot, "NAV_PER_SHARE")?.value ?? null;
+  const livePrice = currentPrice ?? valuation?.close_price ?? null;
+  const livePe = resolveLivePeRatio(livePrice, eps, valuation?.pe_ratio, valuation?.close_price);
+  const livePb = resolveLivePbRatio(livePrice, nav, valuation?.pb_ratio, valuation?.close_price);
+  const liveEarningsYield = resolveLiveEarningsYield(
+    livePrice,
+    eps,
+    valuation?.earnings_yield,
+    valuation?.close_price,
+  );
+  const valuationHelper =
+    livePrice != null && valuation?.close_price != null && livePrice !== valuation.close_price
+      ? "Marked to latest price"
+      : formatValuationHelper(valuation?.valuation_date, performanceAsOf);
 
   const performanceMetrics: FundamentalsMetricCell[] = PERFORMANCE_METRIC_ORDER.map((metricCode) => {
     const metric = lookupPerformanceMetric(snapshot, metricCode);
@@ -139,14 +225,14 @@ export function buildFundamentalsViewModel(
     {
       key: "pe",
       label: "P/E",
-      stock: formatValuationMetric(valuation?.pe_ratio),
+      stock: formatValuationMetric(livePe),
       ...buildComparisonColumns(sectorContext, "pe"),
       helper: valuationHelper,
     },
     {
       key: "pb",
       label: "P/B",
-      stock: formatValuationMetric(valuation?.pb_ratio),
+      stock: formatValuationMetric(livePb),
       ...buildComparisonColumns(sectorContext, "pb"),
       helper: valuationHelper,
     },
@@ -155,12 +241,12 @@ export function buildFundamentalsViewModel(
       label: "Dividend Yield",
       stock: formatDividendYield(valuation?.dividend_yield),
       ...buildComparisonColumns(sectorContext, "dividend_yield"),
-      helper: valuationHelper,
+      helper: formatValuationHelper(valuation?.valuation_date, performanceAsOf),
     },
     {
       key: "earnings-yield",
       label: "Earnings Yield",
-      stock: formatEarningsYield(valuation?.earnings_yield),
+      stock: formatEarningsYield(liveEarningsYield),
       ...buildComparisonColumns(sectorContext, undefined),
       helper: valuationHelper,
     },

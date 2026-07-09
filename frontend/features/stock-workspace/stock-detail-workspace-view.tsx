@@ -3,8 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { ExchangeCode } from "@/lib/api/backend-api-types";
+import type { StockWorkspaceDto } from "@/lib/api/stock-decision-support-types";
 import { WorkspaceCommandSearch } from "@/components/command/workspace-command-search";
 import { MarketDataFreshnessBar } from "@/components/layout/market-data-freshness-bar";
+import { MarketActivityLoader } from "@/components/ui/market-activity-loader";
 import { StockCandlestickChart } from "@/components/charts/stock-candlestick-chart";
 import { BreakoutAnalysisCard } from "@/features/stock-workspace/components/breakout-analysis-card";
 import { CompanySnapshotStrip } from "@/features/stock-workspace/components/company-snapshot-strip";
@@ -35,6 +37,7 @@ import { frontendConfig } from "@/lib/frontend-config";
 type StockDetailWorkspaceViewProps = {
   exchange: ExchangeCode;
   symbol: string;
+  initialWorkspace?: StockWorkspaceDto | null;
 };
 
 function resolveEnabledSections(decisionAvailable: boolean, hasOwnership: boolean, hasEvents: boolean): StockSectionId[] {
@@ -52,7 +55,11 @@ function resolveEnabledSections(decisionAvailable: boolean, hasOwnership: boolea
   return sections;
 }
 
-export function StockDetailWorkspaceView({ exchange, symbol }: StockDetailWorkspaceViewProps) {
+export function StockDetailWorkspaceView({
+  exchange,
+  symbol,
+  initialWorkspace = null,
+}: StockDetailWorkspaceViewProps) {
   const [relatedLoadEnabled, setRelatedLoadEnabled] = useState(false);
   const [sectorContextEnabled, setSectorContextEnabled] = useState(false);
 
@@ -62,9 +69,25 @@ export function StockDetailWorkspaceView({ exchange, symbol }: StockDetailWorksp
     enabled: sectorContextEnabled,
   });
 
-  const { model, decisionModel, fundamentalsModel, decisionRaw, isError, isLoading, isDecisionLoading, isDecisionError } =
-    useStockWorkspace(exchange, symbol, sectorContextQuery.sectorContext);
+  const {
+    model,
+    decisionModel,
+    fundamentalsModel,
+    decisionRaw,
+    isError,
+    isLoading,
+    isDecisionLoading,
+    isDecisionError,
+    isNotFound,
+  } = useStockWorkspace({
+    exchange,
+    symbol,
+    sectorContext: sectorContextQuery.sectorContext,
+    initialWorkspace,
+  });
   const intelligence = model.intelligence;
+  const chartSupport = decisionModel.available ? decisionModel.support : intelligence?.support;
+  const chartResistance = decisionModel.available ? decisionModel.resistance : intelligence?.resistance;
 
   const enableSectorContext = useCallback(() => {
     setSectorContextEnabled(true);
@@ -137,10 +160,25 @@ export function StockDetailWorkspaceView({ exchange, symbol }: StockDetailWorksp
   const companySnapshotCells = useMemo(() => buildCompanySnapshotStrip(model, decisionModel), [decisionModel, model]);
   const semanticSummary = useMemo(() => buildStockSemanticSummary(model, decisionModel), [decisionModel, model]);
 
+  if (isLoading) {
+    return (
+      <div className="stock-workspace-view stock-workspace-view-v2 trader-workspace-fade-in" data-testid="stock-workspace-loading">
+        <MarketActivityLoader label="Loading stock intelligence..." />
+      </div>
+    );
+  }
+
+  if (isNotFound) {
+    return (
+      <div className="stock-workspace-view stock-workspace-view-v2 trader-workspace-fade-in" data-testid="stock-workspace-not-found">
+        <div className="data-warning">Stock not found for {symbol}.</div>
+      </div>
+    );
+  }
+
   return (
-    <div className="stock-workspace-view stock-workspace-view-v2 trader-workspace-fade-in">
+    <div className="stock-workspace-view stock-workspace-view-v2 trader-workspace-fade-in" data-testid="stock-workspace-loaded">
       {isError ? <div className="data-warning">Could not load stock workspace data for {symbol}.</div> : null}
-      {isLoading ? <div className="data-warning">Loading stock intelligence...</div> : null}
       {isDecisionError ? <div className="data-warning">Decision support unavailable; chart remains active.</div> : null}
 
       <div className="trader-workspace-topbar">
@@ -165,10 +203,10 @@ export function StockDetailWorkspaceView({ exchange, symbol }: StockDetailWorksp
                 ema20={intelligence?.ema20}
                 overlaysEnabled={frontendConfig.features.advancedChartOverlays}
                 patterns={decisionRaw?.patterns ?? []}
-                resistance={intelligence?.resistance}
+                resistance={chartResistance}
                 riskLabel={decisionModel.riskLabel}
                 sma20={intelligence?.sma20}
-                support={intelligence?.support}
+                support={chartSupport}
                 volumeBars={intelligence?.volumeBars ?? []}
               />
             </section>

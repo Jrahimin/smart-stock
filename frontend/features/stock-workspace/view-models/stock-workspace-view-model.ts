@@ -1,7 +1,8 @@
 import type { BackendDailyPriceDto, BackendStockDto } from "@/lib/api/backend-api-types";
+import type { StockDecisionSupportDto } from "@/lib/api/stock-decision-support-types";
 import {
   formatCompactNumber,
-  formatFinancialDisplay,
+  formatMarketCapBdt,
   formatNumber,
   formatPercent,
 } from "@/lib/formatters/financial-formatters";
@@ -30,6 +31,10 @@ export type StockWorkspaceModel = {
     tone: "positive" | "negative" | "neutral" | "warning";
     category: "warning" | "opportunity" | "momentum" | "accumulation" | "volatility" | "risk";
   }>;
+};
+
+type BuildStockWorkspaceModelOptions = {
+  decisionSupport?: StockDecisionSupportDto | null;
 };
 
 function buildInsights(intelligence: StockIntelligenceModel | null): StockWorkspaceModel["insights"] {
@@ -89,8 +94,57 @@ function buildInsights(intelligence: StockIntelligenceModel | null): StockWorksp
   return insights;
 }
 
-export function buildStockWorkspaceModel(stock: BackendStockDto | null, prices: BackendDailyPriceDto[]): StockWorkspaceModel {
+function resolveLiveMarketCap(
+  stock: BackendStockDto | null,
+  intelligence: StockIntelligenceModel | null,
+  decisionSupport?: StockDecisionSupportDto | null,
+) {
+  const currentPrice = intelligence?.latestPrice ?? null;
+  const valuation = decisionSupport?.valuation;
+  const storedCap = valuation?.market_cap ?? (stock?.market_cap != null ? Number(stock.market_cap) : null);
+  const valuationClose = valuation?.close_price ?? null;
+
+  if (currentPrice != null && currentPrice > 0 && storedCap != null && valuationClose != null && valuationClose > 0) {
+    return formatMarketCapBdt(storedCap * (currentPrice / valuationClose));
+  }
+
+  return formatMarketCapBdt(storedCap);
+}
+
+export function buildEmptyStockWorkspaceModel(options: {
+  symbol: string;
+  exchange: string;
+  name: string;
+}): StockWorkspaceModel {
+  return {
+    intelligence: null,
+    header: {
+      symbol: options.symbol,
+      name: options.name,
+      exchange: options.exchange,
+      sector: "—",
+      category: "—",
+      listingDate: null,
+      latestPrice: "—",
+      changePercent: "—",
+      marketCap: "—",
+      signal: "—",
+      confidence: "—",
+    },
+    technicalSummary: [],
+    insights: [],
+  };
+}
+
+export function buildStockWorkspaceModel(
+  stock: BackendStockDto | null,
+  prices: BackendDailyPriceDto[],
+  options: BuildStockWorkspaceModelOptions = {},
+): StockWorkspaceModel {
   const intelligence = stock ? buildStockIntelligence(stock, prices) : null;
+  const decisionSupport = options.decisionSupport;
+  const support = decisionSupport?.support ?? intelligence?.support ?? null;
+  const resistance = decisionSupport?.resistance ?? intelligence?.resistance ?? null;
 
   return {
     intelligence,
@@ -103,14 +157,14 @@ export function buildStockWorkspaceModel(stock: BackendStockDto | null, prices: 
       listingDate: stock?.listing_date ?? null,
       latestPrice: formatNumber(intelligence?.latestPrice),
       changePercent: formatPercent(intelligence?.priceChangePercent),
-      marketCap: formatFinancialDisplay(stock?.market_cap, (parsed) => formatCompactNumber(parsed)),
+      marketCap: resolveLiveMarketCap(stock, intelligence, decisionSupport),
       signal: intelligence?.signal.signal ?? "HOLD",
       confidence: intelligence ? `${intelligence.signal.confidence}%` : "N/A",
     },
     technicalSummary: [
       {
         label: "Trend",
-        value: intelligence?.trend ?? "UNKNOWN",
+        value: decisionSupport?.trend ?? intelligence?.trend ?? "UNKNOWN",
         helper: "Derived from price versus moving-average context.",
       },
       {
@@ -130,13 +184,13 @@ export function buildStockWorkspaceModel(stock: BackendStockDto | null, prices: 
       },
       {
         label: "Support",
-        value: formatNumber(intelligence?.support),
-        helper: "Lowest low in recent 20 sessions.",
+        value: formatNumber(support),
+        helper: "Canonical support from the decision engine when available.",
       },
       {
         label: "Resistance",
-        value: formatNumber(intelligence?.resistance),
-        helper: "Highest high in recent 20 sessions.",
+        value: formatNumber(resistance),
+        helper: "Canonical resistance from the decision engine when available.",
       },
     ],
     insights: buildInsights(intelligence),
