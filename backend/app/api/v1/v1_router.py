@@ -20,6 +20,7 @@ from app.modules.market_universe.market_universe_router import router as market_
 from app.modules.signals.signals_router import router as signals_router
 from app.modules.stock_details.stock_details_router import router as stock_details_router
 from app.modules.stocks.stocks_router import router as stocks_router
+from app.modules.user_preferences.user_preferences_router import router as user_preferences_router
 from app.modules.watchlists.watchlists_router import router as watchlists_router
 from app.modules.wealth.wealth_router import router as wealth_router
 
@@ -33,6 +34,7 @@ router.include_router(admin_jobs_router)
 router.include_router(admin_email_campaigns_router)
 router.include_router(stocks_router)
 router.include_router(watchlists_router)
+router.include_router(user_preferences_router)
 router.include_router(wealth_router)
 router.include_router(market_data_router)
 router.include_router(market_dashboard_router)

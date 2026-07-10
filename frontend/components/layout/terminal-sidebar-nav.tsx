@@ -17,6 +17,10 @@ type TerminalSidebarNavProps = {
   pathname: string;
 };
 
+function guideTargetForHref(href: string) {
+  return `nav-${href.slice(1)}`;
+}
+
 export function TerminalSidebarNav({ collapsed, pathname }: TerminalSidebarNavProps) {
   const { user, isLoading } = useAuth();
   const [mounted, setMounted] = useState(false);
@@ -37,7 +41,7 @@ export function TerminalSidebarNav({ collapsed, pathname }: TerminalSidebarNavPr
   }, [isAdminSection]);
 
   return (
-    <nav aria-label="Primary navigation">
+    <nav aria-label="Primary navigation" data-guide="primary-navigation">
       {canAccessAdmin ? (
         <>
           {!collapsed ? <p className="terminal-nav-section-label terminal-nav-section-label-ops">Operations</p> : null}
@@ -114,6 +118,7 @@ export function TerminalSidebarNav({ collapsed, pathname }: TerminalSidebarNavPr
           <Link
             aria-current={isActive ? "page" : undefined}
             className={isActive ? `active terminal-nav-link-${item.tone}` : `terminal-nav-link-${item.tone}`}
+            data-guide={guideTargetForHref(item.href)}
             href={item.href}
             key={item.href}
             title={item.label}

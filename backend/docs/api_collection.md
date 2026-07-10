@@ -1627,6 +1627,63 @@ When removed, `item` is `null` and `added` is `false`.
 
 ---
 
+## Preferences
+
+All preference routes require authentication (`Authorization: Bearer <access_token>`).
+The current API intentionally exposes only the canonical onboarding key
+`dashboard_sidebar_guide`; it is not a generic user-preference endpoint.
+
+### GET /api/v1/preferences/dashboard-sidebar-guide
+
+**Description**
+Return the authenticated user's saved dashboard sidebar guide state. A user who
+has not yet completed or dismissed the guide receives `state: null`.
+
+**Response**
+
+```json
+{
+  "success": true,
+  "message": "Dashboard sidebar guide preference retrieved",
+  "data": {
+    "key": "dashboard_sidebar_guide",
+    "state": null,
+    "updated_at": null
+  }
+}
+```
+
+### PUT /api/v1/preferences/dashboard-sidebar-guide
+
+**Description**
+Create or replace the authenticated user's dashboard sidebar guide state.
+
+**Body**
+
+```json
+{
+  "state": "COMPLETED"
+}
+```
+
+`state` must be `COMPLETED` or `DISMISSED`.
+
+**Response**
+
+```json
+{
+  "success": true,
+  "message": "Dashboard sidebar guide preference saved",
+  "data": {
+    "key": "dashboard_sidebar_guide",
+    "state": "COMPLETED",
+    "updated_at": "2026-07-10T02:50:00Z"
+  }
+}
+```
+
+---
+
 ## Authentication
 
 Authentication routes live under `/api/v1/auth`. Middleware parses Bearer JWTs into `request.state.user`; only routes that depend on `get_current_user` require authentication (including all `/api/v1/watchlist/*` routes).

@@ -10,7 +10,7 @@ type SmartSignalFeedProps = {
 
 export const SmartSignalFeed = memo(function SmartSignalFeed({ signals }: SmartSignalFeedProps) {
   return (
-    <section className="workspace-card">
+    <section className="workspace-card" data-guide="smart-signals">
       <div className="section-heading">
         <p className="eyebrow">Smart Signals</p>
         <h2>Explanation-first feed</h2>

@@ -6,13 +6,14 @@ import { ArrowUpDown, Banknote, BarChart3, Trophy, type LucideIcon } from "lucid
 
 import { WorkspaceCommandSearch } from "@/components/command/workspace-command-search";
 import { MarketDataFreshnessBar } from "@/components/layout/market-data-freshness-bar";
+import { DashboardGuideLauncher } from "@/features/guide/components/dashboard-guide-launcher";
 import { MarketPulseLeadersSkeleton } from "@/features/market-dashboard/components/dashboard-skeletons";
 import type { MarketDashboardModel } from "@/features/market-dashboard/types/market-dashboard-types";
 import type { PulseTone } from "@/lib/market/market-pulse-metrics";
 
 export function MarketDashboardHeader() {
   return (
-    <header className="market-dashboard-header">
+    <header className="market-dashboard-header" data-guide="dashboard-header">
       <Image
         alt="Stock Intelligence"
         className="market-pulse-logo"
@@ -24,6 +25,7 @@ export function MarketDashboardHeader() {
       <div className="market-dashboard-header-tools">
         <WorkspaceCommandSearch filterContextName="market dashboard" showQuickActions={false} variant="discovery" />
         <MarketDataFreshnessBar variant="inline" />
+        <DashboardGuideLauncher />
       </div>
     </header>
   );
@@ -48,7 +50,7 @@ export function MarketPulsePanel({ model, leadersLoading = false }: MarketPulseP
   ].filter(Boolean) as string[];
 
   return (
-    <section className="market-pulse-panel" aria-label="Market pulse">
+    <section className="market-pulse-panel" aria-label="Market pulse" data-guide="market-pulse" data-guide-ready="true">
       <div className="market-pulse-card">
         <div className="market-pulse-strip" role="list" aria-label="Market performance">
           <DsexStripCell indexArrow={indexArrow} pulse={pulse} />

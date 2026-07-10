@@ -59,7 +59,7 @@ export function MarketDashboardView() {
           ) : (
             <InstitutionalHeatmap tiles={model.heatmapTiles} />
           )}
-          <div className="movers-grid">
+          <div className="movers-grid" data-guide="market-discovery">
             {sectionLoading.movers ? (
               <>
                 <MarketMoversPanelSkeleton title="Top gainers" />

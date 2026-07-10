@@ -14,7 +14,11 @@ import {
 
 export function MarketPulseCoreSkeleton({ leadersLoading = true }: { leadersLoading?: boolean }) {
   return (
-    <section className="market-pulse-panel market-pulse-panel-loading" aria-busy="true" aria-label="Loading market pulse">
+    <section
+      className="market-pulse-panel market-pulse-panel-loading"
+      aria-busy="true"
+      aria-label="Loading market pulse"
+    >
       <LoadingStatus className="market-dashboard-loading-status" label="Loading market pulse" />
       <div className="market-pulse-card">
         <div className="market-pulse-strip market-pulse-strip-skeleton" role="list">

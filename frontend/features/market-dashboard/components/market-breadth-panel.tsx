@@ -11,7 +11,7 @@ export const MarketBreadthPanel = memo(function MarketBreadthPanel({ breadth }: 
   const unchangedWidth = Math.max(0, 100 - advancingWidth - decliningWidth);
 
   return (
-    <section className="workspace-card">
+    <section className="workspace-card" data-guide="market-breadth">
       <div className="section-heading">
         <p className="eyebrow">Market Breadth</p>
         <h2>Advancing, declining, unchanged</h2>
