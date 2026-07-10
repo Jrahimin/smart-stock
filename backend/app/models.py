@@ -41,6 +41,8 @@ from app.core.enums import (
     MetricValueType,
     MoneySnapshotAssetCategory,
     MoneySnapshotLiabilityCategory,
+    OnboardingGuideKey,
+    OnboardingGuideState,
     ReportPeriodType,
     ReportStatus,
     SignalType,
@@ -102,6 +104,11 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         back_populates="user",
         cascade="all, delete-orphan",
     )
+    onboarding_guide_preferences = relationship(
+        "UserOnboardingGuidePreference",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
     money_snapshot = relationship(
         "MoneySnapshot",
         back_populates="user",
@@ -153,6 +160,28 @@ class UserWatchlist(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     user = relationship("User", back_populates="watchlist_entries")
     stock = relationship("Stock")
+
+
+class UserOnboardingGuidePreference(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "user_onboarding_guide_preferences"
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id",
+            "guide_key",
+            name="uq_user_onboarding_guide_preferences_user_key",
+        ),
+        Index("ix_user_onboarding_guide_preferences_user_key", "user_id", "guide_key"),
+    )
+
+    user_id: Mapped[UUID] = mapped_column(
+        PostgresUUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    guide_key: Mapped[OnboardingGuideKey] = mapped_column(Enum(OnboardingGuideKey), nullable=False)
+    state: Mapped[OnboardingGuideState] = mapped_column(Enum(OnboardingGuideState), nullable=False)
+
+    user = relationship("User", back_populates="onboarding_guide_preferences")
 
 
 class UserIdentity(UUIDPrimaryKeyMixin, TimestampMixin, Base):

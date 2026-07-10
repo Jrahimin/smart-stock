@@ -26,13 +26,24 @@ import {
 } from "@/lib/navigation/terminal-navigation-config";
 
 type MobileNavigationDrawerProps = {
+  guideActive?: boolean;
   isOpen: boolean;
   menuButtonRef?: RefObject<HTMLButtonElement | null>;
   onClose: () => void;
   storeHydrated: boolean;
 };
 
-export function MobileNavigationDrawer({ isOpen, menuButtonRef, onClose, storeHydrated }: MobileNavigationDrawerProps) {
+function guideTargetForHref(href: string) {
+  return `nav-${href.slice(1)}`;
+}
+
+export function MobileNavigationDrawer({
+  guideActive = false,
+  isOpen,
+  menuButtonRef,
+  onClose,
+  storeHydrated,
+}: MobileNavigationDrawerProps) {
   const pathname = usePathname();
   const { user, isAuthenticated, isLoading, logout } = useAuth();
   const [mounted, setMounted] = useState(false);
@@ -64,15 +75,19 @@ export function MobileNavigationDrawer({ isOpen, menuButtonRef, onClose, storeHy
       }
     };
 
-    closeButtonRef.current?.focus();
+    if (!guideActive) {
+      closeButtonRef.current?.focus();
+    }
     document.body.style.overflow = "hidden";
     window.addEventListener("keydown", onKeyDown);
     return () => {
       document.body.style.overflow = "";
       window.removeEventListener("keydown", onKeyDown);
-      menuButtonRef?.current?.focus();
+      if (!guideActive) {
+        menuButtonRef?.current?.focus();
+      }
     };
-  }, [isOpen, menuButtonRef, onClose]);
+  }, [guideActive, isOpen, menuButtonRef, onClose]);
 
   if (!isOpen) {
     return null;
@@ -83,10 +98,10 @@ export function MobileNavigationDrawer({ isOpen, menuButtonRef, onClose, storeHy
       <button aria-label="Close navigation menu" className="mobile-nav-drawer-backdrop" onClick={onClose} type="button" />
       <aside
         aria-label="Navigation menu"
-        aria-modal="true"
+        aria-modal={guideActive ? undefined : true}
         className="mobile-nav-drawer-panel"
         id={MOBILE_NAV_DRAWER_ID}
-        role="dialog"
+        role={guideActive ? "navigation" : "dialog"}
       >
         <header className="mobile-nav-drawer-header">
           <Link className="mobile-nav-drawer-brand" href="/dashboard" onClick={onClose}>
@@ -103,7 +118,7 @@ export function MobileNavigationDrawer({ isOpen, menuButtonRef, onClose, storeHy
           </button>
         </header>
 
-        <nav aria-label="Primary navigation" className="mobile-nav-drawer-body">
+        <nav aria-label="Primary navigation" className="mobile-nav-drawer-body" data-guide="primary-navigation">
           {canAccessAdmin ? (
             <section className="mobile-nav-drawer-section">
               <p className="mobile-nav-drawer-section-label terminal-nav-section-label-ops">Operations</p>
@@ -168,6 +183,7 @@ export function MobileNavigationDrawer({ isOpen, menuButtonRef, onClose, storeHy
                 <Link
                   aria-current={isActive ? "page" : undefined}
                   className={isActive ? `mobile-nav-link active terminal-nav-link-${item.tone}` : `mobile-nav-link terminal-nav-link-${item.tone}`}
+                    data-guide={guideTargetForHref(item.href)}
                   href={item.href}
                   key={item.href}
                   onClick={onClose}

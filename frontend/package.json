@@ -45,6 +45,6 @@
     "jsdom": "^29.1.1",
     "rimraf": "^6.0.1",
     "typescript": "latest",
-    "vitest": "^2.1.9"
+    "vitest": "^4.1.10"
   }
 }

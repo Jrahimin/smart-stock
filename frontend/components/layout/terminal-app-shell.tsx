@@ -13,6 +13,7 @@ import { MobileNavigationDrawer } from "@/components/layout/mobile-navigation-dr
 import { SidebarThemeToggle } from "@/components/layout/sidebar-theme-toggle";
 import { TerminalSidebarNav } from "@/components/layout/terminal-sidebar-nav";
 import { useAuth } from "@/features/auth/context/auth-context";
+import { DashboardSidebarGuide } from "@/features/guide/components/dashboard-sidebar-guide";
 import { useWorkspaceStore } from "@/stores/use-workspace-store";
 
 type TerminalAppShellProps = {
@@ -27,6 +28,7 @@ export function TerminalAppShell({ children }: TerminalAppShellProps) {
   const theme = useWorkspaceStore((state) => state.theme);
   const [storeHydrated, setStoreHydrated] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [guideMobileNavigationOpen, setGuideMobileNavigationOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -42,16 +44,18 @@ export function TerminalAppShell({ children }: TerminalAppShellProps) {
   }, [pathname]);
 
   const isSidebarCollapsed = storeHydrated ? sidebarCollapsed : false;
+  const isMobileNavigationOpen = mobileNavOpen || guideMobileNavigationOpen;
 
   return (
     <div className={isSidebarCollapsed ? "terminal-shell terminal-shell-collapsed" : "terminal-shell"}>
       <MobileAppHeader
-        isMenuOpen={mobileNavOpen}
+        isMenuOpen={isMobileNavigationOpen}
         menuButtonRef={menuButtonRef}
         onMenuToggle={() => setMobileNavOpen((open) => !open)}
       />
       <MobileNavigationDrawer
-        isOpen={mobileNavOpen}
+        guideActive={guideMobileNavigationOpen}
+        isOpen={isMobileNavigationOpen}
         menuButtonRef={menuButtonRef}
         onClose={() => setMobileNavOpen(false)}
         storeHydrated={storeHydrated}
@@ -130,6 +134,7 @@ export function TerminalAppShell({ children }: TerminalAppShellProps) {
       <main className="terminal-main">
         {children}
       </main>
+      <DashboardSidebarGuide onMobileNavigationOpenChange={setGuideMobileNavigationOpen} />
       <GlobalCommandPalette />
     </div>
   );

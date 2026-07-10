@@ -22,6 +22,7 @@ export function WealthWorkspaceNavPill({ collapsed, isActive, onNavigate }: Weal
         aria-current={isActive ? "page" : undefined}
         aria-label="Open Wealth Workspace"
         className={isActive ? "wealth-workspace-nav-tile is-active" : "wealth-workspace-nav-tile"}
+        data-guide="nav-wealth-workspace"
         href="/wealth"
         onClick={onNavigate}
         title={collapsed ? "Wealth Workspace" : undefined}

@@ -199,6 +199,15 @@ class UserGender(StrEnum):
     PREFER_NOT_TO_SAY = "prefer_not_to_say"
 
 
+class OnboardingGuideKey(StrEnum):
+    DASHBOARD_SIDEBAR_GUIDE = "dashboard_sidebar_guide"
+
+
+class OnboardingGuideState(StrEnum):
+    COMPLETED = "COMPLETED"
+    DISMISSED = "DISMISSED"
+
+
 class MoneySnapshotAssetCategory(StrEnum):
     CASH = "CASH"
     DEPOSIT = "DEPOSIT"

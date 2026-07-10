@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import Image from "next/image";
-import { ArrowUpDown, Banknote, BarChart3, Trophy, type LucideIcon } from "lucide-react";
+import { ArrowUpDown, Banknote, BarChart3, CircleHelp, Trophy, type LucideIcon } from "lucide-react";
 
 import { WorkspaceCommandSearch } from "@/components/command/workspace-command-search";
 import { MarketDataFreshnessBar } from "@/components/layout/market-data-freshness-bar";
@@ -12,7 +12,7 @@ import type { PulseTone } from "@/lib/market/market-pulse-metrics";
 
 export function MarketDashboardHeader() {
   return (
-    <header className="market-dashboard-header">
+    <header className="market-dashboard-header" data-guide="dashboard-header">
       <Image
         alt="Stock Intelligence"
         className="market-pulse-logo"
@@ -24,6 +24,15 @@ export function MarketDashboardHeader() {
       <div className="market-dashboard-header-tools">
         <WorkspaceCommandSearch filterContextName="market dashboard" showQuickActions={false} variant="discovery" />
         <MarketDataFreshnessBar variant="inline" />
+        <button
+          aria-label="Open dashboard guide"
+          className="market-dashboard-guide-button"
+          onClick={() => window.dispatchEvent(new Event("dashboard-sidebar-guide:replay"))}
+          title="Dashboard guide"
+          type="button"
+        >
+          <CircleHelp aria-hidden="true" size={16} />
+        </button>
       </div>
     </header>
   );
@@ -48,7 +57,7 @@ export function MarketPulsePanel({ model, leadersLoading = false }: MarketPulseP
   ].filter(Boolean) as string[];
 
   return (
-    <section className="market-pulse-panel" aria-label="Market pulse">
+    <section className="market-pulse-panel" aria-label="Market pulse" data-guide="market-pulse">
       <div className="market-pulse-card">
         <div className="market-pulse-strip" role="list" aria-label="Market performance">
           <DsexStripCell indexArrow={indexArrow} pulse={pulse} />
