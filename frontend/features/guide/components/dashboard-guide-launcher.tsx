@@ -1,6 +1,7 @@
 "use client";
 
-import { Route } from "lucide-react";
+import { guideCharacterAssetByPose } from "@/features/guide/character/guide-character-assets";
+import { useDashboardGuideLauncherProminent } from "@/features/guide/hooks/use-dashboard-sidebar-guide-controller";
 
 const GUIDE_OPEN_EVENT = "dashboard-sidebar-guide:open";
 
@@ -13,15 +14,19 @@ type DashboardGuideLauncherProps = {
 };
 
 export function DashboardGuideLauncher({ className = "market-dashboard-guide-button" }: DashboardGuideLauncherProps) {
+  const prominent = useDashboardGuideLauncherProminent();
+
   return (
     <button
-      aria-label="নির্দেশিত ট্যুর খুলুন"
-      className={className}
+      aria-label="গাইড ট্যুর শুরু করুন"
+      className={`${className}${prominent ? " market-dashboard-guide-button--prominent" : ""}`}
       onClick={openDashboardSidebarGuide}
-      title="নির্দেশিত ট্যুর"
+      title="ট্যুর গাইড"
       type="button"
     >
-      <Route aria-hidden="true" size={16} strokeWidth={2.2} />
+      <span aria-hidden="true" className="market-dashboard-guide-button-avatar">
+        <img alt="" className="market-dashboard-guide-button-mascot" src={guideCharacterAssetByPose.welcome} />
+      </span>
     </button>
   );
 }

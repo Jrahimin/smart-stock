@@ -1535,24 +1535,76 @@ button {
 
 .market-dashboard-guide-button {
   align-items: center;
-  background: color-mix(in srgb, #6d28d9 12%, var(--panel-strong));
-  border: 1px solid color-mix(in srgb, #8b5cf6 42%, var(--border));
-  border-radius: 9px;
-  color: #c4b5fd;
+  background:
+    radial-gradient(circle at 30% 20%, color-mix(in srgb, #fde68a 28%, transparent), transparent 55%),
+    linear-gradient(145deg, color-mix(in srgb, #f59e0b 24%, var(--panel-strong)), color-mix(in srgb, #ea580c 16%, var(--panel-strong)));
+  border: 1px solid color-mix(in srgb, #fbbf24 62%, var(--border));
+  border-radius: 10px;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, #f59e0b 14%, transparent),
+    0 6px 18px color-mix(in srgb, #f59e0b 22%, transparent);
+  color: #fde68a;
   cursor: pointer;
   display: inline-flex;
   flex: 0 0 auto;
-  height: 32px;
+  height: 34px;
   justify-content: center;
-  transition: border-color 160ms ease, color 160ms ease, transform 160ms ease, background 160ms ease;
-  width: 32px;
+  overflow: hidden;
+  padding: 0;
+  position: relative;
+  transition: border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+  width: 34px;
+}
+
+.market-dashboard-guide-button-avatar {
+  align-items: center;
+  display: inline-flex;
+  height: 100%;
+  justify-content: center;
+  width: 100%;
+}
+
+.market-dashboard-guide-button-mascot {
+  display: block;
+  height: 24px;
+  object-fit: contain;
+  transform: translateY(1px);
+  width: 24px;
 }
 
 .market-dashboard-guide-button:hover {
-  background: color-mix(in srgb, #6d28d9 20%, var(--panel-strong));
-  border-color: color-mix(in srgb, #a78bfa 72%, var(--border));
-  color: #ede9fe;
+  background:
+    radial-gradient(circle at 30% 20%, color-mix(in srgb, #fef3c7 34%, transparent), transparent 55%),
+    linear-gradient(145deg, color-mix(in srgb, #f59e0b 32%, var(--panel-strong)), color-mix(in srgb, #ea580c 22%, var(--panel-strong)));
+  border-color: color-mix(in srgb, #fcd34d 78%, var(--border));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, #fbbf24 24%, transparent),
+    0 8px 22px color-mix(in srgb, #f59e0b 30%, transparent);
   transform: translateY(-1px);
+}
+
+.market-dashboard-guide-button:active {
+  transform: translateY(0);
+}
+
+.market-dashboard-guide-button--prominent {
+  animation: market-dashboard-guide-button-pulse 2.8s ease-in-out infinite;
+}
+
+@keyframes market-dashboard-guide-button-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, #f59e0b 14%, transparent),
+      0 6px 18px color-mix(in srgb, #f59e0b 22%, transparent);
+  }
+
+  50% {
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, #fbbf24 34%, transparent),
+      0 0 0 6px color-mix(in srgb, #f59e0b 16%, transparent),
+      0 10px 24px color-mix(in srgb, #f59e0b 34%, transparent);
+  }
 }
 
 .market-pulse-panel {
@@ -10613,6 +10665,94 @@ button {
 @media (prefers-reduced-motion: reduce) {
   .product-guide-progress-segment {
     transition: none;
+  }
+
+  .market-dashboard-guide-button--prominent {
+    animation: none;
+  }
+}
+
+.product-guide-nudge-root {
+  inset: 0;
+  pointer-events: none;
+  position: fixed;
+  z-index: 12040;
+}
+
+.product-guide-nudge {
+  background: var(--panel-strong);
+  border: 1px solid color-mix(in srgb, #fbbf24 42%, var(--border));
+  border-radius: 16px;
+  bottom: 24px;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, #f59e0b 12%, transparent),
+    0 18px 48px color-mix(in srgb, #000 34%, transparent);
+  display: grid;
+  gap: 14px;
+  max-width: min(420px, calc(100vw - 32px));
+  padding: 18px;
+  pointer-events: auto;
+  position: absolute;
+  right: 24px;
+}
+
+.product-guide-nudge-head {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+}
+
+.product-guide-nudge-mascot {
+  display: block;
+  height: 44px;
+  object-fit: contain;
+  width: 44px;
+}
+
+.product-guide-nudge-eyebrow {
+  color: color-mix(in srgb, #fbbf24 78%, var(--foreground));
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  margin: 0 0 4px;
+  text-transform: uppercase;
+}
+
+.product-guide-nudge h2 {
+  font-size: 17px;
+  line-height: 1.35;
+  margin: 0;
+}
+
+.product-guide-nudge-message {
+  color: color-mix(in srgb, var(--foreground) 78%, transparent);
+  font-size: 14px;
+  line-height: 1.55;
+  margin: 0;
+}
+
+.product-guide-nudge-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+@media (max-width: 640px) {
+  .product-guide-nudge {
+    bottom: 16px;
+    left: 16px;
+    right: 16px;
+  }
+
+  .product-guide-nudge-actions {
+    justify-content: stretch;
+  }
+
+  .product-guide-nudge-actions .product-guide-primary-button,
+  .product-guide-nudge-actions .product-guide-secondary-button,
+  .product-guide-nudge-actions .product-guide-skip-button {
+    flex: 1 1 auto;
   }
 }
 

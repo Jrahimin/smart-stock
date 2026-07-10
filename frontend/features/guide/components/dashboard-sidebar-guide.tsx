@@ -6,6 +6,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { GuideCharacter } from "@/features/guide/components/guide-character";
 import { GuideDialogBubble } from "@/features/guide/components/guide-dialog-bubble";
+import { GuideTourNudge } from "@/features/guide/components/guide-tour-nudge";
 import {
   DASHBOARD_GUIDE_DASHBOARD_STEP_COUNT,
   dashboardSidebarGuideSteps,
@@ -191,13 +192,18 @@ export function DashboardSidebarGuide({ onMobileNavigationOpenChange }: Dashboar
   const expandedSidebarForGuideRef = useRef(false);
 
   const {
+    acceptGuideNudge,
+    dismissGuideNudge,
     finishGuide,
     guideRun,
     isGuideActive,
+    nudgeOpen,
     setSkipConfirmationOpen,
     setStepIndex,
     setSuppressContextualPrompts,
     skipConfirmationOpen,
+    skipGuide,
+    snoozeGuideNudge,
     stepIndex,
     suppressContextualPrompts,
   } = useDashboardSidebarGuideController();
@@ -313,91 +319,107 @@ export function DashboardSidebarGuide({ onMobileNavigationOpenChange }: Dashboar
 
   function moveNext() {
     if (isLastStep) {
-      finishGuide({ status: "completed", suppressContextualPrompts });
+      finishGuide({
+        status: suppressContextualPrompts ? "dismissed" : "completed",
+        suppressContextualPrompts,
+      });
       return;
     }
 
     setStepIndex((index) => index + 1);
   }
 
+  const nudgeLayer =
+    nudgeOpen && typeof document !== "undefined"
+      ? createPortal(
+          <GuideTourNudge onAccept={acceptGuideNudge} onDismiss={dismissGuideNudge} onSnooze={snoozeGuideNudge} />,
+          document.body,
+        )
+      : null;
+
   if (!canRenderGuide || !guideRun || !currentStep || !layout?.bubble || !spotlightRect || typeof document === "undefined") {
-    return null;
+    return nudgeLayer;
   }
 
-  return createPortal(
-    <AnimatePresence mode="wait">
-      <motion.div
-        animate={{ opacity: 1 }}
-        className="product-guide-root"
-        exit={{ opacity: 0 }}
-        initial={{ opacity: 0 }}
-        key={`product-guide-layer-${guideRun.id}`}
-        transition={{ duration: reduceMotion ? 0.01 : 0.22, ease: guideMotionEase }}
-      >
-        <div aria-hidden="true" className="product-guide-interaction-layer" />
-        <motion.div
-          animate={{
-            height: spotlightRect.height + 10,
-            left: spotlightRect.left - 5,
-            opacity: 1,
-            scale: 1,
-            top: spotlightRect.top - 5,
-            width: spotlightRect.width + 10,
-          }}
-          aria-hidden="true"
-          className={`product-guide-spotlight product-guide-spotlight-${currentStep.highlightStyle}`}
-          initial={false}
-          transition={{ duration: motionDuration, ease: guideMotionEase }}
-        />
-
-        {layout.showFloatingCharacter && layout.character ? (
+  return (
+    <>
+      {nudgeLayer}
+      {createPortal(
+        <AnimatePresence mode="wait">
           <motion.div
-            animate={{ left: layout.character.left, opacity: 1, top: layout.character.top }}
-            aria-hidden="true"
-            className="product-guide-character-wrap"
-            initial={false}
-            key={`${guideRun.id}-${currentStep.id}`}
-            style={{ width: layout.character.width }}
-            transition={{ duration: motionDuration, ease: guideMotionEase }}
+            animate={{ opacity: 1 }}
+            className="product-guide-root"
+            exit={{ opacity: 0 }}
+            initial={{ opacity: 0 }}
+            key={`product-guide-layer-${guideRun.id}`}
+            transition={{ duration: reduceMotion ? 0.01 : 0.22, ease: guideMotionEase }}
           >
-            <GuideCharacter facing={layout.characterFacing} pose={currentStep.characterPose} />
-          </motion.div>
-        ) : null}
+            <div aria-hidden="true" className="product-guide-interaction-layer" />
+            <motion.div
+              animate={{
+                height: spotlightRect.height + 10,
+                left: spotlightRect.left - 5,
+                opacity: 1,
+                scale: 1,
+                top: spotlightRect.top - 5,
+                width: spotlightRect.width + 10,
+              }}
+              aria-hidden="true"
+              className={`product-guide-spotlight product-guide-spotlight-${currentStep.highlightStyle}`}
+              initial={false}
+              transition={{ duration: motionDuration, ease: guideMotionEase }}
+            />
 
-        <motion.div
-          animate={{
-            left: isMobile ? undefined : layout.bubble.left,
-            opacity: 1,
-            top: isMobile ? undefined : layout.bubble.top,
-            width: isMobile ? undefined : layout.bubble.width,
-          }}
-          className={`product-guide-dialog-wrap${isMobile ? " product-guide-dialog-wrap-mobile" : ""}`}
-          initial={false}
-          transition={{ duration: motionDuration, ease: guideMotionEase }}
-        >
-          <GuideDialogBubble
-            characterPose={currentStep.characterPose}
-            dialog={currentStep.dialog}
-            isLastStep={isLastStep}
-            isSkipConfirmationOpen={skipConfirmationOpen}
-            onCancelSkip={() => setSkipConfirmationOpen(false)}
-            onConfirmSkip={() => finishGuide({ status: "dismissed", suppressContextualPrompts: true })}
-            onNext={moveNext}
-            onPrevious={() => setStepIndex((index) => Math.max(0, index - 1))}
-            onSkip={() => setSkipConfirmationOpen(true)}
-            onSuppressContextualPromptsChange={setSuppressContextualPrompts}
-            phaseLabel={phase.label}
-            phaseStepCount={phase.stepCount}
-            phaseStepIndex={phase.stepIndex}
-            position={{ ...layout.bubble, left: 0, top: 0 }}
-            showInlineCharacter={isMobile}
-            stepCount={dashboardSidebarGuideSteps.length}
-            stepIndex={stepIndex}
-            suppressContextualPrompts={suppressContextualPrompts}
-          />
-        </motion.div>
-      </motion.div>
-    </AnimatePresence>,
-    document.body,
+            {layout.showFloatingCharacter && layout.character ? (
+              <motion.div
+                animate={{ left: layout.character.left, opacity: 1, top: layout.character.top }}
+                aria-hidden="true"
+                className="product-guide-character-wrap"
+                initial={false}
+                key={`${guideRun.id}-${currentStep.id}`}
+                style={{ width: layout.character.width }}
+                transition={{ duration: motionDuration, ease: guideMotionEase }}
+              >
+                <GuideCharacter facing={layout.characterFacing} pose={currentStep.characterPose} />
+              </motion.div>
+            ) : null}
+
+            <motion.div
+              animate={{
+                left: isMobile ? undefined : layout.bubble.left,
+                opacity: 1,
+                top: isMobile ? undefined : layout.bubble.top,
+                width: isMobile ? undefined : layout.bubble.width,
+              }}
+              className={`product-guide-dialog-wrap${isMobile ? " product-guide-dialog-wrap-mobile" : ""}`}
+              initial={false}
+              transition={{ duration: motionDuration, ease: guideMotionEase }}
+            >
+              <GuideDialogBubble
+                characterPose={currentStep.characterPose}
+                dialog={currentStep.dialog}
+                isLastStep={isLastStep}
+                isSkipConfirmationOpen={skipConfirmationOpen}
+                onCancelSkip={() => setSkipConfirmationOpen(false)}
+                onConfirmSkip={skipGuide}
+                onNext={moveNext}
+                onPrevious={() => setStepIndex((index) => Math.max(0, index - 1))}
+                onSkip={() => setSkipConfirmationOpen(true)}
+                onSuppressContextualPromptsChange={setSuppressContextualPrompts}
+                phaseLabel={phase.label}
+                phaseStepCount={phase.stepCount}
+                phaseStepIndex={phase.stepIndex}
+                position={{ ...layout.bubble, left: 0, top: 0 }}
+                showInlineCharacter={isMobile}
+                stepCount={dashboardSidebarGuideSteps.length}
+                stepIndex={stepIndex}
+                suppressContextualPrompts={suppressContextualPrompts}
+              />
+            </motion.div>
+          </motion.div>
+        </AnimatePresence>,
+        document.body,
+      )}
+    </>
   );
 }

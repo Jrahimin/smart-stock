@@ -106,7 +106,9 @@ export function GuideDialogBubble({
       </div>
 
       <p className="product-guide-dialog-message" id="product-guide-message">
-        {isSkipConfirmationOpen ? "পরে Settings থেকে চাইলে আবার এই পরিচিতি দেখতে পারবেন।" : dialog.message}
+        {isSkipConfirmationOpen
+          ? "এখন বন্ধ করলে পরে ড্যাশবোর্ডের ট্যুর বাটন থেকে আবার দেখতে পারবেন।"
+          : dialog.message}
       </p>
 
       {!isSkipConfirmationOpen ? (
@@ -131,16 +133,14 @@ export function GuideDialogBubble({
         </div>
       ) : null}
 
-      {isLastStep && !isSkipConfirmationOpen ? (
-        <label className="product-guide-suppress-option">
-          <input
-            checked={suppressContextualPrompts}
-            onChange={(event) => onSuppressContextualPromptsChange(event.target.checked)}
-            type="checkbox"
-          />
-          <span>ভবিষ্যতে এই গাইড আর দেখাবেন না</span>
-        </label>
-      ) : null}
+      <label className="product-guide-suppress-option">
+        <input
+          checked={suppressContextualPrompts}
+          onChange={(event) => onSuppressContextualPromptsChange(event.target.checked)}
+          type="checkbox"
+        />
+        <span>ভবিষ্যতে স্বয়ংক্রিয়ভাবে এই গাইড দেখাবেন না</span>
+      </label>
 
       {isSkipConfirmationOpen ? (
         <div className="product-guide-confirm-actions">

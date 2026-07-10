@@ -28,13 +28,17 @@ export type GuideStep = {
   mobileNavigationStep?: boolean;
 };
 
-export type GuideStatus = "completed" | "dismissed";
+export type GuideStatus = "completed" | "skipped" | "dismissed";
 
 export type GuidePreference = {
   version: number;
-  status: GuideStatus;
-  completedAt: string;
+  autoStartShown: boolean;
+  status: GuideStatus | null;
+  firstSeenAt: string;
+  updatedAt: string;
   suppressContextualPrompts: boolean;
+  lastNudgeAt: string | null;
+  nudgeCount: number;
 };
 
 export type GuideCompletion = {
