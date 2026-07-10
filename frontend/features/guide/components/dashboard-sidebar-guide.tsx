@@ -3,20 +3,18 @@
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { createPortal } from "react-dom";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { usePathname } from "next/navigation";
 
 import { GuideCharacter } from "@/features/guide/components/guide-character";
 import { GuideDialogBubble } from "@/features/guide/components/guide-dialog-bubble";
 import {
   DASHBOARD_GUIDE_DASHBOARD_STEP_COUNT,
-  DASHBOARD_SIDEBAR_GUIDE_VERSION,
   dashboardSidebarGuideSteps,
 } from "@/features/guide/config/dashboard-sidebar-guide";
+import { useDashboardSidebarGuideController } from "@/features/guide/hooks/use-dashboard-sidebar-guide-controller";
 import { useGuideContentBounds } from "@/features/guide/hooks/use-guide-content-bounds";
 import {
   isGuideTargetVisibleInViewport,
   scrollGuideTargetIntoView,
-  useGuideTargetAvailable,
   useGuideTargetLayout,
 } from "@/features/guide/hooks/use-guide-target-layout";
 import {
@@ -28,20 +26,7 @@ import {
   type GuideBox,
   type GuideRect,
 } from "@/features/guide/lib/guide-positioning";
-import {
-  clearGuidePreference,
-  isGuideReplaySessionActive,
-  markGuideReplaySession,
-  readGuidePreference,
-  shouldAutoStartGuide,
-  writeGuidePreference,
-} from "@/features/guide/lib/guide-preference-storage";
-import {
-  getDashboardSidebarGuidePreference,
-  saveDashboardSidebarGuidePreference,
-} from "@/features/guide/services/guide-preference-api";
-import type { GuideCompletion, GuideStep } from "@/features/guide/types/guide-types";
-import { useAuth } from "@/features/auth/context/auth-context";
+import type { GuideStep } from "@/features/guide/types/guide-types";
 import { useWorkspaceStore } from "@/stores/use-workspace-store";
 
 type DashboardSidebarGuideProps = {
@@ -118,7 +103,6 @@ function buildGuideLayout(input: {
     characterWidth,
     currentStep,
     isMobile,
-    isNavigationStep,
     sidebarRight,
     targetRect,
     viewportHeight,
@@ -198,27 +182,29 @@ function buildGuideLayout(input: {
 }
 
 export function DashboardSidebarGuide({ onMobileNavigationOpenChange }: DashboardSidebarGuideProps) {
-  const pathname = usePathname();
-  const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
   const reduceMotion = useReducedMotion();
   const isMobile = useIsMobileViewport();
   const viewport = useViewport();
   const contentBounds = useGuideContentBounds(true, isMobile);
-  const firstTargetAvailable = useGuideTargetAvailable('[data-guide="market-pulse"]');
-  const [preferenceResolved, setPreferenceResolved] = useState(false);
-  const [shouldStart, setShouldStart] = useState(false);
-  const [isOpen, setIsOpen] = useState(false);
-  const [stepIndex, setStepIndex] = useState(0);
-  const [suppressContextualPrompts, setSuppressContextualPrompts] = useState(false);
-  const [skipConfirmationOpen, setSkipConfirmationOpen] = useState(false);
   const sidebarCollapsed = useWorkspaceStore((state) => state.sidebarCollapsed);
   const toggleSidebar = useWorkspaceStore((state) => state.toggleSidebar);
   const expandedSidebarForGuideRef = useRef(false);
-  const hasAutoStartedRef = useRef(false);
+
+  const {
+    finishGuide,
+    guideRun,
+    isGuideActive,
+    setSkipConfirmationOpen,
+    setStepIndex,
+    setSuppressContextualPrompts,
+    skipConfirmationOpen,
+    stepIndex,
+    suppressContextualPrompts,
+  } = useDashboardSidebarGuideController();
 
   const currentStep = dashboardSidebarGuideSteps[stepIndex];
   const preferSidebar = currentStep?.highlightStyle === "navigation";
-  const targetSnapshot = useGuideTargetLayout(currentStep?.target ?? null, isOpen, { preferSidebar });
+  const targetSnapshot = useGuideTargetLayout(currentStep?.target ?? null, isGuideActive, { preferSidebar });
   const targetRect = targetSnapshot?.targetRect ?? null;
   const spotlightRect = targetSnapshot?.spotlightRect ?? null;
   const sidebarRight = targetSnapshot?.sidebarRight ?? null;
@@ -227,107 +213,11 @@ export function DashboardSidebarGuide({ onMobileNavigationOpenChange }: Dashboar
   const phase = getGuidePhase(stepIndex);
 
   useEffect(() => {
-    if (pathname !== "/dashboard") {
-      hasAutoStartedRef.current = false;
-      setIsOpen(false);
-      onMobileNavigationOpenChange(false);
-      return;
-    }
-
-    if (isAuthLoading) {
-      return;
-    }
-
-    let cancelled = false;
-
-    async function resolvePreference() {
-      const localPreference = readGuidePreference(DASHBOARD_SIDEBAR_GUIDE_VERSION);
-
-      if (isAuthenticated) {
-        try {
-          const serverPreference = await getDashboardSidebarGuidePreference();
-          if (cancelled) {
-            return;
-          }
-
-          if (serverPreference.state && !localPreference && !isGuideReplaySessionActive()) {
-            writeGuidePreference(
-              DASHBOARD_SIDEBAR_GUIDE_VERSION,
-              {
-                status: serverPreference.state === "COMPLETED" ? "completed" : "dismissed",
-                suppressContextualPrompts: serverPreference.state === "DISMISSED",
-              },
-              { preserveReplaySession: true },
-            );
-          } else if (!serverPreference.state && localPreference) {
-            void saveDashboardSidebarGuidePreference(
-              localPreference.status === "dismissed" || localPreference.suppressContextualPrompts
-                ? "DISMISSED"
-                : "COMPLETED",
-            );
-          }
-        } catch {
-          // Fall back to local preference only.
-        }
-      }
-
-      if (!cancelled) {
-        setShouldStart(shouldAutoStartGuide(DASHBOARD_SIDEBAR_GUIDE_VERSION));
-        setPreferenceResolved(true);
-      }
-    }
-
-    void resolvePreference();
-    return () => {
-      cancelled = true;
-    };
-  }, [isAuthenticated, isAuthLoading, onMobileNavigationOpenChange, pathname]);
+    onMobileNavigationOpenChange(isGuideActive && isMobile && isNavigationStep);
+  }, [isGuideActive, isMobile, isNavigationStep, onMobileNavigationOpenChange]);
 
   useEffect(() => {
-    if (pathname !== "/dashboard") {
-      return;
-    }
-
-    if (!preferenceResolved || !shouldStart || !firstTargetAvailable || hasAutoStartedRef.current) {
-      return;
-    }
-
-    hasAutoStartedRef.current = true;
-    setStepIndex(0);
-    setIsOpen(true);
-  }, [firstTargetAvailable, pathname, preferenceResolved, shouldStart]);
-
-  useEffect(() => {
-    const replayGuide = () => {
-      if (pathname !== "/dashboard" || !firstTargetAvailable) {
-        return;
-      }
-
-      clearGuidePreference();
-      markGuideReplaySession();
-      hasAutoStartedRef.current = true;
-      setStepIndex(0);
-      setSuppressContextualPrompts(false);
-      setSkipConfirmationOpen(false);
-      setShouldStart(true);
-      setIsOpen(true);
-    };
-
-    window.addEventListener("dashboard-sidebar-guide:replay", replayGuide);
-    return () => window.removeEventListener("dashboard-sidebar-guide:replay", replayGuide);
-  }, [firstTargetAvailable, pathname]);
-
-  useEffect(() => {
-    if (!isOpen) {
-      onMobileNavigationOpenChange(false);
-      return;
-    }
-
-    onMobileNavigationOpenChange(isMobile && isNavigationStep);
-  }, [isMobile, isNavigationStep, isOpen, onMobileNavigationOpenChange]);
-
-  useEffect(() => {
-    if (!isOpen) {
+    if (!isGuideActive) {
       expandedSidebarForGuideRef.current = false;
       return;
     }
@@ -340,10 +230,10 @@ export function DashboardSidebarGuide({ onMobileNavigationOpenChange }: Dashboar
       toggleSidebar();
       expandedSidebarForGuideRef.current = true;
     }
-  }, [isMobile, isOpen, sidebarCollapsed, stepIndex, toggleSidebar]);
+  }, [isMobile, isGuideActive, sidebarCollapsed, stepIndex, toggleSidebar]);
 
   useLayoutEffect(() => {
-    if (!isOpen || !currentStep || !targetSnapshot?.activeElement || !targetRect || viewport.height === 0) {
+    if (!isGuideActive || !currentStep || !targetSnapshot?.activeElement || !targetRect || viewport.height === 0) {
       return;
     }
 
@@ -358,10 +248,10 @@ export function DashboardSidebarGuide({ onMobileNavigationOpenChange }: Dashboar
         reduceMotion: true,
       });
     }
-  }, [currentStep, isOpen, targetRect, targetSnapshot?.activeElement, viewport.height]);
+  }, [currentStep, isGuideActive, targetRect, targetSnapshot?.activeElement, viewport.height]);
 
   useEffect(() => {
-    if (!isOpen) {
+    if (!isGuideActive) {
       return;
     }
 
@@ -379,7 +269,7 @@ export function DashboardSidebarGuide({ onMobileNavigationOpenChange }: Dashboar
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [isOpen, skipConfirmationOpen, stepIndex]);
+  }, [isGuideActive, setSkipConfirmationOpen, setStepIndex, skipConfirmationOpen, stepIndex]);
 
   const layout = useMemo(() => {
     if (!currentStep || !targetRect || viewport.width === 0) {
@@ -417,20 +307,9 @@ export function DashboardSidebarGuide({ onMobileNavigationOpenChange }: Dashboar
   ]);
 
   const motionDuration = reduceMotion ? 0.01 : 0.42;
-
-  function finishGuide(completion: GuideCompletion) {
-    writeGuidePreference(DASHBOARD_SIDEBAR_GUIDE_VERSION, completion);
-    if (isAuthenticated) {
-      void saveDashboardSidebarGuidePreference(
-        completion.status === "dismissed" || completion.suppressContextualPrompts ? "DISMISSED" : "COMPLETED",
-      );
-    }
-    hasAutoStartedRef.current = false;
-    setSkipConfirmationOpen(false);
-    setIsOpen(false);
-    setShouldStart(false);
-    onMobileNavigationOpenChange(false);
-  }
+  const canRenderGuide = Boolean(
+    isGuideActive && guideRun && currentStep && layout?.bubble && spotlightRect,
+  );
 
   function moveNext() {
     if (isLastStep) {
@@ -441,7 +320,7 @@ export function DashboardSidebarGuide({ onMobileNavigationOpenChange }: Dashboar
     setStepIndex((index) => index + 1);
   }
 
-  if (!isOpen || !currentStep || !layout?.bubble || !spotlightRect || typeof document === "undefined") {
+  if (!canRenderGuide || !guideRun || !currentStep || !layout?.bubble || !spotlightRect || typeof document === "undefined") {
     return null;
   }
 
@@ -452,7 +331,7 @@ export function DashboardSidebarGuide({ onMobileNavigationOpenChange }: Dashboar
         className="product-guide-root"
         exit={{ opacity: 0 }}
         initial={{ opacity: 0 }}
-        key="product-guide-layer"
+        key={`product-guide-layer-${guideRun.id}`}
         transition={{ duration: reduceMotion ? 0.01 : 0.22, ease: guideMotionEase }}
       >
         <div aria-hidden="true" className="product-guide-interaction-layer" />
@@ -473,14 +352,11 @@ export function DashboardSidebarGuide({ onMobileNavigationOpenChange }: Dashboar
 
         {layout.showFloatingCharacter && layout.character ? (
           <motion.div
-            animate={{
-              left: layout.character.left,
-              opacity: 1,
-              top: layout.character.top,
-            }}
+            animate={{ left: layout.character.left, opacity: 1, top: layout.character.top }}
             aria-hidden="true"
             className="product-guide-character-wrap"
             initial={false}
+            key={`${guideRun.id}-${currentStep.id}`}
             style={{ width: layout.character.width }}
             transition={{ duration: motionDuration, ease: guideMotionEase }}
           >

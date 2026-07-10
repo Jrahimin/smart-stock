@@ -2,10 +2,11 @@
 
 import type { ReactNode } from "react";
 import Image from "next/image";
-import { ArrowUpDown, Banknote, BarChart3, CircleHelp, Trophy, type LucideIcon } from "lucide-react";
+import { ArrowUpDown, Banknote, BarChart3, Trophy, type LucideIcon } from "lucide-react";
 
 import { WorkspaceCommandSearch } from "@/components/command/workspace-command-search";
 import { MarketDataFreshnessBar } from "@/components/layout/market-data-freshness-bar";
+import { DashboardGuideLauncher } from "@/features/guide/components/dashboard-guide-launcher";
 import { MarketPulseLeadersSkeleton } from "@/features/market-dashboard/components/dashboard-skeletons";
 import type { MarketDashboardModel } from "@/features/market-dashboard/types/market-dashboard-types";
 import type { PulseTone } from "@/lib/market/market-pulse-metrics";
@@ -24,15 +25,7 @@ export function MarketDashboardHeader() {
       <div className="market-dashboard-header-tools">
         <WorkspaceCommandSearch filterContextName="market dashboard" showQuickActions={false} variant="discovery" />
         <MarketDataFreshnessBar variant="inline" />
-        <button
-          aria-label="Open dashboard guide"
-          className="market-dashboard-guide-button"
-          onClick={() => window.dispatchEvent(new Event("dashboard-sidebar-guide:replay"))}
-          title="Dashboard guide"
-          type="button"
-        >
-          <CircleHelp aria-hidden="true" size={16} />
-        </button>
+        <DashboardGuideLauncher />
       </div>
     </header>
   );
@@ -57,7 +50,7 @@ export function MarketPulsePanel({ model, leadersLoading = false }: MarketPulseP
   ].filter(Boolean) as string[];
 
   return (
-    <section className="market-pulse-panel" aria-label="Market pulse" data-guide="market-pulse">
+    <section className="market-pulse-panel" aria-label="Market pulse" data-guide="market-pulse" data-guide-ready="true">
       <div className="market-pulse-card">
         <div className="market-pulse-strip" role="list" aria-label="Market performance">
           <DsexStripCell indexArrow={indexArrow} pulse={pulse} />

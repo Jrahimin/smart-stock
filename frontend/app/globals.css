@@ -1535,22 +1535,23 @@ button {
 
 .market-dashboard-guide-button {
   align-items: center;
-  background: color-mix(in srgb, var(--foreground) 5%, var(--panel-strong));
-  border: 1px solid var(--border);
+  background: color-mix(in srgb, #6d28d9 12%, var(--panel-strong));
+  border: 1px solid color-mix(in srgb, #8b5cf6 42%, var(--border));
   border-radius: 9px;
-  color: var(--muted);
+  color: #c4b5fd;
   cursor: pointer;
   display: inline-flex;
   flex: 0 0 auto;
   height: 32px;
   justify-content: center;
-  transition: border-color 160ms ease, color 160ms ease, transform 160ms ease;
+  transition: border-color 160ms ease, color 160ms ease, transform 160ms ease, background 160ms ease;
   width: 32px;
 }
 
 .market-dashboard-guide-button:hover {
-  border-color: color-mix(in srgb, #8b5cf6 58%, var(--border));
-  color: #c4b5fd;
+  background: color-mix(in srgb, #6d28d9 20%, var(--panel-strong));
+  border-color: color-mix(in srgb, #a78bfa 72%, var(--border));
+  color: #ede9fe;
   transform: translateY(-1px);
 }
 

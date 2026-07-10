@@ -18,7 +18,6 @@ export function MarketPulseCoreSkeleton({ leadersLoading = true }: { leadersLoad
       className="market-pulse-panel market-pulse-panel-loading"
       aria-busy="true"
       aria-label="Loading market pulse"
-      data-guide="market-pulse"
     >
       <LoadingStatus className="market-dashboard-loading-status" label="Loading market pulse" />
       <div className="market-pulse-card">

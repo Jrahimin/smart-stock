@@ -16,6 +16,7 @@ export type GuideTargetSnapshot = {
 
 type GuideTargetOptions = {
   preferSidebar?: boolean;
+  requireReady?: boolean;
 };
 
 function isElementVisible(element: HTMLElement) {
@@ -24,9 +25,23 @@ function isElementVisible(element: HTMLElement) {
   return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
 }
 
+function isGuideReadyTarget(element: HTMLElement) {
+  return element.getAttribute("data-guide-ready") === "true";
+}
+
 export function getVisibleTarget(selector: string, options?: GuideTargetOptions): HTMLElement | null {
   const matches = Array.from(document.querySelectorAll<HTMLElement>(selector));
-  const visible = matches.filter(isElementVisible);
+  const visible = matches.filter((element) => {
+    if (!isElementVisible(element)) {
+      return false;
+    }
+
+    if (options?.requireReady && !isGuideReadyTarget(element)) {
+      return false;
+    }
+
+    return true;
+  });
 
   if (options?.preferSidebar) {
     const sidebarTarget = visible.find((element) => element.closest(".terminal-sidebar-desktop"));
@@ -234,20 +249,22 @@ export function useGuideTargetLayout(
 export function useGuideTargetAvailable(selector: string, options?: GuideTargetOptions) {
   const [available, setAvailable] = useState(false);
   const preferSidebar = options?.preferSidebar ?? false;
+  const requireReady = options?.requireReady ?? false;
 
   useLayoutEffect(() => {
-    const update = () => setAvailable(getVisibleTarget(selector, { preferSidebar }) !== null);
+    const update = () =>
+      setAvailable(getVisibleTarget(selector, { preferSidebar, requireReady }) !== null);
     update();
 
     const observer = new MutationObserver(update);
-    observer.observe(document.body, { childList: true, subtree: true });
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["data-guide-ready"] });
     window.addEventListener("resize", update);
 
     return () => {
       observer.disconnect();
       window.removeEventListener("resize", update);
     };
-  }, [preferSidebar, selector]);
+  }, [preferSidebar, requireReady, selector]);
 
   return available;
 }
