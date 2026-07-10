@@ -89,6 +89,17 @@ export function measureGuideTargetSnapshot(
   return target ? buildTargetSnapshot(target) : null;
 }
 
+function isTargetVisibleInViewport(target: HTMLElement, topInset = 72, bottomInset = 16) {
+  const rect = target.getBoundingClientRect();
+  const viewportHeight = window.innerHeight;
+
+  if (rect.height > viewportHeight * 0.45) {
+    return rect.top >= topInset && rect.top < viewportHeight - bottomInset;
+  }
+
+  return rect.top >= topInset && rect.bottom <= viewportHeight - bottomInset;
+}
+
 export function scrollGuideTargetIntoView(
   target: HTMLElement,
   options: { navigation: boolean; tall: boolean; reduceMotion: boolean },
@@ -113,15 +124,28 @@ export function scrollGuideTargetIntoView(
     }
   }
 
-  if (options.tall) {
-    const topInset = 72;
-    if (target.getBoundingClientRect().top < topInset) {
-      target.scrollIntoView({ behavior, block: "start", inline: "nearest" });
-    }
+  const topInset = 72;
+  const bottomInset = 16;
+  const rect = target.getBoundingClientRect();
+  const viewportHeight = window.innerHeight;
+  const isTall = rect.height > viewportHeight * 0.45;
+  const needsScroll = isTall
+    ? rect.top < topInset || rect.top > viewportHeight - bottomInset
+    : rect.top < topInset || rect.bottom > viewportHeight - bottomInset;
+
+  if (!needsScroll) {
     return;
   }
 
-  target.scrollIntoView({ behavior, block: "center", inline: "nearest" });
+  target.scrollIntoView({
+    behavior,
+    block: options.tall ? "start" : "center",
+    inline: "nearest",
+  });
+}
+
+export function isGuideTargetVisibleInViewport(target: HTMLElement) {
+  return isTargetVisibleInViewport(target);
 }
 
 export function useGuideTargetLayout(
@@ -149,23 +173,29 @@ export function useGuideTargetLayout(
     let targetObserver: ResizeObserver | null = null;
     let sidebarObserver: ResizeObserver | null = null;
 
-    const update = () => {
+    const remeasure = () => {
       bumpRevision();
-      targetObserver?.disconnect();
-
-      const target = getVisibleTarget(selector, { preferSidebar });
-      const nextObserver = target ? new ResizeObserver(() => window.requestAnimationFrame(update)) : null;
-      targetObserver = nextObserver;
-      if (target && nextObserver) {
-        nextObserver.observe(target);
-      }
     };
 
-    update();
+    const attachTargetObserver = () => {
+      targetObserver?.disconnect();
+      const target = getVisibleTarget(selector, { preferSidebar });
+      if (!target) {
+        return;
+      }
+
+      targetObserver = new ResizeObserver(() => {
+        window.cancelAnimationFrame(frameId);
+        frameId = window.requestAnimationFrame(remeasure);
+      });
+      targetObserver.observe(target);
+    };
+
+    attachTargetObserver();
 
     const scheduleUpdate = () => {
       window.cancelAnimationFrame(frameId);
-      frameId = window.requestAnimationFrame(update);
+      frameId = window.requestAnimationFrame(remeasure);
     };
 
     window.addEventListener("resize", scheduleUpdate);

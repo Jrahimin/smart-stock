@@ -14,6 +14,7 @@ import {
 } from "@/features/guide/config/dashboard-sidebar-guide";
 import { useGuideContentBounds } from "@/features/guide/hooks/use-guide-content-bounds";
 import {
+  isGuideTargetVisibleInViewport,
   scrollGuideTargetIntoView,
   useGuideTargetAvailable,
   useGuideTargetLayout,
@@ -346,13 +347,18 @@ export function DashboardSidebarGuide({ onMobileNavigationOpenChange }: Dashboar
       return;
     }
 
-    scrollGuideTargetIntoView(targetSnapshot.activeElement, {
-      navigation: currentStep.highlightStyle === "navigation",
-      tall:
-        isTallGuideTarget(targetRect, viewport.height) || currentStep.layoutMode === "center-cluster",
-      reduceMotion: Boolean(reduceMotion),
-    });
-  }, [currentStep, isOpen, reduceMotion, targetRect, targetSnapshot?.activeElement, viewport.height]);
+    const target = targetSnapshot.activeElement;
+    const scrollTall =
+      currentStep.id === "market-discovery" || currentStep.layoutMode === "center-cluster";
+
+    if (!isGuideTargetVisibleInViewport(target)) {
+      scrollGuideTargetIntoView(target, {
+        navigation: currentStep.highlightStyle === "navigation",
+        tall: scrollTall,
+        reduceMotion: true,
+      });
+    }
+  }, [currentStep, isOpen, targetRect, targetSnapshot?.activeElement, viewport.height]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -393,7 +399,7 @@ export function DashboardSidebarGuide({ onMobileNavigationOpenChange }: Dashboar
       isMobile,
       isNavigationStep,
       sidebarRight,
-      targetRect,
+      targetRect: spotlightRect ?? targetRect,
       viewportHeight: viewport.height,
       viewportWidth: viewport.width,
     });
@@ -404,6 +410,7 @@ export function DashboardSidebarGuide({ onMobileNavigationOpenChange }: Dashboar
     isMobile,
     isNavigationStep,
     sidebarRight,
+    spotlightRect,
     targetRect,
     viewport.height,
     viewport.width,

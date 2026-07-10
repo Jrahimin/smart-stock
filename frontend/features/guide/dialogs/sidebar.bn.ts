@@ -26,7 +26,8 @@ export const sidebarDialogs = {
     message: "পছন্দের শেয়ারগুলো একসাথে নজরে রাখুন।",
   },
   wealthWorkspace: {
-    eyebrow: "ওয়েলথ ওয়ার্কস্পেস",
-    message: "লক্ষ্য, আয় আর ভবিষ্যতের পরিকল্পনা গুছিয়ে নিন।",
+    eyebrow: "সম্পদের সমারোহে",
+    message:
+      "এখানে আপনার সম্পদ গুছিয়ে নিন, পরিকল্পনায় মেতে উঠুন। FDR, DPS, ট্যাক্স, যাকাত সহ কি নেই এখানে!",
   },
 } as const satisfies Record<string, GuideDialog>;
