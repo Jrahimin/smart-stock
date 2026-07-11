@@ -33,8 +33,33 @@ type MobileNavigationDrawerProps = {
   storeHydrated: boolean;
 };
 
+const TRADING_WORKSPACE_HREFS = new Set(["/stocks", "/scanner", "/signals", "/watchlist"]);
+
 function guideTargetForHref(href: string) {
   return `nav-${href.slice(1)}`;
+}
+
+function renderMarketNavLink(
+  item: (typeof marketNavigationItems)[number],
+  pathname: string,
+  onClose: () => void,
+) {
+  const Icon = item.icon;
+  const isActive = isNavigationItemActive(pathname, item.href);
+
+  return (
+    <Link
+      aria-current={isActive ? "page" : undefined}
+      className={isActive ? `mobile-nav-link active terminal-nav-link-${item.tone}` : `mobile-nav-link terminal-nav-link-${item.tone}`}
+      data-guide={guideTargetForHref(item.href)}
+      href={item.href}
+      key={item.href}
+      onClick={onClose}
+    >
+      <Icon aria-hidden="true" className={`terminal-nav-icon terminal-nav-icon-${item.tone}`} size={18} />
+      <span>{item.label}</span>
+    </Link>
+  );
 }
 
 export function MobileNavigationDrawer({
@@ -175,24 +200,14 @@ export function MobileNavigationDrawer({
 
           <section className="mobile-nav-drawer-section">
             <p className="mobile-nav-drawer-section-label terminal-nav-section-label-market">Smart Stock</p>
-            {marketNavigationItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = isNavigationItemActive(pathname, item.href);
-
-              return (
-                <Link
-                  aria-current={isActive ? "page" : undefined}
-                  className={isActive ? `mobile-nav-link active terminal-nav-link-${item.tone}` : `mobile-nav-link terminal-nav-link-${item.tone}`}
-                    data-guide={guideTargetForHref(item.href)}
-                  href={item.href}
-                  key={item.href}
-                  onClick={onClose}
-                >
-                  <Icon aria-hidden="true" className={`terminal-nav-icon terminal-nav-icon-${item.tone}`} size={18} />
-                  <span>{item.label}</span>
-                </Link>
-              );
-            })}
+            {marketNavigationItems
+              .filter((item) => !TRADING_WORKSPACE_HREFS.has(item.href))
+              .map((item) => renderMarketNavLink(item, pathname, onClose))}
+            <div className="mobile-nav-trading-workspace-guide" data-guide="trading-workspace">
+              {marketNavigationItems
+                .filter((item) => TRADING_WORKSPACE_HREFS.has(item.href))
+                .map((item) => renderMarketNavLink(item, pathname, onClose))}
+            </div>
           </section>
 
           <section className="mobile-nav-drawer-section">

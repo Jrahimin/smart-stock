@@ -96,3 +96,35 @@ def test_dashboard_sidebar_guide_preference_is_user_scoped():
         assert second_user_preference.state is None
 
     asyncio.run(run())
+
+
+def test_missing_dashboard_mobile_guide_preference_returns_not_started_state():
+    repository = FakeUserPreferencesRepository()
+    service = _service(repository, uuid4())
+
+    async def run():
+        preference = await service.get_dashboard_mobile_guide_preference()
+        assert preference.key == OnboardingGuideKey.DASHBOARD_MOBILE_INTRO
+        assert preference.state is None
+        assert preference.updated_at is None
+
+    asyncio.run(run())
+
+
+def test_dashboard_mobile_guide_preference_saves_and_replaces_state():
+    repository = FakeUserPreferencesRepository()
+    service = _service(repository, uuid4())
+
+    async def run():
+        completed = await service.save_dashboard_mobile_guide_preference(
+            DashboardSidebarGuidePreferenceWrite(state=OnboardingGuideState.COMPLETED)
+        )
+        dismissed = await service.save_dashboard_mobile_guide_preference(
+            DashboardSidebarGuidePreferenceWrite(state=OnboardingGuideState.DISMISSED)
+        )
+
+        assert completed.state == OnboardingGuideState.COMPLETED
+        assert dismissed.state == OnboardingGuideState.DISMISSED
+        assert len(repository.preferences) == 1
+
+    asyncio.run(run())

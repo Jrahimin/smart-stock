@@ -1682,6 +1682,55 @@ Create or replace the authenticated user's dashboard sidebar guide state.
 }
 ```
 
+### GET /api/v1/preferences/dashboard-mobile-guide
+
+**Description**
+Return the authenticated user's saved mobile dashboard introduction state. A user who
+has not yet completed or dismissed the intro receives `state: null`.
+
+**Response**
+
+```json
+{
+  "success": true,
+  "message": "Dashboard mobile guide preference retrieved",
+  "data": {
+    "key": "dashboard_mobile_intro",
+    "state": null,
+    "updated_at": null
+  }
+}
+```
+
+### PUT /api/v1/preferences/dashboard-mobile-guide
+
+**Description**
+Create or replace the authenticated user's mobile dashboard introduction state.
+
+**Body**
+
+```json
+{
+  "state": "COMPLETED"
+}
+```
+
+`state` must be `COMPLETED` or `DISMISSED`.
+
+**Response**
+
+```json
+{
+  "success": true,
+  "message": "Dashboard mobile guide preference saved",
+  "data": {
+    "key": "dashboard_mobile_intro",
+    "state": "COMPLETED",
+    "updated_at": "2026-07-10T02:50:00Z"
+  }
+}
+```
+
 ---
 
 ## Authentication

@@ -17,6 +17,8 @@ type TerminalSidebarNavProps = {
   pathname: string;
 };
 
+const TRADING_WORKSPACE_HREFS = new Set(["/stocks", "/scanner", "/signals", "/watchlist"]);
+
 function guideTargetForHref(href: string) {
   return `nav-${href.slice(1)}`;
 }
@@ -110,24 +112,48 @@ export function TerminalSidebarNav({ collapsed, pathname }: TerminalSidebarNavPr
 
       {!collapsed ? <p className="terminal-nav-section-label terminal-nav-section-label-market">Smart Stock</p> : null}
 
-      {marketNavigationItems.map((item) => {
-        const Icon = item.icon;
-        const isActive = isNavigationItemActive(pathname, item.href);
+      {marketNavigationItems
+        .filter((item) => !TRADING_WORKSPACE_HREFS.has(item.href))
+        .map((item) => {
+          const Icon = item.icon;
+          const isActive = isNavigationItemActive(pathname, item.href);
 
-        return (
-          <Link
-            aria-current={isActive ? "page" : undefined}
-            className={isActive ? `active terminal-nav-link-${item.tone}` : `terminal-nav-link-${item.tone}`}
-            data-guide={guideTargetForHref(item.href)}
-            href={item.href}
-            key={item.href}
-            title={item.label}
-          >
-            <Icon aria-hidden="true" className={`terminal-nav-icon terminal-nav-icon-${item.tone}`} size={18} />
-            <span>{item.label}</span>
-          </Link>
-        );
-      })}
+          return (
+            <Link
+              aria-current={isActive ? "page" : undefined}
+              className={isActive ? `active terminal-nav-link-${item.tone}` : `terminal-nav-link-${item.tone}`}
+              data-guide={guideTargetForHref(item.href)}
+              href={item.href}
+              key={item.href}
+              title={item.label}
+            >
+              <Icon aria-hidden="true" className={`terminal-nav-icon terminal-nav-icon-${item.tone}`} size={18} />
+              <span>{item.label}</span>
+            </Link>
+          );
+        })}
+      <div className="terminal-nav-trading-workspace-guide" data-guide="trading-workspace">
+        {marketNavigationItems
+          .filter((item) => TRADING_WORKSPACE_HREFS.has(item.href))
+          .map((item) => {
+            const Icon = item.icon;
+            const isActive = isNavigationItemActive(pathname, item.href);
+
+            return (
+              <Link
+                aria-current={isActive ? "page" : undefined}
+                className={isActive ? `active terminal-nav-link-${item.tone}` : `terminal-nav-link-${item.tone}`}
+                data-guide={guideTargetForHref(item.href)}
+                href={item.href}
+                key={item.href}
+                title={item.label}
+              >
+                <Icon aria-hidden="true" className={`terminal-nav-icon terminal-nav-icon-${item.tone}`} size={18} />
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
+      </div>
     </nav>
   );
 }

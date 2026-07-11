@@ -25,7 +25,6 @@ export type GuideStep = {
   highlightStyle: GuideHighlightStyle;
   layoutMode?: GuideLayoutMode;
   characterAnchor?: GuideCharacterAnchor;
-  mobileNavigationStep?: boolean;
 };
 
 export type GuideStatus = "completed" | "skipped" | "dismissed";

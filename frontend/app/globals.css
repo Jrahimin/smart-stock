@@ -10626,30 +10626,61 @@ button {
 }
 
 @media (max-width: 1023px) {
-  .product-guide-dialog-wrap-mobile {
-    bottom: max(12px, env(safe-area-inset-bottom));
-    left: 12px;
+  .guide-mobile-root {
+    inset: 0;
     pointer-events: none;
     position: fixed;
-    right: 12px;
-    z-index: 123;
+    z-index: 200;
   }
 
-  .product-guide-dialog-wrap-mobile .product-guide-dialog {
+  .guide-mobile-dim {
+    background: rgb(2 6 23 / 56%);
+    inset: 0;
+    pointer-events: none;
+    position: absolute;
+  }
+
+  .guide-mobile-spotlight {
+    border: 1.5px solid color-mix(in srgb, #a78bfa 72%, white);
+    border-radius: 12px;
+    box-shadow:
+      0 0 0 9999px rgb(2 6 23 / 56%),
+      0 0 0 1px rgb(167 139 250 / 42%),
+      0 0 0 3px rgb(167 139 250 / 18%),
+      0 10px 28px rgb(15 23 42 / 22%);
+    pointer-events: none;
+    position: fixed;
+    z-index: 201;
+  }
+
+  .guide-mobile-sheet {
+    background: var(--panel-strong);
+    border: 1px solid color-mix(in srgb, var(--border) 88%, #c4b5fd 12%);
     border-radius: 22px 22px 18px 18px;
+    bottom: max(12px, env(safe-area-inset-bottom));
     box-shadow:
       0 -8px 40px rgb(2 6 23 / 34%),
       0 24px 60px rgb(2 6 23 / 42%),
       inset 0 1px 0 rgb(255 255 255 / 7%);
-    left: 0 !important;
-    max-width: none;
-    padding-top: 22px;
-    position: relative;
+    display: grid;
+    gap: 14px;
+    left: 12px;
+    max-height: min(38dvh, calc(100dvh - 80px));
+    overflow: auto;
+    padding: 22px 16px 16px;
+    pointer-events: auto;
+    position: fixed;
+    right: 12px;
     top: auto !important;
-    width: 100% !important;
+    touch-action: manipulation;
+    z-index: 205;
   }
 
-  .product-guide-dialog-wrap-mobile .product-guide-dialog::before {
+  .guide-mobile-sheet--compact {
+    max-height: min(28dvh, calc(100dvh - 80px));
+  }
+
+  .guide-mobile-sheet::before {
     background: color-mix(in srgb, var(--muted) 55%, transparent);
     border-radius: 999px;
     content: "";
@@ -10659,6 +10690,154 @@ button {
     top: 8px;
     transform: translateX(-50%);
     width: 42px;
+  }
+
+  .guide-mobile-sheet-head {
+    align-items: flex-start;
+    display: flex;
+    gap: 10px;
+    justify-content: space-between;
+  }
+
+  .guide-mobile-sheet-title-block {
+    align-items: center;
+    display: flex;
+    gap: 10px;
+    min-width: 0;
+  }
+
+  .guide-mobile-sheet-phase {
+    color: color-mix(in srgb, #c4b5fd 78%, var(--foreground));
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    margin: 0 0 4px;
+    text-transform: uppercase;
+  }
+
+  .guide-mobile-sheet h2 {
+    font-size: 1rem;
+    line-height: 1.35;
+    margin: 0;
+  }
+
+  .guide-mobile-sheet-message {
+    color: color-mix(in srgb, var(--foreground) 82%, transparent);
+    font-size: 0.86rem;
+    line-height: 1.55;
+    margin: 0;
+  }
+
+  .guide-mobile-progress {
+    display: grid;
+    gap: 8px;
+  }
+
+  .guide-mobile-progress-meta {
+    align-items: center;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .guide-mobile-progress-label,
+  .guide-mobile-progress-count {
+    color: var(--muted);
+    font-size: 0.72rem;
+    font-weight: 700;
+  }
+
+  .guide-mobile-progress-segments {
+    display: grid;
+    gap: 5px;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .guide-mobile-progress-segment {
+    background: color-mix(in srgb, var(--muted) 24%, transparent);
+    border-radius: 999px;
+    height: 4px;
+    transition: background-color 180ms ease;
+  }
+
+  .guide-mobile-progress-segment.is-active {
+    background: linear-gradient(90deg, #7c3aed, #a78bfa);
+  }
+
+  .guide-mobile-suppress-option {
+    align-items: flex-start;
+    color: color-mix(in srgb, var(--foreground) 78%, transparent);
+    display: flex;
+    font-size: 0.8rem;
+    gap: 8px;
+    line-height: 1.45;
+  }
+
+  .guide-mobile-sheet-actions,
+  .guide-mobile-confirm-actions {
+    align-items: center;
+    display: flex;
+    gap: 10px;
+    justify-content: space-between;
+  }
+
+  .guide-mobile-action-end {
+    align-items: center;
+    display: flex;
+    gap: 8px;
+    margin-left: auto;
+  }
+
+  .guide-mobile-action-spacer {
+    min-width: 1px;
+  }
+
+  .guide-mobile-icon-button,
+  .guide-mobile-skip-button,
+  .guide-mobile-secondary-button,
+  .guide-mobile-primary-button {
+    align-items: center;
+    border: 0;
+    cursor: pointer;
+    display: inline-flex;
+    gap: 6px;
+    justify-content: center;
+    min-height: 44px;
+    touch-action: manipulation;
+  }
+
+  .guide-mobile-icon-button,
+  .guide-mobile-skip-button,
+  .guide-mobile-secondary-button {
+    background: transparent;
+    color: var(--muted);
+    font-size: 0.8rem;
+    padding: 0 8px;
+  }
+
+  .guide-mobile-primary-button {
+    background: linear-gradient(135deg, #6d28d9, #8b5cf6);
+    border-radius: 12px;
+    box-shadow: 0 6px 18px rgb(109 40 217 / 22%);
+    color: #fff;
+    font-size: 0.84rem;
+    font-weight: 800;
+    min-width: 108px;
+    padding: 0 16px;
+  }
+
+  .guide-mobile-primary-button:disabled {
+    cursor: wait;
+    opacity: 0.72;
+  }
+
+  .guide-mobile-confirm-actions {
+    justify-content: flex-end;
+  }
+
+  .guide-mobile-sheet button:focus-visible,
+  .guide-mobile-suppress-option input:focus-visible {
+    outline: 2px solid #c4b5fd;
+    outline-offset: 2px;
   }
 }
 

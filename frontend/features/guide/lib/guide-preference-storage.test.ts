@@ -260,4 +260,12 @@ describe("guide preference storage", () => {
     expect(GUIDE_LAUNCHER_PROMINENCE_MS).toBe(7 * 24 * 60 * 60 * 1000);
     expect(GUIDE_NUDGE_COOLDOWN_MS).toBe(7 * 24 * 60 * 60 * 1000);
   });
+
+  it("uses separate storage keys per guide surface", () => {
+    writeGuidePreference({ surface: "mobile", version: 1 }, { status: "completed", suppressContextualPrompts: false });
+
+    expect(window.localStorage.getItem("smart-stock-guide-mobile-intro-v1")).toBeTruthy();
+    expect(readGuidePreference({ surface: "mobile", version: 1 })?.status).toBe("completed");
+    expect(readGuidePreference(VERSION)).toBeNull();
+  });
 });

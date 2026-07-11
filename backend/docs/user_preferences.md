@@ -7,6 +7,10 @@ completion state for the dashboard sidebar onboarding guide. The route is intent
 narrow: it supports only the canonical `dashboard_sidebar_guide` key and is not a
 general key/value preference API.
 
+`/api/v1/preferences/dashboard-mobile-guide` mirrors the same contract for the mobile
+dashboard introduction (`dashboard_mobile_intro`). Desktop and mobile guide completion
+states are stored independently.
+
 ## API behavior
 
 * `GET` returns `state: null` when the user has never acted on the guide. Consumers

@@ -7,15 +7,38 @@ import type { GuideCompletion, GuidePreference } from "@/features/guide/types/gu
 
 export type GuideServerState = "COMPLETED" | "DISMISSED";
 
+export type GuidePreferenceSurface = "desktop" | "mobile";
+
+export type GuidePreferenceScope = {
+  surface: GuidePreferenceSurface;
+  version: number;
+};
+
 const LEGACY_STORAGE_KEY = "smart-stock-guide-dashboard-sidebar-v1";
 const SESSION_AUTO_START_KEY = "smart-stock-guide-dashboard-auto-started";
 
-function storageKeyForVersion(version: number) {
-  return `smart-stock-guide-dashboard-sidebar-v${version}`;
+function normalizeScope(versionOrScope: number | GuidePreferenceScope): GuidePreferenceScope {
+  if (typeof versionOrScope === "number") {
+    return { surface: "desktop", version: versionOrScope };
+  }
+
+  return versionOrScope;
 }
 
-function sessionAutoStartKey(version: number) {
-  return `${SESSION_AUTO_START_KEY}-v${version}`;
+function storageKeyForScope(scope: GuidePreferenceScope) {
+  if (scope.surface === "desktop") {
+    return `smart-stock-guide-dashboard-sidebar-v${scope.version}`;
+  }
+
+  return `smart-stock-guide-mobile-intro-v${scope.version}`;
+}
+
+function sessionAutoStartKeyForScope(scope: GuidePreferenceScope) {
+  if (scope.surface === "desktop") {
+    return `${SESSION_AUTO_START_KEY}-v${scope.version}`;
+  }
+
+  return `smart-stock-guide-mobile-auto-started-v${scope.version}`;
 }
 
 function nowIso() {
@@ -49,8 +72,8 @@ function isWithinWindow(since: string | null | undefined, windowMs: number) {
   return Date.now() - timestamp < windowMs;
 }
 
-export function getGuidePreferenceStorageKey(version: number) {
-  return storageKeyForVersion(version);
+export function getGuidePreferenceStorageKey(versionOrScope: number | GuidePreferenceScope) {
+  return storageKeyForScope(normalizeScope(versionOrScope));
 }
 
 export function purgeLegacyGuidePreference() {
@@ -127,24 +150,30 @@ function isValidGuideStatus(status: unknown): status is GuidePreference["status"
   return status === null || status === "completed" || status === "skipped" || status === "dismissed";
 }
 
-function readRawPreference(version: number): GuidePreference | null {
+function readRawPreference(versionOrScope: number | GuidePreferenceScope): GuidePreference | null {
+  const scope = normalizeScope(versionOrScope);
+
   if (typeof window === "undefined") {
     return null;
   }
 
   try {
-    const raw = window.localStorage.getItem(storageKeyForVersion(version));
+    const raw = window.localStorage.getItem(storageKeyForScope(scope));
     if (!raw) {
       return null;
     }
 
     const parsed = JSON.parse(raw) as Partial<GuidePreference & LegacyGuidePreference>;
     if (typeof parsed.autoStartShown !== "boolean") {
-      return migrateLegacyPreference(parsed as LegacyGuidePreference, version);
+      if (scope.surface !== "desktop") {
+        return null;
+      }
+
+      return migrateLegacyPreference(parsed as LegacyGuidePreference, scope.version);
     }
 
     if (
-      parsed.version !== version ||
+      parsed.version !== scope.version ||
       typeof parsed.firstSeenAt !== "string" ||
       typeof parsed.updatedAt !== "string" ||
       typeof parsed.suppressContextualPrompts !== "boolean" ||
@@ -155,7 +184,7 @@ function readRawPreference(version: number): GuidePreference | null {
     }
 
     return {
-      version,
+      version: scope.version,
       autoStartShown: parsed.autoStartShown,
       status: parsed.status ?? null,
       firstSeenAt: parsed.firstSeenAt,
@@ -169,18 +198,22 @@ function readRawPreference(version: number): GuidePreference | null {
   }
 }
 
-export function readGuidePreference(version: number): GuidePreference | null {
-  purgeLegacyGuidePreference();
-  return readRawPreference(version);
+export function readGuidePreference(versionOrScope: number | GuidePreferenceScope): GuidePreference | null {
+  const scope = normalizeScope(versionOrScope);
+  if (scope.surface === "desktop") {
+    purgeLegacyGuidePreference();
+  }
+
+  return readRawPreference(scope);
 }
 
-function persistGuidePreference(preference: GuidePreference) {
+function persistGuidePreference(preference: GuidePreference, scope: GuidePreferenceScope) {
   if (typeof window === "undefined") {
     return preference;
   }
 
   try {
-    window.localStorage.setItem(storageKeyForVersion(preference.version), JSON.stringify(preference));
+    window.localStorage.setItem(storageKeyForScope(scope), JSON.stringify(preference));
     window.dispatchEvent(new Event("dashboard-sidebar-guide:preference-changed"));
   } catch {
     // Ignore storage failures.
@@ -204,10 +237,10 @@ function createPreference(version: number, input: Partial<GuidePreference> = {})
 }
 
 export function resolveGuideCompletion(
-  version: number,
+  versionOrScope: number | GuidePreferenceScope,
   options?: { serverState?: GuideServerState | null },
 ): GuideCompletion | null {
-  const local = readGuidePreference(version);
+  const local = readGuidePreference(versionOrScope);
   if (local?.status) {
     return {
       status: local.status,
@@ -226,8 +259,11 @@ export function resolveGuideCompletion(
   return null;
 }
 
-export function isGuideHardDismissed(version: number, options?: { serverState?: GuideServerState | null }) {
-  const local = readGuidePreference(version);
+export function isGuideHardDismissed(
+  versionOrScope: number | GuidePreferenceScope,
+  options?: { serverState?: GuideServerState | null },
+) {
+  const local = readGuidePreference(versionOrScope);
   if (local?.suppressContextualPrompts || local?.status === "dismissed") {
     return true;
   }
@@ -236,18 +272,20 @@ export function isGuideHardDismissed(version: number, options?: { serverState?: 
 }
 
 export function isGuideAutoStartEligible(
-  version: number,
+  versionOrScope: number | GuidePreferenceScope,
   options?: { serverState?: GuideServerState | null },
 ) {
-  if (typeof window !== "undefined" && hasGuideAutoStartedThisSession(version)) {
+  const scope = normalizeScope(versionOrScope);
+
+  if (typeof window !== "undefined" && hasGuideAutoStartedThisSession(scope)) {
     return false;
   }
 
-  if (isGuideHardDismissed(version, options)) {
+  if (isGuideHardDismissed(scope, options)) {
     return false;
   }
 
-  const local = readGuidePreference(version);
+  const local = readGuidePreference(scope);
   if (local?.autoStartShown || local?.status) {
     return false;
   }
@@ -259,12 +297,17 @@ export function isGuideAutoStartEligible(
   return true;
 }
 
-export function isGuideNudgeEligible(version: number, options?: { serverState?: GuideServerState | null }) {
-  if (isGuideHardDismissed(version, options)) {
+export function isGuideNudgeEligible(
+  versionOrScope: number | GuidePreferenceScope,
+  options?: { serverState?: GuideServerState | null },
+) {
+  const scope = normalizeScope(versionOrScope);
+
+  if (isGuideHardDismissed(scope, options)) {
     return false;
   }
 
-  const local = readGuidePreference(version);
+  const local = readGuidePreference(scope);
   if (!local) {
     return false;
   }
@@ -289,12 +332,14 @@ export function isGuideNudgeEligible(version: number, options?: { serverState?: 
   return local.autoStartShown || local.status === "skipped";
 }
 
-export function isGuideLauncherProminent(version: number) {
-  if (isGuideHardDismissed(version)) {
+export function isGuideLauncherProminent(versionOrScope: number | GuidePreferenceScope) {
+  const scope = normalizeScope(versionOrScope);
+
+  if (isGuideHardDismissed(scope)) {
     return false;
   }
 
-  const local = readGuidePreference(version);
+  const local = readGuidePreference(scope);
   if (!local) {
     return true;
   }
@@ -306,36 +351,41 @@ export function isGuideLauncherProminent(version: number) {
   return isWithinWindow(local.firstSeenAt, GUIDE_LAUNCHER_PROMINENCE_MS);
 }
 
-export function hasGuideAutoStartedThisSession(version: number) {
+export function hasGuideAutoStartedThisSession(versionOrScope: number | GuidePreferenceScope) {
+  const scope = normalizeScope(versionOrScope);
+
   if (typeof window === "undefined") {
     return false;
   }
 
   try {
-    return window.sessionStorage.getItem(sessionAutoStartKey(version)) === "true";
+    return window.sessionStorage.getItem(sessionAutoStartKeyForScope(scope)) === "true";
   } catch {
     return false;
   }
 }
 
-export function markGuideAutoStartedThisSession(version: number) {
+export function markGuideAutoStartedThisSession(versionOrScope: number | GuidePreferenceScope) {
+  const scope = normalizeScope(versionOrScope);
+
   if (typeof window === "undefined") {
     return;
   }
 
   try {
-    window.sessionStorage.setItem(sessionAutoStartKey(version), "true");
+    window.sessionStorage.setItem(sessionAutoStartKeyForScope(scope), "true");
   } catch {
     // Ignore storage failures.
   }
 }
 
-export function markGuideAutoStartShown(version: number) {
-  const existing = readGuidePreference(version);
+export function markGuideAutoStartShown(versionOrScope: number | GuidePreferenceScope) {
+  const scope = normalizeScope(versionOrScope);
+  const existing = readGuidePreference(scope);
   const timestamp = nowIso();
 
   return persistGuidePreference(
-    createPreference(version, {
+    createPreference(scope.version, {
       ...existing,
       autoStartShown: true,
       firstSeenAt: existing?.firstSeenAt ?? timestamp,
@@ -345,15 +395,20 @@ export function markGuideAutoStartShown(version: number) {
       status: existing?.status ?? null,
       suppressContextualPrompts: existing?.suppressContextualPrompts ?? false,
     }),
+    scope,
   );
 }
 
-export function writeGuidePreference(version: number, completion: GuideCompletion): GuidePreference | null {
-  const existing = readGuidePreference(version);
+export function writeGuidePreference(
+  versionOrScope: number | GuidePreferenceScope,
+  completion: GuideCompletion,
+): GuidePreference | null {
+  const scope = normalizeScope(versionOrScope);
+  const existing = readGuidePreference(scope);
   const timestamp = nowIso();
 
   return persistGuidePreference(
-    createPreference(version, {
+    createPreference(scope.version, {
       ...existing,
       autoStartShown: true,
       status: completion.status,
@@ -363,44 +418,54 @@ export function writeGuidePreference(version: number, completion: GuideCompletio
       lastNudgeAt: existing?.lastNudgeAt ?? null,
       nudgeCount: existing?.nudgeCount ?? 0,
     }),
+    scope,
   );
 }
 
-export function recordGuideNudgeShown(version: number) {
-  const existing = readGuidePreference(version);
+export function recordGuideNudgeShown(versionOrScope: number | GuidePreferenceScope) {
+  const scope = normalizeScope(versionOrScope);
+  const existing = readGuidePreference(scope);
   if (!existing) {
     return null;
   }
 
   const timestamp = nowIso();
-  return persistGuidePreference({
-    ...existing,
-    lastNudgeAt: timestamp,
-    nudgeCount: existing.nudgeCount + 1,
-    updatedAt: timestamp,
-  });
+  return persistGuidePreference(
+    {
+      ...existing,
+      lastNudgeAt: timestamp,
+      nudgeCount: existing.nudgeCount + 1,
+      updatedAt: timestamp,
+    },
+    scope,
+  );
 }
 
-export function recordGuideNudgeSnooze(version: number) {
-  const existing = readGuidePreference(version);
+export function recordGuideNudgeSnooze(versionOrScope: number | GuidePreferenceScope) {
+  const scope = normalizeScope(versionOrScope);
+  const existing = readGuidePreference(scope);
   if (!existing) {
     return null;
   }
 
   const timestamp = nowIso();
-  return persistGuidePreference({
-    ...existing,
-    lastNudgeAt: timestamp,
-    updatedAt: timestamp,
-  });
+  return persistGuidePreference(
+    {
+      ...existing,
+      lastNudgeAt: timestamp,
+      updatedAt: timestamp,
+    },
+    scope,
+  );
 }
 
-export function recordGuideHardDismiss(version: number) {
-  const existing = readGuidePreference(version);
+export function recordGuideHardDismiss(versionOrScope: number | GuidePreferenceScope) {
+  const scope = normalizeScope(versionOrScope);
+  const existing = readGuidePreference(scope);
   const timestamp = nowIso();
 
   return persistGuidePreference(
-    createPreference(version, {
+    createPreference(scope.version, {
       ...existing,
       autoStartShown: true,
       status: "dismissed",
@@ -410,6 +475,7 @@ export function recordGuideHardDismiss(version: number) {
       lastNudgeAt: existing?.lastNudgeAt ?? null,
       nudgeCount: existing?.nudgeCount ?? 0,
     }),
+    scope,
   );
 }
 
@@ -426,21 +492,22 @@ export function serverStateToCompletion(state: GuideServerState): GuideCompletio
 }
 
 export function mergeServerPreference(
-  version: number,
+  versionOrScope: number | GuidePreferenceScope,
   serverState: GuideServerState | null,
 ): GuidePreference | null {
-  const local = readGuidePreference(version);
+  const scope = normalizeScope(versionOrScope);
+  const local = readGuidePreference(scope);
 
   if (!serverState) {
     return local;
   }
 
   if (serverState === "DISMISSED") {
-    return applyServerHardDismiss(version, local);
+    return applyServerHardDismiss(scope, local);
   }
 
   if (!local) {
-    return writeGuidePreference(version, serverStateToCompletion(serverState));
+    return writeGuidePreference(scope, serverStateToCompletion(serverState));
   }
 
   if (local.suppressContextualPrompts || local.status === "dismissed") {
@@ -452,17 +519,17 @@ export function mergeServerPreference(
   }
 
   if (!local.status) {
-    return writeGuidePreference(version, serverStateToCompletion(serverState));
+    return writeGuidePreference(scope, serverStateToCompletion(serverState));
   }
 
   return local;
 }
 
-function applyServerHardDismiss(version: number, local: GuidePreference | null) {
+function applyServerHardDismiss(scope: GuidePreferenceScope, local: GuidePreference | null) {
   const timestamp = nowIso();
 
   return persistGuidePreference(
-    createPreference(version, {
+    createPreference(scope.version, {
       ...local,
       autoStartShown: true,
       status: "dismissed",
@@ -472,16 +539,19 @@ function applyServerHardDismiss(version: number, local: GuidePreference | null) 
       lastNudgeAt: local?.lastNudgeAt ?? null,
       nudgeCount: local?.nudgeCount ?? 0,
     }),
+    scope,
   );
 }
 
-export function clearGuidePreference(version: number) {
+export function clearGuidePreference(versionOrScope: number | GuidePreferenceScope) {
+  const scope = normalizeScope(versionOrScope);
+
   if (typeof window === "undefined") {
     return;
   }
 
   try {
-    window.localStorage.removeItem(storageKeyForVersion(version));
+    window.localStorage.removeItem(storageKeyForScope(scope));
   } catch {
     // Ignore storage failures.
   }

@@ -13,3 +13,13 @@ class DashboardSidebarGuidePreferenceRead(BaseModel):
 
 class DashboardSidebarGuidePreferenceWrite(BaseModel):
     state: OnboardingGuideState
+
+
+class DashboardMobileGuidePreferenceRead(BaseModel):
+    key: OnboardingGuideKey = OnboardingGuideKey.DASHBOARD_MOBILE_INTRO
+    state: OnboardingGuideState | None
+    updated_at: datetime | None
+
+
+class DashboardMobileGuidePreferenceWrite(BaseModel):
+    state: OnboardingGuideState

@@ -3,12 +3,22 @@
 import { guideCharacterAssetByPose } from "@/features/guide/character/guide-character-assets";
 
 type GuideTourNudgeProps = {
+  eyebrow?: string;
+  message?: string;
   onAccept: () => void;
   onDismiss: () => void;
   onSnooze: () => void;
+  title?: string;
 };
 
-export function GuideTourNudge({ onAccept, onDismiss, onSnooze }: GuideTourNudgeProps) {
+export function GuideTourNudge({
+  eyebrow = "ট্যুর গাইড",
+  message = "ড্যাশবোর্ড ও মেনুর মূল অংশগুলো দেখে নিতে আমি আপনাকে সংক্ষিপ্ত ট্যুরে নিয়ে যেতে পারি।",
+  onAccept,
+  onDismiss,
+  onSnooze,
+  title = "আপনি কি গাইডের সহায়তায় ঘুরে আসতে চান?",
+}: GuideTourNudgeProps) {
   return (
     <div className="product-guide-nudge-root" lang="bn">
       <div
@@ -26,13 +36,13 @@ export function GuideTourNudge({ onAccept, onDismiss, onSnooze }: GuideTourNudge
             src={guideCharacterAssetByPose.welcome}
           />
           <div>
-            <p className="product-guide-nudge-eyebrow">ট্যুর গাইড</p>
-            <h2 id="product-guide-nudge-title">আপনি কি গাইডের সহায়তায় ঘুরে আসতে চান?</h2>
+            <p className="product-guide-nudge-eyebrow">{eyebrow}</p>
+            <h2 id="product-guide-nudge-title">{title}</h2>
           </div>
         </div>
 
         <p className="product-guide-nudge-message" id="product-guide-nudge-message">
-          ড্যাশবোর্ড ও মেনুর মূল অংশগুলো দেখে নিতে আমি আপনাকে সংক্ষিপ্ত ট্যুরে নিয়ে যেতে পারি।
+          {message}
         </p>
 
         <div className="product-guide-nudge-actions">

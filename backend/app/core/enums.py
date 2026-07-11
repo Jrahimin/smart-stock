@@ -201,6 +201,7 @@ class UserGender(StrEnum):
 
 class OnboardingGuideKey(StrEnum):
     DASHBOARD_SIDEBAR_GUIDE = "dashboard_sidebar_guide"
+    DASHBOARD_MOBILE_INTRO = "dashboard_mobile_intro"
 
 
 class OnboardingGuideState(StrEnum):

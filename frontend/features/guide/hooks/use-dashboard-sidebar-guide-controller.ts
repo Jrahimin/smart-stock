@@ -4,6 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { usePathname } from "next/navigation";
 
 import { DASHBOARD_SIDEBAR_GUIDE_VERSION } from "@/features/guide/config/dashboard-sidebar-guide";
+import { DASHBOARD_MOBILE_GUIDE_VERSION } from "@/features/guide/config/mobile-intro-guide";
 import {
   GUIDE_AUTO_START_DELAY_MS,
   GUIDE_SERVER_SYNC_TIMEOUT_MS,
@@ -23,9 +24,13 @@ import {
   resolveGuideCompletion,
   toServerGuideState,
   writeGuidePreference,
+  type GuidePreferenceScope,
+  type GuideServerState,
 } from "@/features/guide/lib/guide-preference-storage";
 import {
+  getDashboardMobileGuidePreference,
   getDashboardSidebarGuidePreference,
+  saveDashboardMobileGuidePreference,
   saveDashboardSidebarGuidePreference,
 } from "@/features/guide/services/guide-preference-api";
 import type { GuideCompletion } from "@/features/guide/types/guide-types";
@@ -46,24 +51,56 @@ type GuideGate = {
   ready: boolean;
 };
 
+type GuideControllerConfig = {
+  scope: GuidePreferenceScope;
+  requirePulseTarget: boolean;
+  getServerPreference: () => Promise<{ state: GuideServerState | null }>;
+  saveServerPreference: (state: GuideServerState) => Promise<unknown>;
+};
+
+const DESKTOP_GUIDE_SCOPE: GuidePreferenceScope = { surface: "desktop", version: DASHBOARD_SIDEBAR_GUIDE_VERSION };
+const MOBILE_GUIDE_SCOPE: GuidePreferenceScope = { surface: "mobile", version: DASHBOARD_MOBILE_GUIDE_VERSION };
+
 function createGuideRun(trigger: GuideRunTrigger): GuideRun {
   return { id: Date.now(), trigger };
 }
 
-function refreshGate(serverState?: "COMPLETED" | "DISMISSED" | null): GuideGate {
+function refreshGate(scope: GuidePreferenceScope, serverState?: GuideServerState | null): GuideGate {
   const options = serverState ? { serverState } : undefined;
   return {
-    autoStartEligible: isGuideAutoStartEligible(DASHBOARD_SIDEBAR_GUIDE_VERSION, options),
-    launcherProminent: isGuideLauncherProminent(DASHBOARD_SIDEBAR_GUIDE_VERSION),
-    nudgeEligible: isGuideNudgeEligible(DASHBOARD_SIDEBAR_GUIDE_VERSION, options),
+    autoStartEligible: isGuideAutoStartEligible(scope, options),
+    launcherProminent: isGuideLauncherProminent(scope),
+    nudgeEligible: isGuideNudgeEligible(scope, options),
     ready: true,
   };
 }
 
-export function useDashboardSidebarGuideController() {
+function useIsMobileViewport() {
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === "undefined") {
+      return false;
+    }
+
+    return window.matchMedia("(max-width: 1023px)").matches;
+  });
+
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 1023px)");
+    const update = () => setIsMobile(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+
+  return isMobile;
+}
+
+function useDashboardGuideController(config: GuideControllerConfig) {
+  const { scope, requirePulseTarget, getServerPreference, saveServerPreference } = config;
   const pathname = usePathname();
   const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
   const pulseTargetReady = useGuideTargetAvailable('[data-guide="market-pulse"]', { requireReady: true });
+  const readinessTargetReady = requirePulseTarget ? pulseTargetReady : true;
 
   const userInteractedRef = useRef(false);
   const autoStartScheduledRef = useRef(false);
@@ -96,9 +133,12 @@ export function useDashboardSidebarGuideController() {
     setSkipConfirmationOpen(false);
   }, []);
 
-  const syncGate = useCallback((serverState?: "COMPLETED" | "DISMISSED" | null) => {
-    setGate(refreshGate(serverState));
-  }, []);
+  const syncGate = useCallback(
+    (serverState?: GuideServerState | null) => {
+      setGate(refreshGate(scope, serverState));
+    },
+    [scope],
+  );
 
   useLayoutEffect(() => {
     if (!isDashboard) {
@@ -134,20 +174,20 @@ export function useDashboardSidebarGuideController() {
     }, GUIDE_SERVER_SYNC_TIMEOUT_MS);
 
     async function syncServerPreference() {
-      let serverState: "COMPLETED" | "DISMISSED" | null = null;
+      let serverState: GuideServerState | null = null;
 
       try {
-        const serverPreference = await getDashboardSidebarGuidePreference();
+        const serverPreference = await getServerPreference();
         if (cancelled) {
           return;
         }
 
         serverState = serverPreference.state;
-        mergeServerPreference(DASHBOARD_SIDEBAR_GUIDE_VERSION, serverPreference.state);
+        mergeServerPreference(scope, serverPreference.state);
 
-        const localCompletion = resolveGuideCompletion(DASHBOARD_SIDEBAR_GUIDE_VERSION, { serverState });
+        const localCompletion = resolveGuideCompletion(scope, { serverState });
         if (!serverPreference.state && localCompletion) {
-          void saveDashboardSidebarGuidePreference(toServerGuideState(localCompletion));
+          void saveServerPreference(toServerGuideState(localCompletion));
         }
       } catch {
         if (!cancelled && !resolved) {
@@ -171,7 +211,7 @@ export function useDashboardSidebarGuideController() {
       cancelled = true;
       window.clearTimeout(timeoutId);
     };
-  }, [isAuthenticated, isAuthLoading, isDashboard, syncGate]);
+  }, [getServerPreference, isAuthenticated, isAuthLoading, isDashboard, saveServerPreference, scope, syncGate]);
 
   useEffect(() => {
     if (!isDashboard || isAuthLoading) {
@@ -203,7 +243,7 @@ export function useDashboardSidebarGuideController() {
       !isDashboard ||
       !gate.ready ||
       !gate.autoStartEligible ||
-      !pulseTargetReady ||
+      !readinessTargetReady ||
       guideRun ||
       nudgeOpen ||
       autoStartScheduledRef.current
@@ -214,13 +254,13 @@ export function useDashboardSidebarGuideController() {
     autoStartScheduledRef.current = true;
     const timeoutId = window.setTimeout(() => {
       if (userInteractedRef.current) {
-        markGuideAutoStartedThisSession(DASHBOARD_SIDEBAR_GUIDE_VERSION);
+        markGuideAutoStartedThisSession(scope);
         syncGate();
         return;
       }
 
-      markGuideAutoStartShown(DASHBOARD_SIDEBAR_GUIDE_VERSION);
-      markGuideAutoStartedThisSession(DASHBOARD_SIDEBAR_GUIDE_VERSION);
+      markGuideAutoStartShown(scope);
+      markGuideAutoStartedThisSession(scope);
       syncGate();
       startGuideRun("auto");
     }, GUIDE_AUTO_START_DELAY_MS);
@@ -235,7 +275,8 @@ export function useDashboardSidebarGuideController() {
     guideRun,
     isDashboard,
     nudgeOpen,
-    pulseTargetReady,
+    readinessTargetReady,
+    scope,
     startGuideRun,
     syncGate,
   ]);
@@ -245,7 +286,7 @@ export function useDashboardSidebarGuideController() {
       !isDashboard ||
       !gate.ready ||
       !gate.nudgeEligible ||
-      !pulseTargetReady ||
+      !readinessTargetReady ||
       guideRun ||
       nudgeOpen ||
       nudgeScheduledRef.current
@@ -259,7 +300,7 @@ export function useDashboardSidebarGuideController() {
         return;
       }
 
-      recordGuideNudgeShown(DASHBOARD_SIDEBAR_GUIDE_VERSION);
+      recordGuideNudgeShown(scope);
       setNudgeOpen(true);
       syncGate();
     }, GUIDE_AUTO_START_DELAY_MS + 600);
@@ -268,7 +309,7 @@ export function useDashboardSidebarGuideController() {
       window.clearTimeout(timeoutId);
       nudgeScheduledRef.current = false;
     };
-  }, [gate.nudgeEligible, gate.ready, guideRun, isDashboard, nudgeOpen, pulseTargetReady, syncGate]);
+  }, [gate.nudgeEligible, gate.ready, guideRun, isDashboard, nudgeOpen, readinessTargetReady, scope, syncGate]);
 
   useEffect(() => {
     const openManualGuide = () => {
@@ -290,31 +331,31 @@ export function useDashboardSidebarGuideController() {
 
   const persistGuideOutcome = useCallback(
     (completion: GuideCompletion) => {
-      writeGuidePreference(DASHBOARD_SIDEBAR_GUIDE_VERSION, completion);
+      writeGuidePreference(scope, completion);
       if (isAuthenticated) {
-        void saveDashboardSidebarGuidePreference(toServerGuideState(completion));
+        void saveServerPreference(toServerGuideState(completion));
       }
 
-      markGuideAutoStartedThisSession(DASHBOARD_SIDEBAR_GUIDE_VERSION);
+      markGuideAutoStartedThisSession(scope);
       syncGate();
     },
-    [isAuthenticated, syncGate],
+    [isAuthenticated, saveServerPreference, scope, syncGate],
   );
 
   const skipGuide = useCallback(() => {
     if (suppressContextualPrompts) {
-      recordGuideHardDismiss(DASHBOARD_SIDEBAR_GUIDE_VERSION);
+      recordGuideHardDismiss(scope);
       if (isAuthenticated) {
-        void saveDashboardSidebarGuidePreference("DISMISSED");
+        void saveServerPreference("DISMISSED");
       }
     } else {
       persistGuideOutcome({ status: "skipped", suppressContextualPrompts: false });
     }
 
-    markGuideAutoStartedThisSession(DASHBOARD_SIDEBAR_GUIDE_VERSION);
+    markGuideAutoStartedThisSession(scope);
     stopGuideRun();
     syncGate();
-  }, [isAuthenticated, persistGuideOutcome, stopGuideRun, suppressContextualPrompts, syncGate]);
+  }, [isAuthenticated, persistGuideOutcome, saveServerPreference, scope, stopGuideRun, suppressContextualPrompts, syncGate]);
 
   const finishGuide = useCallback(
     (completion: GuideCompletion) => {
@@ -330,20 +371,20 @@ export function useDashboardSidebarGuideController() {
   }, [startGuideRun]);
 
   const snoozeGuideNudge = useCallback(() => {
-    recordGuideNudgeSnooze(DASHBOARD_SIDEBAR_GUIDE_VERSION);
+    recordGuideNudgeSnooze(scope);
     setNudgeOpen(false);
     syncGate();
-  }, [syncGate]);
+  }, [scope, syncGate]);
 
   const dismissGuideNudge = useCallback(() => {
-    recordGuideHardDismiss(DASHBOARD_SIDEBAR_GUIDE_VERSION);
+    recordGuideHardDismiss(scope);
     if (isAuthenticated) {
-      void saveDashboardSidebarGuidePreference("DISMISSED");
+      void saveServerPreference("DISMISSED");
     }
 
     setNudgeOpen(false);
     syncGate();
-  }, [isAuthenticated, syncGate]);
+  }, [isAuthenticated, saveServerPreference, scope, syncGate]);
 
   return {
     acceptGuideNudge,
@@ -354,7 +395,7 @@ export function useDashboardSidebarGuideController() {
     isGuideActive,
     launcherProminent: gate.launcherProminent,
     nudgeOpen,
-    pulseTargetReady,
+    pulseTargetReady: readinessTargetReady,
     setSkipConfirmationOpen,
     setStepIndex,
     setSuppressContextualPrompts,
@@ -366,10 +407,34 @@ export function useDashboardSidebarGuideController() {
   };
 }
 
+export function useDashboardDesktopGuideController() {
+  return useDashboardGuideController({
+    scope: DESKTOP_GUIDE_SCOPE,
+    requirePulseTarget: true,
+    getServerPreference: getDashboardSidebarGuidePreference,
+    saveServerPreference: saveDashboardSidebarGuidePreference,
+  });
+}
+
+export function useDashboardMobileGuideController() {
+  return useDashboardGuideController({
+    scope: MOBILE_GUIDE_SCOPE,
+    requirePulseTarget: false,
+    getServerPreference: getDashboardMobileGuidePreference,
+    saveServerPreference: saveDashboardMobileGuidePreference,
+  });
+}
+
+export function useDashboardSidebarGuideController() {
+  return useDashboardDesktopGuideController();
+}
+
 export function useDashboardGuideLauncherProminent() {
   const pathname = usePathname();
+  const isMobile = useIsMobileViewport();
+  const scope = isMobile ? MOBILE_GUIDE_SCOPE : DESKTOP_GUIDE_SCOPE;
   const [prominent, setProminent] = useState(false);
-  const storageKey = getGuidePreferenceStorageKey(DASHBOARD_SIDEBAR_GUIDE_VERSION);
+  const storageKey = getGuidePreferenceStorageKey(scope);
 
   useEffect(() => {
     if (pathname !== "/dashboard") {
@@ -377,8 +442,8 @@ export function useDashboardGuideLauncherProminent() {
       return;
     }
 
-    setProminent(isGuideLauncherProminent(DASHBOARD_SIDEBAR_GUIDE_VERSION));
-  }, [pathname]);
+    setProminent(isGuideLauncherProminent(scope));
+  }, [pathname, scope]);
 
   useEffect(() => {
     const refresh = () => {
@@ -386,7 +451,7 @@ export function useDashboardGuideLauncherProminent() {
         return;
       }
 
-      setProminent(isGuideLauncherProminent(DASHBOARD_SIDEBAR_GUIDE_VERSION));
+      setProminent(isGuideLauncherProminent(scope));
     };
 
     const onStorage = (event: StorageEvent) => {
@@ -401,7 +466,7 @@ export function useDashboardGuideLauncherProminent() {
       window.removeEventListener("dashboard-sidebar-guide:preference-changed", refresh);
       window.removeEventListener("storage", onStorage);
     };
-  }, [pathname, storageKey]);
+  }, [pathname, scope, storageKey]);
 
   return prominent;
 }

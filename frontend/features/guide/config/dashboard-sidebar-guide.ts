@@ -60,7 +60,6 @@ export const dashboardSidebarGuideSteps: readonly GuideStep[] = [
     highlightStyle: "navigation",
     layoutMode: "sidebar-adjacent",
     characterAnchor: "upper",
-    mobileNavigationStep: true,
   },
   {
     id: "nav-wealth-workspace",
@@ -71,7 +70,6 @@ export const dashboardSidebarGuideSteps: readonly GuideStep[] = [
     preferredBubblePlacements: ["right"],
     highlightStyle: "navigation",
     layoutMode: "sidebar-adjacent",
-    mobileNavigationStep: true,
   },
   {
     id: "nav-dashboard",
@@ -82,7 +80,6 @@ export const dashboardSidebarGuideSteps: readonly GuideStep[] = [
     preferredBubblePlacements: ["right"],
     highlightStyle: "navigation",
     layoutMode: "sidebar-adjacent",
-    mobileNavigationStep: true,
   },
   {
     id: "nav-market-pulse",
@@ -93,7 +90,6 @@ export const dashboardSidebarGuideSteps: readonly GuideStep[] = [
     preferredBubblePlacements: ["right"],
     highlightStyle: "navigation",
     layoutMode: "sidebar-adjacent",
-    mobileNavigationStep: true,
   },
   {
     id: "nav-stocks",
@@ -104,7 +100,6 @@ export const dashboardSidebarGuideSteps: readonly GuideStep[] = [
     preferredBubblePlacements: ["right"],
     highlightStyle: "navigation",
     layoutMode: "sidebar-adjacent",
-    mobileNavigationStep: true,
   },
   {
     id: "nav-scanner",
@@ -115,7 +110,6 @@ export const dashboardSidebarGuideSteps: readonly GuideStep[] = [
     preferredBubblePlacements: ["right"],
     highlightStyle: "navigation",
     layoutMode: "sidebar-adjacent",
-    mobileNavigationStep: true,
   },
   {
     id: "nav-signals",
@@ -126,7 +120,6 @@ export const dashboardSidebarGuideSteps: readonly GuideStep[] = [
     preferredBubblePlacements: ["right"],
     highlightStyle: "navigation",
     layoutMode: "sidebar-adjacent",
-    mobileNavigationStep: true,
   },
   {
     id: "nav-watchlist",
@@ -137,6 +130,5 @@ export const dashboardSidebarGuideSteps: readonly GuideStep[] = [
     preferredBubblePlacements: ["right"],
     highlightStyle: "navigation",
     layoutMode: "sidebar-adjacent",
-    mobileNavigationStep: true,
   },
 ];
