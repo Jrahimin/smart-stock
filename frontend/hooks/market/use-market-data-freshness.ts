@@ -11,11 +11,17 @@ const FRESHNESS_POLL_MS = 2 * 60 * 1000;
 
 export function useMarketDataFreshness(
   exchange: ExchangeCode = "DSE",
-  options?: { refetchInterval?: number | false },
+  options?: {
+    refetchInterval?: number | false;
+    initialData?: BackendMarketFreshnessDto;
+    initialDataUpdatedAt?: number;
+  },
 ) {
   return useQuery({
     queryKey: ["market-freshness", exchange],
     queryFn: () => getMarketFreshness(exchange),
+    initialData: options?.initialData,
+    initialDataUpdatedAt: options?.initialDataUpdatedAt,
     staleTime: 60_000,
     refetchInterval: options?.refetchInterval ?? FRESHNESS_POLL_MS,
   });

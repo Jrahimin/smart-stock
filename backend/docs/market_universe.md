@@ -55,7 +55,7 @@ dashboard:{section}:{exchange}      # presentation — lightweight snapshot (no 
 pulse:{section}:{exchange}          # presentation — still uses scored rows + briefing
 ```
 
-Background rebuild (`rebuild_market_read_cache`) writes `universe:scored` as step 3 after dashboard overview/sectors. Indicator/signal jobs spawn universe-only rebuild. See [market_caching.md](market_caching.md).
+Background rebuild (`rebuild_market_read_cache`) writes `universe:scored` as step 4 after dashboard overview, sectors, and movers. Indicator/signal jobs spawn universe-only rebuild. See [market_caching.md](market_caching.md).
 
 ## Historical price windows
 

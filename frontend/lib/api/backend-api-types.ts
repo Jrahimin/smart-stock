@@ -227,6 +227,7 @@ export type BackendDashboardMoversDto = {
 export type BackendDashboardOverviewDto = {
   exchange: ExchangeCode;
   session_trade_date: string | null;
+  last_synced_at: string | null;
   listed_stock_count: number;
   dsex_index: BackendDsexIndexSnapshotDto;
   summaries: BackendDailyMarketSummaryDto[];

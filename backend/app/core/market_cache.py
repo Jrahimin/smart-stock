@@ -41,6 +41,13 @@ def pulse_cache_key(section: str, exchange: ExchangeCode) -> str:
     return f"pulse:{section}:{exchange.value}"
 
 
+def market_rebuild_lock_key(exchange: ExchangeCode) -> str:
+    return f"market:rebuild-lock:{exchange.value}"
+
+
+REBUILD_LOCK_TTL_SECONDS = 180
+
+
 async def invalidate_market_caches(
     redis: OptionalRedisClient,
     exchange: ExchangeCode,

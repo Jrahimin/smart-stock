@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 
+import { DashboardSsrHydrationGuard } from "@/features/market-dashboard/components/dashboard-ssr-hydration-guard";
 import { MarketBreadthPanel } from "@/features/market-dashboard/components/market-breadth-panel";
 import {
   InsightSidebarSkeleton,
@@ -9,7 +10,6 @@ import {
   MarketBreadthPanelSkeleton,
   MarketMoversPanelSkeleton,
   MarketPulseCoreSkeleton,
-  MarketPulseLeadersSkeleton,
   MarketTimelineSkeleton,
   SmartSignalFeedSkeleton,
 } from "@/features/market-dashboard/components/dashboard-skeletons";
@@ -18,6 +18,7 @@ import { MarketDashboardHeader, MarketPulsePanel } from "@/features/market-dashb
 import { MarketTimeline } from "@/features/market-dashboard/components/market-timeline";
 import { SmartSignalFeed } from "@/features/market-dashboard/components/smart-signal-feed";
 import { useMarketDashboard } from "@/features/market-dashboard/hooks/use-market-dashboard";
+import type { DashboardCorePayload } from "@/lib/api/dashboard-server";
 
 const InstitutionalHeatmap = dynamic(
   () =>
@@ -35,11 +36,18 @@ const InsightSidebar = dynamic(
   { loading: () => <InsightSidebarSkeleton /> },
 );
 
-export function MarketDashboardView() {
-  const { model, isError, sectionLoading, signalsSectionError } = useMarketDashboard();
+type MarketDashboardViewProps = {
+  initialCore?: DashboardCorePayload | null;
+};
+
+export function MarketDashboardView({ initialCore = null }: MarketDashboardViewProps) {
+  const { model, isError, sectionLoading, signalsSectionError } = useMarketDashboard({
+    initialCore,
+  });
 
   return (
     <div className="market-dashboard-view">
+      {initialCore ? <DashboardSsrHydrationGuard initialCore={initialCore} /> : null}
       <MarketDashboardHeader />
       {sectionLoading.pulseCore ? (
         <MarketPulseCoreSkeleton leadersLoading={sectionLoading.leaders} />

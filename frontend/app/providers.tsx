@@ -26,8 +26,8 @@ export function AppProviders({ children }: Readonly<{ children: ReactNode }>) {
   const content = (
     <AuthProvider>
       <QueryClientProvider client={queryClient}>
-        <MarketCacheSyncCoordinator />
         {children}
+        <MarketCacheSyncCoordinator />
       </QueryClientProvider>
     </AuthProvider>
   );

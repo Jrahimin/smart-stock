@@ -19,6 +19,7 @@ import { useDashboardOverview } from "@/features/market-dashboard/hooks/use-dash
 import { useDashboardSectors } from "@/features/market-dashboard/hooks/use-dashboard-sectors";
 import { useDashboardStocksInFocus } from "@/features/market-dashboard/hooks/use-dashboard-stocks-in-focus";
 import { setMarketPersistentCacheTtlMs } from "@/lib/api/backend-api-client";
+import type { DashboardCorePayload } from "@/lib/api/dashboard-server";
 import { useMarketDataFreshness } from "@/hooks/market/use-market-data-freshness";
 import {
   getDashboardRefetchIntervalMs,
@@ -28,15 +29,25 @@ import { isSectionLoading } from "@/lib/ui/section-loading";
 
 function isSectionAwaitingData<T>(
   data: T | undefined,
-  isFetching: boolean,
-  isPending: boolean,
+  isLoading: boolean,
+  enabled: boolean,
 ): boolean {
-  return data === undefined && (isFetching || isPending);
+  if (!enabled) {
+    return false;
+  }
+
+  return data === undefined && isLoading;
 }
 
-export function useMarketDashboard() {
+export function useMarketDashboard(options?: {
+  initialCore?: DashboardCorePayload | null;
+}) {
+  const initialCore = options?.initialCore ?? null;
   const refreshMarketCaches = useMarketCacheRefresh();
-  const freshnessQuery = useMarketDataFreshness("DSE");
+  const freshnessQuery = useMarketDataFreshness("DSE", {
+    initialData: initialCore?.freshness ?? undefined,
+    initialDataUpdatedAt: initialCore?.fetchedAt,
+  });
   const freshness = freshnessQuery.data;
   const dashboardCacheTtlSeconds = freshness?.dashboard_cache_ttl_seconds ?? null;
   const marketStatus = freshness?.market_status;
@@ -58,32 +69,45 @@ export function useMarketDashboard() {
     [dashboardCacheTtlSeconds, marketStatus, snapshotIntervalMinutes],
   );
 
-  const overviewQuery = useDashboardOverview({ staleTimeMs, refetchIntervalMs });
+  const overviewQuery = useDashboardOverview({
+    staleTimeMs,
+    refetchIntervalMs,
+    initialData: initialCore?.overview ?? undefined,
+    initialDataUpdatedAt: initialCore?.fetchedAt,
+  });
+  const overviewReady = Boolean(overviewQuery.data);
   const moversQuery = useDashboardMovers({
     staleTimeMs,
     refetchIntervalMs,
-    enabled: Boolean(overviewQuery.data),
+    enabled: overviewReady,
+    initialData: initialCore?.movers ?? undefined,
+    initialDataUpdatedAt: initialCore?.fetchedAt,
   });
-  const sectorsQuery = useDashboardSectors({ staleTimeMs, refetchIntervalMs });
+  const sectorsQuery = useDashboardSectors({
+    staleTimeMs,
+    refetchIntervalMs,
+    initialData: initialCore?.sectors ?? undefined,
+    initialDataUpdatedAt: initialCore?.fetchedAt,
+  });
   const signalsQuery = useDashboardStocksInFocus({
     staleTimeMs,
     refetchIntervalMs,
-    enabled: Boolean(overviewQuery.data),
+    enabled: overviewReady,
   });
   const alertsQuery = useDashboardMarketAlerts({
     staleTimeMs,
     refetchIntervalMs,
-    enabled: Boolean(overviewQuery.data),
+    enabled: overviewReady,
   });
   const heatmapQuery = useDashboardHeatmap({
     staleTimeMs,
     refetchIntervalMs,
-    enabled: Boolean(overviewQuery.data),
+    enabled: overviewReady,
   });
   const sentimentQuery = useDashboardMarketSentiment({
     staleTimeMs,
     refetchIntervalMs,
-    enabled: Boolean(overviewQuery.data),
+    enabled: overviewReady,
   });
 
   const mappedMovers = useMemo(
@@ -153,7 +177,7 @@ export function useMarketDashboard() {
       (overviewQuery.data !== undefined && isSectionLoading(sectorsQuery.isLoading, sectorsQuery.data)),
     breadth: isSectionLoading(overviewQuery.isLoading, overviewQuery.data),
     movers: isSectionLoading(moversQuery.isLoading, moversQuery.data),
-    signals: isSectionAwaitingData(signalsQuery.data, signalsQuery.isFetching, signalsQuery.isPending),
+    signals: isSectionAwaitingData(signalsQuery.data, signalsQuery.isLoading, overviewReady),
     timeline: isSectionLoading(alertsQuery.isLoading, alertsQuery.data),
     heatmap: isSectionLoading(heatmapQuery.isLoading, heatmapQuery.data),
     insights: isSectionLoading(sentimentQuery.isLoading, sentimentQuery.data),

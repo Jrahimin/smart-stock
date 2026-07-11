@@ -198,6 +198,8 @@ Run all commands from the **repo root** (where `docker-compose.yml` lives), e.g.
 
 **Compose services:** `postgres`, `redis`, `backend-api` (HTTP only), `backend-scheduler` (background jobs), `frontend`, `nginx`.
 
+**Frontend runtime env (dashboard SSR):** `SERVER_API_BASE_URL` must point at the internal API from the frontend container (default in Compose: `http://backend-api:8000/api/v1`). This is separate from build-time `NEXT_PUBLIC_API_BASE_URL`, which the browser uses. Stock detail SSR still uses the public/build-time API URL with Next.js ISR; dashboard core SSR uses the internal URL with `cache: no-store` so Redis remains the only server-side market cache.
+
 > **Note:** `docker compose down` affects the **entire stack**, not a single service. There is no `docker compose down frontend`. To replace one service, use `up` with a service name and `--no-deps`.
 
 ### Stack lifecycle

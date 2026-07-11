@@ -64,6 +64,17 @@ class OptionalRedisClient:
         except Exception:
             logger.warning("Redis DELETE failed for key %s", key, exc_info=True)
 
+    async def set_if_not_exists(self, key: str, value: str, *, ttl_seconds: int) -> bool:
+        """Return True when the key was set (lock acquired). False when already held."""
+        if not self.is_available:
+            return True
+
+        try:
+            return bool(await self._redis.set(key, value, nx=True, ex=ttl_seconds))
+        except Exception:
+            logger.warning("Redis SET NX failed for key %s", key, exc_info=True)
+            return True
+
     async def delete_by_pattern(self, pattern: str) -> int:
         if not self.is_available:
             return 0

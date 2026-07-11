@@ -160,6 +160,8 @@ services:
     image: smart-stock-frontend:latest
     restart: unless-stopped
     stop_grace_period: 30s
+    environment:
+      SERVER_API_BASE_URL: ${SERVER_API_BASE_URL:-http://backend-api:8000/api/v1}
     depends_on:
       backend-api:
         condition: service_healthy

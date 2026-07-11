@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from app.core.core_config import Settings, get_settings
 from app.core.database_session import AsyncSessionLocal
 from app.core.enums import ExchangeCode
+from app.core.market_cache import REBUILD_LOCK_TTL_SECONDS, market_rebuild_lock_key
 from app.core.perf_timing import PerfReport, async_perf_stage
 from app.core.redis_client import OptionalRedisClient, build_redis_client
 from app.core.security_config import UserContext
@@ -75,6 +76,25 @@ async def _cache_dashboard_section(
     await service.cache_dashboard_payload(section, exchange, payload)
 
 
+async def _acquire_rebuild_lock(redis: OptionalRedisClient, exchange: ExchangeCode) -> bool:
+    """Best-effort per-exchange lock. Redis failure must not block rebuild."""
+    return await redis.set_if_not_exists(
+        market_rebuild_lock_key(exchange),
+        "1",
+        ttl_seconds=REBUILD_LOCK_TTL_SECONDS,
+    )
+
+
+async def _release_rebuild_lock(redis: OptionalRedisClient, exchange: ExchangeCode) -> None:
+    if not redis.is_available:
+        return
+
+    try:
+        await redis.delete(market_rebuild_lock_key(exchange))
+    except Exception:
+        logger.warning("Failed to release rebuild lock for %s", exchange.value, exc_info=True)
+
+
 async def rebuild_market_read_cache(
     exchange: ExchangeCode,
     *,
@@ -82,53 +102,76 @@ async def rebuild_market_read_cache(
     redis: OptionalRedisClient | None = None,
     include_universe: bool = True,
 ) -> RebuildMarketReadCacheResult:
-    """Rebuild read caches in priority order: overview → sectors → universe."""
+    """Rebuild read caches in priority order: overview → sectors → movers → universe."""
     resolved_settings = settings or get_settings()
     resolved_redis = redis if redis is not None else build_redis_client(resolved_settings)
     result = RebuildMarketReadCacheResult(exchange=exchange)
+
+    if not await _acquire_rebuild_lock(resolved_redis, exchange):
+        logger.info("Market read-cache rebuild already in progress for %s; skipping duplicate", exchange.value)
+        result.steps.append(RebuildStepResult(step="skipped-duplicate", success=True))
+        return result
+
     perf = PerfReport("rebuild_market_read_cache")
 
-    async with AsyncSessionLocal() as session:
-        dashboard_service = _build_dashboard_service(session, resolved_settings, resolved_redis)
+    try:
+        async with AsyncSessionLocal() as session:
+            dashboard_service = _build_dashboard_service(session, resolved_settings, resolved_redis)
 
-        try:
-            async with async_perf_stage(perf, "rebuild.overview"):
-                overview = await dashboard_service.compute_overview(exchange)
-            await _cache_dashboard_section(
-                dashboard_service,
-                section="overview",
-                exchange=exchange,
-                payload=overview,
-            )
-            result.steps.append(RebuildStepResult(step="overview", success=True))
-        except Exception as exc:
-            logger.exception("Rebuild overview failed for %s", exchange.value)
-            result.steps.append(RebuildStepResult(step="overview", success=False, error=str(exc)))
-
-        try:
-            async with async_perf_stage(perf, "rebuild.sectors"):
-                sectors = await dashboard_service.compute_sectors(exchange)
-            await _cache_dashboard_section(
-                dashboard_service,
-                section="sectors",
-                exchange=exchange,
-                payload=sectors,
-            )
-            result.steps.append(RebuildStepResult(step="sectors", success=True))
-        except Exception as exc:
-            logger.exception("Rebuild sectors failed for %s", exchange.value)
-            result.steps.append(RebuildStepResult(step="sectors", success=False, error=str(exc)))
-
-        if include_universe:
             try:
-                async with async_perf_stage(perf, "rebuild.universe"):
-                    universe_service = _build_universe_service(session, resolved_settings, resolved_redis)
-                    rows = await universe_service.recompute_scored_universe(exchange)
-                    await universe_service.cache_scored_universe(exchange, rows)
-                result.steps.append(RebuildStepResult(step="universe", success=True))
+                async with async_perf_stage(perf, "rebuild.overview"):
+                    overview = await dashboard_service.compute_overview(exchange)
+                await _cache_dashboard_section(
+                    dashboard_service,
+                    section="overview",
+                    exchange=exchange,
+                    payload=overview,
+                )
+                result.steps.append(RebuildStepResult(step="overview", success=True))
             except Exception as exc:
-                logger.exception("Rebuild universe failed for %s", exchange.value)
-                result.steps.append(RebuildStepResult(step="universe", success=False, error=str(exc)))
+                logger.exception("Rebuild overview failed for %s", exchange.value)
+                result.steps.append(RebuildStepResult(step="overview", success=False, error=str(exc)))
+
+            try:
+                async with async_perf_stage(perf, "rebuild.sectors"):
+                    sectors = await dashboard_service.compute_sectors(exchange)
+                await _cache_dashboard_section(
+                    dashboard_service,
+                    section="sectors",
+                    exchange=exchange,
+                    payload=sectors,
+                )
+                result.steps.append(RebuildStepResult(step="sectors", success=True))
+            except Exception as exc:
+                logger.exception("Rebuild sectors failed for %s", exchange.value)
+                result.steps.append(RebuildStepResult(step="sectors", success=False, error=str(exc)))
+
+            try:
+                async with async_perf_stage(perf, "rebuild.movers"):
+                    movers = await dashboard_service.compute_movers(exchange)
+                await _cache_dashboard_section(
+                    dashboard_service,
+                    section="movers",
+                    exchange=exchange,
+                    payload=movers,
+                )
+                result.steps.append(RebuildStepResult(step="movers", success=True))
+            except Exception as exc:
+                logger.exception("Rebuild movers failed for %s", exchange.value)
+                result.steps.append(RebuildStepResult(step="movers", success=False, error=str(exc)))
+
+            if include_universe:
+                try:
+                    async with async_perf_stage(perf, "rebuild.universe"):
+                        universe_service = _build_universe_service(session, resolved_settings, resolved_redis)
+                        rows = await universe_service.recompute_scored_universe(exchange)
+                        await universe_service.cache_scored_universe(exchange, rows)
+                    result.steps.append(RebuildStepResult(step="universe", success=True))
+                except Exception as exc:
+                    logger.exception("Rebuild universe failed for %s", exchange.value)
+                    result.steps.append(RebuildStepResult(step="universe", success=False, error=str(exc)))
+    finally:
+        await _release_rebuild_lock(resolved_redis, exchange)
 
     perf.log_summary()
     logger.info(
@@ -157,4 +200,3 @@ async def rebuild_universe_read_cache(
     except Exception as exc:
         logger.exception("Universe-only rebuild failed for %s", exchange.value)
         return RebuildStepResult(step="universe", success=False, error=str(exc))
-

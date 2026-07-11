@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
 
@@ -33,6 +33,7 @@ class DashboardMoversRead(BaseModel):
 class DashboardOverviewRead(BaseModel):
     exchange: ExchangeCode
     session_trade_date: date | None = None
+    last_synced_at: datetime | None = None
     listed_stock_count: int
     dsex_index: DsexIndexSnapshotRead
     summaries: list[DailyMarketSummaryRead]

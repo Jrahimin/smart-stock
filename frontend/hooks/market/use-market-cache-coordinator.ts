@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { useMarketDataFreshness } from "@/hooks/market/use-market-data-freshness";
 import type { ExchangeCode } from "@/lib/api/backend-api-types";
 import {
-  invalidateMarketTanStackQueries,
+  syncMarketClientCachesOnBackendUpdate,
   refreshMarketClientCaches,
 } from "@/lib/market/market-cache-coordinator";
 
@@ -24,7 +24,7 @@ export function useMarketCacheSyncCoordinator(exchange: ExchangeCode = "DSE") {
 
     const previous = previousLastSyncedAtRef.current;
     if (previous && previous !== current) {
-      void invalidateMarketTanStackQueries(queryClient);
+      void syncMarketClientCachesOnBackendUpdate(queryClient);
     }
 
     previousLastSyncedAtRef.current = current;

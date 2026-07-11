@@ -116,6 +116,7 @@ type CachedApiPayload<T> = {
   cacheKey: string;
   expiresAt: number;
   data: T;
+  scope?: BackendApiPersistentCache;
 };
 
 export type BackendApiPersistentCache = "default" | "market" | "off";
@@ -213,7 +214,12 @@ async function readCachedApiResponse<T>(url: string): Promise<T | null> {
   });
 }
 
-async function writeCachedApiResponse<T>(url: string, data: T, ttlMs: number) {
+async function writeCachedApiResponse<T>(
+  url: string,
+  data: T,
+  ttlMs: number,
+  scope: BackendApiPersistentCache = "default",
+) {
   const database = await openApiCacheDatabase();
   if (!database) {
     return;
@@ -222,7 +228,75 @@ async function writeCachedApiResponse<T>(url: string, data: T, ttlMs: number) {
   return new Promise<void>((resolve) => {
     const expiresAt = Date.now() + ttlMs;
     const transaction = database.transaction(API_CACHE_STORE, "readwrite");
-    transaction.objectStore(API_CACHE_STORE).put({ cacheKey: getCacheKey(url), expiresAt, data });
+    transaction.objectStore(API_CACHE_STORE).put({ cacheKey: getCacheKey(url), expiresAt, data, scope });
+    transaction.oncomplete = () => {
+      database.close();
+      resolve();
+    };
+    transaction.onerror = () => {
+      database.close();
+      resolve();
+    };
+  });
+}
+
+const MARKET_API_PATH_PREFIXES = [
+  "/dashboard/",
+  "/market/",
+  "/signals/",
+  "/stock-details/",
+] as const;
+
+const MARKET_STOCK_SUBRESOURCE_PATTERN = /^\/stocks\/[^/]+\/(prices|signals)(?:\?|$)/;
+
+/** True when a cached API URL was written via `backendApiGetMarket`. */
+export function isMarketApiCacheUrl(url: string): boolean {
+  try {
+    const { pathname } = new URL(url);
+    const apiPath = pathname.replace(/.*\/api\/v1/, "") || pathname;
+    if (MARKET_API_PATH_PREFIXES.some((prefix) => apiPath.startsWith(prefix))) {
+      return true;
+    }
+    return MARKET_STOCK_SUBRESOURCE_PATTERN.test(apiPath);
+  } catch {
+    return false;
+  }
+}
+
+function isMarketCachedPayload(payload: CachedApiPayload<unknown> | undefined): boolean {
+  if (!payload) {
+    return false;
+  }
+  if (payload.scope === "market") {
+    return true;
+  }
+  return isMarketApiCacheUrl(payload.cacheKey);
+}
+
+export async function clearMarketBackendApiCache() {
+  const database = await openApiCacheDatabase();
+  if (!database) {
+    return;
+  }
+
+  await new Promise<void>((resolve) => {
+    const transaction = database.transaction(API_CACHE_STORE, "readwrite");
+    const store = transaction.objectStore(API_CACHE_STORE);
+    const request = store.openCursor();
+
+    request.onerror = () => resolve();
+    request.onsuccess = () => {
+      const cursor = request.result;
+      if (!cursor) {
+        return;
+      }
+
+      const payload = cursor.value as CachedApiPayload<unknown>;
+      if (isMarketCachedPayload(payload)) {
+        cursor.delete();
+      }
+      cursor.continue();
+    };
     transaction.oncomplete = () => {
       database.close();
       resolve();
@@ -401,7 +475,7 @@ export async function backendApiGet<T>(
   }
 
   if (shouldUsePersistentCache && cacheTtlMs !== null) {
-    await writeCachedApiResponse(url, envelope.data, cacheTtlMs);
+    await writeCachedApiResponse(url, envelope.data, cacheTtlMs, cacheMode);
   }
 
   return envelope.data;

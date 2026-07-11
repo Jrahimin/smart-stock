@@ -7,6 +7,7 @@ import pytest
 
 from app.core.core_config import Settings
 from app.core.enums import ExchangeCode
+from app.core.redis_client import OptionalRedisClient
 from app.jobs.market_cache_rebuild import rebuild_market_read_cache
 
 
@@ -21,6 +22,10 @@ async def test_rebuild_market_read_cache_priority_order(monkeypatch) -> None:
 
         async def compute_sectors(self, exchange, *, report=None):
             call_order.append("sectors")
+            return MagicMock(model_dump=lambda mode="json": {})
+
+        async def compute_movers(self, exchange, *, report=None):
+            call_order.append("movers")
             return MagicMock(model_dump=lambda mode="json": {})
 
         async def cache_dashboard_payload(self, section, exchange, payload):
@@ -47,11 +52,20 @@ async def test_rebuild_market_read_cache_priority_order(monkeypatch) -> None:
         lambda: MagicMock(__aenter__=AsyncMock(return_value=MagicMock()), __aexit__=AsyncMock(return_value=None)),
     )
 
-    result = await rebuild_market_read_cache(ExchangeCode.DSE, settings=Settings(), redis=MagicMock(is_available=True))
+    redis = MagicMock(is_available=True)
+    redis.set_if_not_exists = AsyncMock(return_value=True)
+    redis.delete = AsyncMock()
+
+    result = await rebuild_market_read_cache(ExchangeCode.DSE, settings=Settings(), redis=redis)
 
     assert result.success is True
-    assert call_order.index("overview") < call_order.index("sectors") < call_order.index("universe")
-    assert call_order.index("cache:overview") < call_order.index("cache:sectors") < call_order.index("cache:universe")
+    assert call_order.index("overview") < call_order.index("sectors") < call_order.index("movers") < call_order.index("universe")
+    assert (
+        call_order.index("cache:overview")
+        < call_order.index("cache:sectors")
+        < call_order.index("cache:movers")
+        < call_order.index("cache:universe")
+    )
 
 
 def test_market_cache_rebuild_imports_universe_service() -> None:
@@ -217,3 +231,128 @@ async def test_spawn_rebuild_market_read_cache_dedupes_inflight(monkeypatch) -> 
 
     release.set()
     await asyncio.sleep(0.05)
+
+
+@pytest.mark.asyncio
+async def test_rebuild_market_read_cache_skips_when_redis_lock_held(monkeypatch) -> None:
+    redis = MagicMock(is_available=True)
+    redis.set_if_not_exists = AsyncMock(return_value=False)
+    redis.delete = AsyncMock()
+
+    compute_calls = 0
+
+    class FakeDashboardService:
+        async def compute_overview(self, exchange, *, report=None):
+            nonlocal compute_calls
+            compute_calls += 1
+            return MagicMock()
+
+        async def cache_dashboard_payload(self, section, exchange, payload):
+            return None
+
+    monkeypatch.setattr(
+        "app.jobs.market_cache_rebuild._build_dashboard_service",
+        lambda session, settings, redis_client: FakeDashboardService(),
+    )
+    monkeypatch.setattr(
+        "app.jobs.market_cache_rebuild.AsyncSessionLocal",
+        lambda: MagicMock(__aenter__=AsyncMock(return_value=MagicMock()), __aexit__=AsyncMock(return_value=None)),
+    )
+
+    result = await rebuild_market_read_cache(ExchangeCode.DSE, settings=Settings(), redis=redis)
+
+    assert compute_calls == 0
+    assert [step.step for step in result.steps] == ["skipped-duplicate"]
+    redis.delete.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_rebuild_market_read_cache_proceeds_when_redis_unavailable(monkeypatch) -> None:
+    call_order: list[str] = []
+    redis = OptionalRedisClient(None)
+
+    class FakeDashboardService:
+        async def compute_overview(self, exchange, *, report=None):
+            call_order.append("overview")
+            return MagicMock(model_dump=lambda mode="json": {})
+
+        async def compute_sectors(self, exchange, *, report=None):
+            call_order.append("sectors")
+            return MagicMock(model_dump=lambda mode="json": {})
+
+        async def compute_movers(self, exchange, *, report=None):
+            call_order.append("movers")
+            return MagicMock(model_dump=lambda mode="json": {})
+
+        async def cache_dashboard_payload(self, section, exchange, payload):
+            call_order.append(f"cache:{section}")
+
+    class FakeUniverseService:
+        async def recompute_scored_universe(self, exchange):
+            call_order.append("universe")
+            return []
+
+        async def cache_scored_universe(self, exchange, rows):
+            call_order.append("cache:universe")
+
+    monkeypatch.setattr(
+        "app.jobs.market_cache_rebuild._build_dashboard_service",
+        lambda session, settings, redis_client: FakeDashboardService(),
+    )
+    monkeypatch.setattr(
+        "app.jobs.market_cache_rebuild._build_universe_service",
+        lambda session, settings, redis_client: FakeUniverseService(),
+    )
+    monkeypatch.setattr(
+        "app.jobs.market_cache_rebuild.AsyncSessionLocal",
+        lambda: MagicMock(__aenter__=AsyncMock(return_value=MagicMock()), __aexit__=AsyncMock(return_value=None)),
+    )
+
+    result = await rebuild_market_read_cache(ExchangeCode.DSE, settings=Settings(), redis=redis)
+
+    assert result.success is True
+    assert "movers" in call_order
+
+
+@pytest.mark.asyncio
+async def test_rebuild_market_read_cache_releases_lock_after_completion(monkeypatch) -> None:
+    redis = MagicMock(is_available=True)
+    redis.set_if_not_exists = AsyncMock(return_value=True)
+    redis.delete = AsyncMock()
+
+    class FakeDashboardService:
+        async def compute_overview(self, exchange, *, report=None):
+            return MagicMock(model_dump=lambda mode="json": {})
+
+        async def compute_sectors(self, exchange, *, report=None):
+            return MagicMock(model_dump=lambda mode="json": {})
+
+        async def compute_movers(self, exchange, *, report=None):
+            return MagicMock(model_dump=lambda mode="json": {})
+
+        async def cache_dashboard_payload(self, section, exchange, payload):
+            return None
+
+    class FakeUniverseService:
+        async def recompute_scored_universe(self, exchange):
+            return []
+
+        async def cache_scored_universe(self, exchange, rows):
+            return None
+
+    monkeypatch.setattr(
+        "app.jobs.market_cache_rebuild._build_dashboard_service",
+        lambda session, settings, redis_client: FakeDashboardService(),
+    )
+    monkeypatch.setattr(
+        "app.jobs.market_cache_rebuild._build_universe_service",
+        lambda session, settings, redis_client: FakeUniverseService(),
+    )
+    monkeypatch.setattr(
+        "app.jobs.market_cache_rebuild.AsyncSessionLocal",
+        lambda: MagicMock(__aenter__=AsyncMock(return_value=MagicMock()), __aexit__=AsyncMock(return_value=None)),
+    )
+
+    await rebuild_market_read_cache(ExchangeCode.DSE, settings=Settings(), redis=redis)
+
+    redis.delete.assert_called_once_with("market:rebuild-lock:DSE")

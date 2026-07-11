@@ -10,10 +10,12 @@ Related module docs: [market_universe.md](market_universe.md), [market_dashboard
 
 1. **PostgreSQL is the source of truth.** Caches are performance layers only.
 2. **Sync-driven freshness on the backend.** Scheduled data writes spawn background cache rebuilds; TTL is a safety net. Keys are overwritten on success — not deleted before rebuild.
-3. **Sync-aligned freshness in the browser.** `MarketCacheSyncCoordinator` polls `/market/freshness` and invalidates TanStack market queries when `last_synced_at` advances. IndexedDB is **not** wiped on sync (manual refresh still clears it).
-4. **Background rebuild, compute-on-miss fallback.** After sync, `spawn_rebuild_market_read_cache()` warms overview → sectors → universe in priority order. HTTP misses compute inline for dashboard; universe serves stale `universe:scored:prev` or returns 503.
+3. **Sync-aligned freshness in the browser.** `MarketCacheSyncCoordinator` polls `/market/freshness` and, when `last_synced_at` advances, clears **market-related IndexedDB entries** then invalidates TanStack market queries. Manual refresh still clears all IndexedDB.
+4. **Background rebuild, compute-on-miss fallback.** After sync, `spawn_rebuild_market_read_cache()` warms overview → sectors → movers → universe in priority order. HTTP misses compute inline for dashboard; universe serves stale `universe:scored:prev` or returns 503.
 5. **Redis is optional.** Unset `REDIS_URL` → backend always computes; behavior is correct, only slower.
-6. **Browser fetches the API directly.** Next.js does not proxy or server-cache market JSON; all client caching happens in the browser.
+6. **Browser fetches the API directly.** Next.js does not proxy or server-cache market JSON for client-side hooks; all client caching happens in the browser.
+
+**Exception (dashboard core SSR):** the Next.js server may prefetch **freshness + overview + sectors + movers** for `/` and `/dashboard` using `SERVER_API_BASE_URL` with `cache: "no-store"`. See [Dashboard core SSR (selective)](#dashboard-core-ssr-selective) below.
 
 ---
 
@@ -26,7 +28,8 @@ Related module docs: [market_universe.md](market_universe.md), [market_dashboard
 │  MarketCacheSyncCoordinator (app/providers.tsx)                         │
 │    → polls GET /market/freshness every ~2 min                           │
 │    → on last_synced_at change → market-cache-coordinator                │
-│         → clear IndexedDB + invalidate TanStack market query roots        │
+│         → on last_synced_at change → clear market IndexedDB entries     │
+│         → then invalidate TanStack market query roots                   │
 │                                                                         │
 │  UI → TanStack Query (in-memory)                                        │
 │         ↓ queryFn                                                       │
@@ -51,7 +54,7 @@ Related module docs: [market_universe.md](market_universe.md), [market_dashboard
 │  sync_market_snapshot / backfill / admin jobs → write DB                │
 │                                              → spawn rebuild (async)    │
 │                                                 overview → sectors      │
-│                                                 → universe:scored       │
+│                                                 → movers → universe     │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -129,9 +132,10 @@ Universe rows: Redis GET `universe:scored` → on miss serve `universe:scored:pr
 |------|-----|----------------|
 | 1 | `dashboard:overview` | ~2s (pulse-critical) |
 | 2 | `dashboard:sectors` | ~1s (leaders widget) |
-| 3 | `universe:scored` | ~15s (trader surfaces only) |
+| 3 | `dashboard:movers` | ~1s (SSR movers panels) |
+| 4 | `universe:scored` | ~15s (trader surfaces only) |
 
-Spawned fire-and-forget after `sync_market_snapshot` commit via `spawn_rebuild_market_read_cache()` in `app/jobs/market_cache_spawn.py`. Scheduler does **not** await rebuild. Failed steps keep the previous Redis value (no delete-first).
+Spawned fire-and-forget after `sync_market_snapshot` commit via `spawn_rebuild_market_read_cache()` in `app/jobs/market_cache_spawn.py`. Scheduler does **not** await rebuild. Failed steps keep the previous Redis value (no delete-first). A best-effort Redis lock per exchange (`market:rebuild-lock:{exchange}`, TTL 180s) prevents overlapping rebuild workers; Redis failure does not block rebuild.
 
 ### When caches are refreshed
 
@@ -158,9 +162,28 @@ Spawned fire-and-forget after `sync_market_snapshot` commit via `spawn_rebuild_m
 
 ## Frontend (browser)
 
-### No Next.js server cache
+### No Next.js server cache (client path)
 
-Market pages are client-rendered. API calls use `NEXT_PUBLIC_API_BASE_URL` from the browser. There is no App Router `revalidate`, `fetchCache`, or server-side proxy cache for market JSON.
+Market section data loads in the browser. API calls use `NEXT_PUBLIC_API_BASE_URL`. Client hooks do not use App Router `revalidate`, `fetchCache`, or server-side proxy cache for market JSON.
+
+### Dashboard core SSR (selective)
+
+The `/` and `/dashboard` routes server-prefetch a **narrow core slice** before hydration:
+
+| Aspect | Behavior |
+|--------|----------|
+| Endpoints | `GET /market/freshness` + `GET /dashboard/overview` + `GET /dashboard/sectors` + `GET /dashboard/movers` |
+| Server URL | `SERVER_API_BASE_URL` (required in production), e.g. `http://backend-api:8000/api/v1` |
+| Fetch mode | `cache: "no-store"` — **no** Next.js Data Cache / ISR for market JSON |
+| Timeout | Default 5000ms (`DASHBOARD_CORE_LOADER_TIMEOUT_MS`); partial seed or client-only fallback on slow backend |
+| Redis | Still authoritative — internal server fetches hit the same Redis-backed FastAPI routes |
+| TanStack seed | `HydrationBoundary` + `initialDataUpdatedAt: fetchedAt` for overview, freshness, sectors, and movers |
+| Identity guard | On hydrate, if SSR `last_synced_at` ≠ client freshness/overview → clear market IndexedDB + `syncMarketClientCachesOnBackendUpdate` |
+| Cloudflare | Unchanged — HTML, RSC, and API responses bypassed; only `/_next/static/*` cached |
+
+Secondary dashboard sections (heatmap, signals, alerts, sentiment) continue to use **`NEXT_PUBLIC_API_BASE_URL`** via `backendApiGetMarket()` / IndexedDB after hydration.
+
+**Do not** add `export const revalidate` on dashboard routes for market data.
 
 ### API client helpers
 
@@ -186,7 +209,8 @@ Central service: `frontend/lib/market/market-cache-coordinator.ts`
 
 | Function | Role |
 |----------|------|
-| `invalidateMarketClientCaches(queryClient)` | Clear IndexedDB + invalidate TanStack market query roots (auto-sync path) |
+| `syncMarketClientCachesOnBackendUpdate(queryClient)` | Clear **market** IndexedDB entries, then invalidate TanStack market query roots (auto-sync + SSR identity guard) |
+| `invalidateMarketClientCaches(queryClient)` | Clear **all** IndexedDB + invalidate TanStack market query roots (manual refresh) |
 | `refreshMarketClientCaches(queryClient)` | Above + invalidate `market-freshness` (manual refresh path) |
 
 Mounted app-wide via `MarketCacheSyncCoordinator` in `frontend/app/providers.tsx` (uses `useMarketCacheSyncCoordinator`).
@@ -248,7 +272,7 @@ With `market_snapshot_interval_minutes=15`:
 | IndexedDB market GETs | 10 min | Env clamp 5–10; independent of freshness API |
 | IndexedDB `/market/freshness` | None | Always network |
 | TanStack freshness hook | 60s stale, 2 min poll | In-memory only; drives sync coordinator |
-| Sync coordinator reaction | ≤2 min after sync | `last_synced_at` change → IndexedDB clear + TanStack invalidation |
+| Sync coordinator reaction | ≤2 min after sync | `last_synced_at` change → market IndexedDB clear, then TanStack invalidation |
 
 Primary freshness drivers: **backend Redis invalidation on data write** and **browser coordinator on `last_synced_at` change**. IndexedDB/TanStack TTL alone are safety nets.
 
@@ -307,7 +331,7 @@ backend-scheduler:
   2. MarketDataService.ingest_daily_prices(invalidate_market_cache=False) → upsert daily_prices
   3. run_snapshot_enrichment() → DSEX summary
   4. spawn_rebuild_market_read_cache(DSE)   [fire-and-forget; scheduler returns immediately]
-     → rebuild overview (~2s) → sectors (~1s) → universe:scored (~15s)
+     → rebuild overview (~2s) → sectors (~1s) → movers (~1s) → universe:scored (~15s)
      → overwrites Redis keys on success; previous keys kept until overwrite
 
 PostgreSQL now has fresh prices. Redis keys update progressively (overview first).
@@ -318,11 +342,12 @@ last_synced_at advances in DB.
 
 ```text
 MarketCacheSyncCoordinator observes new last_synced_at
-→ invalidateMarketTanStackQueries(queryClient)   [IndexedDB retained]
+→ clearMarketBackendApiCache()
+→ invalidateMarketTanStackQueries(queryClient)
    → invalidateQueries dashboard, market-universe-rows, market-pulse-*, signals
 
 Active TanStack queries refetch immediately
-→ backendApiGetMarket → network or IndexedDB (if within TTL)
+→ backendApiGetMarket → network (market IndexedDB cleared on sync)
 → Backend: dashboard overview likely Redis hit after rebuild step 1
 → UI updates with new prices (no page reload)
 ```
@@ -332,7 +357,7 @@ Active TanStack queries refetch immediately
 ```text
 useMarketUniverse → invalidated with market-universe-rows
 → backendApiGetMarket("/market/universe-rows")
-→ Backend: universe:scored hit after rebuild step 3, or stale universe:scored:prev while rebuild runs
+→ Backend: universe:scored hit after rebuild step 4, or stale universe:scored:prev while rebuild runs
 → ScoredUniverseRow list in UI (may lag overview by <20s)
 ```
 
@@ -351,7 +376,7 @@ useMarketUniverse → invalidated with market-universe-rows
 
 4. Browser users:
    → Coordinator detects new last_synced_at on next freshness poll (≤2 min)
-   → TanStack market queries invalidated automatically (IndexedDB retained)
+   → clear market IndexedDB + TanStack market queries invalidated automatically
    → Or user clicks refresh on MarketDataFreshnessBar / calls useMarketCacheRefresh() for full IndexedDB wipe
 ```
 
@@ -430,7 +455,7 @@ Disabled during PRE_OPEN / HOLIDAY (refresh button only; programmatic refetch st
 |------|------|
 | `lib/api/backend-api-client.ts` | IndexedDB + `Get` / `GetMarket` / `GetFresh` |
 | `lib/frontend-config.ts` | Cache TTL env |
-| `lib/market/market-cache-coordinator.ts` | IndexedDB clear + TanStack invalidation; `MARKET_TANSTACK_QUERY_ROOTS` |
+| `lib/market/market-cache-coordinator.ts` | Market IndexedDB clear + TanStack invalidation on sync; full IndexedDB clear on manual refresh; `MARKET_TANSTACK_QUERY_ROOTS` |
 | `hooks/market/use-market-cache-coordinator.ts` | `useMarketCacheSyncCoordinator`, `useMarketCacheRefresh` |
 | `components/market/market-cache-sync-coordinator.tsx` | App-level sync listener (mounted in providers) |
 | `components/layout/market-data-freshness-bar.tsx` | Freshness chip + manual refresh button |
@@ -439,6 +464,12 @@ Disabled during PRE_OPEN / HOLIDAY (refresh button only; programmatic refetch st
 | `hooks/market/use-market-data-freshness.ts` | Freshness polling |
 | `app/providers.tsx` | TanStack global defaults + `MarketCacheSyncCoordinator` |
 | `lib/api/market-dashboard-api.ts` | Dashboard GET wrappers |
+| `lib/api/server-market-api.ts` | Server-only `no-store` market fetch + `getServerApiBaseUrl()` |
+| `lib/api/dashboard-server.ts` | `loadDashboardCore()` for dashboard SSR |
+| `features/market-dashboard/dashboard-page-shell.tsx` | Shared async shell for `/` and `/dashboard` |
+| `features/market-dashboard/components/dashboard-query-hydration.tsx` | TanStack `HydrationBoundary` for dashboard SSR seeds |
+| `lib/market/build-dashboard-dehydrated-state.ts` | Server-side TanStack dehydrate for freshness, overview, sectors, and movers |
+| `features/market-dashboard/components/dashboard-ssr-hydration-guard.tsx` | One-shot TanStack invalidation on SSR freshness/overview mismatch |
 | `lib/api/market-universe-api.ts` | Universe GET wrapper |
 | `lib/api/market-pulse-api.ts` | Pulse GET wrappers |
 | `lib/api/market-data-api.ts` | Freshness + legacy market GET wrappers |

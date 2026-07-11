@@ -1,6 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query";
 
-import { clearBackendApiCache } from "@/lib/api/backend-api-client";
+import { clearBackendApiCache, clearMarketBackendApiCache } from "@/lib/api/backend-api-client";
 
 /**
  * TanStack Query roots invalidated after a backend market sync or manual refresh.
@@ -23,12 +23,13 @@ export async function invalidateMarketTanStackQueries(queryClient: QueryClient):
   );
 }
 
-/** TanStack-only invalidation after backend sync (IndexedDB entries are kept). */
+/** Clears market IndexedDB entries, then invalidates TanStack market query roots. */
 export async function syncMarketClientCachesOnBackendUpdate(queryClient: QueryClient): Promise<void> {
+  await clearMarketBackendApiCache();
   await invalidateMarketTanStackQueries(queryClient);
 }
 
-/** Clears IndexedDB market API cache and invalidates active market TanStack queries. */
+/** Clears all IndexedDB API cache and invalidates active market TanStack queries. */
 export async function invalidateMarketClientCaches(queryClient: QueryClient): Promise<void> {
   await clearBackendApiCache();
   await invalidateMarketTanStackQueries(queryClient);

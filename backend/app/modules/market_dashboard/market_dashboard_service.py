@@ -269,6 +269,9 @@ class MarketDashboardService:
                 report=perf,
             )
 
+        async with async_perf_stage(perf, "db.freshness"):
+            _, last_synced_at = await self.market_repository.get_market_price_freshness(exchange=exchange)
+
         if report is None:
             perf.log_summary()
             self._last_compute_ms = perf.total_ms
@@ -276,6 +279,7 @@ class MarketDashboardService:
         return DashboardOverviewRead(
             exchange=exchange,
             session_trade_date=snapshot.session_trade_date,
+            last_synced_at=last_synced_at,
             listed_stock_count=listed_stock_count,
             dsex_index=dsex_index,
             summaries=[DailyMarketSummaryRead.model_validate(summary) for summary in snapshot.summaries],

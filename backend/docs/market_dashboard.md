@@ -16,7 +16,7 @@ Trader `/dashboard` section endpoints with optional Redis caching. Admin dashboa
 **Policies:**
 
 - Dashboard **never** calls `get_scored_universe()` or `compute_trader_decision_from_prices`.
-- After sync, background `rebuild_market_read_cache()` warms overview and sectors first (see [market_caching.md](market_caching.md)).
+- After sync, background `rebuild_market_read_cache()` warms overview, sectors, and movers before universe (see [market_caching.md](market_caching.md)).
 - Redis optional — unset `REDIS_URL` and the API computes on every request.
 - TTL: session-aware via `dashboard_cache_ttl_seconds` on `GET /market/freshness`.
 
@@ -74,7 +74,7 @@ Mover eligibility mirrors `market_mover_rules.is_eligible_session_mover`.
 | Secondary | movers, stocks-in-focus, market-alerts | Core workspace columns |
 | Deferred | heatmap, market-sentiment | Enabled after overview loads |
 
-Manual refresh clears IndexedDB + invalidates TanStack market query roots. Sync coordinator invalidates TanStack only.
+Manual refresh clears all IndexedDB + invalidates TanStack market query roots. Sync coordinator clears market IndexedDB only, then invalidates TanStack.
 
 ## DSEX data source
 
