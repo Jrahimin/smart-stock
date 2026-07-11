@@ -14,6 +14,7 @@ import { SidebarThemeToggle } from "@/components/layout/sidebar-theme-toggle";
 import { TerminalSidebarNav } from "@/components/layout/terminal-sidebar-nav";
 import { useAuth } from "@/features/auth/context/auth-context";
 import { DashboardSidebarGuide } from "@/features/guide/components/dashboard-sidebar-guide";
+import { isDashboardGuideRoute } from "@/features/guide/lib/guide-route";
 import { useWorkspaceStore } from "@/stores/use-workspace-store";
 
 type TerminalAppShellProps = {
@@ -45,6 +46,12 @@ export function TerminalAppShell({ children }: TerminalAppShellProps) {
 
   const isSidebarCollapsed = storeHydrated ? sidebarCollapsed : false;
   const isMobileNavigationOpen = mobileNavOpen || guideMobileNavigationOpen;
+  const showMobileGuideLauncher = isDashboardGuideRoute(pathname);
+
+  const handleMobileNavClose = () => {
+    setMobileNavOpen(false);
+    setGuideMobileNavigationOpen(false);
+  };
 
   return (
     <div className={isSidebarCollapsed ? "terminal-shell terminal-shell-collapsed" : "terminal-shell"}>
@@ -52,12 +59,13 @@ export function TerminalAppShell({ children }: TerminalAppShellProps) {
         isMenuOpen={isMobileNavigationOpen}
         menuButtonRef={menuButtonRef}
         onMenuToggle={() => setMobileNavOpen((open) => !open)}
+        showGuideLauncher={showMobileGuideLauncher}
       />
       <MobileNavigationDrawer
         guideActive={guideMobileNavigationOpen}
         isOpen={isMobileNavigationOpen}
         menuButtonRef={menuButtonRef}
-        onClose={() => setMobileNavOpen(false)}
+        onClose={handleMobileNavClose}
         storeHydrated={storeHydrated}
       />
       <aside className="terminal-sidebar terminal-sidebar-desktop">

@@ -381,6 +381,15 @@ Current frontend product flow:
 * Dashboard listed-stock count should represent active stock-master coverage; price-backed analytics use latest-price snapshot rows (not the full scored universe).
 * DSEX and total exchange turnover depend on real `daily_market_summaries` index rows; 6M/1Y may use cached AmarStock fallback until local DSEX depth is sufficient. `SOURCE_VALIDATION` rows are data-quality records and should not be presented as DSEX index values.
 * Settings route: `frontend/app/settings/page.tsx`; theme preference is stored in `frontend/stores/use-workspace-store.ts`.
+* **Dashboard onboarding guide (mascot tour):** `frontend/features/guide/`
+  * Viewport routing: `dashboard-sidebar-guide.tsx` renders desktop (`>1023px`) or mobile (`≤1023px`) orchestrator only.
+  * Desktop flow (v2, 13 steps): dim-only welcome → market widgets → sidebar introduction → per-nav items. Config: `config/dashboard-sidebar-guide.ts` (`DASHBOARD_GUIDE_DASHBOARD_STEP_COUNT = 6` dashboard-phase steps; sidebar expands at `DASHBOARD_GUIDE_SIDEBAR_EXPAND_STEP_INDEX` before sidebar-introduction).
+  * Mobile flow (v1, 5 steps): welcome sheet → drawer nav highlights → finish. Config: `config/mobile-intro-guide.ts`.
+  * Preference storage: `lib/guide-preference-storage.ts` — separate local keys, session auto-start keys, and launcher/nudge eligibility per surface (`desktop` vs `mobile`). Guests use local/session only; authenticated users sync via `services/guide-preference-api.ts` to backend preference routes (see `backend/docs/user_preferences.md`).
+  * Auto-start: fires after `gate.ready` on `/dashboard` or `/` (home reuses the dashboard page), (desktop no longer waits for market-pulse load). A 500ms pre-show activity guard is anchored to the auto-start schedule; interaction during that window suppresses auto-start for the session (`sessionStorage`) but does not mark `autoStartShown`, so the header mascot launcher stays prominent for manual replay.
+  * Phase 1 hardening (2026-07): desktop `product-guide-dim` for welcome/pulse-wait; mobile `guide-mobile-interaction-layer` blocks tap-through; mobile sheet sticky actions + safe-area; drawer `guideActive` guards in `terminal-app-shell.tsx` / `mobile-navigation-drawer.tsx`.
+  * Bengali copy: `dialogs/dashboard.bn.ts`, `dialogs/sidebar.bn.ts`, `dialogs/mobile-intro.bn.ts`.
+  * Styles: `frontend/app/globals.css` (`.product-guide-*`, `.guide-mobile-*`).
 
 ## Current Backend Patterns
 

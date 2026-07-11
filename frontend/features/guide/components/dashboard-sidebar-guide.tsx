@@ -31,6 +31,15 @@ function useIsMobileViewport() {
 
 export function DashboardSidebarGuide({ onMobileNavigationOpenChange }: DashboardSidebarGuideProps) {
   const isMobile = useIsMobileViewport();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return null;
+  }
 
   if (isMobile) {
     return <DashboardMobileGuide onMobileNavigationOpenChange={onMobileNavigationOpenChange} />;

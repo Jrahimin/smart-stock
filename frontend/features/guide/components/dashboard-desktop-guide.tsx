@@ -9,6 +9,7 @@ import { GuideDialogBubble } from "@/features/guide/components/guide-dialog-bubb
 import { GuideTourNudge } from "@/features/guide/components/guide-tour-nudge";
 import {
   DASHBOARD_GUIDE_DASHBOARD_STEP_COUNT,
+  DASHBOARD_GUIDE_SIDEBAR_EXPAND_STEP_INDEX,
   dashboardSidebarGuideSteps,
 } from "@/features/guide/config/dashboard-sidebar-guide";
 import { useDashboardDesktopGuideController } from "@/features/guide/hooks/use-dashboard-sidebar-guide-controller";
@@ -16,6 +17,7 @@ import { useGuideContentBounds } from "@/features/guide/hooks/use-guide-content-
 import {
   isGuideTargetVisibleInViewport,
   scrollGuideTargetIntoView,
+  useGuideTargetAvailable,
   useGuideTargetLayout,
 } from "@/features/guide/hooks/use-guide-target-layout";
 import {
@@ -171,6 +173,7 @@ export function DashboardDesktopGuide() {
 
   const {
     acceptGuideNudge,
+    acknowledgeGuideAutoStart,
     dismissGuideNudge,
     finishGuide,
     guideRun,
@@ -187,14 +190,21 @@ export function DashboardDesktopGuide() {
   } = useDashboardDesktopGuideController();
 
   const currentStep = dashboardSidebarGuideSteps[stepIndex];
+  const isDimOnlyStep = !currentStep?.target;
   const preferSidebar = currentStep?.highlightStyle === "navigation";
-  const targetSnapshot = useGuideTargetLayout(currentStep?.target ?? null, isGuideActive, { preferSidebar });
+  const targetSnapshot = useGuideTargetLayout(currentStep?.target ?? null, isGuideActive && !isDimOnlyStep, {
+    preferSidebar,
+  });
   const targetRect = targetSnapshot?.targetRect ?? null;
   const spotlightRect = targetSnapshot?.spotlightRect ?? null;
   const sidebarRight = targetSnapshot?.sidebarRight ?? null;
   const isLastStep = stepIndex === dashboardSidebarGuideSteps.length - 1;
   const isNavigationStep = currentStep?.highlightStyle === "navigation";
   const phase = getGuidePhase(stepIndex);
+  const pulseTargetReady = useGuideTargetAvailable('[data-guide="market-pulse"]', { requireReady: true });
+  const isWaitingForPulse = currentStep?.id === "market-pulse" && !pulseTargetReady;
+  const showFullDim = isDimOnlyStep || isWaitingForPulse;
+  const nextDisabled = isWaitingForPulse;
 
   useEffect(() => {
     if (!isGuideActive) {
@@ -202,7 +212,7 @@ export function DashboardDesktopGuide() {
       return;
     }
 
-    if (stepIndex < DASHBOARD_GUIDE_DASHBOARD_STEP_COUNT) {
+    if (stepIndex < DASHBOARD_GUIDE_SIDEBAR_EXPAND_STEP_INDEX) {
       return;
     }
 
@@ -213,7 +223,14 @@ export function DashboardDesktopGuide() {
   }, [isGuideActive, sidebarCollapsed, stepIndex, toggleSidebar]);
 
   useLayoutEffect(() => {
-    if (!isGuideActive || !currentStep || !targetSnapshot?.activeElement || !targetRect || viewport.height === 0) {
+    if (
+      !isGuideActive ||
+      !currentStep ||
+      showFullDim ||
+      !targetSnapshot?.activeElement ||
+      !targetRect ||
+      viewport.height === 0
+    ) {
       return;
     }
 
@@ -228,7 +245,7 @@ export function DashboardDesktopGuide() {
         reduceMotion: true,
       });
     }
-  }, [currentStep, isGuideActive, targetRect, targetSnapshot?.activeElement, viewport.height]);
+  }, [currentStep, isGuideActive, showFullDim, targetRect, targetSnapshot?.activeElement, viewport.height]);
 
   useEffect(() => {
     if (!isGuideActive) {
@@ -238,7 +255,7 @@ export function DashboardDesktopGuide() {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setSkipConfirmationOpen(true);
-      } else if (event.key === "ArrowRight" && !skipConfirmationOpen) {
+      } else if (event.key === "ArrowRight" && !skipConfirmationOpen && !nextDisabled) {
         event.preventDefault();
         moveNext();
       } else if (event.key === "ArrowLeft" && !skipConfirmationOpen && stepIndex > 0) {
@@ -249,22 +266,57 @@ export function DashboardDesktopGuide() {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [isGuideActive, setSkipConfirmationOpen, setStepIndex, skipConfirmationOpen, stepIndex]);
+  }, [isGuideActive, nextDisabled, setSkipConfirmationOpen, setStepIndex, skipConfirmationOpen, stepIndex]);
 
   const layout = useMemo(() => {
-    if (!currentStep || !targetRect || viewport.width === 0) {
+    if (!currentStep || viewport.width === 0) {
       return null;
     }
 
-    const bounds = contentBounds ?? undefined;
+    const bounds =
+      contentBounds ??
+      (showFullDim
+        ? {
+            left: 0,
+            top: 0,
+            right: viewport.width,
+            bottom: viewport.height,
+          }
+        : undefined);
     const bubbleWidth = Math.min(380, (bounds?.right ?? viewport.width) - (bounds?.left ?? 0) - 32);
+    const bubbleHeight = isLastStep ? 248 : 220;
+    const characterHeight = isNavigationStep ? 250 : 280;
+    const characterWidth = isNavigationStep ? 180 : 200;
+
+    if (showFullDim && bounds) {
+      const cluster = resolveCenteredClusterLayout(
+        bounds,
+        viewport.height,
+        bubbleWidth,
+        bubbleHeight,
+        characterWidth,
+        characterHeight,
+      );
+
+      return {
+        bubble: cluster.bubble,
+        character: cluster.character,
+        characterFacing: "left" as const,
+        layoutMode: "center-cluster" as const,
+        showFloatingCharacter: true,
+      };
+    }
+
+    if (!targetRect) {
+      return null;
+    }
 
     return buildGuideLayout({
       bounds,
-      bubbleHeight: isLastStep ? 248 : 220,
+      bubbleHeight,
       bubbleWidth,
-      characterHeight: isNavigationStep ? 250 : 280,
-      characterWidth: isNavigationStep ? 180 : 200,
+      characterHeight,
+      characterWidth,
       currentStep,
       isNavigationStep: Boolean(isNavigationStep),
       sidebarRight,
@@ -277,6 +329,7 @@ export function DashboardDesktopGuide() {
     currentStep,
     isLastStep,
     isNavigationStep,
+    showFullDim,
     sidebarRight,
     spotlightRect,
     targetRect,
@@ -286,8 +339,15 @@ export function DashboardDesktopGuide() {
 
   const motionDuration = reduceMotion ? 0.01 : 0.42;
   const canRenderGuide = Boolean(
-    isGuideActive && guideRun && currentStep && layout?.bubble && spotlightRect,
+    isGuideActive && guideRun && currentStep && layout?.bubble && (showFullDim || spotlightRect),
   );
+  const showSpotlight = Boolean(!showFullDim && spotlightRect && currentStep.highlightStyle);
+
+  useLayoutEffect(() => {
+    if (canRenderGuide && guideRun?.trigger === "auto") {
+      acknowledgeGuideAutoStart();
+    }
+  }, [acknowledgeGuideAutoStart, canRenderGuide, guideRun]);
 
   function moveNext() {
     if (isLastStep) {
@@ -309,7 +369,7 @@ export function DashboardDesktopGuide() {
         )
       : null;
 
-  if (!canRenderGuide || !guideRun || !currentStep || !layout?.bubble || !spotlightRect || typeof document === "undefined") {
+  if (!canRenderGuide || !guideRun || !currentStep || !layout?.bubble || typeof document === "undefined") {
     return nudgeLayer;
   }
 
@@ -327,6 +387,8 @@ export function DashboardDesktopGuide() {
             transition={{ duration: reduceMotion ? 0.01 : 0.22, ease: guideMotionEase }}
           >
             <div aria-hidden="true" className="product-guide-interaction-layer" />
+            {showFullDim ? <div aria-hidden="true" className="product-guide-dim" /> : null}
+            {showSpotlight && spotlightRect ? (
             <motion.div
               animate={{
                 height: spotlightRect.height + 10,
@@ -341,6 +403,7 @@ export function DashboardDesktopGuide() {
               initial={false}
               transition={{ duration: motionDuration, ease: guideMotionEase }}
             />
+            ) : null}
 
             {layout.showFloatingCharacter && layout.character ? (
               <motion.div
@@ -372,6 +435,7 @@ export function DashboardDesktopGuide() {
                 dialog={currentStep.dialog}
                 isLastStep={isLastStep}
                 isSkipConfirmationOpen={skipConfirmationOpen}
+                nextDisabled={nextDisabled}
                 onCancelSkip={() => setSkipConfirmationOpen(false)}
                 onConfirmSkip={skipGuide}
                 onNext={moveNext}

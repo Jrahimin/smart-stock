@@ -17,12 +17,12 @@ export type GuideDialog = {
 
 export type GuideStep = {
   id: string;
-  target: string;
+  target: string | null;
   dialog: GuideDialog;
   characterPose: GuideCharacterPose;
-  preferredCharacterPlacements: GuidePlacement[];
-  preferredBubblePlacements: GuidePlacement[];
-  highlightStyle: GuideHighlightStyle;
+  preferredCharacterPlacements?: GuidePlacement[];
+  preferredBubblePlacements?: GuidePlacement[];
+  highlightStyle?: GuideHighlightStyle;
   layoutMode?: GuideLayoutMode;
   characterAnchor?: GuideCharacterAnchor;
 };

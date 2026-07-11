@@ -35,6 +35,7 @@ import {
 } from "@/features/guide/services/guide-preference-api";
 import type { GuideCompletion } from "@/features/guide/types/guide-types";
 import { useAuth } from "@/features/auth/context/auth-context";
+import { isDashboardGuideRoute } from "@/features/guide/lib/guide-route";
 import { useGuideTargetAvailable } from "@/features/guide/hooks/use-guide-target-layout";
 
 export type GuideRunTrigger = "auto" | "manual" | "nudge";
@@ -102,8 +103,9 @@ function useDashboardGuideController(config: GuideControllerConfig) {
   const pulseTargetReady = useGuideTargetAvailable('[data-guide="market-pulse"]', { requireReady: true });
   const readinessTargetReady = requirePulseTarget ? pulseTargetReady : true;
 
-  const userInteractedRef = useRef(false);
-  const autoStartScheduledRef = useRef(false);
+  const autoStartTimerRef = useRef<number | null>(null);
+  const autoStartPersistedRunIdRef = useRef<number | null>(null);
+  const guideRunRef = useRef<GuideRun | null>(null);
   const nudgeScheduledRef = useRef(false);
   const [gate, setGate] = useState<GuideGate>(() => ({
     autoStartEligible: false,
@@ -117,8 +119,10 @@ function useDashboardGuideController(config: GuideControllerConfig) {
   const [suppressContextualPrompts, setSuppressContextualPrompts] = useState(false);
   const [skipConfirmationOpen, setSkipConfirmationOpen] = useState(false);
 
-  const isDashboard = pathname === "/dashboard";
+  const isDashboard = isDashboardGuideRoute(pathname);
   const isGuideActive = guideRun !== null;
+
+  guideRunRef.current = guideRun;
 
   const startGuideRun = useCallback((trigger: GuideRunTrigger) => {
     setNudgeOpen(false);
@@ -151,10 +155,8 @@ function useDashboardGuideController(config: GuideControllerConfig) {
       return;
     }
 
-    if (!isAuthenticated) {
-      syncGate();
-    }
-  }, [isAuthenticated, isAuthLoading, isDashboard, stopGuideRun, syncGate]);
+    syncGate();
+  }, [isAuthLoading, isDashboard, stopGuideRun, syncGate]);
 
   useEffect(() => {
     if (!isDashboard || isAuthLoading || !isAuthenticated) {
@@ -214,72 +216,74 @@ function useDashboardGuideController(config: GuideControllerConfig) {
   }, [getServerPreference, isAuthenticated, isAuthLoading, isDashboard, saveServerPreference, scope, syncGate]);
 
   useEffect(() => {
-    if (!isDashboard || isAuthLoading) {
-      return;
-    }
-
-    userInteractedRef.current = false;
-    const startedAt = Date.now();
-
-    const markInteraction = () => {
-      if (Date.now() - startedAt <= GUIDE_USER_ACTIVITY_GUARD_MS) {
-        userInteractedRef.current = true;
+    const clearAutoStartTimer = () => {
+      if (autoStartTimerRef.current !== null) {
+        window.clearTimeout(autoStartTimerRef.current);
+        autoStartTimerRef.current = null;
       }
     };
 
-    window.addEventListener("pointerdown", markInteraction, true);
-    window.addEventListener("keydown", markInteraction, true);
-    window.addEventListener("wheel", markInteraction, { capture: true, passive: true });
-
-    return () => {
-      window.removeEventListener("pointerdown", markInteraction, true);
-      window.removeEventListener("keydown", markInteraction, true);
-      window.removeEventListener("wheel", markInteraction, true);
-    };
-  }, [isAuthLoading, isDashboard]);
-
-  useEffect(() => {
     if (
       !isDashboard ||
       !gate.ready ||
       !gate.autoStartEligible ||
       !readinessTargetReady ||
       guideRun ||
-      nudgeOpen ||
-      autoStartScheduledRef.current
+      nudgeOpen
     ) {
+      clearAutoStartTimer();
       return;
     }
 
-    autoStartScheduledRef.current = true;
-    const timeoutId = window.setTimeout(() => {
-      if (userInteractedRef.current) {
-        markGuideAutoStartedThisSession(scope);
-        syncGate();
+    if (autoStartTimerRef.current !== null) {
+      return;
+    }
+
+    autoStartTimerRef.current = window.setTimeout(() => {
+      autoStartTimerRef.current = null;
+
+      if (!isDashboardGuideRoute(pathname)) {
         return;
       }
 
-      markGuideAutoStartShown(scope);
-      markGuideAutoStartedThisSession(scope);
-      syncGate();
+      if (!isGuideAutoStartEligible(scope)) {
+        return;
+      }
+
+      if (guideRunRef.current) {
+        return;
+      }
+
       startGuideRun("auto");
     }, GUIDE_AUTO_START_DELAY_MS);
 
-    return () => {
-      window.clearTimeout(timeoutId);
-      autoStartScheduledRef.current = false;
-    };
+    return clearAutoStartTimer;
   }, [
     gate.autoStartEligible,
     gate.ready,
     guideRun,
     isDashboard,
     nudgeOpen,
+    pathname,
     readinessTargetReady,
     scope,
     startGuideRun,
-    syncGate,
   ]);
+
+  const acknowledgeGuideAutoStart = useCallback(() => {
+    if (!guideRun || guideRun.trigger !== "auto") {
+      return;
+    }
+
+    if (autoStartPersistedRunIdRef.current === guideRun.id) {
+      return;
+    }
+
+    autoStartPersistedRunIdRef.current = guideRun.id;
+    markGuideAutoStartShown(scope);
+    markGuideAutoStartedThisSession(scope);
+    syncGate();
+  }, [guideRun, scope, syncGate]);
 
   useEffect(() => {
     if (
@@ -295,8 +299,27 @@ function useDashboardGuideController(config: GuideControllerConfig) {
     }
 
     nudgeScheduledRef.current = true;
+    const nudgeGuardStartedAt = Date.now();
+    const nudgeInteractedRef = { current: false };
+
+    const markNudgeInteraction = (event: Event) => {
+      if (!event.isTrusted) {
+        return;
+      }
+
+      if (Date.now() - nudgeGuardStartedAt <= GUIDE_USER_ACTIVITY_GUARD_MS) {
+        nudgeInteractedRef.current = true;
+      }
+    };
+
+    window.addEventListener("pointerdown", markNudgeInteraction, true);
+    window.addEventListener("keydown", markNudgeInteraction, true);
+
     const timeoutId = window.setTimeout(() => {
-      if (userInteractedRef.current || guideRun) {
+      window.removeEventListener("pointerdown", markNudgeInteraction, true);
+      window.removeEventListener("keydown", markNudgeInteraction, true);
+
+      if (nudgeInteractedRef.current || guideRun) {
         return;
       }
 
@@ -307,13 +330,15 @@ function useDashboardGuideController(config: GuideControllerConfig) {
 
     return () => {
       window.clearTimeout(timeoutId);
+      window.removeEventListener("pointerdown", markNudgeInteraction, true);
+      window.removeEventListener("keydown", markNudgeInteraction, true);
       nudgeScheduledRef.current = false;
     };
   }, [gate.nudgeEligible, gate.ready, guideRun, isDashboard, nudgeOpen, readinessTargetReady, scope, syncGate]);
 
   useEffect(() => {
     const openManualGuide = () => {
-      if (pathname !== "/dashboard") {
+      if (!isDashboardGuideRoute(pathname)) {
         return;
       }
 
@@ -388,6 +413,7 @@ function useDashboardGuideController(config: GuideControllerConfig) {
 
   return {
     acceptGuideNudge,
+    acknowledgeGuideAutoStart,
     dismissGuideNudge,
     finishGuide,
     guideRun,
@@ -410,7 +436,7 @@ function useDashboardGuideController(config: GuideControllerConfig) {
 export function useDashboardDesktopGuideController() {
   return useDashboardGuideController({
     scope: DESKTOP_GUIDE_SCOPE,
-    requirePulseTarget: true,
+    requirePulseTarget: false,
     getServerPreference: getDashboardSidebarGuidePreference,
     saveServerPreference: saveDashboardSidebarGuidePreference,
   });
@@ -437,7 +463,7 @@ export function useDashboardGuideLauncherProminent() {
   const storageKey = getGuidePreferenceStorageKey(scope);
 
   useEffect(() => {
-    if (pathname !== "/dashboard") {
+    if (!isDashboardGuideRoute(pathname)) {
       setProminent(false);
       return;
     }
@@ -447,7 +473,7 @@ export function useDashboardGuideLauncherProminent() {
 
   useEffect(() => {
     const refresh = () => {
-      if (pathname !== "/dashboard") {
+      if (!isDashboardGuideRoute(pathname)) {
         return;
       }
 

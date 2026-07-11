@@ -19,6 +19,7 @@ type GuideDialogBubbleProps = {
   showInlineCharacter: boolean;
   isLastStep: boolean;
   isSkipConfirmationOpen: boolean;
+  nextDisabled?: boolean;
   suppressContextualPrompts: boolean;
   onCancelSkip: () => void;
   onConfirmSkip: () => void;
@@ -40,6 +41,7 @@ export function GuideDialogBubble({
   showInlineCharacter,
   isLastStep,
   isSkipConfirmationOpen,
+  nextDisabled = false,
   suppressContextualPrompts,
   onCancelSkip,
   onConfirmSkip,
@@ -165,7 +167,7 @@ export function GuideDialogBubble({
             <button className="product-guide-skip-button" onClick={onSkip} type="button">
               বাদ দিন
             </button>
-            <button className="product-guide-primary-button" onClick={onNext} type="button">
+            <button className="product-guide-primary-button" disabled={nextDisabled} onClick={onNext} type="button">
               {isLastStep ? "শুরু করি" : "তারপর"}
               <ArrowRight aria-hidden="true" size={14} />
             </button>

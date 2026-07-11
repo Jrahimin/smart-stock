@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { createPortal } from "react-dom";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { GuideMobileSheet } from "@/features/guide/components/guide-mobile-sheet";
 import { GuideTourNudge } from "@/features/guide/components/guide-tour-nudge";
@@ -25,6 +25,7 @@ export function DashboardMobileGuide({ onMobileNavigationOpenChange }: Dashboard
 
   const {
     acceptGuideNudge,
+    acknowledgeGuideAutoStart,
     dismissGuideNudge,
     finishGuide,
     guideRun,
@@ -130,6 +131,12 @@ export function DashboardMobileGuide({ onMobileNavigationOpenChange }: Dashboard
   const canRenderGuide = Boolean(isGuideActive && guideRun && currentStep);
   const showSpotlight = Boolean(!isDimOnlyStep && spotlightRect);
 
+  useLayoutEffect(() => {
+    if (canRenderGuide && guideRun?.trigger === "auto") {
+      acknowledgeGuideAutoStart();
+    }
+  }, [acknowledgeGuideAutoStart, canRenderGuide, guideRun]);
+
   const nudgeLayer =
     nudgeOpen && typeof document !== "undefined"
       ? createPortal(
@@ -162,6 +169,7 @@ export function DashboardMobileGuide({ onMobileNavigationOpenChange }: Dashboard
             key={`guide-mobile-layer-${guideRun.id}`}
             transition={{ duration: reduceMotion ? 0.01 : 0.22, ease: guideMotionEase }}
           >
+            <div aria-hidden="true" className="guide-mobile-interaction-layer" />
             <div aria-hidden="true" className="guide-mobile-dim" />
             {showSpotlight && spotlightRect ? (
               <motion.div
@@ -187,6 +195,7 @@ export function DashboardMobileGuide({ onMobileNavigationOpenChange }: Dashboard
               isDrawerTransitioning={isDrawerTransitioning}
               isLastStep={isLastStep}
               isSkipConfirmationOpen={skipConfirmationOpen}
+              isWelcomeStep={stepIndex === 0}
               onCancelSkip={() => setSkipConfirmationOpen(false)}
               onClose={() => setSkipConfirmationOpen(true)}
               onConfirmSkip={handleSkip}

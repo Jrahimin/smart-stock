@@ -3,9 +3,18 @@ import { sidebarDialogs } from "@/features/guide/dialogs/sidebar.bn";
 import type { GuideStep } from "@/features/guide/types/guide-types";
 
 export const DASHBOARD_SIDEBAR_GUIDE_VERSION = 2;
-export const DASHBOARD_GUIDE_DASHBOARD_STEP_COUNT = 5;
+export const DASHBOARD_GUIDE_DASHBOARD_STEP_COUNT = 6;
+/** Step index where the desktop sidebar should expand (sidebar-introduction). */
+export const DASHBOARD_GUIDE_SIDEBAR_EXPAND_STEP_INDEX = DASHBOARD_GUIDE_DASHBOARD_STEP_COUNT - 1;
 
 export const dashboardSidebarGuideSteps: readonly GuideStep[] = [
+  {
+    id: "welcome",
+    target: null,
+    dialog: dashboardDialogs.welcome,
+    characterPose: "welcome",
+    layoutMode: "center-cluster",
+  },
   {
     id: "market-pulse",
     target: '[data-guide="market-pulse"]',

@@ -119,7 +119,7 @@ button {
 
 .terminal-sidebar-spacer {
   flex: 1;
-  min-height: 20px;
+  min-height: 10px;
   width: 100%;
 }
 
@@ -202,7 +202,7 @@ button {
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
-  gap: 8px;
+  gap: 1px;
   overflow: visible;
 }
 
@@ -508,9 +508,9 @@ button {
   display: flex;
   flex-shrink: 0;
   gap: 10px;
-  height: 44px;
+  height: 40px;
   line-height: 1.2;
-  min-height: 44px;
+  min-height: 40px;
   padding: 0 12px;
 }
 
@@ -520,7 +520,7 @@ button {
   height: auto;
   line-height: normal;
   min-height: 70px;
-  padding: 11px 10px 11px 10px;
+  padding: 8px 10px 11px 10px;
 }
 
 .terminal-shell-collapsed .terminal-sidebar nav a:not(.wealth-workspace-nav-tile) {
@@ -1268,6 +1268,24 @@ button {
     white-space: nowrap;
   }
 
+  .mobile-app-header-actions {
+    align-items: center;
+    display: inline-flex;
+    flex-shrink: 0;
+    gap: 8px;
+  }
+
+  .mobile-app-header-guide-button {
+    flex-shrink: 0;
+    height: 40px;
+    width: 40px;
+  }
+
+  .mobile-app-header-guide-button .market-dashboard-guide-button-mascot {
+    height: 26px;
+    width: 26px;
+  }
+
   .terminal-main {
     flex: 1;
     max-width: 100%;
@@ -1288,10 +1306,16 @@ button {
   }
 
   .market-dashboard-header-tools {
-    align-items: stretch;
-    flex-direction: column;
-    gap: 6px;
+    align-items: center;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 8px;
     width: 100%;
+  }
+
+  .market-dashboard-header-tools .explorer-command-search-discovery {
+    flex: 1 1 180px;
+    min-width: 0;
   }
 
   .market-dashboard-header-tools .explorer-command-search-discovery .explorer-command-input-shell {
@@ -1323,7 +1347,8 @@ button {
   }
 
   .market-dashboard-header-tools .market-freshness-bar-inline {
-    align-self: flex-end;
+    flex: 0 0 auto;
+    margin-left: auto;
     padding-top: 0;
   }
 
@@ -1331,6 +1356,10 @@ button {
     font-size: 10px;
     gap: 4px;
     padding: 3px 7px;
+  }
+
+  .market-dashboard-header-tools .market-dashboard-guide-button {
+    display: none;
   }
 }
 
@@ -10319,6 +10348,14 @@ button {
   z-index: 200;
 }
 
+.product-guide-dim {
+  background: rgb(2 6 23 / 56%);
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+  z-index: 199;
+}
+
 .product-guide-spotlight {
   border: 1.5px solid color-mix(in srgb, #a78bfa 72%, white);
   border-radius: 16px;
@@ -10633,6 +10670,13 @@ button {
     z-index: 200;
   }
 
+  .guide-mobile-interaction-layer {
+    inset: 0;
+    pointer-events: auto;
+    position: absolute;
+    z-index: 200;
+  }
+
   .guide-mobile-dim {
     background: rgb(2 6 23 / 56%);
     inset: 0;
@@ -10657,17 +10701,18 @@ button {
     background: var(--panel-strong);
     border: 1px solid color-mix(in srgb, var(--border) 88%, #c4b5fd 12%);
     border-radius: 22px 22px 18px 18px;
-    bottom: max(12px, env(safe-area-inset-bottom));
+    bottom: 0;
     box-shadow:
       0 -8px 40px rgb(2 6 23 / 34%),
       0 24px 60px rgb(2 6 23 / 42%),
       inset 0 1px 0 rgb(255 255 255 / 7%);
-    display: grid;
-    gap: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
     left: 12px;
-    max-height: min(38dvh, calc(100dvh - 80px));
-    overflow: auto;
-    padding: 22px 16px 16px;
+    max-height: min(40dvh, calc(100dvh - env(safe-area-inset-top, 0px) - 88px));
+    overflow: hidden;
+    padding: 20px 16px calc(12px + env(safe-area-inset-bottom, 0px));
     pointer-events: auto;
     position: fixed;
     right: 12px;
@@ -10676,8 +10721,38 @@ button {
     z-index: 205;
   }
 
+  .guide-mobile-sheet--welcome {
+    gap: 14px;
+    max-height: min(48dvh, calc(100dvh - env(safe-area-inset-top, 0px) - 72px));
+    padding-top: 22px;
+  }
+
   .guide-mobile-sheet--compact {
-    max-height: min(28dvh, calc(100dvh - 80px));
+    gap: 10px;
+    max-height: min(44dvh, calc(100dvh - env(safe-area-inset-top, 0px) - 96px));
+  }
+
+  .guide-mobile-sheet--compact .guide-mobile-sheet-head {
+    gap: 8px;
+  }
+
+  .guide-mobile-sheet--compact .guide-mobile-sheet-title-block .product-guide-character-inline .product-guide-character-art,
+  .guide-mobile-sheet--compact .guide-mobile-sheet-title-block .product-guide-character-inline .product-guide-character-fallback {
+    height: 52px;
+    width: 52px;
+  }
+
+  .guide-mobile-sheet--compact .guide-mobile-sheet-message {
+    font-size: 0.84rem;
+    line-height: 1.5;
+  }
+
+  .guide-mobile-sheet-body {
+    display: grid;
+    flex: 1;
+    gap: 14px;
+    min-height: 0;
+    overflow-y: auto;
   }
 
   .guide-mobile-sheet::before {
@@ -10776,8 +10851,12 @@ button {
   .guide-mobile-confirm-actions {
     align-items: center;
     display: flex;
+    flex-shrink: 0;
     gap: 10px;
     justify-content: space-between;
+    margin-top: auto;
+    min-height: 44px;
+    padding-top: 4px;
   }
 
   .guide-mobile-action-end {
@@ -25714,6 +25793,7 @@ button {
 }
 
 .terminal-nav-section-label-market {
+  margin-bottom: 5px;
   color: color-mix(in srgb, var(--muted) 82%, transparent);
 }
 

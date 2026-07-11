@@ -13,6 +13,7 @@ type GuideMobileSheetProps = {
   isDrawerTransitioning?: boolean;
   isLastStep: boolean;
   isSkipConfirmationOpen: boolean;
+  isWelcomeStep?: boolean;
   onCancelSkip: () => void;
   onClose: () => void;
   onConfirmSkip: () => void;
@@ -32,6 +33,7 @@ export function GuideMobileSheet({
   isDrawerTransitioning = false,
   isLastStep,
   isSkipConfirmationOpen,
+  isWelcomeStep = false,
   onCancelSkip,
   onClose,
   onConfirmSkip,
@@ -77,7 +79,7 @@ export function GuideMobileSheet({
       aria-describedby="guide-mobile-message"
       aria-labelledby="guide-mobile-title"
       aria-modal="true"
-      className={`guide-mobile-sheet${compact ? " guide-mobile-sheet--compact" : ""}`}
+      className={`guide-mobile-sheet${compact ? " guide-mobile-sheet--compact" : ""}${isWelcomeStep ? " guide-mobile-sheet--welcome" : ""}`}
       lang="bn"
       onKeyDown={trapFocus}
       ref={dialogRef}
@@ -97,39 +99,41 @@ export function GuideMobileSheet({
         </button>
       </div>
 
-      <p className="guide-mobile-sheet-message" id="guide-mobile-message">
-        {isSkipConfirmationOpen
-          ? "এখন বন্ধ করলে পরে হেডারের ম্যাসকট বাটন থেকে আবার দেখতে পারবেন।"
-          : dialog.message}
-      </p>
+      <div className="guide-mobile-sheet-body">
+        <p className="guide-mobile-sheet-message" id="guide-mobile-message">
+          {isSkipConfirmationOpen
+            ? "এখন বন্ধ করলে পরে হেডারের ম্যাসকট বাটন থেকে আবার দেখতে পারবেন।"
+            : dialog.message}
+        </p>
 
-      {!isSkipConfirmationOpen ? (
-        <div className="guide-mobile-progress" role="status">
-          <div className="guide-mobile-progress-meta">
-            <span className="guide-mobile-progress-label">পরিচিতি</span>
-            <span className="guide-mobile-progress-count">
-              {stepIndex + 1} / {stepCount}
-            </span>
+        {!isSkipConfirmationOpen ? (
+          <div className="guide-mobile-progress" role="status">
+            <div className="guide-mobile-progress-meta">
+              <span className="guide-mobile-progress-label">পরিচিতি</span>
+              <span className="guide-mobile-progress-count">
+                {stepIndex + 1} / {stepCount}
+              </span>
+            </div>
+            <div aria-hidden="true" className="guide-mobile-progress-segments">
+              {Array.from({ length: stepCount }, (_, index) => (
+                <span
+                  className={index <= stepIndex ? "guide-mobile-progress-segment is-active" : "guide-mobile-progress-segment"}
+                  key={`mobile-guide-${index}`}
+                />
+              ))}
+            </div>
           </div>
-          <div aria-hidden="true" className="guide-mobile-progress-segments">
-            {Array.from({ length: stepCount }, (_, index) => (
-              <span
-                className={index <= stepIndex ? "guide-mobile-progress-segment is-active" : "guide-mobile-progress-segment"}
-                key={`mobile-guide-${index}`}
-              />
-            ))}
-          </div>
-        </div>
-      ) : (
-        <label className="guide-mobile-suppress-option">
-          <input
-            checked={suppressContextualPrompts}
-            onChange={(event) => onSuppressContextualPromptsChange(event.target.checked)}
-            type="checkbox"
-          />
-          <span>ভবিষ্যতে স্বয়ংক্রিয়ভাবে এই গাইড দেখাবেন না</span>
-        </label>
-      )}
+        ) : (
+          <label className="guide-mobile-suppress-option">
+            <input
+              checked={suppressContextualPrompts}
+              onChange={(event) => onSuppressContextualPromptsChange(event.target.checked)}
+              type="checkbox"
+            />
+            <span>ভবিষ্যতে স্বয়ংক্রিয়ভাবে এই গাইড দেখাবেন না</span>
+          </label>
+        )}
+      </div>
 
       {isSkipConfirmationOpen ? (
         <div className="guide-mobile-confirm-actions">

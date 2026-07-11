@@ -95,7 +95,7 @@ export function MobileNavigationDrawer({
     }
 
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
+      if (event.key === "Escape" && !guideActive) {
         onClose();
       }
     };
@@ -120,7 +120,13 @@ export function MobileNavigationDrawer({
 
   return (
     <div className="mobile-nav-drawer-root">
-      <button aria-label="Close navigation menu" className="mobile-nav-drawer-backdrop" onClick={onClose} type="button" />
+      <button
+        aria-label="Close navigation menu"
+        className="mobile-nav-drawer-backdrop"
+        onClick={guideActive ? undefined : onClose}
+        tabIndex={guideActive ? -1 : undefined}
+        type="button"
+      />
       <aside
         aria-label="Navigation menu"
         aria-modal={guideActive ? undefined : true}
@@ -136,7 +142,8 @@ export function MobileNavigationDrawer({
             ref={closeButtonRef}
             aria-label="Close menu"
             className="mobile-nav-drawer-close"
-            onClick={onClose}
+            disabled={guideActive}
+            onClick={guideActive ? undefined : onClose}
             type="button"
           >
             <X size={20} />
