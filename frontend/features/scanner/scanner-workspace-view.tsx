@@ -105,11 +105,9 @@ export function ScannerWorkspaceView() {
 
     return [
       {
-        title: "Oversold Rebound",
-        description: "Below RSI 35 and already turning up on the session (not just falling).",
-        items: tradable
-          .filter((stock) => stock.rsi !== null && stock.rsi < 35 && (stock.priceChangePercent ?? 0) > 0)
-          .slice(0, 6),
+        title: "Volume-confirmed Breakouts",
+        description: "Clearing prior resistance on expanding volume (shared breakout flag).",
+        items: tradable.filter((stock) => stock.isBreakout === true).slice(0, 6),
       },
       {
         title: "Momentum Continuation",
@@ -119,14 +117,16 @@ export function ScannerWorkspaceView() {
           .slice(0, 6),
       },
       {
-        title: "Volume-confirmed Breakouts",
-        description: "Clearing prior resistance on expanding volume (shared breakout flag).",
-        items: tradable.filter((stock) => stock.isBreakout === true).slice(0, 6),
-      },
-      {
         title: "Breakdown Risk",
         description: "Sell actions or elevated risk from the shared decision engine.",
         items: tradable.filter((stock) => isBreakdownRiskDecision(stock)).slice(0, 6),
+      },
+      {
+        title: "Oversold Rebound",
+        description: "Below RSI 40 and already turning up on the session (not just falling).",
+        items: tradable
+          .filter((stock) => stock.rsi !== null && stock.rsi < 40 && (stock.priceChangePercent ?? 0) > 0)
+          .slice(0, 6),
       },
     ];
   }, [filteredUniverse]);
