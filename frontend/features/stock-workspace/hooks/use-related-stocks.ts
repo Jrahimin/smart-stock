@@ -35,11 +35,12 @@ export function useRelatedStocks({ exchange, currentStock, sectorLabel, enabled 
   });
 
   const groups = useMemo(() => {
-    if (!currentStock || !universeQuery.data?.rows.length) {
+    const rows = universeQuery.data?.rows;
+    if (!currentStock || !rows?.length) {
       return [];
     }
 
-    const universe = universeQuery.data.rows.map((row) => mapUniverseRowToListRow(row));
+    const universe = rows.map((row) => mapUniverseRowToListRow(row));
     return buildRelatedStocksGroups(currentStock, universe);
   }, [currentStock, universeQuery.data?.rows]);
 
