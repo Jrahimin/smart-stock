@@ -2,18 +2,20 @@ import Link from "next/link";
 import { memo } from "react";
 
 import { SignalBadge } from "@/components/ui/signal-badge";
+import type { DashboardLanguage } from "@/features/market-dashboard/dashboard-language";
 import type { SignalFeedItemModel } from "@/features/market-dashboard/types/market-dashboard-types";
 
 type SmartSignalFeedProps = {
   signals: SignalFeedItemModel[];
+  copy: DashboardLanguage["signals"];
 };
 
-export const SmartSignalFeed = memo(function SmartSignalFeed({ signals }: SmartSignalFeedProps) {
+export const SmartSignalFeed = memo(function SmartSignalFeed({ signals, copy }: SmartSignalFeedProps) {
   return (
     <section className="workspace-card" data-guide="smart-signals">
       <div className="section-heading">
-        <p className="eyebrow">Smart Signals</p>
-        <h2>Explanation-first feed</h2>
+        <p className="eyebrow">{copy.eyebrow}</p>
+        <h2>{copy.title}</h2>
       </div>
       <div className="signal-feed">
         {signals.length ? (
@@ -32,16 +34,18 @@ export const SmartSignalFeed = memo(function SmartSignalFeed({ signals }: SmartS
               </div>
               <p>{signal.reason}</p>
               <div className="signal-visual-row">
-                <div className="signal-confidence-meter" aria-label={`${signal.confidence} confidence`}>
+                <div aria-label={copy.confidence(signal.confidence)} className="signal-confidence-meter">
                   <span style={{ width: `${signal.confidenceValue}%` }} />
                 </div>
-                <span className={`risk-pill risk-pill-${signal.risk.toLowerCase()}`}>{signal.risk} risk</span>
+                <span className={`risk-pill risk-pill-${signal.risk.toLowerCase()}`}>{copy.risk(signal.risk)}</span>
               </div>
-              <small>{signal.confidence} confidence / {signal.supportingContext[0] ?? "Awaiting stronger context"}</small>
+              <small>
+                {copy.confidence(signal.confidence)} / {signal.supportingContext[0] ?? copy.awaitingContext}
+              </small>
             </Link>
           ))
         ) : (
-          <div className="empty-state">No actionable deterministic signals yet for the loaded market universe.</div>
+          <div className="empty-state">{copy.empty}</div>
         )}
       </div>
     </section>

@@ -4,22 +4,24 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 
+import type { DashboardLanguage } from "@/features/market-dashboard/dashboard-language";
 import type { HeatmapTileModel } from "@/features/market-dashboard/types/market-dashboard-types";
 import { formatPercent } from "@/lib/formatters/financial-formatters";
 
 type InstitutionalHeatmapProps = {
   tiles: HeatmapTileModel[];
+  copy: DashboardLanguage["heatmap"];
 };
 
 const HEATMAP_COLUMNS_PER_PAGE = 5;
 const HEATMAP_ROWS_PER_PAGE = 3;
 
-export function InstitutionalHeatmap({ tiles }: InstitutionalHeatmapProps) {
+export function InstitutionalHeatmap({ tiles, copy }: InstitutionalHeatmapProps) {
   const [mode, setMode] = useState<"size" | "liquidity">("size");
   const sectorGroups = useMemo(() => {
     const groups = Object.entries(
       tiles.reduce<Record<string, HeatmapTileModel[]>>((groups, tile) => {
-        const key = tile.sector || "Unclassified";
+        const key = tile.sector || copy.unclassified;
         groups[key] = [...(groups[key] ?? []), tile];
         return groups;
       }, {}),
@@ -44,30 +46,30 @@ export function InstitutionalHeatmap({ tiles }: InstitutionalHeatmapProps) {
       .sort((a, b) => (mode === "liquidity" ? b.totalLiquidity - a.totalLiquidity : b.totalWeight - a.totalWeight));
 
     return groups;
-  }, [mode, tiles]);
+  }, [mode, tiles, copy.unclassified]);
   const advancingCount = tiles.filter((tile) => tile.tone === "positive").length;
   const decliningCount = tiles.filter((tile) => tile.tone === "negative").length;
 
   return (
     <section className="workspace-card heatmap-card">
       <div className="section-heading">
-        <p className="eyebrow">Institutional Heatmap</p>
-        <h2>Sector-weighted market map</h2>
-        <span>All price-backed names grouped by sector; tile color shows latest price pressure.</span>
+        <p className="eyebrow">{copy.eyebrow}</p>
+        <h2>{copy.title}</h2>
+        <span>{copy.description}</span>
       </div>
       <div className="heatmap-toolbar">
-        <div className="heatmap-mode-row" aria-label="Heatmap mode">
+        <div aria-label="Heatmap mode" className="heatmap-mode-row">
           <button className={mode === "size" ? "active" : ""} onClick={() => setMode("size")} type="button">
-            Market cap
+            {copy.marketCap}
           </button>
           <button className={mode === "liquidity" ? "active" : ""} onClick={() => setMode("liquidity")} type="button">
-            Liquidity
+            {copy.liquidity}
           </button>
         </div>
         <div className="heatmap-balance-strip">
-          <span>{advancingCount} advancing</span>
-          <span>{decliningCount} declining</span>
-          <span>{tiles.length} mapped</span>
+          <span>{copy.advancing(advancingCount)}</span>
+          <span>{copy.declining(decliningCount)}</span>
+          <span>{copy.mapped(tiles.length)}</span>
         </div>
       </div>
       <div className="heatmap-grid">
@@ -91,7 +93,7 @@ export function InstitutionalHeatmap({ tiles }: InstitutionalHeatmapProps) {
                     {group.changeLabel}
                   </span>
                 </div>
-                <span>{group.tiles.length} names</span>
+                <span>{copy.names(group.tiles.length)}</span>
               </div>
               <div className="heatmap-sector-scroll">
                 {group.pages.map((page, pageIndex) => (
@@ -105,7 +107,7 @@ export function InstitutionalHeatmap({ tiles }: InstitutionalHeatmapProps) {
                       >
                         <strong>{tile.label}</strong>
                         <span>{tile.value}</span>
-                        <small>{mode === "liquidity" ? `Liquidity ${tile.liquidityScore}%` : tile.turnover}</small>
+                        <small>{mode === "liquidity" ? copy.liquidityScore(tile.liquidityScore) : tile.turnover}</small>
                       </Link>
                     ))}
                   </div>
@@ -115,8 +117,8 @@ export function InstitutionalHeatmap({ tiles }: InstitutionalHeatmapProps) {
           ))
         ) : (
           <div className="empty-state empty-state-premium">
-            <strong>Market map awaiting price rows</strong>
-            <span>Once latest OHLCV data syncs, this area will rank liquid sector clusters and attention-worthy movers.</span>
+            <strong>{copy.emptyTitle}</strong>
+            <span>{copy.emptyDescription}</span>
           </div>
         )}
       </div>

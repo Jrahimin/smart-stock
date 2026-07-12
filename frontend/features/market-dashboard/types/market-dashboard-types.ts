@@ -17,7 +17,27 @@ export type MarketMood =
   | "High volatility"
   | "Unknown";
 
+export type HeroMetricKind = "market_mood" | "index" | "turnover" | "listed_stocks";
+
+export type HeroMetricHelperKind =
+  | "breadth_summary"
+  | "awaiting_coverage"
+  | "index_change"
+  | "index_unavailable"
+  | "latest_turnover"
+  | "turnover_snapshot"
+  | "price_backed_count";
+
+export type IndexValueStatus = "available" | "pending";
+
+export type ExchangeMetricSource = "exchange" | "snapshot";
+
+export type TradeDateStatus = "available" | "awaiting";
+
 export type MarketMetricModel = {
+  kind: HeroMetricKind;
+  helperKind: HeroMetricHelperKind;
+  indexValueStatus?: IndexValueStatus;
   label: string;
   value: string;
   helper: string;
@@ -118,8 +138,11 @@ export type MarketPulseModel = {
   marketStatus: string | null;
   turnoverLabel: string;
   turnoverHelper: string;
+  turnoverSource: ExchangeMetricSource;
   volumeLabel: string;
   volumeHelper: string;
+  volumeSource: ExchangeMetricSource;
+  tradeDateStatus: TradeDateStatus;
   breadthLabel: string;
   breadthAdvancing: number;
   breadthDeclining: number;

@@ -2,9 +2,9 @@
 
 import { useQuery } from "@tanstack/react-query";
 
-import { mapTraderDecisionsToSignalFeed } from "@/features/market-dashboard/view-models/dashboard-sections-mapper";
+import { mapUniverseRowsToSignalFeed } from "@/features/market-dashboard/view-models/dashboard-sections-mapper";
 import { BackendApiError } from "@/lib/api/backend-api-client";
-import { fetchDashboardTraderSignals } from "@/lib/api/signals-api";
+import { listUniverseRows } from "@/lib/api/market-universe-api";
 import type { ExchangeCode } from "@/lib/api/backend-api-types";
 import type { SignalFeedItemModel } from "@/features/market-dashboard/types/market-dashboard-types";
 
@@ -39,10 +39,10 @@ export function useDashboardStocksInFocus({
   return useQuery({
     queryKey: ["dashboard", "trader-signals", exchange],
     queryFn: async (): Promise<DashboardStocksInFocusQueryData> => {
-      const payload = await fetchDashboardTraderSignals(exchange);
+      const payload = await listUniverseRows(exchange);
       return {
-        signals: mapTraderDecisionsToSignalFeed(payload.signals),
-        evaluatedCount: payload.evaluatedCount,
+        signals: mapUniverseRowsToSignalFeed(payload.rows),
+        evaluatedCount: payload.rows.filter((row) => row.decision !== null).length,
       };
     },
     staleTime: staleTimeMs,

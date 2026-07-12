@@ -4,16 +4,20 @@ import { ArrowLeft, ArrowRight, X } from "lucide-react";
 import { useEffect, useRef, type KeyboardEvent } from "react";
 
 import { GuideCharacter } from "@/features/guide/components/guide-character";
+import type { GuideControls } from "@/features/guide/dialogs/dashboard-dialogs";
 import type { GuideCharacterPose, GuideDialog } from "@/features/guide/types/guide-types";
+import type { AppLocale } from "@/lib/locale/app-locale";
 
 type GuideMobileSheetProps = {
   characterPose: GuideCharacterPose;
   compact?: boolean;
+  controls: GuideControls;
   dialog: GuideDialog;
   isDrawerTransitioning?: boolean;
   isLastStep: boolean;
   isSkipConfirmationOpen: boolean;
   isWelcomeStep?: boolean;
+  locale: AppLocale;
   onCancelSkip: () => void;
   onClose: () => void;
   onConfirmSkip: () => void;
@@ -29,11 +33,13 @@ type GuideMobileSheetProps = {
 export function GuideMobileSheet({
   characterPose,
   compact = false,
+  controls,
   dialog,
   isDrawerTransitioning = false,
   isLastStep,
   isSkipConfirmationOpen,
   isWelcomeStep = false,
+  locale,
   onCancelSkip,
   onClose,
   onConfirmSkip,
@@ -80,7 +86,7 @@ export function GuideMobileSheet({
       aria-labelledby="guide-mobile-title"
       aria-modal="true"
       className={`guide-mobile-sheet${compact ? " guide-mobile-sheet--compact" : ""}${isWelcomeStep ? " guide-mobile-sheet--welcome" : ""}`}
-      lang="bn"
+      lang={locale}
       onKeyDown={trapFocus}
       ref={dialogRef}
       role="dialog"
@@ -90,26 +96,26 @@ export function GuideMobileSheet({
         <div className="guide-mobile-sheet-title-block">
           <GuideCharacter facing="right" pose={characterPose} variant="inline" />
           <div>
-            <p className="guide-mobile-sheet-phase">{isSkipConfirmationOpen ? "গাইড বন্ধ করুন" : "পরিচিতি"}</p>
-            <h2 id="guide-mobile-title">{isSkipConfirmationOpen ? "এখনই গাইড বাদ দেবেন?" : dialog.eyebrow}</h2>
+            <p className="guide-mobile-sheet-phase">
+              {isSkipConfirmationOpen ? controls.skipSectionTitle : controls.introPhase}
+            </p>
+            <h2 id="guide-mobile-title">{isSkipConfirmationOpen ? controls.skipConfirmTitle : dialog.eyebrow}</h2>
           </div>
         </div>
-        <button aria-label="গাইড বন্ধ করুন" className="guide-mobile-icon-button" onClick={onClose} type="button">
+        <button aria-label={controls.closeLabel} className="guide-mobile-icon-button" onClick={onClose} type="button">
           <X aria-hidden="true" size={16} />
         </button>
       </div>
 
       <div className="guide-mobile-sheet-body">
         <p className="guide-mobile-sheet-message" id="guide-mobile-message">
-          {isSkipConfirmationOpen
-            ? "এখন বন্ধ করলে পরে হেডারের ম্যাসকট বাটন থেকে আবার দেখতে পারবেন।"
-            : dialog.message}
+          {isSkipConfirmationOpen ? controls.mobileSkipConfirmMessage : dialog.message}
         </p>
 
         {!isSkipConfirmationOpen ? (
           <div className="guide-mobile-progress" role="status">
             <div className="guide-mobile-progress-meta">
-              <span className="guide-mobile-progress-label">পরিচিতি</span>
+              <span className="guide-mobile-progress-label">{controls.introPhase}</span>
               <span className="guide-mobile-progress-count">
                 {stepIndex + 1} / {stepCount}
               </span>
@@ -130,7 +136,7 @@ export function GuideMobileSheet({
               onChange={(event) => onSuppressContextualPromptsChange(event.target.checked)}
               type="checkbox"
             />
-            <span>ভবিষ্যতে স্বয়ংক্রিয়ভাবে এই গাইড দেখাবেন না</span>
+            <span>{controls.suppressPrompts}</span>
           </label>
         )}
       </div>
@@ -138,10 +144,10 @@ export function GuideMobileSheet({
       {isSkipConfirmationOpen ? (
         <div className="guide-mobile-confirm-actions">
           <button className="guide-mobile-secondary-button" onClick={onCancelSkip} type="button">
-            চালিয়ে যান
+            {controls.continue}
           </button>
           <button className="guide-mobile-primary-button" onClick={onConfirmSkip} type="button">
-            বাদ দিন
+            {controls.dismiss}
           </button>
         </div>
       ) : (
@@ -149,14 +155,14 @@ export function GuideMobileSheet({
           {stepIndex > 0 ? (
             <button className="guide-mobile-secondary-button" onClick={onPrevious} type="button">
               <ArrowLeft aria-hidden="true" size={14} />
-              তার আগে
+              {controls.previous}
             </button>
           ) : (
             <span aria-hidden="true" className="guide-mobile-action-spacer" />
           )}
           <div className="guide-mobile-action-end">
             <button className="guide-mobile-skip-button" onClick={onSkip} type="button">
-              বাদ দিন
+              {controls.skip}
             </button>
             <button
               className="guide-mobile-primary-button"
@@ -164,7 +170,7 @@ export function GuideMobileSheet({
               onClick={onNext}
               type="button"
             >
-              {isLastStep ? "শুরু করি" : "তারপর"}
+              {isLastStep ? controls.finish : controls.next}
               <ArrowRight aria-hidden="true" size={14} />
             </button>
           </div>

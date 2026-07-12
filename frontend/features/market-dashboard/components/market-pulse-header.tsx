@@ -7,11 +7,14 @@ import { ArrowUpDown, Banknote, BarChart3, Trophy, type LucideIcon } from "lucid
 import { WorkspaceCommandSearch } from "@/components/command/workspace-command-search";
 import { MarketDataFreshnessBar } from "@/components/layout/market-data-freshness-bar";
 import { DashboardGuideLauncher } from "@/features/guide/components/dashboard-guide-launcher";
+import { DashboardLocaleSwitcher } from "@/features/market-dashboard/components/dashboard-locale-switcher";
 import { MarketPulseLeadersSkeleton } from "@/features/market-dashboard/components/dashboard-skeletons";
+import type { DashboardLanguage } from "@/features/market-dashboard/dashboard-language";
 import type { MarketDashboardModel } from "@/features/market-dashboard/types/market-dashboard-types";
 import type { PulseTone } from "@/lib/market/market-pulse-metrics";
+import type { AppLocale } from "@/lib/locale/app-locale";
 
-export function MarketDashboardHeader() {
+export function MarketDashboardHeader({ locale }: { locale: AppLocale }) {
   return (
     <header className="market-dashboard-header" data-guide="dashboard-header">
       <Image
@@ -24,8 +27,9 @@ export function MarketDashboardHeader() {
       />
       <div className="market-dashboard-header-tools">
         <WorkspaceCommandSearch filterContextName="market dashboard" showQuickActions={false} variant="discovery" />
-        <MarketDataFreshnessBar variant="inline" />
-        <DashboardGuideLauncher />
+        <MarketDataFreshnessBar locale={locale} variant="inline" />
+        <DashboardLocaleSwitcher locale={locale} />
+        <DashboardGuideLauncher locale={locale} />
       </div>
     </header>
   );
@@ -33,31 +37,41 @@ export function MarketDashboardHeader() {
 
 type MarketPulsePanelProps = {
   model: MarketDashboardModel;
+  copy: DashboardLanguage["pulse"];
   leadersLoading?: boolean;
 };
 
-export function MarketPulsePanel({ model, leadersLoading = false }: MarketPulsePanelProps) {
+export function MarketPulsePanel({ model, copy, leadersLoading = false }: MarketPulsePanelProps) {
   const { pulse } = model;
   const indexArrow = pulse.indexTone === "positive" ? "▲" : pulse.indexTone === "negative" ? "▼" : "•";
 
   const tickerItems = [
     `${pulse.indexName} ${indexArrow} ${pulse.indexChangeLabel}`,
-    pulse.marketStatus ? `Market ${pulse.marketStatus}` : null,
+    pulse.marketStatus ? `${copy.marketPrefix} ${pulse.marketStatus}` : null,
     `${pulse.turnoverContext.insight} · ${pulse.turnoverLabel}`,
     `${pulse.volumeContext.insight} · ${pulse.volumeLabel}`,
     pulse.breadthContext.insight,
-    pulse.leadersContext.rows[0] ? `Leader: ${pulse.leadersContext.rows[0].name}` : null,
+    pulse.leadersContext.rows[0] ? `${copy.leaderPrefix}: ${pulse.leadersContext.rows[0].name}` : null,
   ].filter(Boolean) as string[];
 
   return (
-    <section className="market-pulse-panel" aria-label="Market pulse" data-guide="market-pulse" data-guide-ready="true">
+    <section
+      aria-label={copy.ariaLabel}
+      className="market-pulse-panel"
+      data-guide="market-pulse"
+      data-guide-ready="true"
+    >
       <div className="market-pulse-card">
-        <div className="market-pulse-strip" role="list" aria-label="Market performance">
-          <DsexStripCell indexArrow={indexArrow} pulse={pulse} />
-          <TurnoverWidgetCard context={pulse.turnoverContext} footer={pulse.turnoverHelper} />
-          <VolumeWidgetCard context={pulse.volumeContext} footer={pulse.volumeHelper} />
-          <BreadthWidgetCard context={pulse.breadthContext} />
-          {leadersLoading ? <MarketPulseLeadersSkeleton /> : <LeadersWidgetCard context={pulse.leadersContext} />}
+        <div aria-label={copy.performanceAriaLabel} className="market-pulse-strip" role="list">
+          <DsexStripCell copy={copy} indexArrow={indexArrow} pulse={pulse} />
+          <TurnoverWidgetCard context={pulse.turnoverContext} copy={copy} footer={pulse.turnoverHelper} />
+          <VolumeWidgetCard context={pulse.volumeContext} copy={copy} footer={pulse.volumeHelper} />
+          <BreadthWidgetCard context={pulse.breadthContext} copy={copy} />
+          {leadersLoading ? (
+            <MarketPulseLeadersSkeleton />
+          ) : (
+            <LeadersWidgetCard context={pulse.leadersContext} copy={copy} />
+          )}
         </div>
       </div>
 
@@ -77,9 +91,10 @@ export function MarketPulsePanel({ model, leadersLoading = false }: MarketPulseP
 type DsexStripCellProps = {
   pulse: MarketDashboardModel["pulse"];
   indexArrow: string;
+  copy: DashboardLanguage["pulse"];
 };
 
-function DsexStripCell({ pulse, indexArrow }: DsexStripCellProps) {
+function DsexStripCell({ pulse, indexArrow, copy }: DsexStripCellProps) {
   return (
     <div className={`market-pulse-dsex market-pulse-dsex-balanced market-pulse-dsex-${pulse.indexTone}`} role="listitem">
       <div className="market-pulse-dsex-hero">
@@ -89,7 +104,7 @@ function DsexStripCell({ pulse, indexArrow }: DsexStripCellProps) {
             {pulse.marketStatus ? <span className="market-pulse-dsex-status">{pulse.marketStatus}</span> : null}
           </div>
           <div className="market-pulse-dsex-quote">
-            <strong className="market-pulse-dsex-value">{pulse.indexAvailable ? pulse.indexValue : "Awaiting index data"}</strong>
+            <strong className="market-pulse-dsex-value">{pulse.indexAvailable ? pulse.indexValue : copy.awaitingIndex}</strong>
             {pulse.indexAvailable ? (
               <span className={`market-pulse-dsex-move market-pulse-dsex-move-${pulse.indexTone}`}>
                 {indexArrow} {pulse.indexChangeLabel}
@@ -100,9 +115,9 @@ function DsexStripCell({ pulse, indexArrow }: DsexStripCellProps) {
 
         {pulse.indexDayStats ? (
           <div className="market-pulse-dsex-ohlc">
-            <OhlcStat label="Day Open" tone="positive" value={pulse.indexDayStats.open} />
-            <OhlcStat label="Day High" tone="positive" value={pulse.indexDayStats.high} />
-            <OhlcStat label="Day Low" tone="negative" value={pulse.indexDayStats.low} />
+            <OhlcStat label={copy.dayOpen} tone="positive" value={pulse.indexDayStats.open} />
+            <OhlcStat label={copy.dayHigh} tone="positive" value={pulse.indexDayStats.high} />
+            <OhlcStat label={copy.dayLow} tone="negative" value={pulse.indexDayStats.low} />
           </div>
         ) : null}
       </div>
@@ -121,7 +136,7 @@ function DsexStripCell({ pulse, indexArrow }: DsexStripCellProps) {
         {pulse.indexRange ? (
           <div className="market-pulse-dsex-range">
             <div className="market-pulse-range-head">
-              <span>52 Week Range</span>
+              <span>{copy.weekRange}</span>
               <span>
                 {pulse.indexRange.lowLabel} - {pulse.indexRange.highLabel}
               </span>
@@ -266,22 +281,24 @@ function WidgetFooter({ children }: { children: string }) {
 function TurnoverWidgetCard({
   context,
   footer,
+  copy,
 }: {
   context: MarketDashboardModel["pulse"]["turnoverContext"];
   footer: string;
+  copy: DashboardLanguage["pulse"];
 }) {
   return (
-    <WidgetShell category="Turnover" icon={Banknote} iconTone="turnover">
+    <WidgetShell category={copy.turnoverCategory} icon={Banknote} iconTone="turnover">
       <WidgetInsight tone={context.insightTone}>{context.insight}</WidgetInsight>
       <WidgetPrimary tone="info">{context.primaryValue}</WidgetPrimary>
       <WidgetDivider />
       <div className="pulse-widget-context-row">
-        <ContextPill label="vs Yesterday" tone={context.vsYesterdayTone} value={context.vsYesterday} />
-        <ContextPill label="vs 30D Avg" tone="neutral" value={context.vs30DayAvg} />
+        <ContextPill label={copy.vsYesterday} tone={context.vsYesterdayTone} value={context.vsYesterday} />
+        <ContextPill label={copy.vs30DayAvg} tone="neutral" value={context.vs30DayAvg} />
       </div>
       <div className="pulse-widget-anchor">
         <LabeledMeter
-          label="Liquidity vs 30D avg"
+          label={copy.liquidityVs30D}
           percent={context.activityMeterPercent}
           tone={context.insightTone === "neutral" ? "info" : context.insightTone}
         />
@@ -294,14 +311,16 @@ function TurnoverWidgetCard({
 function VolumeWidgetCard({
   context,
   footer,
+  copy,
 }: {
   context: MarketDashboardModel["pulse"]["volumeContext"];
   footer: string;
+  copy: DashboardLanguage["pulse"];
 }) {
   const meterTone = context.insightTone === "neutral" ? "info" : context.insightTone;
 
   return (
-    <WidgetShell balanced category="Volume" icon={BarChart3} iconTone="volume">
+    <WidgetShell balanced category={copy.volumeCategory} icon={BarChart3} iconTone="volume">
       <div className="pulse-widget-hero-block pulse-widget-hero-emphasis">
         <StatusChip tone={context.insightTone}>{context.insight}</StatusChip>
         <WidgetPrimary tone="info">{context.primaryValue}</WidgetPrimary>
@@ -309,10 +328,10 @@ function VolumeWidgetCard({
       <div className="pulse-widget-detail-block">
         <WidgetDivider />
         <div className="pulse-widget-context-row">
-          <ContextPill label="30D Typical" tone="neutral" value={context.typicalVolume} />
-          <ContextPill label="vs 30D Avg" tone={context.insightTone} value={context.ratioVsAvg} />
+          <ContextPill label={copy.typical30D} tone="neutral" value={context.typicalVolume} />
+          <ContextPill label={copy.vs30DayAvg} tone={context.insightTone} value={context.ratioVsAvg} />
         </div>
-        <LabeledMeter label="Participation Strength" percent={context.participationMeterPercent} tone={meterTone} />
+        <LabeledMeter label={copy.participationStrength} percent={context.participationMeterPercent} tone={meterTone} />
         <WidgetFooter>{footer}</WidgetFooter>
       </div>
     </WidgetShell>
@@ -339,25 +358,31 @@ function BreadthStatChip({
   );
 }
 
-function BreadthWidgetCard({ context }: { context: MarketDashboardModel["pulse"]["breadthContext"] }) {
+function BreadthWidgetCard({
+  context,
+  copy,
+}: {
+  context: MarketDashboardModel["pulse"]["breadthContext"];
+  copy: DashboardLanguage["pulse"];
+}) {
   return (
-    <WidgetShell balanced category="Breadth" icon={ArrowUpDown} iconTone="breadth">
+    <WidgetShell balanced category={copy.breadthCategory} icon={ArrowUpDown} iconTone="breadth">
       <div className="pulse-widget-hero-block pulse-widget-hero-emphasis">
         <WidgetInsight tone={context.insightTone}>{context.insight}</WidgetInsight>
         <WidgetPrimary tone={context.ratioTone}>{context.ratioLabel}</WidgetPrimary>
       </div>
       <div className="pulse-widget-detail-block">
         <WidgetDivider />
-        <div className="pulse-widget-viz-label">Adv/Decl Ratio</div>
+        <div className="pulse-widget-viz-label">{copy.advDeclRatio}</div>
         <div className="pulse-breadth-bar pulse-breadth-bar-tall" aria-hidden="true">
           <span className="pulse-breadth-segment pulse-breadth-segment-adv" style={{ width: `${context.advancingPercent}%` }} />
           <span className="pulse-breadth-segment pulse-breadth-segment-unch" style={{ width: `${context.unchangedPercent}%` }} />
           <span className="pulse-breadth-segment pulse-breadth-segment-decl" style={{ width: `${context.decliningPercent}%` }} />
         </div>
         <div className="pulse-widget-breadth-chips">
-          <BreadthStatChip count={context.advancing} label="Adv" percent={context.advancingPercent} tone="positive" />
-          <BreadthStatChip count={context.unchanged} label="Unch" percent={context.unchangedPercent} tone="neutral" />
-          <BreadthStatChip count={context.declining} label="Decl" percent={context.decliningPercent} tone="negative" />
+          <BreadthStatChip count={context.advancing} label={copy.adv} percent={context.advancingPercent} tone="positive" />
+          <BreadthStatChip count={context.unchanged} label={copy.unch} percent={context.unchangedPercent} tone="neutral" />
+          <BreadthStatChip count={context.declining} label={copy.decl} percent={context.decliningPercent} tone="negative" />
         </div>
         <WidgetFooter>{context.footer}</WidgetFooter>
       </div>
@@ -365,9 +390,15 @@ function BreadthWidgetCard({ context }: { context: MarketDashboardModel["pulse"]
   );
 }
 
-function LeadersWidgetCard({ context }: { context: MarketDashboardModel["pulse"]["leadersContext"] }) {
+function LeadersWidgetCard({
+  context,
+  copy,
+}: {
+  context: MarketDashboardModel["pulse"]["leadersContext"];
+  copy: DashboardLanguage["pulse"];
+}) {
   return (
-    <WidgetShell balanced category="Leaders" icon={Trophy} iconTone="leaders">
+    <WidgetShell balanced category={copy.leadersCategory} icon={Trophy} iconTone="leaders">
       <div className="pulse-widget-leaders-rows">
         {context.rows.map((row) => (
           <div className="pulse-leader-row" key={row.label}>

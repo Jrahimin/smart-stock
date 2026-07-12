@@ -3,6 +3,8 @@
 import { Clock3, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import type { DashboardLanguage } from "@/features/market-dashboard/dashboard-language";
+import { getDashboardLanguage } from "@/features/market-dashboard/dashboard-language";
 import {
   buildMarketFreshnessViewModel,
   formatRelativeLastUpdated,
@@ -10,14 +12,35 @@ import {
 } from "@/hooks/market/use-market-data-freshness";
 import { useMarketCacheRefresh } from "@/hooks/market/use-market-cache-coordinator";
 import type { ExchangeCode } from "@/lib/api/backend-api-types";
+import type { AppLocale } from "@/lib/locale/app-locale";
 
-function buildFreshnessTooltip(model: ReturnType<typeof buildMarketFreshnessViewModel>) {
+const englishFreshnessLabels: DashboardLanguage["freshness"] = {
+  syncing: "Syncing…",
+  statusUnavailable: "Status unavailable",
+  statusUnavailableTitle: "Market snapshot status unavailable",
+  lastUpdated: (relative) => `Last updated ${relative}`,
+  noSnapshotYet: "No snapshot yet",
+  lastUpdatedPending: "Last updated …",
+  refreshAria: "Refresh market data",
+  refreshTitle: "Refresh market data",
+  refreshDisabledTitle: "Refresh unavailable during this session",
+  synced: (label) => `Synced ${label}`,
+  session: (label) => `Session: ${label}`,
+  nextUpdate: (label) => `Next update: ${label}`,
+};
+
+function buildFreshnessTooltip(
+  model: ReturnType<typeof buildMarketFreshnessViewModel>,
+  labels: DashboardLanguage["freshness"],
+  staleDisclaimer?: string,
+) {
   const parts = [
-    model.lastUpdatedLabel ? `Synced ${model.lastUpdatedLabel}` : null,
+    model.lastUpdatedLabel ? labels.synced(model.lastUpdatedLabel) : null,
     model.freshnessLabel,
-    model.sessionLabel ? `Session: ${model.sessionLabel}` : null,
-    model.nextUpdateLabel ? `Next update: ${model.nextUpdateLabel}` : null,
+    model.sessionLabel ? labels.session(model.sessionLabel) : null,
+    model.nextUpdateLabel ? labels.nextUpdate(model.nextUpdateLabel) : null,
     model.delayDisclaimer,
+    staleDisclaimer,
   ].filter(Boolean);
 
   return parts.length > 0 ? parts.join(" · ") : undefined;
@@ -44,18 +67,28 @@ function FreshnessChip({ className, label, title }: FreshnessChipProps) {
 
 type MarketFreshnessRefreshButtonProps = {
   disabled?: boolean;
+  disabledTitle: string;
   isRefreshing?: boolean;
   onRefresh: () => void;
+  refreshAria: string;
+  refreshTitle: string;
 };
 
-function MarketFreshnessRefreshButton({ disabled = false, isRefreshing = false, onRefresh }: MarketFreshnessRefreshButtonProps) {
+function MarketFreshnessRefreshButton({
+  disabled = false,
+  disabledTitle,
+  isRefreshing = false,
+  onRefresh,
+  refreshAria,
+  refreshTitle,
+}: MarketFreshnessRefreshButtonProps) {
   return (
     <button
-      aria-label="Refresh market data"
+      aria-label={refreshAria}
       className="market-freshness-refresh-button"
       disabled={disabled || isRefreshing}
       onClick={onRefresh}
-      title={disabled ? "Refresh unavailable during this session" : "Refresh market data"}
+      title={disabled ? disabledTitle : refreshTitle}
       type="button"
     >
       <RefreshCw aria-hidden="true" className={isRefreshing ? "market-freshness-refresh-icon-spinning" : undefined} size={12} strokeWidth={2.25} />
@@ -68,6 +101,8 @@ export type MarketDataFreshnessBarProps = {
   variant?: "inline" | "embedded" | "status";
   exchange?: ExchangeCode;
   className?: string;
+  /** When set, dashboard freshness copy and stale disclaimer are localized. */
+  locale?: AppLocale;
 };
 
 function resolveFreshnessWrapperClass(variant: MarketDataFreshnessBarProps["variant"]) {
@@ -80,12 +115,20 @@ function resolveFreshnessWrapperClass(variant: MarketDataFreshnessBarProps["vari
   return "market-freshness-bar market-freshness-bar-embedded";
 }
 
-export function MarketDataFreshnessBar({ variant = "embedded", exchange = "DSE", className }: MarketDataFreshnessBarProps) {
+export function MarketDataFreshnessBar({
+  variant = "embedded",
+  exchange = "DSE",
+  className,
+  locale,
+}: MarketDataFreshnessBarProps) {
   const { data, isLoading, isError } = useMarketDataFreshness(exchange);
   const refreshMarketCaches = useMarketCacheRefresh();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [hasMounted, setHasMounted] = useState(false);
   const [, setTick] = useState(0);
+  const dashboardLanguage = locale ? getDashboardLanguage(locale) : null;
+  const labels = dashboardLanguage?.freshness ?? englishFreshnessLabels;
+  const staleDisclaimer = dashboardLanguage?.states.staleDisclaimer;
 
   useEffect(() => {
     setHasMounted(true);
@@ -97,7 +140,7 @@ export function MarketDataFreshnessBar({ variant = "embedded", exchange = "DSE",
   }, []);
 
   const model = buildMarketFreshnessViewModel(data, isLoading, isError);
-  const tooltip = buildFreshnessTooltip(model);
+  const tooltip = buildFreshnessTooltip(model, labels, staleDisclaimer);
   const wrapperClass = [resolveFreshnessWrapperClass(variant), "market-freshness-bar-with-refresh", className]
     .filter(Boolean)
     .join(" ");
@@ -115,7 +158,7 @@ export function MarketDataFreshnessBar({ variant = "embedded", exchange = "DSE",
   if (isLoading && !model.lastUpdatedLabel) {
     return (
       <div className={wrapperClass}>
-        <FreshnessChip className="market-freshness-chip-loading" label="Syncing…" />
+        <FreshnessChip className="market-freshness-chip-loading" label={labels.syncing} />
       </div>
     );
   }
@@ -125,26 +168,39 @@ export function MarketDataFreshnessBar({ variant = "embedded", exchange = "DSE",
       <div className={wrapperClass}>
         <FreshnessChip
           className="market-freshness-chip-warning"
-          label="Status unavailable"
-          title="Market snapshot status unavailable"
+          label={labels.statusUnavailable}
+          title={labels.statusUnavailableTitle}
         />
-        <MarketFreshnessRefreshButton isRefreshing={isRefreshing} onRefresh={handleRefresh} />
+        <MarketFreshnessRefreshButton
+          disabledTitle={labels.refreshDisabledTitle}
+          isRefreshing={isRefreshing}
+          onRefresh={handleRefresh}
+          refreshAria={labels.refreshAria}
+          refreshTitle={labels.refreshTitle}
+        />
       </div>
     );
   }
 
   const label = relativeLabel
-    ? `Last updated ${relativeLabel}`
+    ? labels.lastUpdated(relativeLabel)
     : hasMounted
-      ? "No snapshot yet"
+      ? labels.noSnapshotYet
       : model.lastUpdatedLabel
-        ? "Last updated …"
-        : "Syncing…";
+        ? labels.lastUpdatedPending
+        : labels.syncing;
 
   return (
     <div className={wrapperClass}>
       <FreshnessChip label={label} title={tooltip} />
-      <MarketFreshnessRefreshButton disabled={refreshDisabled} isRefreshing={isRefreshing} onRefresh={handleRefresh} />
+      <MarketFreshnessRefreshButton
+        disabled={refreshDisabled}
+        disabledTitle={labels.refreshDisabledTitle}
+        isRefreshing={isRefreshing}
+        onRefresh={handleRefresh}
+        refreshAria={labels.refreshAria}
+        refreshTitle={labels.refreshTitle}
+      />
     </div>
   );
 }

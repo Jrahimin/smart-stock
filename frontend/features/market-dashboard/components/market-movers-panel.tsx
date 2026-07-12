@@ -7,12 +7,16 @@ type MarketMoversPanelProps = {
   title: string;
   movers: MarketMoverModel[];
   eyebrow?: string;
+  emptyText: string;
+  turnoverSuffix: string;
 };
 
 export const MarketMoversPanel = memo(function MarketMoversPanel({
   title,
   movers,
   eyebrow = "Market Movers",
+  emptyText,
+  turnoverSuffix,
 }: MarketMoversPanelProps) {
   return (
     <section className="workspace-card">
@@ -34,11 +38,13 @@ export const MarketMoversPanel = memo(function MarketMoversPanel({
                 <strong>{mover.changePercent}</strong>
                 <span>{mover.latestPrice}</span>
               </div>
-              <small>{mover.turnover} turnover</small>
+              <small>
+                {mover.turnover} {turnoverSuffix}
+              </small>
             </Link>
           ))
         ) : (
-          <div className="empty-state">No price-backed movers are available yet.</div>
+          <div className="empty-state">{emptyText}</div>
         )}
       </div>
     </section>

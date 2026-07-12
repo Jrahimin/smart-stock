@@ -5,8 +5,12 @@ import { useEffect, useState } from "react";
 import { DashboardDesktopGuide } from "@/features/guide/components/dashboard-desktop-guide";
 import { DashboardMobileGuide } from "@/features/guide/components/dashboard-mobile-guide";
 
+import type { AppLocale } from "@/lib/locale/app-locale";
+import { DEFAULT_LOCALE } from "@/lib/locale/app-locale";
+
 type DashboardSidebarGuideProps = {
   onMobileNavigationOpenChange: (isOpen: boolean) => void;
+  dashboardLocale?: AppLocale;
 };
 
 function useIsMobileViewport() {
@@ -29,7 +33,10 @@ function useIsMobileViewport() {
   return isMobile;
 }
 
-export function DashboardSidebarGuide({ onMobileNavigationOpenChange }: DashboardSidebarGuideProps) {
+export function DashboardSidebarGuide({
+  onMobileNavigationOpenChange,
+  dashboardLocale = DEFAULT_LOCALE,
+}: DashboardSidebarGuideProps) {
   const isMobile = useIsMobileViewport();
   const [mounted, setMounted] = useState(false);
 
@@ -42,8 +49,10 @@ export function DashboardSidebarGuide({ onMobileNavigationOpenChange }: Dashboar
   }
 
   if (isMobile) {
-    return <DashboardMobileGuide onMobileNavigationOpenChange={onMobileNavigationOpenChange} />;
+    return (
+      <DashboardMobileGuide locale={dashboardLocale} onMobileNavigationOpenChange={onMobileNavigationOpenChange} />
+    );
   }
 
-  return <DashboardDesktopGuide />;
+  return <DashboardDesktopGuide locale={dashboardLocale} />;
 }

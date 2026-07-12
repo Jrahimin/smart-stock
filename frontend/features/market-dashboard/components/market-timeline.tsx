@@ -1,19 +1,21 @@
 import { memo } from "react";
 
+import type { DashboardLanguage } from "@/features/market-dashboard/dashboard-language";
 import type { MarketTimelineItemModel } from "@/features/market-dashboard/types/market-dashboard-types";
 
 type MarketTimelineProps = {
   items: MarketTimelineItemModel[];
+  copy: DashboardLanguage["timeline"];
 };
 
-export const MarketTimeline = memo(function MarketTimeline({ items }: MarketTimelineProps) {
+export const MarketTimeline = memo(function MarketTimeline({ items, copy }: MarketTimelineProps) {
   return (
     <section className="workspace-card market-timeline-section">
       <div className="section-heading">
-        <p className="eyebrow">Market Timeline</p>
-        <h2>Events and operating context</h2>
+        <p className="eyebrow">{copy.eyebrow}</p>
+        <h2>{copy.title}</h2>
       </div>
-      <div className="market-timeline-track" role="list" aria-label="Market timeline events">
+      <div aria-label="Market timeline events" className="market-timeline-track" role="list">
         {items.length ? (
           items.map((item) => (
             <article className="market-timeline-tile" key={`${item.time}-${item.title}`} role="listitem">
@@ -24,7 +26,7 @@ export const MarketTimeline = memo(function MarketTimeline({ items }: MarketTime
           ))
         ) : (
           <div className="market-timeline-tile market-timeline-tile-empty">
-            <p>Timeline events will appear after the next market scan.</p>
+            <p>{copy.empty}</p>
           </div>
         )}
       </div>

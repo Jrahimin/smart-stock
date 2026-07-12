@@ -1,26 +1,30 @@
 "use client";
 
 import { guideCharacterAssetByPose } from "@/features/guide/character/guide-character-assets";
+import type { GuideNudgeCopy } from "@/features/guide/dialogs/dashboard-dialogs";
+import type { AppLocale } from "@/lib/locale/app-locale";
 
-type GuideTourNudgeProps = {
-  eyebrow?: string;
-  message?: string;
+type GuideTourNudgeProps = GuideNudgeCopy & {
+  locale: AppLocale;
   onAccept: () => void;
   onDismiss: () => void;
   onSnooze: () => void;
-  title?: string;
 };
 
 export function GuideTourNudge({
-  eyebrow = "ট্যুর গাইড",
-  message = "ড্যাশবোর্ড ও মেনুর মূল অংশগুলো দেখে নিতে আমি আপনাকে সংক্ষিপ্ত ট্যুরে নিয়ে যেতে পারি।",
+  accept,
+  dismiss,
+  eyebrow,
+  locale,
+  message,
   onAccept,
   onDismiss,
   onSnooze,
-  title = "আপনি কি গাইডের সহায়তায় ঘুরে আসতে চান?",
+  snooze,
+  title,
 }: GuideTourNudgeProps) {
   return (
-    <div className="product-guide-nudge-root" lang="bn">
+    <div className="product-guide-nudge-root" lang={locale}>
       <div
         aria-describedby="product-guide-nudge-message"
         aria-labelledby="product-guide-nudge-title"
@@ -47,13 +51,13 @@ export function GuideTourNudge({
 
         <div className="product-guide-nudge-actions">
           <button className="product-guide-secondary-button" onClick={onSnooze} type="button">
-            এখন নয়
+            {snooze}
           </button>
           <button className="product-guide-skip-button" onClick={onDismiss} type="button">
-            আর জিজ্ঞেস করবেন না
+            {dismiss}
           </button>
           <button className="product-guide-primary-button" onClick={onAccept} type="button">
-            হ্যাঁ, শুরু করি
+            {accept}
           </button>
         </div>
       </div>

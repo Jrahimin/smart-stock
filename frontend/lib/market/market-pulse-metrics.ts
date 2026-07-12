@@ -49,9 +49,13 @@ export type SectorLeaderSnapshot = {
   label: string;
 };
 
+export type LeaderRowKind = "top_sector" | "runner_up" | "top_stock" | "coverage";
+
 export type LeaderHighlightRow = {
+  kind: LeaderRowKind;
   label: string;
   name: string;
+  nameKey?: "leadership_pending";
   performanceBadge: string;
   performanceTone: PulseTone;
 };
@@ -266,6 +270,7 @@ export function buildLeadersPulseContext(
 
   if (primary) {
     rows.push({
+      kind: "top_sector",
       label: "Top Sector",
       name: primary.name,
       performanceBadge: formatPercent(primary.changePercent),
@@ -275,6 +280,7 @@ export function buildLeadersPulseContext(
 
   if (runnerUp) {
     rows.push({
+      kind: "runner_up",
       label: "Runner-up",
       name: runnerUp.name,
       performanceBadge: formatPercent(runnerUp.changePercent),
@@ -284,6 +290,7 @@ export function buildLeadersPulseContext(
 
   if (topStock) {
     rows.push({
+      kind: "top_stock",
       label: "Top Stock",
       name: topStock.stock.symbol,
       performanceBadge: formatPercent(topStock.priceChangePercent),
@@ -293,8 +300,10 @@ export function buildLeadersPulseContext(
 
   if (!rows.length) {
     rows.push({
+      kind: "coverage",
       label: "Coverage",
       name: "Leadership pending",
+      nameKey: "leadership_pending",
       performanceBadge: "—",
       performanceTone: "neutral",
     });

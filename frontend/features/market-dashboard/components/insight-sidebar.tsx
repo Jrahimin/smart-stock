@@ -1,17 +1,19 @@
 import { memo } from "react";
 
+import type { DashboardLanguage } from "@/features/market-dashboard/dashboard-language";
 import type { InsightBlockModel } from "@/lib/insights/insight-types";
 
 type InsightSidebarProps = {
   insights: InsightBlockModel[];
+  copy: DashboardLanguage["insights"];
 };
 
-export const InsightSidebar = memo(function InsightSidebar({ insights }: InsightSidebarProps) {
+export const InsightSidebar = memo(function InsightSidebar({ insights, copy }: InsightSidebarProps) {
   return (
     <aside className="insight-sidebar">
       <div className="section-heading">
-        <p className="eyebrow">Insights</p>
-        <h2>Deterministic intelligence</h2>
+        <p className="eyebrow">{copy.eyebrow}</p>
+        <h2>{copy.title}</h2>
       </div>
       {insights.map((insight) => (
         <article className={`insight-block insight-block-${insight.tone} insight-category-${insight.category}`} key={insight.id}>

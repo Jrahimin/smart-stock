@@ -19,6 +19,7 @@ import { buildMarketIndexContext } from "@/lib/market/market-index-context";
 import { getMarketSession } from "@/lib/market/market-session-engine";
 import type {
   BreadthModel,
+  ExchangeMetricSource,
   HeatmapTileModel,
   MarketDashboardModel,
   MarketDirection,
@@ -26,7 +27,15 @@ import type {
   MarketPulseModel,
   MarketTimelineItemModel,
   SignalFeedItemModel,
+  TradeDateStatus,
 } from "@/features/market-dashboard/types/market-dashboard-types";
+import {
+  getDashboardLanguage,
+  type MarketNarrativeKey,
+} from "@/features/market-dashboard/dashboard-language";
+import type { AppLocale } from "@/lib/locale/app-locale";
+import { DEFAULT_LOCALE } from "@/lib/locale/app-locale";
+import type { LeaderRowKind } from "@/lib/market/market-pulse-metrics";
 
 function getLatestSummary(summaries: BackendDailyMarketSummaryDto[]) {
   const sorted = [...summaries].sort((a, b) => b.trade_date.localeCompare(a.trade_date));
@@ -104,6 +113,231 @@ function deriveMarketDirection(
   return { direction: "mixed", label: "Mixed Session" };
 }
 
+export function resolveMarketNarrativeKey(input: {
+  direction: MarketDirection;
+  indexChangePercent: number | null;
+  advancing: number;
+  declining: number;
+}): MarketNarrativeKey {
+  const indexMove = input.indexChangePercent ?? 0;
+  const indexStable = Math.abs(indexMove) < 0.3;
+
+  if (indexStable && input.declining > input.advancing * 1.1) {
+    return "index_stable_breadth_weak";
+  }
+
+  if (input.direction === "sellers") {
+    return "sellers_dominant";
+  }
+
+  if (input.direction === "buyers") {
+    if (indexMove > 0.2 && input.advancing > input.declining) {
+      return "early_recovery";
+    }
+
+    return "buyers_active";
+  }
+
+  return "sideways_waiting";
+}
+
+function resolveLiquidityNarrativeKey(ratio: number | null): MarketNarrativeKey {
+  if (ratio === null) {
+    return "average_liquidity";
+  }
+
+  if (ratio >= 1.08) {
+    return "strong_liquidity";
+  }
+
+  if (ratio <= 0.92) {
+    return "weak_liquidity";
+  }
+
+  return "average_liquidity";
+}
+
+function resolveParticipationNarrativeKey(ratio: number | null): MarketNarrativeKey {
+  if (ratio === null) {
+    return "participation_near";
+  }
+
+  if (ratio >= 1.08) {
+    return "participation_above";
+  }
+
+  if (ratio <= 0.92) {
+    return "participation_below";
+  }
+
+  return "participation_near";
+}
+
+function localizeLeaderRowLabel(kind: LeaderRowKind, language: ReturnType<typeof getDashboardLanguage>) {
+  switch (kind) {
+    case "top_sector":
+      return language.hero.topSector;
+    case "runner_up":
+      return language.hero.runnerUp;
+    case "top_stock":
+      return language.hero.topStock;
+    case "coverage":
+      return language.hero.coverage;
+  }
+}
+
+function localizeHeroMetric(
+  metric: MarketDashboardModel["heroMetrics"][number],
+  language: ReturnType<typeof getDashboardLanguage>,
+  context: { breadth: BreadthModel; priceBackedCount: number },
+) {
+  const localized = { ...metric };
+
+  switch (metric.kind) {
+    case "market_mood":
+      localized.label = language.states.marketMood;
+      localized.helper =
+        metric.helperKind === "breadth_summary"
+          ? language.states.advancingDeclining(context.breadth.advancing, context.breadth.declining)
+          : language.states.awaitingCoverage;
+      break;
+    case "index":
+      if (metric.indexValueStatus === "pending") {
+        localized.value = language.states.indexPending;
+      }
+      localized.helper =
+        metric.helperKind === "index_unavailable"
+          ? language.states.indexUnavailable
+          : localized.helper;
+      break;
+    case "turnover":
+      localized.label = language.states.turnover;
+      localized.helper =
+        metric.helperKind === "latest_turnover"
+          ? language.states.latestTurnover
+          : language.pulse.exchangeTurnoverSnapshot;
+      break;
+    case "listed_stocks":
+      localized.label = language.states.listedStocks;
+      localized.helper = language.states.priceBackedHelper(context.priceBackedCount);
+      break;
+  }
+
+  return localized;
+}
+
+function resolveVolumeNarrativeKey(pricesRising: boolean, ratio: number | null): MarketNarrativeKey {
+  if (pricesRising && ratio !== null && ratio < 1.08) {
+    return "volume_not_confirming";
+  }
+
+  if (pricesRising && ratio !== null && ratio >= 1.08) {
+    return "volume_confirms_move";
+  }
+
+  return resolveParticipationNarrativeKey(ratio);
+}
+
+function parseRatioFromLabel(label: string): number | null {
+  if (label === "N/A") {
+    return null;
+  }
+
+  const numeric = Number.parseFloat(label.replace("x", ""));
+  return Number.isNaN(numeric) ? null : numeric;
+}
+
+function applyDashboardLocalization(
+  model: MarketDashboardModel,
+  locale: AppLocale,
+  context: {
+    breadth: BreadthModel;
+    indexChangePercent: number | null;
+    turnoverRatio: number | null;
+    volumeRatio: number | null;
+    priceBackedCount: number;
+  },
+): MarketDashboardModel {
+  if (locale === "en") {
+    return model;
+  }
+
+  const language = getDashboardLanguage(locale);
+  const { pulse } = model;
+  const directionLabel =
+    pulse.marketDirection === "buyers"
+      ? language.direction.buyers
+      : pulse.marketDirection === "sellers"
+        ? language.direction.sellers
+        : language.direction.mixed;
+  const breadthNarrativeKey = resolveMarketNarrativeKey({
+    direction: pulse.marketDirection,
+    indexChangePercent: context.indexChangePercent,
+    advancing: context.breadth.advancing,
+    declining: context.breadth.declining,
+  });
+
+  const localizedPulse: MarketPulseModel = {
+    ...pulse,
+    marketDirectionLabel: directionLabel,
+    turnoverHelper:
+      pulse.turnoverSource === "snapshot"
+        ? language.pulse.exchangeTurnoverSnapshot
+        : language.pulse.exchangeTurnover,
+    volumeHelper:
+      pulse.volumeSource === "snapshot"
+        ? language.pulse.exchangeVolumeSnapshot
+        : language.pulse.exchangeVolume,
+    turnoverContext: {
+      ...pulse.turnoverContext,
+      insight: language.narratives[resolveLiquidityNarrativeKey(context.turnoverRatio)],
+    },
+    volumeContext: {
+      ...pulse.volumeContext,
+      insight: language.narratives[
+        resolveVolumeNarrativeKey((context.indexChangePercent ?? 0) > 0, context.volumeRatio)
+      ],
+    },
+    breadthContext: {
+      ...pulse.breadthContext,
+      insight: language.narratives[breadthNarrativeKey],
+      footer: language.breadthSummary(
+        context.breadth.advancing,
+        context.breadth.declining,
+        context.breadth.unchanged,
+      ),
+    },
+    leadersContext: {
+      ...pulse.leadersContext,
+      rows: pulse.leadersContext.rows.map((row) => ({
+        ...row,
+        label: localizeLeaderRowLabel(row.kind, language),
+        name: row.nameKey === "leadership_pending" ? language.hero.leadershipPending : row.name,
+      })),
+      footer: language.hero.leadersFooter,
+    },
+    latestTradeDate:
+      pulse.tradeDateStatus === "awaiting"
+        ? language.states.awaitingMarketSummary
+        : pulse.latestTradeDate,
+  };
+
+  return {
+    ...model,
+    latestTradeDate:
+      model.latestTradeDate === "Awaiting market summary" || pulse.tradeDateStatus === "awaiting"
+        ? language.states.awaitingMarketSummary
+        : model.latestTradeDate,
+    pulse: localizedPulse,
+    heroMetrics: model.heroMetrics.map((metric) =>
+      localizeHeroMetric(metric, language, {
+        breadth: context.breadth,
+        priceBackedCount: context.priceBackedCount,
+      }),
+    ),
+  };
+}
+
 function toBreadthFromSnapshot(snapshot: BackendDsexIndexSnapshotDto): BreadthModel {
   return {
     advancing: snapshot.advancing_issues,
@@ -133,6 +367,10 @@ function buildMarketPulseModel(input: {
   const leadingSector = leaders.primary;
   const hasExchangeTurnover = Boolean(dsexSnapshot?.total_turnover ?? latestSummary?.total_turnover);
   const hasExchangeVolume = Boolean(dsexSnapshot?.total_volume ?? latestSummary?.total_volume);
+  const turnoverSource: ExchangeMetricSource = hasExchangeTurnover ? "exchange" : "snapshot";
+  const volumeSource: ExchangeMetricSource = hasExchangeVolume ? "exchange" : "snapshot";
+  const resolvedTradeDate = dsexSnapshot?.trade_date ?? latestSummary?.trade_date;
+  const tradeDateStatus: TradeDateStatus = resolvedTradeDate ? "available" : "awaiting";
 
   return {
     indexName: indexContext.indexName,
@@ -153,8 +391,10 @@ function buildMarketPulseModel(input: {
     marketStatus: indexContext.marketStatus,
     turnoverLabel,
     turnoverHelper: hasExchangeTurnover ? "Exchange turnover" : "Exchange turnover snapshot",
+    turnoverSource,
     volumeLabel,
     volumeHelper: hasExchangeVolume ? "Exchange volume" : "Exchange volume snapshot",
+    volumeSource,
     breadthLabel: `${breadth.advancing} / ${breadth.declining}`,
     breadthAdvancing: breadth.advancing,
     breadthDeclining: breadth.declining,
@@ -162,7 +402,8 @@ function buildMarketPulseModel(input: {
     marketDirection: direction,
     marketDirectionLabel: label,
     marketMood,
-    latestTradeDate: dsexSnapshot?.trade_date ?? latestSummary?.trade_date ?? "Awaiting market summary",
+    latestTradeDate: resolvedTradeDate ?? "Awaiting market summary",
+    tradeDateStatus,
     turnoverContext: buildTurnoverPulseContext(summaries, turnoverValue, turnoverLabel),
     volumeContext: buildVolumePulseContext(summaries, volumeValue, volumeLabel),
     breadthContext: buildBreadthPulseContext(breadth, direction),
@@ -185,6 +426,7 @@ export function buildMarketDashboardModel(
     marketMood?: MarketMood;
     priceBackedCount?: number;
     turnoverLabel?: string;
+    locale?: AppLocale;
   },
 ): MarketDashboardModel {
   const latestSummary = getLatestSummary(summaries);
@@ -213,7 +455,7 @@ export function buildMarketDashboardModel(
     leadersContext: options?.leadersContext,
   });
 
-  return {
+  const baseModel: MarketDashboardModel = {
     exchange: latestSummary?.exchange ?? "DSE",
     marketMood,
     latestTradeDate: latestSummary?.trade_date ?? "Awaiting market summary",
@@ -222,24 +464,33 @@ export function buildMarketDashboardModel(
     pulse,
     heroMetrics: [
       {
+        kind: "market_mood",
+        helperKind: priceBackedCount ? "breadth_summary" : "awaiting_coverage",
         label: "Market Mood",
         value: marketMood,
         helper: priceBackedCount ? `${breadth.advancing} advancing, ${breadth.declining} declining` : "Awaiting latest price coverage",
         tone: getMoodTone(marketMood),
       },
       {
+        kind: "index",
+        helperKind: pulse.indexAvailable ? "index_change" : "index_unavailable",
+        indexValueStatus: pulse.indexAvailable ? "available" : "pending",
         label: pulse.indexName,
         value: pulse.indexAvailable ? pulse.indexValue : "Index pending",
         helper: pulse.indexAvailable ? pulse.indexChangeLabel : "Synced DSEX data unavailable",
         tone: pulse.indexTone === "warning" ? "neutral" : pulse.indexTone,
       },
       {
+        kind: "turnover",
+        helperKind: latestSummary?.total_turnover ? "latest_turnover" : "turnover_snapshot",
         label: "Turnover",
         value: turnoverLabel,
         helper: latestSummary?.total_turnover ? "Latest exchange turnover" : "Exchange turnover snapshot",
         tone: turnoverLabel !== "N/A" ? "info" : "warning",
       },
       {
+        kind: "listed_stocks",
+        helperKind: "price_backed_count",
         label: "Listed Stocks",
         value: formatNumber(listedStockCount || 0, { maximumFractionDigits: 0 }),
         helper: `${priceBackedCount} price-backed names evaluated for analytics`,
@@ -253,4 +504,18 @@ export function buildMarketDashboardModel(
     insights: options?.insights ?? [],
     movers: options?.movers ?? buildDashboardMovers([], sessionTradeDate),
   };
+
+  const locale = options?.locale ?? DEFAULT_LOCALE;
+  const turnoverRatio =
+    pulse.turnoverContext.activityMeterPercent === 50
+      ? null
+      : 1 + (pulse.turnoverContext.activityMeterPercent - 50) / 42;
+
+  return applyDashboardLocalization(baseModel, locale, {
+    breadth,
+    indexChangePercent: pulse.indexChangePercent,
+    turnoverRatio,
+    volumeRatio: parseRatioFromLabel(pulse.volumeContext.ratioVsAvg),
+    priceBackedCount,
+  });
 }
