@@ -258,6 +258,7 @@ class MarketPulseRead(BaseModel):
     empty_state: str
     empty_message: str | None
     data_quality_note: str | None
+    last_synced_at: datetime | None = None
 
 
 class MarketPulseSummaryRead(BaseModel):
@@ -269,3 +270,4 @@ class MarketPulseSummaryRead(BaseModel):
     empty_state: str
     empty_message: str | None
     data_quality_note: str | None
+    last_synced_at: datetime | None = None

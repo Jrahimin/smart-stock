@@ -9,11 +9,30 @@ import {
   buildMarketPulseSnapshotFromDto,
   buildMarketPulseViewModel,
 } from "@/features/market-pulse/view-models/market-pulse-view-model";
-import { getMarketPulseBriefing, getMarketPulseSummary } from "@/lib/api/market-pulse-api";
-import { useMarketCacheRefresh } from "@/hooks/market/use-market-cache-coordinator";
+import {
+  getMarketPulseBriefing,
+  getMarketPulseSummary,
+  type BackendMarketPulseSummaryDto,
+} from "@/lib/api/market-pulse-api";
 import type { BackendMarketPulseDto, BackendMarketPulsePreviousSnapshotDto } from "@/lib/api/backend-api-types";
+import type { MarketPulseCorePayload } from "@/lib/api/pulse-server";
+import { useMarketCacheRefresh } from "@/hooks/market/use-market-cache-coordinator";
 import { useMarketDataFreshness } from "@/hooks/market/use-market-data-freshness";
 import { getMarketRefetchIntervalMs, getMarketStaleTimeMs } from "@/lib/market/market-cache-policy";
+import {
+  buildPulseBriefingQueryKey,
+  buildPulseSummaryQueryKey,
+  normalizeDisplayName,
+  PULSE_ANONYMOUS_BRIEFING_QUERY_KEY,
+  PULSE_ANONYMOUS_SUMMARY_QUERY_KEY,
+} from "@/lib/market/pulse-query-keys";
+import {
+  resolveMarketPulseBriefing,
+  resolveMarketPulseBriefingFlags,
+  resolveMarketPulsePresentationFlags,
+  resolveMarketPulseSummary,
+  shouldWriteMarketPulseSnapshot,
+} from "@/features/market-pulse/lib/market-pulse-query-state";
 
 function toApiPreviousSnapshot(stored: ReturnType<typeof readMarketPulseSnapshot>): BackendMarketPulsePreviousSnapshotDto | null {
   if (!stored.lastSyncedAt) {
@@ -29,77 +48,194 @@ function toApiPreviousSnapshot(stored: ReturnType<typeof readMarketPulseSnapshot
   };
 }
 
-export function useMarketPulse() {
+function buildPulseDtoFromSummary(
+  summary: BackendMarketPulseSummaryDto,
+  briefing: BackendMarketPulseDto["briefing"] | null | undefined,
+): BackendMarketPulseDto {
+  return {
+    ...summary,
+    briefing: briefing ?? null,
+    today_insight: null,
+    changes: [],
+    market_movers: { gainers: [], losers: [] },
+  };
+}
+
+export type MarketPulseHookResult = {
+  model: ReturnType<typeof buildMarketPulseViewModel> | null;
+  showFullPageLoader: boolean;
+  showUnavailable: boolean;
+  showPersonalizationWarning: boolean;
+  showBriefingPersonalizationWarning: boolean;
+  isBriefingLoading: boolean;
+  sectionLoading: { focus: boolean };
+  isError: boolean;
+  refetch: () => void;
+};
+
+export function useMarketPulse(options?: { initialCore?: MarketPulseCorePayload | null }): MarketPulseHookResult {
+  const initialCore = options?.initialCore ?? null;
   const { user } = useAuth();
   const refreshMarketCaches = useMarketCacheRefresh();
-  const freshnessQuery = useMarketDataFreshness("DSE", { refetchInterval: false });
+  const freshnessQuery = useMarketDataFreshness("DSE", {
+    refetchInterval: false,
+    initialData: initialCore?.freshness ?? undefined,
+    initialDataUpdatedAt: initialCore?.fetchedAt,
+  });
   const staleTime = getMarketStaleTimeMs(freshnessQuery.data);
   const refetchInterval = getMarketRefetchIntervalMs(freshnessQuery.data);
+  const freshnessLastSyncedAt = freshnessQuery.data?.last_synced_at ?? null;
 
   const [storedSnapshot] = useState(readMarketPulseSnapshot);
   const previousSnapshot = useMemo(() => toApiPreviousSnapshot(storedSnapshot), [storedSnapshot]);
+  const displayName = normalizeDisplayName(user?.display_name);
+  const hasPersonalizationInputs = Boolean(displayName) || Boolean(previousSnapshot?.last_synced_at);
+  const hasBriefingPersonalization = Boolean(displayName);
 
-  const summaryQuery = useQuery({
-    queryKey: ["market-pulse-summary", "DSE", user?.display_name ?? null, previousSnapshot?.last_synced_at ?? null],
+  const anonymousSummaryQuery = useQuery({
+    queryKey: PULSE_ANONYMOUS_SUMMARY_QUERY_KEY,
+    queryFn: () =>
+      getMarketPulseSummary({
+        exchange: "DSE",
+        previousSnapshot: null,
+        displayName: null,
+      }),
+    staleTime,
+    refetchInterval,
+    initialData: initialCore?.summary ?? undefined,
+    initialDataUpdatedAt: initialCore?.fetchedAt,
+  });
+
+  const personalizedSummaryQuery = useQuery({
+    queryKey: buildPulseSummaryQueryKey({
+      exchange: "DSE",
+      displayName,
+      previousSnapshot,
+    }),
     queryFn: () =>
       getMarketPulseSummary({
         exchange: "DSE",
         previousSnapshot,
-        displayName: user?.display_name ?? null,
+        displayName,
       }),
     staleTime,
     refetchInterval,
+    enabled: hasPersonalizationInputs,
   });
 
-  const briefingQuery = useQuery({
-    queryKey: ["market-pulse-briefing", "DSE", user?.display_name ?? null],
+  const { anonymousSummary, personalizedSummary, resolvedSummary } = resolveMarketPulseSummary(
+    initialCore,
+    anonymousSummaryQuery,
+    personalizedSummaryQuery,
+    freshnessLastSyncedAt,
+  );
+
+  const anonymousBriefingQuery = useQuery({
+    queryKey: PULSE_ANONYMOUS_BRIEFING_QUERY_KEY,
     queryFn: () =>
       getMarketPulseBriefing({
         exchange: "DSE",
-        displayName: user?.display_name ?? null,
+        displayName: null,
       }),
     staleTime,
     refetchInterval,
-    enabled: Boolean(summaryQuery.data),
+    enabled: Boolean(resolvedSummary),
   });
 
+  const personalizedBriefingQuery = useQuery({
+    queryKey: buildPulseBriefingQueryKey({ exchange: "DSE", displayName }),
+    queryFn: () =>
+      getMarketPulseBriefing({
+        exchange: "DSE",
+        displayName,
+      }),
+    staleTime,
+    refetchInterval,
+    enabled: hasBriefingPersonalization && Boolean(resolvedSummary),
+  });
+
+  const { anonymousBriefing, resolvedBriefing } = resolveMarketPulseBriefing(
+    anonymousBriefingQuery,
+    personalizedBriefingQuery,
+  );
+
+  const { isBriefingLoading, isBriefingError, showBriefingPersonalizationWarning } =
+    resolveMarketPulseBriefingFlags(
+      resolvedBriefing,
+      anonymousBriefingQuery,
+      personalizedBriefingQuery,
+      anonymousBriefing,
+    );
+
   const pulseDto = useMemo<BackendMarketPulseDto | null>(() => {
-    if (!summaryQuery.data) {
+    if (!resolvedSummary) {
       return null;
     }
 
-    return {
-      ...summaryQuery.data,
-      briefing: briefingQuery.data ?? null,
-      today_insight: null,
-      changes: [],
-      market_movers: { gainers: [], losers: [] },
-    };
-  }, [briefingQuery.data, summaryQuery.data]);
+    return buildPulseDtoFromSummary(resolvedSummary, resolvedBriefing);
+  }, [resolvedBriefing, resolvedSummary]);
 
   const model = useMemo(() => (pulseDto ? buildMarketPulseViewModel(pulseDto) : null), [pulseDto]);
 
+  const {
+    anonymousSettled,
+    showFullPageLoader,
+    showUnavailable,
+    showPersonalizationWarning,
+    sectionLoading,
+  } = resolveMarketPulsePresentationFlags(
+    anonymousSummary,
+    resolvedSummary,
+    anonymousSummaryQuery,
+    personalizedSummaryQuery,
+    freshnessLastSyncedAt,
+  );
+
   useEffect(() => {
-    if (!pulseDto) {
+    const lastSyncedAt = freshnessQuery.data?.last_synced_at;
+    if (
+      !shouldWriteMarketPulseSnapshot({
+        hasPersonalizationInputs,
+        anonymousSettled,
+        anonymousSummary,
+        personalizedSummaryQuerySuccess: personalizedSummaryQuery.isSuccess,
+        personalizedSummary,
+        lastSyncedAt,
+        resolvedSummary,
+      })
+    ) {
       return;
     }
 
-    const lastSyncedAt = freshnessQuery.data?.last_synced_at;
-    if (!lastSyncedAt) {
+    const summaryForSnapshot = hasPersonalizationInputs ? personalizedSummary : anonymousSummary;
+    if (!summaryForSnapshot) {
       return;
     }
 
     writeMarketPulseSnapshot({
-      ...buildMarketPulseSnapshotFromDto(pulseDto),
-      lastSyncedAt,
+      ...buildMarketPulseSnapshotFromDto(buildPulseDtoFromSummary(summaryForSnapshot, resolvedBriefing)),
+      lastSyncedAt: lastSyncedAt!,
     });
-  }, [freshnessQuery.data?.last_synced_at, pulseDto]);
+  }, [
+    anonymousSettled,
+    anonymousSummary,
+    resolvedBriefing,
+    freshnessQuery.data?.last_synced_at,
+    hasPersonalizationInputs,
+    personalizedSummary,
+    personalizedSummaryQuery.isSuccess,
+    resolvedSummary,
+  ]);
 
   return {
     model,
-    isLoading: summaryQuery.isLoading,
-    isBriefingLoading: briefingQuery.isLoading,
-    isError: summaryQuery.isError || briefingQuery.isError,
+    showFullPageLoader,
+    showUnavailable,
+    showPersonalizationWarning,
+    showBriefingPersonalizationWarning,
+    isBriefingLoading,
+    sectionLoading,
+    isError: isBriefingError,
     refetch: refreshMarketCaches,
   };
 }

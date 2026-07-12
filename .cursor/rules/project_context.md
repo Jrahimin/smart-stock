@@ -70,7 +70,7 @@ Market data workflow (split):
 5. Compute indicators and generate signals downstream
 6. **Background cache rebuild** — after snapshot ingest, `spawn_rebuild_market_read_cache()` warms Redis in priority order: `dashboard:overview` → `dashboard:sectors` → `universe:scored` (fire-and-forget; scheduler does not await)
 
-`GET /market/freshness` exposes snapshot timing and `market_status` for the frontend (no hardcoded session times in UI). The app-level **market cache coordinator** polls this endpoint every ~2 minutes; when `last_synced_at` advances after a backend sync, it invalidates TanStack market queries (dashboard, universe, pulse, signals) so those surfaces refetch without a page reload. IndexedDB is **not** wiped on sync — only on manual refresh. Market IndexedDB TTL follows `dashboard_cache_ttl_seconds` from freshness when available. See `backend/docs/market_caching.md`.
+`GET /market/freshness` exposes snapshot timing and `market_status` for the frontend (no hardcoded session times in UI). The app-level **market cache coordinator** polls this endpoint every ~2 minutes; when `last_synced_at` advances after a backend sync, it clears market IndexedDB entries and invalidates TanStack market queries (dashboard, universe, pulse, signals) so those surfaces refetch without a page reload. Between syncs, **generation-aware IndexedDB validation** (market schema v2 + `last_synced_at` comparison) rejects stale per-URL entries and forces network refetch. Manual refresh still wipes all IndexedDB. Market IndexedDB TTL follows `dashboard_cache_ttl_seconds` from freshness when available. See `backend/docs/market_caching.md`.
 
 The system must be reliable and repeatable.
 
@@ -354,7 +354,7 @@ Root: `frontend/`
 * Shared list intelligence: `frontend/lib/market/universe-row-mapper.ts`, `universe-intelligence.ts`, `trader-decision.ts`, `trend-display.ts`
 * Shared list hook: `frontend/hooks/market/use-enriched-universe-intelligence.ts` (`intelligenceByStockId` from universe rows + persisted signals)
 * Market universe hook: `frontend/features/market-dashboard/hooks/use-market-universe.ts` (raw rows + mapped list models)
-* Market cache coordinator: `frontend/lib/market/market-cache-coordinator.ts` (TanStack invalidation on sync; full IndexedDB clear on manual refresh); `frontend/hooks/market/use-market-cache-coordinator.ts`; `useMarketPersistentCacheTtl` in `use-market-data-freshness.ts`; mounted via `frontend/components/market/market-cache-sync-coordinator.tsx` in `frontend/app/providers.tsx`
+* Market cache coordinator: `frontend/lib/market/market-cache-coordinator.ts` (market IndexedDB clear + TanStack invalidation on sync; per-URL generation stale bust; full IndexedDB clear on manual refresh); `frontend/lib/market/market-generation.ts`, `market-indexeddb-cache.ts`, `market-cache-url-registry.ts`; `frontend/hooks/market/use-market-cache-coordinator.ts`; mounted via `frontend/components/market/market-cache-sync-coordinator.tsx` in `frontend/app/providers.tsx`
 * Market cache policy: `frontend/lib/market/market-cache-policy.ts` (`staleTime` / OPEN `refetchInterval` from freshness + snapshot cadence)
 * Market dashboard feature: `frontend/features/market-dashboard/` — pulse `pulseCore` (overview) and `leaders` (sectors) load independently
 * Stock workspace feature: `frontend/features/stock-workspace/`

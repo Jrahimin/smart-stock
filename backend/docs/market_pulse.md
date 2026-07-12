@@ -67,7 +67,7 @@ Opportunity history sparklines use session-level aggregates from `daily_market_s
 | Key | Contents |
 |-----|----------|
 | `pulse:response:{exchange}` | Full `MarketPulseRead` |
-| `pulse:summary:{exchange}` | `MarketPulseSummaryRead` |
+| `pulse:summary:{exchange}` | `MarketPulseSummaryRead` (includes `last_synced_at` generation identity) |
 
 Both are invalidated with exchange-wide keys on sync via `invalidate_market_caches()`.
 
@@ -136,6 +136,31 @@ No AI is required for V1.
 - Feature module: `frontend/features/market-pulse/`
 - API client: `frontend/lib/api/market-pulse-api.ts`
 - Local storage retains the previous snapshot for change detection between visits
+
+### Selective SSR
+
+The `/market-pulse` route server-prefetches before hydration:
+
+| Aspect | Behavior |
+|--------|----------|
+| Endpoints | `GET /market/freshness` + anonymous `GET /market/pulse/summary` only |
+| Server URL | `SERVER_API_BASE_URL` (required in production) |
+| Fetch mode | `cache: "no-store"` |
+| Timeout | `PULSE_CORE_LOADER_TIMEOUT_MS`, falling back to `DASHBOARD_CORE_LOADER_TIMEOUT_MS` |
+| TanStack seed | `PULSE_ANONYMOUS_SUMMARY_QUERY_KEY` + freshness via `HydrationBoundary` |
+| Generation guard | Hydrate summary only when `summary.last_synced_at === freshness.last_synced_at` |
+| Client-only | Briefing panel (`/market/pulse/briefing`), `display_name` greeting, `previous_snapshot` since-last-visit personalization |
+| Shared Redis | Anonymous requests only (`pulse:summary:{exchange}`); personalized requests bypass shared cache reads and writes |
+| Snapshot writes | Protected — write only when resolved summary generation matches freshness; personalized failures preserve `localStorage` |
+
+Component layers:
+
+| Component | Role |
+|-----------|------|
+| `market-pulse-page-shell.tsx` | Server load + dehydrate |
+| `market-pulse-client.tsx` | Hook bridge |
+| `market-pulse-view.tsx` | Presentational only |
+| `hooks/use-market-pulse.ts` | Anonymous + personalized query orchestration |
 
 ## Future evolution
 

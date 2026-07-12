@@ -22,7 +22,9 @@ export type BackendMarketPulseSummaryDto = Pick<
   | "empty_state"
   | "empty_message"
   | "data_quality_note"
->;
+> & {
+  last_synced_at: string | null;
+};
 
 export function getMarketPulse(params: GetMarketPulseParams = {}) {
   const previousSnapshot = params.previousSnapshot

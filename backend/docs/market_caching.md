@@ -10,12 +10,14 @@ Related module docs: [market_universe.md](market_universe.md), [market_dashboard
 
 1. **PostgreSQL is the source of truth.** Caches are performance layers only.
 2. **Sync-driven freshness on the backend.** Scheduled data writes spawn background cache rebuilds; TTL is a safety net. Keys are overwritten on success — not deleted before rebuild.
-3. **Sync-aligned freshness in the browser.** `MarketCacheSyncCoordinator` polls `/market/freshness` and, when `last_synced_at` advances, clears **market-related IndexedDB entries** then invalidates TanStack market queries. Manual refresh still clears all IndexedDB.
+3. **Sync-aligned freshness in the browser.** `MarketCacheSyncCoordinator` polls `/market/freshness` and, when `last_synced_at` advances, clears **market-related IndexedDB entries** then invalidates TanStack market queries. Between syncs, **generation-aware IndexedDB validation** rejects legacy or mismatched market entries per URL (see [Browser generation hardening](#browser-generation-hardening)). Manual refresh still clears all IndexedDB.
 4. **Background rebuild, compute-on-miss fallback.** After sync, `spawn_rebuild_market_read_cache()` warms overview → sectors → movers → universe in priority order. HTTP misses compute inline for dashboard; universe serves stale `universe:scored:prev` or returns 503.
 5. **Redis is optional.** Unset `REDIS_URL` → backend always computes; behavior is correct, only slower.
 6. **Browser fetches the API directly.** Next.js does not proxy or server-cache market JSON for client-side hooks; all client caching happens in the browser.
 
 **Exception (dashboard core SSR):** the Next.js server may prefetch **freshness + overview + sectors + movers** for `/` and `/dashboard` using `SERVER_API_BASE_URL` with `cache: "no-store"`. See [Dashboard core SSR (selective)](#dashboard-core-ssr-selective) below.
+
+**Exception (market pulse core SSR):** the Next.js server may prefetch **freshness + anonymous pulse summary** for `/market-pulse` using the same server-only fetch path. See [Market Pulse core SSR (selective)](#market-pulse-core-ssr-selective) below.
 
 ---
 
@@ -35,7 +37,10 @@ Related module docs: [market_universe.md](market_universe.md), [market_dashboard
 │         ↓ queryFn                                                       │
 │       backendApiGetMarket | backendApiGetFresh | backendApiGet          │
 │         ↓                                                               │
-│       IndexedDB (optional, URL-keyed) ──miss──→ fetch → FastAPI         │
+│       IndexedDB (market schema v2, URL-keyed)                           │
+│         → generation + schema validation vs freshness                   │
+│         → stale entry: delete URL only + invalidate related TanStack    │
+│         → miss ──→ fetch → FastAPI                                      │
 └─────────────────────────────────────────────────────────────────────────┘
                                     ↓
 ┌─────────────────────────────────────────────────────────────────────────┐
@@ -64,8 +69,8 @@ Three **independent** client-side layers (do not conflate), plus one **coordinat
 |-------|--------|-------------|-----------|
 | **Redis** | Backend services | `dashboard_cache_ttl_seconds` (default 600s) | Sync interval + invalidation |
 | **TanStack Query** | React hooks | Same as backend TTL during OPEN/PRE_OPEN | `GET /market/freshness` |
-| **IndexedDB** | `backend-api-client.ts` | From `dashboard_cache_ttl_seconds` when freshness loaded; fallback 5–10 min | Freshness hook + build-time env |
-| **Sync coordinator** | `market-cache-coordinator.ts` | N/A (event-driven) | `last_synced_at` change on `/market/freshness` poll |
+| **IndexedDB** | `backend-api-client.ts` | From `dashboard_cache_ttl_seconds` when freshness loaded; fallback 5–10 min | Freshness hook + build-time env; **market schema v2** + generation validation |
+| **Sync coordinator** | `market-cache-coordinator.ts` | N/A (event-driven) | `last_synced_at` change on `/market/freshness` poll; targeted per-URL bust on generation mismatch |
 
 **Coordinator invalidates TanStack roots:** `dashboard`, `market-universe-rows`, `market-pulse-summary`, `market-pulse-briefing`, `signals`. Scanner, signals, and stock explorer consume `market-universe-rows` — no separate keys.
 
@@ -185,6 +190,26 @@ Secondary dashboard sections (heatmap, signals, alerts, sentiment) continue to u
 
 **Do not** add `export const revalidate` on dashboard routes for market data.
 
+### Market Pulse core SSR (selective)
+
+The `/market-pulse` route server-prefetches a **narrow core slice** before hydration:
+
+| Aspect | Behavior |
+|--------|----------|
+| Endpoints | `GET /market/freshness` + anonymous `GET /market/pulse/summary` (no `display_name`, no `previous_snapshot`) |
+| Server URL | `SERVER_API_BASE_URL` (required in production), e.g. `http://backend-api:8000/api/v1` |
+| Fetch mode | `cache: "no-store"` — **no** Next.js Data Cache / ISR for market JSON |
+| Timeout | `PULSE_CORE_LOADER_TIMEOUT_MS`, default **1500ms** (dashboard core remains 5000ms) |
+| Redis | Anonymous summary uses `pulse:summary:{exchange}`; personalized requests bypass shared Redis reads and writes |
+| TanStack seed | `HydrationBoundary` + `PULSE_ANONYMOUS_SUMMARY_QUERY_KEY` + freshness |
+| Generation guard | Seed summary only when `summary.last_synced_at === freshness.last_synced_at`; missing identity is treated as stale |
+| Identity guard | On hydrate, if SSR `last_synced_at` ≠ client freshness → clear market IndexedDB + `syncMarketClientCachesOnBackendUpdate` |
+| Client-only | Briefing (`/market/pulse/briefing`), `display_name` greeting, `previous_snapshot` since-last-visit personalization |
+| Snapshot writes | Write `localStorage` only when resolved summary generation matches `freshness.last_synced_at`; personalized failures preserve prior snapshot |
+| Cloudflare | Unchanged |
+
+**Do not** add `export const revalidate` on market pulse routes for market data.
+
 ### API client helpers
 
 Defined in `frontend/lib/api/backend-api-client.ts`:
@@ -201,7 +226,33 @@ IndexedDB details:
 
 - Database: `smart-stock-api-cache`, store `responses`
 - Key: full request URL including query string
+- Market entries: `scope: "market"` + `marketSchemaVersion: 2` (legacy entries without v2 are ignored automatically)
 - Clear all: `clearBackendApiCache()` or `invalidateMarketClientCaches(queryClient)` via `market-cache-coordinator.ts`
+- Clear market only: `clearMarketBackendApiCache()` or `syncMarketClientCachesOnBackendUpdate(queryClient)`
+
+### Browser generation hardening
+
+Centralized in `backend-api-client.ts` + `market-cache-coordinator.ts` — **feature hooks must not delete IndexedDB entries directly**.
+
+| Step | Behavior |
+|------|----------|
+| Freshness observed | `setMarketFreshnessGeneration(last_synced_at)` from `useMarketCacheSyncCoordinator` |
+| IndexedDB read (`backendApiGetMarket`) | Validate `marketSchemaVersion === 2`; when freshness is known, compare response `last_synced_at` (when present) to `/market/freshness.last_synced_at` |
+| Schema or generation miss | Delete **only that URL's** IndexedDB entry → `notifyStaleMarketCacheEntry(url)` → invalidate related TanStack root(s) via `resolveMarketTanStackRootsForUrl` → fall through to network (never return the stale payload) |
+| Generation-aware TanStack reconcile | On freshness load/update, `reconcileGenerationAwareMarketQueries` invalidates in-memory queries whose cached data carries mismatched `last_synced_at` |
+| Full sync (`last_synced_at` advances) | Unchanged: `clearMarketBackendApiCache()` + invalidate all `MARKET_TANSTACK_QUERY_ROOTS` |
+
+**Generation metadata today:** `last_synced_at` on dashboard overview and pulse summary responses. Universe, signals, scanner, and stock workspace entries do not carry generation stamps — they rely on sync coordinator busts, schema v2, and TTL. Responses without a generation field are not generation-validated.
+
+**Shared modules:**
+
+| File | Role |
+|------|------|
+| `lib/market/market-generation.ts` | `responseMatchesMarketFreshness`, `hasMarketGenerationField` |
+| `lib/market/market-indexeddb-cache.ts` | `MARKET_INDEXEDDB_SCHEMA_VERSION`, `evaluateMarketIndexedDbEntry` |
+| `lib/market/market-cache-url-registry.ts` | API URL → TanStack root mapping for targeted invalidation |
+| `lib/market/market-freshness-registry.ts` | Latest observed `last_synced_at` for IndexedDB reads |
+| `lib/market/market-cache-notifications.ts` | Stale-entry handler registration (avoids API ↔ coordinator cycles) |
 
 ### Market cache coordinator
 
@@ -209,6 +260,8 @@ Central service: `frontend/lib/market/market-cache-coordinator.ts`
 
 | Function | Role |
 |----------|------|
+| `handleStaleMarketIndexedDbEntry(url, queryClient?)` | Delete one IndexedDB URL + invalidate related TanStack root(s) |
+| `reconcileGenerationAwareMarketQueries(queryClient, lastSyncedAt)` | Invalidate generation-stamped TanStack queries that disagree with freshness |
 | `syncMarketClientCachesOnBackendUpdate(queryClient)` | Clear **market** IndexedDB entries, then invalidate TanStack market query roots (auto-sync + SSR identity guard) |
 | `invalidateMarketClientCaches(queryClient)` | Clear **all** IndexedDB + invalidate TanStack market query roots (manual refresh) |
 | `refreshMarketClientCaches(queryClient)` | Above + invalidate `market-freshness` (manual refresh path) |
@@ -415,8 +468,8 @@ Disabled during PRE_OPEN / HOLIDAY (refresh button only; programmatic refetch st
 2. Use `backendApiGetMarket` for trader/market intelligence GETs.
 3. Use `backendApiGetFresh` only when the response must never be persisted (like freshness).
 4. Wrap in a hook with `staleTime` / `refetchInterval` from `getMarketStaleTimeMs` / `getMarketRefetchIntervalMs`.
-5. If the hook introduces a new TanStack root for exchange-wide market data, register it in `MARKET_TANSTACK_QUERY_ROOTS` inside `market-cache-coordinator.ts`.
-6. For manual refresh, use `useMarketCacheRefresh()` — do not call `clearBackendApiCache()` or ad-hoc `invalidateQueries` from feature code.
+5. If the hook introduces a new TanStack root for exchange-wide market data, register it in `MARKET_TANSTACK_QUERY_ROOTS` inside `market-cache-coordinator.ts` and, when the response carries `last_synced_at`, add the root to `GENERATION_AWARE_MARKET_QUERY_ROOTS` and extend `resolveMarketTanStackRootsForUrl`.
+6. For manual refresh, use `useMarketCacheRefresh()` — do not call `clearBackendApiCache()`, `deleteCachedApiResponse`, or ad-hoc `invalidateQueries` from feature code.
 
 ---
 
@@ -427,7 +480,8 @@ Disabled during PRE_OPEN / HOLIDAY (refresh button only; programmatic refetch st
 | Deploy backend env change | Restart `backend-api` + `backend-scheduler` |
 | Deploy frontend cache env | `docker compose build frontend` (build-time `NEXT_PUBLIC_*`) |
 | Redis down | Backend computes every request; no user-facing error |
-| Pre-deploy browser IndexedDB | Old entries cleared on next sync detection or manual refresh |
+| Pre-deploy browser IndexedDB | Legacy market entries (schema &lt; v2) ignored automatically; generation mismatches delete per URL; full market clear on next `last_synced_at` advance or manual refresh |
+| Optional legacy Redis cleanup | After schema-changing deploy, delete only affected keys (e.g. `pulse:summary:*` missing `last_synced_at`) via `redis-cli` — **never** `FLUSHDB` / `FLUSHALL`; PostgreSQL remains source of truth |
 | Stock workspace staleness | Up to Redis TTL within same trade date; not invalidated on sync |
 | Pulse `previous_snapshot` param | Backend skips Redis read/write for that request (change-detection path) |
 
@@ -453,9 +507,13 @@ Disabled during PRE_OPEN / HOLIDAY (refresh button only; programmatic refetch st
 
 | File | Role |
 |------|------|
-| `lib/api/backend-api-client.ts` | IndexedDB + `Get` / `GetMarket` / `GetFresh` |
+| `lib/api/backend-api-client.ts` | IndexedDB + generation validation + `Get` / `GetMarket` / `GetFresh` |
 | `lib/frontend-config.ts` | Cache TTL env |
-| `lib/market/market-cache-coordinator.ts` | Market IndexedDB clear + TanStack invalidation on sync; full IndexedDB clear on manual refresh; `MARKET_TANSTACK_QUERY_ROOTS` |
+| `lib/market/market-generation.ts` | Generation stamp helpers (`last_synced_at` vs freshness) |
+| `lib/market/market-indexeddb-cache.ts` | Market IndexedDB schema version + read verdict |
+| `lib/market/market-cache-url-registry.ts` | API URL → TanStack root mapping |
+| `lib/market/market-freshness-registry.ts` | Latest observed freshness generation for IndexedDB reads |
+| `lib/market/market-cache-coordinator.ts` | Market IndexedDB clear + TanStack invalidation on sync; per-URL stale bust; `MARKET_TANSTACK_QUERY_ROOTS` |
 | `hooks/market/use-market-cache-coordinator.ts` | `useMarketCacheSyncCoordinator`, `useMarketCacheRefresh` |
 | `components/market/market-cache-sync-coordinator.tsx` | App-level sync listener (mounted in providers) |
 | `components/layout/market-data-freshness-bar.tsx` | Freshness chip + manual refresh button |
@@ -466,10 +524,17 @@ Disabled during PRE_OPEN / HOLIDAY (refresh button only; programmatic refetch st
 | `lib/api/market-dashboard-api.ts` | Dashboard GET wrappers |
 | `lib/api/server-market-api.ts` | Server-only `no-store` market fetch + `getServerApiBaseUrl()` |
 | `lib/api/dashboard-server.ts` | `loadDashboardCore()` for dashboard SSR |
+| `lib/api/pulse-server.ts` | `loadMarketPulseCore()` for market pulse SSR |
 | `features/market-dashboard/dashboard-page-shell.tsx` | Shared async shell for `/` and `/dashboard` |
+| `features/market-pulse/market-pulse-page-shell.tsx` | Async shell for `/market-pulse` |
 | `features/market-dashboard/components/dashboard-query-hydration.tsx` | TanStack `HydrationBoundary` for dashboard SSR seeds |
+| `features/market-pulse/components/pulse-query-hydration.tsx` | TanStack `HydrationBoundary` for pulse SSR seeds |
 | `lib/market/build-dashboard-dehydrated-state.ts` | Server-side TanStack dehydrate for freshness, overview, sectors, and movers |
+| `lib/market/build-pulse-dehydrated-state.ts` | Server-side TanStack dehydrate for freshness and reconciled anonymous pulse summary |
+| `lib/market/pulse-generation.ts` | Re-exports from `market-generation.ts` (pulse SSR compatibility) |
+| `lib/market/pulse-query-keys.ts` | Shared pulse TanStack query key builders |
 | `features/market-dashboard/components/dashboard-ssr-hydration-guard.tsx` | One-shot TanStack invalidation on SSR freshness/overview mismatch |
+| `features/market-pulse/components/pulse-ssr-hydration-guard.tsx` | One-shot TanStack invalidation on SSR freshness mismatch |
 | `lib/api/market-universe-api.ts` | Universe GET wrapper |
 | `lib/api/market-pulse-api.ts` | Pulse GET wrappers |
 | `lib/api/market-data-api.ts` | Freshness + legacy market GET wrappers |
@@ -480,6 +545,8 @@ Disabled during PRE_OPEN / HOLIDAY (refresh button only; programmatic refetch st
 
 | Test file | Covers |
 |-----------|--------|
+| `lib/market/market-indexeddb-generation.test.ts` | Generation validation, schema v2, per-URL stale bust, TanStack reconcile |
+| `lib/market/market-cache-coordinator.test.ts` | Market URL classification, sync vs manual IndexedDB clear scope |
 | `app/tests/test_dashboard_cache_ttl.py` | TTL clamp formula |
 | `app/tests/test_market_universe_contract.py` | Key naming, invalidation deletes all 10 keys |
 | `app/tests/test_market_snapshot_workflow.py` | Snapshot orchestration |

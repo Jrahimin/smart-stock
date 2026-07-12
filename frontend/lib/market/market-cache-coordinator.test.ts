@@ -55,4 +55,17 @@ describe("market cache coordinator sync path", () => {
     expect(clearMarketSpy).not.toHaveBeenCalled();
     expect(invalidateSpy).toHaveBeenCalled();
   });
+
+  it("sync path clears only market IndexedDB entries, not unrelated default-scope caches", async () => {
+    const clearMarketSpy = vi.spyOn(backendApi, "clearMarketBackendApiCache").mockResolvedValue();
+    const clearAllSpy = vi.spyOn(backendApi, "clearBackendApiCache").mockResolvedValue();
+    const queryClient = {
+      invalidateQueries: vi.fn().mockResolvedValue(undefined),
+    } as unknown as import("@tanstack/react-query").QueryClient;
+
+    await syncMarketClientCachesOnBackendUpdate(queryClient);
+
+    expect(clearMarketSpy).toHaveBeenCalledTimes(1);
+    expect(clearAllSpy).not.toHaveBeenCalled();
+  });
 });

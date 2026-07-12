@@ -180,6 +180,15 @@ The same keys (e.g. `MARKET_SNAPSHOT_SCHEDULER_ENABLED`) can appear in both `.en
 
 Scheduler toggles in admin are marked `requires_restart: true` — even after DB merge, `backend-scheduler` would need a restart to pick up changes.
 
+### Client cache rollout (browser)
+
+Market intelligence is cached in the **browser** (IndexedDB + TanStack Query), not at Cloudflare. Deploying a new frontend build:
+
+1. **IndexedDB:** Market entries written before schema v2 are ignored automatically. Generation mismatches delete only the affected URL's IndexedDB row and refetch from the API.
+2. **TanStack:** `MarketCacheSyncCoordinator` reconciles generation-stamped queries when freshness loads; full market bust runs when `last_synced_at` advances.
+3. **Redis (optional):** Do **not** flush Redis. After a response-schema change, optionally delete only legacy keys (e.g. `pulse:summary:*` entries missing `last_synced_at`) — PostgreSQL remains authoritative. See `backend/docs/market_caching.md` operational notes.
+4. **Cloudflare:** Unchanged — HTML/RSC/API bypass rules still apply; only `/_next/static/*` is edge-cached.
+
 ### Related docs
 
 - Full admin rules: [`admin_panel.md`](admin_panel.md)

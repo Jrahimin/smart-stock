@@ -1,5 +1,13 @@
 import { frontendConfig } from "@/lib/frontend-config";
 import type { ApiResponse } from "@/lib/api/backend-api-types";
+import { notifyStaleMarketCacheEntry } from "@/lib/market/market-cache-notifications";
+import { getMarketFreshnessGeneration } from "@/lib/market/market-freshness-registry";
+import {
+  evaluateMarketIndexedDbEntry,
+  MARKET_INDEXEDDB_SCHEMA_VERSION,
+  type MarketIndexedDbPayload,
+} from "@/lib/market/market-indexeddb-cache";
+import { isMarketApiCacheUrl as isMarketApiCacheUrlFromRegistry } from "@/lib/market/market-cache-url-registry";
 
 export class BackendApiError extends Error {
   constructor(
@@ -112,12 +120,7 @@ export function buildQueryString(params?: Record<string, QueryValue>) {
   return queryString ? `?${queryString}` : "";
 }
 
-type CachedApiPayload<T> = {
-  cacheKey: string;
-  expiresAt: number;
-  data: T;
-  scope?: BackendApiPersistentCache;
-};
+type CachedApiPayload<T> = MarketIndexedDbPayload<T>;
 
 export type BackendApiPersistentCache = "default" | "market" | "off";
 
@@ -176,7 +179,7 @@ function openApiCacheDatabase() {
   });
 }
 
-async function readCachedApiResponse<T>(url: string): Promise<T | null> {
+async function readCachedApiPayload<T>(url: string): Promise<CachedApiPayload<T> | null> {
   const database = await openApiCacheDatabase();
   if (!database) {
     return null;
@@ -189,22 +192,7 @@ async function readCachedApiResponse<T>(url: string): Promise<T | null> {
 
     request.onerror = () => resolve(null);
     request.onsuccess = () => {
-      const cachedPayload = request.result as CachedApiPayload<T> | undefined;
-      if (!cachedPayload) {
-        resolve(null);
-        return;
-      }
-
-      if (cachedPayload.expiresAt <= Date.now()) {
-        database
-          .transaction(API_CACHE_STORE, "readwrite")
-          .objectStore(API_CACHE_STORE)
-          .delete(getCacheKey(url));
-        resolve(null);
-        return;
-      }
-
-      resolve(cachedPayload.data);
+      resolve((request.result as CachedApiPayload<T> | undefined) ?? null);
     };
     transaction.oncomplete = () => database.close();
     transaction.onerror = () => {
@@ -212,6 +200,57 @@ async function readCachedApiResponse<T>(url: string): Promise<T | null> {
       resolve(null);
     };
   });
+}
+
+export async function deleteCachedApiResponse(url: string) {
+  const database = await openApiCacheDatabase();
+  if (!database) {
+    return;
+  }
+
+  await new Promise<void>((resolve) => {
+    const transaction = database.transaction(API_CACHE_STORE, "readwrite");
+    transaction.objectStore(API_CACHE_STORE).delete(getCacheKey(url));
+    transaction.oncomplete = () => {
+      database.close();
+      resolve();
+    };
+    transaction.onerror = () => {
+      database.close();
+      resolve();
+    };
+  });
+}
+
+async function readCachedApiResponse<T>(
+  url: string,
+  persistentCache: BackendApiPersistentCache,
+): Promise<T | null> {
+  const payload = await readCachedApiPayload<T>(url);
+  const verdict = evaluateMarketIndexedDbEntry(payload ?? undefined, {
+    expectedScope: persistentCache === "off" ? undefined : persistentCache,
+    freshnessLastSyncedAt: persistentCache === "market" ? getMarketFreshnessGeneration() : undefined,
+    cacheKey: url,
+  });
+
+  if (verdict.status === "hit") {
+    return verdict.data as T;
+  }
+
+  if (!payload) {
+    return null;
+  }
+
+  if (verdict.reason === "schema" || verdict.reason === "generation") {
+    await deleteCachedApiResponse(url);
+    if (persistentCache === "market") {
+      await notifyStaleMarketCacheEntry(url);
+    }
+  } else if (verdict.reason === "expired") {
+    await deleteCachedApiResponse(url);
+  }
+
+  return null;
 }
 
 async function writeCachedApiResponse<T>(
@@ -228,7 +267,13 @@ async function writeCachedApiResponse<T>(
   return new Promise<void>((resolve) => {
     const expiresAt = Date.now() + ttlMs;
     const transaction = database.transaction(API_CACHE_STORE, "readwrite");
-    transaction.objectStore(API_CACHE_STORE).put({ cacheKey: getCacheKey(url), expiresAt, data, scope });
+    transaction.objectStore(API_CACHE_STORE).put({
+      cacheKey: getCacheKey(url),
+      expiresAt,
+      data,
+      scope,
+      ...(scope === "market" ? { marketSchemaVersion: MARKET_INDEXEDDB_SCHEMA_VERSION } : {}),
+    });
     transaction.oncomplete = () => {
       database.close();
       resolve();
@@ -251,16 +296,7 @@ const MARKET_STOCK_SUBRESOURCE_PATTERN = /^\/stocks\/[^/]+\/(prices|signals)(?:\
 
 /** True when a cached API URL was written via `backendApiGetMarket`. */
 export function isMarketApiCacheUrl(url: string): boolean {
-  try {
-    const { pathname } = new URL(url);
-    const apiPath = pathname.replace(/.*\/api\/v1/, "") || pathname;
-    if (MARKET_API_PATH_PREFIXES.some((prefix) => apiPath.startsWith(prefix))) {
-      return true;
-    }
-    return MARKET_STOCK_SUBRESOURCE_PATTERN.test(apiPath);
-  } catch {
-    return false;
-  }
+  return isMarketApiCacheUrlFromRegistry(url);
 }
 
 function isMarketCachedPayload(payload: CachedApiPayload<unknown> | undefined): boolean {
@@ -457,7 +493,9 @@ export async function backendApiGet<T>(
   const cacheMode = resolvePersistentCacheMode(init, persistentCache);
   const cacheTtlMs = getPersistentCacheTtlMs(cacheMode);
   const shouldUsePersistentCache = cacheTtlMs !== null;
-  const cachedData = shouldUsePersistentCache ? await readCachedApiResponse<T>(url) : null;
+  const cachedData = shouldUsePersistentCache
+    ? await readCachedApiResponse<T>(url, cacheMode)
+    : null;
   if (cachedData !== null) {
     return cachedData;
   }

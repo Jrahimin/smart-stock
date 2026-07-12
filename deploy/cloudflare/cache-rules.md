@@ -4,6 +4,8 @@ Apply these in **Cloudflare Dashboard → Caching → Cache Rules** (or Page Rul
 
 Goal: cache immutable Next.js assets at the edge, never cache HTML/RSC or API responses.
 
+**Browser-side market cache** (IndexedDB + TanStack Query) is independent of Cloudflare — generation-aware validation and sync coordinator behavior are documented in `backend/docs/market_caching.md`. Deploying a new frontend JS bundle does not require a Cloudflare purge for market data freshness; purges only affect edge-cached static assets.
+
 ---
 
 ## Rule 1 — Cache Next.js static assets

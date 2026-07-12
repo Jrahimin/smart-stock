@@ -7,7 +7,7 @@ from typing import Annotated
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
-from fastapi import Depends
+from pydantic import ValidationError
 
 from app.core.constants.trading_constants import (
     PULSE_FOCUS_STOCK_LIMIT,
@@ -284,6 +284,61 @@ class MarketPulseService:
         ttl_seconds = current_cache_ttl_seconds(self.settings)
         await self.redis.set_json(cache_key, payload, ttl_seconds=ttl_seconds)
 
+    async def _delete_cache_key(self, cache_key: str) -> None:
+        await self.redis.delete(cache_key)
+
+    async def _load_cached_summary_if_valid(
+        self,
+        *,
+        exchange: ExchangeCode,
+        cache_key: str,
+    ) -> MarketPulseSummaryRead | None:
+        cached = await self._cache_get(cache_key)
+        if cached is None:
+            return None
+
+        try:
+            summary = MarketPulseSummaryRead.model_validate(cached)
+        except ValidationError:
+            await self._delete_cache_key(cache_key)
+            return None
+
+        if summary.last_synced_at is None:
+            await self._delete_cache_key(cache_key)
+            return None
+
+        freshness = await self.market_data_service.get_market_freshness(exchange=exchange)
+        if freshness.last_synced_at is None or summary.last_synced_at != freshness.last_synced_at:
+            return None
+
+        return summary
+
+    async def _load_cached_pulse_if_valid(
+        self,
+        *,
+        exchange: ExchangeCode,
+        cache_key: str,
+    ) -> MarketPulseRead | None:
+        cached = await self._cache_get(cache_key)
+        if cached is None:
+            return None
+
+        try:
+            pulse = MarketPulseRead.model_validate(cached)
+        except ValidationError:
+            await self._delete_cache_key(cache_key)
+            return None
+
+        if pulse.last_synced_at is None:
+            await self._delete_cache_key(cache_key)
+            return None
+
+        freshness = await self.market_data_service.get_market_freshness(exchange=exchange)
+        if freshness.last_synced_at is None or pulse.last_synced_at != freshness.last_synced_at:
+            return None
+
+        return pulse
+
     async def get_market_pulse(
         self,
         *,
@@ -292,19 +347,24 @@ class MarketPulseService:
         display_name: str | None = None,
     ) -> MarketPulseRead:
         cache_key = pulse_cache_key("response", exchange)
-        if previous is None:
-            cached = await self._cache_get(cache_key)
-            if cached is not None:
-                return MarketPulseRead.model_validate(cached)
+        if uses_shared_pulse_cache(previous, display_name):
+            cached_pulse = await self._load_cached_pulse_if_valid(
+                exchange=exchange,
+                cache_key=cache_key,
+            )
+            if cached_pulse is not None:
+                return cached_pulse
 
         payload = await self._compute_market_pulse(
             exchange=exchange,
             previous=previous,
             display_name=display_name,
         )
-        if previous is None:
-            await self._cache_set(cache_key, payload.model_dump(mode="json"))
-        return payload
+        freshness = await self.market_data_service.get_market_freshness(exchange=exchange)
+        stamped = payload.model_copy(update={"last_synced_at": freshness.last_synced_at})
+        if uses_shared_pulse_cache(previous, display_name):
+            await self._cache_set(cache_key, stamped.model_dump(mode="json"))
+        return stamped
 
     async def get_market_pulse_summary(
         self,
@@ -314,16 +374,21 @@ class MarketPulseService:
         display_name: str | None = None,
     ) -> MarketPulseSummaryRead:
         cache_key = pulse_cache_key("summary", exchange)
-        if previous is None:
-            cached = await self._cache_get(cache_key)
-            if cached is not None:
-                return MarketPulseSummaryRead.model_validate(cached)
+        if uses_shared_pulse_cache(previous, display_name):
+            cached_summary = await self._load_cached_summary_if_valid(
+                exchange=exchange,
+                cache_key=cache_key,
+            )
+            if cached_summary is not None:
+                return cached_summary
 
-        pulse = await self.get_market_pulse(
+        # Rebuild from compute — never reuse pulse:response cache (may be stale without generation).
+        pulse = await self._compute_market_pulse(
             exchange=exchange,
             previous=previous,
             display_name=display_name,
         )
+        freshness = await self.market_data_service.get_market_freshness(exchange=exchange)
         summary = MarketPulseSummaryRead(
             hero=pulse.hero,
             since_last_visit=pulse.since_last_visit,
@@ -333,8 +398,9 @@ class MarketPulseService:
             empty_state=pulse.empty_state,
             empty_message=pulse.empty_message,
             data_quality_note=pulse.data_quality_note,
+            last_synced_at=freshness.last_synced_at,
         )
-        if previous is None:
+        if uses_shared_pulse_cache(previous, display_name):
             await self._cache_set(cache_key, summary.model_dump(mode="json"))
         return summary
 
@@ -840,3 +906,17 @@ def parse_previous_snapshot(raw: str | None) -> MarketPulsePreviousSnapshot | No
         return MarketPulsePreviousSnapshot.model_validate(payload)
     except (json.JSONDecodeError, ValueError):
         return None
+
+
+def normalize_pulse_display_name(display_name: str | None) -> str | None:
+    if not display_name:
+        return None
+    stripped = display_name.strip()
+    return stripped or None
+
+
+def uses_shared_pulse_cache(
+    previous: MarketPulsePreviousSnapshot | None,
+    display_name: str | None = None,
+) -> bool:
+    return previous is None and normalize_pulse_display_name(display_name) is None

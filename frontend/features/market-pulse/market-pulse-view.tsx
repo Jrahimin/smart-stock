@@ -5,13 +5,22 @@ import { MarketBriefingFooter, MarketBriefingFooterSkeleton, MarketBriefingSecti
 import { MarketPulseHero } from "@/features/market-pulse/components/market-pulse-hero";
 import { SinceLastVisitStrip } from "@/features/market-pulse/components/since-last-visit-strip";
 import { StocksInFocusSection } from "@/features/market-pulse/components/stocks-in-focus-section";
-import { useMarketPulse } from "@/features/market-pulse/hooks/use-market-pulse";
+import type { MarketPulseHookResult } from "@/features/market-pulse/hooks/use-market-pulse";
 import { MarketActivityLoader } from "@/components/ui/market-activity-loader";
 
-export function MarketPulseView() {
-  const { model, isLoading, isBriefingLoading, isError } = useMarketPulse();
+type MarketPulseViewProps = MarketPulseHookResult;
 
-  if (isLoading && !model) {
+export function MarketPulseView({
+  model,
+  showFullPageLoader,
+  showUnavailable,
+  showPersonalizationWarning,
+  showBriefingPersonalizationWarning,
+  isBriefingLoading,
+  sectionLoading,
+  isError,
+}: MarketPulseViewProps) {
+  if (showFullPageLoader) {
     return (
       <div className="market-pulse-page">
         <MarketActivityLoader label="Preparing your market briefing..." />
@@ -19,7 +28,7 @@ export function MarketPulseView() {
     );
   }
 
-  if (!model) {
+  if (showUnavailable || !model) {
     return (
       <div className="market-pulse-page">
         <div className="data-warning">Market Pulse is unavailable right now.</div>
@@ -28,7 +37,7 @@ export function MarketPulseView() {
   }
 
   const focusStocks = model.focusStocks.length > 0 ? model.focusStocks : model.monitorCandidates;
-  const showFocusSection = focusStocks.length > 0 || isLoading;
+  const showFocusSection = focusStocks.length > 0 || sectionLoading.focus;
   const showAlerts = model.alerts.length > 0;
   const showEvidenceRow = showAlerts || Boolean(model.briefing) || isBriefingLoading;
   const showCriticalNotice =
@@ -39,6 +48,18 @@ export function MarketPulseView() {
       <MarketPulseHero briefingChips={model.briefingChips} hero={model.hero} />
 
       <SinceLastVisitStrip sinceLastVisit={model.sinceLastVisit} />
+
+      {showPersonalizationWarning ? (
+        <div className="data-warning pulse-inline-notice">
+          Personalized updates are unavailable. Showing the latest shared Market Pulse view.
+        </div>
+      ) : null}
+
+      {showBriefingPersonalizationWarning ? (
+        <div className="data-warning pulse-inline-notice">
+          Personalized briefing is unavailable. Showing the latest shared briefing content.
+        </div>
+      ) : null}
 
       {isError ? (
         <div className="data-warning pulse-inline-notice">
@@ -62,7 +83,7 @@ export function MarketPulseView() {
 
       {showFocusSection ? (
         <StocksInFocusSection
-          isLoading={isLoading}
+          isLoading={sectionLoading.focus}
           stockCount={focusStocks.length}
           stocks={focusStocks}
           usingMonitorFallback={model.focusStocks.length === 0 && model.monitorCandidates.length > 0}
@@ -79,7 +100,6 @@ export function MarketPulseView() {
           ) : null}
         </div>
       ) : null}
-
     </div>
   );
 }
