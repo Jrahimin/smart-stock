@@ -166,7 +166,10 @@ describe("handleStaleMarketIndexedDbEntry", () => {
     await handleStaleMarketIndexedDbEntry(url, queryClient);
 
     expect(deleteSpy).not.toHaveBeenCalled();
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["market-pulse-summary"] });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: ["market-pulse-summary"],
+      refetchType: "none",
+    });
   });
 });
 

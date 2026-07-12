@@ -7,6 +7,7 @@ from typing import Annotated
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
+from fastapi import Depends
 from pydantic import ValidationError
 
 from app.core.constants.trading_constants import (

@@ -44,6 +44,10 @@ if command -v curl >/dev/null 2>&1; then
       ;;
   esac
   echo "API /system: ${system_json}"
+
+  # shellcheck disable=SC1091
+  source "$ROOT/deploy/scripts/lib/smoke-market-api.sh"
+  smoke_market_api "$api_url"
 fi
 
 if [ -n "${CF_API_TOKEN:-}" ] && [ -n "${CF_ZONE_ID:-}" ]; then

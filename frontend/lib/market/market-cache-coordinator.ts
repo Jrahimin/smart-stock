@@ -62,13 +62,22 @@ export async function invalidateMarketTanStackQueries(queryClient: QueryClient):
 async function invalidateMarketTanStackRoots(
   queryClient: QueryClient,
   roots: readonly string[],
+  options?: { refetchType?: "active" | "inactive" | "all" | "none" },
 ): Promise<void> {
-  await Promise.all(roots.map((root) => queryClient.invalidateQueries({ queryKey: [root] })));
+  await Promise.all(
+    roots.map((root) =>
+      queryClient.invalidateQueries({
+        queryKey: [root],
+        refetchType: options?.refetchType ?? "active",
+      }),
+    ),
+  );
 }
 
 /**
- * Invalidates related TanStack roots after IndexedDB deleted a stale market entry.
- * IndexedDB deletion is performed by the API layer — this handler does not delete again.
+ * Marks related TanStack roots stale after IndexedDB deleted a market entry.
+ * Uses `refetchType: "none"` so the in-flight `backendApiGetMarket` queryFn can
+ * finish its network fetch without a concurrent refetch deadlock.
  */
 export async function invalidateTanStackForStaleMarketUrl(
   url: string,
@@ -83,7 +92,7 @@ export async function invalidateTanStackForStaleMarketUrl(
     return;
   }
 
-  await invalidateMarketTanStackRoots(queryClient, roots);
+  await invalidateMarketTanStackRoots(queryClient, roots, { refetchType: "none" });
 }
 
 /** @deprecated Use `invalidateTanStackForStaleMarketUrl` — kept for tests. */

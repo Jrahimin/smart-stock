@@ -199,7 +199,7 @@ The `/market-pulse` route server-prefetches a **narrow core slice** before hydra
 | Endpoints | `GET /market/freshness` + anonymous `GET /market/pulse/summary` (no `display_name`, no `previous_snapshot`) |
 | Server URL | `SERVER_API_BASE_URL` (required in production), e.g. `http://backend-api:8000/api/v1` |
 | Fetch mode | `cache: "no-store"` — **no** Next.js Data Cache / ISR for market JSON |
-| Timeout | `PULSE_CORE_LOADER_TIMEOUT_MS`, default **1500ms** (dashboard core remains 5000ms) |
+| Timeout | `PULSE_CORE_LOADER_TIMEOUT_MS`, default **5000ms** (aligned with dashboard core SSR) |
 | Redis | Anonymous summary uses `pulse:summary:{exchange}`; personalized requests bypass shared Redis reads and writes |
 | TanStack seed | `HydrationBoundary` + `PULSE_ANONYMOUS_SUMMARY_QUERY_KEY` + freshness |
 | Generation guard | Seed summary only when `summary.last_synced_at === freshness.last_synced_at`; missing identity is treated as stale |
@@ -238,7 +238,7 @@ Centralized in `backend-api-client.ts` + `market-cache-coordinator.ts` — **fea
 |------|----------|
 | Freshness observed | `setMarketFreshnessGeneration(last_synced_at)` from `useMarketCacheSyncCoordinator` |
 | IndexedDB read (`backendApiGetMarket`) | Validate `marketSchemaVersion === 2`; when freshness is known, compare response `last_synced_at` (when present) to `/market/freshness.last_synced_at` |
-| Schema or generation miss | Delete **only that URL's** IndexedDB entry → `notifyStaleMarketCacheEntry(url)` → invalidate related TanStack root(s) via `resolveMarketTanStackRootsForUrl` → fall through to network (never return the stale payload) |
+| Schema or generation miss | Delete **only that URL's** IndexedDB entry → deferred `notifyStaleMarketCacheEntry(url)` with `refetchType: "none"` (avoids refetch deadlock inside the active `queryFn`) → fall through to network (never return the stale payload) |
 | Generation-aware TanStack reconcile | On freshness load/update, `reconcileGenerationAwareMarketQueries` invalidates in-memory queries whose cached data carries mismatched `last_synced_at` |
 | Full sync (`last_synced_at` advances) | Unchanged: `clearMarketBackendApiCache()` + invalidate all `MARKET_TANSTACK_QUERY_ROOTS` |
 

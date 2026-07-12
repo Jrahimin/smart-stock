@@ -7,8 +7,8 @@ import type { BackendMarketPulseSummaryDto } from "@/lib/api/market-pulse-api";
 import { fetchServerMarketApiNoStore, getServerApiBaseUrl } from "@/lib/api/server-market-api";
 import { summaryMatchesFreshness } from "@/lib/market/pulse-generation";
 
-/** Target SSR TTFB budget for pulse core (~1200–1500ms). Override via `PULSE_CORE_LOADER_TIMEOUT_MS`. */
-const PULSE_CORE_LOADER_DEFAULT_MS = 1500;
+/** Bounded wait for pulse core SSR — must exceed typical cold backend latency (~2–4s locally). */
+const PULSE_CORE_LOADER_DEFAULT_MS = 5000;
 
 const parsedPulseLoaderTimeoutMs = Number(process.env.PULSE_CORE_LOADER_TIMEOUT_MS);
 export const PULSE_CORE_LOADER_TIMEOUT_MS =

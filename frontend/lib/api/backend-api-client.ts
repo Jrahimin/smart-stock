@@ -244,7 +244,10 @@ async function readCachedApiResponse<T>(
   if (verdict.reason === "schema" || verdict.reason === "generation") {
     await deleteCachedApiResponse(url);
     if (persistentCache === "market") {
-      await notifyStaleMarketCacheEntry(url);
+      // Defer so we never invalidate/refetch the query that is still inside this queryFn.
+      queueMicrotask(() => {
+        void notifyStaleMarketCacheEntry(url);
+      });
     }
   } else if (verdict.reason === "expired") {
     await deleteCachedApiResponse(url);

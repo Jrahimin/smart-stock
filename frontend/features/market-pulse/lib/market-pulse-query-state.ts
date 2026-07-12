@@ -108,8 +108,9 @@ export function resolveMarketPulsePresentationFlags(
     Boolean(anonymousSummary) &&
     Boolean(freshnessLastSyncedAt) &&
     !summaryMatchesFreshness(anonymousSummary, { last_synced_at: freshnessLastSyncedAt });
+  const awaitingAnonymousSummary = isSectionLoading(anonymousSummaryQuery.isLoading, anonymousSummary);
   const showFullPageLoader =
-    !resolvedSummary && (anonymousSummaryQuery.isLoading || anonymousSummaryStale || anonymousSummaryQuery.isFetching);
+    !resolvedSummary && (awaitingAnonymousSummary || anonymousSummaryStale);
   const showUnavailable = anonymousSettled && !resolvedSummary && !anonymousSummaryStale;
   const showPersonalizationWarning = Boolean(anonymousSummary) && personalizedSummaryQuery.isError;
   const isPersonalizedSummaryLoading =

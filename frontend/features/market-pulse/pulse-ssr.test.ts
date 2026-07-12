@@ -275,7 +275,8 @@ describe("loadMarketPulseCore", () => {
   });
 
   it("uses the dedicated pulse SSR timeout default", () => {
-    expect(PULSE_CORE_LOADER_TIMEOUT_MS).toBe(1500);
+    expect(PULSE_CORE_LOADER_TIMEOUT_MS).toBeGreaterThanOrEqual(3000);
+    expect(PULSE_CORE_LOADER_TIMEOUT_MS).toBeLessThanOrEqual(10_000);
   });
 });
 
@@ -392,6 +393,18 @@ describe("market pulse query orchestration", () => {
 
     expect(flags.showFullPageLoader).toBe(true);
     expect(flags.showUnavailable).toBe(false);
+  });
+
+  it("does not show full-page loader during background anonymous summary refetch", () => {
+    const flags = resolveMarketPulsePresentationFlags(
+      summaryFixture,
+      summaryFixture,
+      { isLoading: false, isSuccess: true, isError: false, isFetching: true },
+      { isError: false, isFetching: false, data: undefined },
+      freshnessFixture.last_synced_at,
+    );
+
+    expect(flags.showFullPageLoader).toBe(false);
   });
 
   it("does not write snapshot when personalized request fails", () => {

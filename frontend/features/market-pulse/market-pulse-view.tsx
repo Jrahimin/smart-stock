@@ -6,7 +6,6 @@ import { MarketPulseHero } from "@/features/market-pulse/components/market-pulse
 import { SinceLastVisitStrip } from "@/features/market-pulse/components/since-last-visit-strip";
 import { StocksInFocusSection } from "@/features/market-pulse/components/stocks-in-focus-section";
 import type { MarketPulseHookResult } from "@/features/market-pulse/hooks/use-market-pulse";
-import { MarketActivityLoader } from "@/components/ui/market-activity-loader";
 
 type MarketPulseViewProps = MarketPulseHookResult;
 
@@ -23,7 +22,9 @@ export function MarketPulseView({
   if (showFullPageLoader) {
     return (
       <div className="market-pulse-page">
-        <MarketActivityLoader label="Preparing your market briefing..." />
+        <div className="pulse-skeleton pulse-skeleton-card pulse-page-hero" aria-busy="true" aria-label="Loading market pulse" />
+        <MarketBriefingSectionSkeleton />
+        <StocksInFocusSection isLoading stockCount={3} stocks={[]} usingMonitorFallback={false} />
       </div>
     );
   }

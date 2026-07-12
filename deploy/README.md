@@ -122,8 +122,13 @@ docker compose exec backend-api python -m app.scripts.seed_super_admin
 curl -f https://api.stockwealthbd.com/api/v1/health
 curl -f https://api.stockwealthbd.com/api/v1/health/ready
 curl -fsS https://api.stockwealthbd.com/api/v1/system | jq .data
+curl -fsS "https://api.stockwealthbd.com/api/v1/market/pulse/summary?exchange=DSE" | jq .success
+curl -fsS "https://api.stockwealthbd.com/api/v1/market/freshness?exchange=DSE" | jq .success
 curl -fsS https://stockwealthbd.com/build-info.json | jq .
 curl -fI https://stockwealthbd.com
+```
+
+`deploy.sh` runs the pulse/freshness/overview smoke checks automatically after `/system`. A `422` on pulse summary usually means a broken FastAPI dependency import — treat it as a failed deploy.
 
 docker compose ps
 docker compose logs backend-scheduler | tail -30
@@ -254,7 +259,7 @@ Production needs **both** `backend-api` and `backend-scheduler`. The scheduler r
 
 | Command | Purpose | Key flags / params | Outcome |
 |---------|---------|-------------------|---------|
-| `bash deploy/scripts/deploy.sh` | **Recommended** full deploy | Build all → recreate all → `alembic upgrade head` → version check | API + scheduler + frontend + nginx all updated |
+| `bash deploy/scripts/deploy.sh` | **Recommended** full deploy | Build all → recreate all → `alembic upgrade head` → `/system` + market API smoke checks | API + scheduler + frontend + nginx all updated |
 | `docker compose build backend-api backend-scheduler` | Rebuild shared backend image | Single image used by both services | New `smart-stock-backend:latest` |
 | `docker compose up -d --force-recreate --no-deps backend-api backend-scheduler` | Redeploy API + scheduler | `--no-deps` | Both use new image; frontend/nginx keep running |
 | `docker compose restart backend-scheduler` | Restart jobs process | | Scheduler re-reads env; jobs restart; **no HTTP** on this container |
