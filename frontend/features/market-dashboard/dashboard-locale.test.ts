@@ -6,6 +6,7 @@ import {
   buildMarketDashboardModel,
   resolveMarketNarrativeKey,
 } from "@/features/market-dashboard/view-models/market-dashboard-view-model";
+import { mapUniverseRowsToSignalFeed } from "@/features/market-dashboard/view-models/dashboard-sections-mapper";
 import {
   getDashboardGuideDialogs,
   getGuideControls,
@@ -135,5 +136,75 @@ describe("dashboard guide dialogs", () => {
     expect(getGuideControls("bn").next).toBe("তারপর");
     expect(getMobileIntroDialogs("bn").welcome.eyebrow).toBe("👋 স্বাগতম");
     expect(getGuideNudgeCopy("bn").accept).toBe("হ্যাঁ, শুরু করি");
+  });
+});
+
+describe("dashboard signal localization", () => {
+  it("localizes trader decision reasons in bn model output", () => {
+    const signals = mapUniverseRowsToSignalFeed([
+      {
+        stock: {
+          id: "walton-id",
+          symbol: "WALTONHIL",
+          name: "WALTONHIL",
+          exchange: "DSE",
+          sector: "Engineering",
+          category: null,
+          isin: null,
+          listing_date: null,
+          lot_size: null,
+          paid_up_capital: null,
+          market_cap: null,
+          is_active: true,
+          created_at: "2026-07-12T00:00:00Z",
+          updated_at: "2026-07-12T00:00:00Z",
+        },
+        technical_snapshot: {
+          latest_price: 100,
+          previous_close: 98,
+          price_change: 2,
+          price_change_percent: 2,
+          volume: 120_000,
+          average_volume: 80_000,
+          turnover: 1_000_000,
+          rsi: 65.2,
+          sma20: 95,
+          ema20: 96,
+          volatility: 1.2,
+          support: 90,
+          resistance: 110,
+          trend: "UPTREND",
+          data_quality: "OK",
+          latest_trade_date: "2026-07-12",
+          ohlcv_row_count: 90,
+        },
+        decision: {
+          recommendation: "BUY",
+          confidence: 79,
+          reason: "Uptrend with favorable opportunity and acceptable reward potential.",
+          opportunity_score: 78,
+          risk_label: "LOW",
+        },
+        session: {
+          latest_trade_date: "2026-07-12",
+          close_price: 100,
+          open_price: 99,
+          volume: 120_000,
+          turnover: 1_000_000,
+          change_percent: 2,
+          data_quality_flag: "OK",
+          updated_at: "2026-07-12T00:00:00Z",
+        },
+      },
+    ]);
+
+    const model = buildMarketDashboardModel([], null, null, {
+      locale: "bn",
+      signals,
+    });
+
+    expect(model.signals[0]?.reason).toContain("Uptrend-এ ভালো সুযোগ আছে");
+    expect(model.signals[0]?.reason).toContain("Volume স্বাভাবিকের তুলনায় 1.5 গুণ");
+    expect(model.signals[0]?.reason).not.toContain("acceptable reward potential");
   });
 });

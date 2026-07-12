@@ -21,6 +21,7 @@ import { useDashboardStocksInFocus } from "@/features/market-dashboard/hooks/use
 import { setMarketPersistentCacheTtlMs } from "@/lib/api/backend-api-client";
 import type { DashboardCorePayload } from "@/lib/api/dashboard-server";
 import type { AppLocale } from "@/lib/locale/app-locale";
+import { DEFAULT_LOCALE } from "@/lib/locale/app-locale";
 import { useMarketDataFreshness } from "@/hooks/market/use-market-data-freshness";
 import {
   getDashboardRefetchIntervalMs,
@@ -45,7 +46,7 @@ export function useMarketDashboard(options?: {
   locale?: AppLocale;
 }) {
   const initialCore = options?.initialCore ?? null;
-  const locale = options?.locale ?? "en";
+  const locale = options?.locale ?? DEFAULT_LOCALE;
   const refreshMarketCaches = useMarketCacheRefresh();
   const freshnessQuery = useMarketDataFreshness("DSE", {
     initialData: initialCore?.freshness ?? undefined,

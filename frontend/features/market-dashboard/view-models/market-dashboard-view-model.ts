@@ -17,6 +17,7 @@ import {
 } from "@/lib/market/market-pulse-metrics";
 import { buildMarketIndexContext } from "@/lib/market/market-index-context";
 import { getMarketSession } from "@/lib/market/market-session-engine";
+import { buildLocalizedSignalReason, resolveTraderDecisionReason } from "@/lib/market/trader-decision-reason";
 import type {
   BreadthModel,
   ExchangeMetricSource,
@@ -33,6 +34,11 @@ import {
   getDashboardLanguage,
   type MarketNarrativeKey,
 } from "@/features/market-dashboard/dashboard-language";
+import {
+  buildTurnoverInsightContext,
+  localizeDashboardInsights,
+  resolveTurnoverLiquidityInsightKey,
+} from "@/features/market-dashboard/view-models/dashboard-insights-localization";
 import type { AppLocale } from "@/lib/locale/app-locale";
 import { DEFAULT_LOCALE } from "@/lib/locale/app-locale";
 import type { LeaderRowKind } from "@/lib/market/market-pulse-metrics";
@@ -258,12 +264,29 @@ function applyDashboardLocalization(
     priceBackedCount: number;
   },
 ): MarketDashboardModel {
-  if (locale === "en") {
-    return model;
-  }
-
   const language = getDashboardLanguage(locale);
   const { pulse } = model;
+  const localizedInsights = localizeDashboardInsights(
+    model.insights,
+    language.insights,
+    language.narratives,
+    {
+      marketMood: model.marketMood,
+      signalCount: model.signals.length,
+      turnover: buildTurnoverInsightContext(
+        pulse,
+        resolveTurnoverLiquidityInsightKey(context.turnoverRatio),
+      ),
+    },
+  );
+
+  if (locale === "en") {
+    return {
+      ...model,
+      insights: localizedInsights,
+    };
+  }
+
   const directionLabel =
     pulse.marketDirection === "buyers"
       ? language.direction.buyers
@@ -335,6 +358,29 @@ function applyDashboardLocalization(
         priceBackedCount: context.priceBackedCount,
       }),
     ),
+    signals: model.signals.map((signal) => {
+      const resolvedReason = resolveTraderDecisionReason(signal.reasonSummary);
+      const localizedReason = buildLocalizedSignalReason(
+        signal.technicalContext,
+        resolvedReason,
+        language.signals,
+      );
+      const localizedPrimaryContext =
+        signal.technicalContext.rsi !== undefined
+          ? language.signals.contextRsi(signal.technicalContext.rsi.toFixed(1))
+          : signal.technicalContext.volumeRatio !== undefined
+            ? language.signals.contextVolume(signal.technicalContext.volumeRatio.toFixed(1))
+            : signal.supportingContext[0];
+
+      return {
+        ...signal,
+        reason: localizedReason,
+        supportingContext: localizedPrimaryContext
+          ? [localizedPrimaryContext, ...signal.supportingContext.slice(1)]
+          : signal.supportingContext,
+      };
+    }),
+    insights: localizedInsights,
   };
 }
 

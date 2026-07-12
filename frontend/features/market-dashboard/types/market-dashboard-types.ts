@@ -6,6 +6,10 @@ import type {
   TurnoverPulseContext,
   VolumePulseContext,
 } from "@/lib/market/market-pulse-metrics";
+import type {
+  ResolvedTraderDecisionReason,
+  SignalTechnicalContext,
+} from "@/lib/market/trader-decision-reason";
 import type { MarketSessionModel } from "@/lib/market/market-session-engine";
 
 export type MarketMood =
@@ -73,6 +77,10 @@ export type SignalFeedItemModel = {
   confidence: string;
   confidenceValue: number;
   reason: string;
+  reasonSummary: string;
+  reasonKey: ResolvedTraderDecisionReason["key"];
+  reasonParams?: ResolvedTraderDecisionReason["params"];
+  technicalContext: SignalTechnicalContext;
   risk: string;
   priority: "high" | "medium" | "low";
   href: string;

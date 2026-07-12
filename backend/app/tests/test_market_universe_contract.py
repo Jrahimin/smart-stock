@@ -287,6 +287,17 @@ def test_build_market_insights_includes_mood_block() -> None:
 
     assert insights[0]["id"] == "market-mood"
     assert any(insight["id"] == "signal-coverage" for insight in insights)
+    turnover = next(insight for insight in insights if insight["id"] == "turnover-context")
+    assert turnover["description"] == "Latest turnover is 1.2B."
+    missing = build_market_insights(
+        market_mood="Bullish",
+        has_partial_data=False,
+        signal_count=0,
+        turnover_label="N/A",
+    )
+    missing_turnover = next(insight for insight in missing if insight["id"] == "turnover-context")
+    assert "unavailable" in str(missing_turnover["description"]).lower()
+    assert "1.2B" not in str(missing_turnover["description"])
 
 
 def test_briefing_module_has_no_forbidden_imports() -> None:

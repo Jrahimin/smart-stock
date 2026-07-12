@@ -266,9 +266,10 @@ switch (metric.kind) {
 | `TradeDateStatus` | `available`, `awaiting` | Trade date label |
 | `LeaderRowKind` | `top_sector`, `runner_up`, `top_stock`, `coverage` | Leaders rows |
 | `MarketNarrativeKey` | `early_recovery`, `buyers_active`, … | Pulse insight sentences |
+| `TraderDecisionReasonKey` | `buy_uptrend_reward`, `bearish_structure`, … | Smart Signals card summary (short-term prose adapter; prefer backend `reason_code`) |
 
 Define narrative keys in the dictionary (`narratives: Record<NarrativeKey, string>`).  
-Resolvers (`resolveMarketNarrativeKey`, etc.) return keys only; `apply*Localization` maps key → string.
+Resolvers (`resolveMarketNarrativeKey`, `resolveTraderDecisionReason`, etc.) return keys only; `apply*Localization` maps key → string.
 
 ### English as canonical build
 
@@ -288,7 +289,9 @@ Benefits: one code path for API mapping, English tests stay simple, Bangla is an
 
 | Source | Approach |
 |--------|----------|
-| Backend `reason`, `description` | Display as-is (English) |
+| Backend `reason`, `description` | Display as-is (English) in most surfaces |
+| **Dashboard Smart Signals `reason`** | **Exception:** map known `scoring.py` summary lines via `reasonKey` + `dashboard-language.ts` (`decisionReasons`). Unknown keys keep the raw backend English `reasonSummary`. Long-term: backend should expose `reason_code` + typed params instead of prose matching. |
+| **Dashboard Insights sidebar** | **Exception:** localize by stable insight `id` (`market-mood`, `signal-coverage`, `turnover-context`, `partial-data`) in `applyDashboardLocalization` via `dashboard-language.ts` `insights.blocks`. Unknown ids keep backend English title/description. |
 | Frontend-generated snippets (e.g. `Opportunity 72`) | Keep as English market terms, or add a dedicated dictionary key — do not ad-hoc translate in components |
 | Dates / relative time | English for now unless you add locale-aware formatters |
 

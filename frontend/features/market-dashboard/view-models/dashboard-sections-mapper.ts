@@ -15,6 +15,10 @@ import {
   buildDecisionSupportingContext,
   resolveTraderDecision,
 } from "@/lib/market/trader-decision";
+import {
+  buildSignalTechnicalContext,
+  resolveTraderDecisionReason,
+} from "@/lib/market/trader-decision-reason";
 import { mapUniverseRowToListRow } from "@/lib/market/universe-row-mapper";
 import { buildStockDetailPath } from "@/lib/seo/stock-page-seo";
 import type {
@@ -81,6 +85,7 @@ export function mapUniverseRowsToSignalFeed(
     .map((stock) => {
       const decision = resolveTraderDecision(stock);
       const supportingContext = buildDecisionSupportingContext(stock);
+      const resolvedReason = resolveTraderDecisionReason(decision.reason);
 
       return {
         symbol: stock.stock.symbol,
@@ -88,6 +93,10 @@ export function mapUniverseRowsToSignalFeed(
         confidence: `${decision.confidence}%`,
         confidenceValue: decision.confidence,
         reason: buildSignalFeedReason(stock),
+        reasonSummary: decision.reason,
+        reasonKey: resolvedReason.key,
+        reasonParams: resolvedReason.params,
+        technicalContext: buildSignalTechnicalContext(stock),
         risk: decision.riskLabel,
         priority: decisionPriority(decision.confidence),
         href: buildStockDetailPath(stock.stock.exchange, stock.stock.symbol),
@@ -114,33 +123,49 @@ export function mapTraderDecisionsToSignalFeed(
     .sort((left, right) => right.decision.confidence - left.decision.confidence)
     .slice(0, limit);
 
-  return ranked.map(({ stock, decision, latest_trade_date }) => ({
-    symbol: stock.symbol,
-    signal: decision.recommendation,
-    confidence: `${decision.confidence}%`,
-    confidenceValue: decision.confidence,
-    reason: decision.reason,
-    risk: decision.risk_label,
-    priority: decisionPriority(decision.confidence),
-    href: buildStockDetailPath(stock.exchange, stock.symbol),
-    supportingContext: [`Opportunity ${decision.opportunity_score}`, `${decision.risk_label} risk`],
-    generatedAt: formatGeneratedAt(latest_trade_date),
-  }));
+  return ranked.map(({ stock, decision, latest_trade_date }) => {
+    const resolvedReason = resolveTraderDecisionReason(decision.reason);
+
+    return {
+      symbol: stock.symbol,
+      signal: decision.recommendation,
+      confidence: `${decision.confidence}%`,
+      confidenceValue: decision.confidence,
+      reason: decision.reason,
+      reasonSummary: decision.reason,
+      reasonKey: resolvedReason.key,
+      reasonParams: resolvedReason.params,
+      technicalContext: {},
+      risk: decision.risk_label,
+      priority: decisionPriority(decision.confidence),
+      href: buildStockDetailPath(stock.exchange, stock.symbol),
+      supportingContext: [`Opportunity ${decision.opportunity_score}`, `${decision.risk_label} risk`],
+      generatedAt: formatGeneratedAt(latest_trade_date),
+    };
+  });
 }
 
 export function mapDashboardSignalsDto(dto: BackendDashboardStocksInFocusDto): SignalFeedItemModel[] {
-  return dto.signals.map((signal) => ({
-    symbol: signal.symbol,
-    signal: signal.signal,
-    confidence: `${signal.confidence}%`,
-    confidenceValue: signal.confidence,
-    reason: signal.reason,
-    risk: signal.risk,
-    priority: signal.priority as SignalFeedItemModel["priority"],
-    href: buildStockDetailPath(signal.exchange, signal.symbol),
-    supportingContext: signal.supporting_context,
-    generatedAt: signal.generated_at,
-  }));
+  return dto.signals.map((signal) => {
+    const resolvedReason = resolveTraderDecisionReason(signal.reason);
+
+    return {
+      symbol: signal.symbol,
+      signal: signal.signal,
+      confidence: `${signal.confidence}%`,
+      confidenceValue: signal.confidence,
+      reason: signal.reason,
+      reasonSummary: signal.reason,
+      reasonKey: resolvedReason.key,
+      reasonParams: resolvedReason.params,
+      technicalContext: {},
+      risk: signal.risk,
+      priority: signal.priority as SignalFeedItemModel["priority"],
+      href: buildStockDetailPath(signal.exchange, signal.symbol),
+      supportingContext: signal.supporting_context,
+      generatedAt: signal.generated_at,
+    };
+  });
 }
 
 export function mapDashboardAlertsDto(dto: BackendDashboardMarketAlertsDto): MarketTimelineItemModel[] {

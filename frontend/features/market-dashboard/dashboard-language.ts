@@ -1,5 +1,7 @@
 import type { AppLocale } from "@/lib/locale/app-locale";
 import { DEFAULT_LOCALE } from "@/lib/locale/app-locale";
+import type { DecisionReasonCopy } from "@/lib/market/trader-decision-reason";
+import type { InsightCategory } from "@/lib/insights/insight-types";
 
 export type MarketNarrativeKey =
   | "buyers_active"
@@ -17,6 +19,105 @@ export type MarketNarrativeKey =
   | "participation_near"
   | "balanced_breadth"
   | "momentum_chase_risk";
+
+export type MarketMoodInsightKey =
+  | "accumulation"
+  | "bullish"
+  | "bearish"
+  | "high_volatility"
+  | "weak_recovery"
+  | "cautious";
+
+export type TurnoverLiquidityInsightKey = "strong_liquidity" | "weak_liquidity" | "average_liquidity";
+
+export type TurnoverInsightContext = {
+  turnoverLabel: string;
+  vsYesterday: string;
+  vs30DayAvg: string;
+  liquidityKey: TurnoverLiquidityInsightKey;
+};
+
+function buildEnglishDecisionReasons(): DecisionReasonCopy {
+  return {
+    stale_sparse_data: "Data is stale or sparse; wait for fresher confirmation.",
+    corporate_action_adjustment:
+      "Sharp single-session drop looks like a corporate-action/ex-date adjustment rather than a breakdown; wait for confirmation.",
+    failed_support: "Price has failed recent support.",
+    buy_uptrend_reward: "Uptrend with favorable opportunity and acceptable reward potential.",
+    buy_uptrend_resistance_test:
+      "Uptrend with favorable opportunity and resistance test participation.",
+    uptrend_near_resistance_wait_volume:
+      "Uptrend is constructive near resistance; wait for stronger volume confirmation.",
+    high_risk_selective_setup:
+      "High-risk name with strong trend and participation; treat as a selective setup.",
+    bearish_structure: "Bearish structure dominates the setup.",
+    risk_wait_confirmation: ({ riskLabel = "elevated" }) =>
+      `Risk level is ${riskLabel}; wait for cleaner confirmation rather than forcing a trade.`,
+    momentum_extended_wait_entry:
+      "Momentum is extended near resistance; wait for a better entry.",
+    momentum_elevated_hold:
+      "Momentum is elevated but the uptrend remains intact; hold rather than chase.",
+    near_resistance_no_uptrend:
+      "Price is near resistance without an uptrend; wait for confirmation.",
+    constructive_hold:
+      "Structure remains constructive; hold existing positions or wait for cleaner entry.",
+    sideways_constructive_monitor:
+      "Sideways base with constructive opportunity; monitor for directional confirmation.",
+    no_directional_edge: "No strong directional edge; patience is preferred.",
+    reward_risk_below_minimum: ({ riskReward = 0, minRiskReward = 0 }) =>
+      `Reward/risk ${riskReward.toFixed(2)} is below the ${minRiskReward.toFixed(1)} minimum; hold rather than buy at this price.`,
+    lower_structure_hold:
+      "Market structure shows lower highs and lower lows; hold rather than buy into weakness.",
+    bearish_regime_hold:
+      "Broad market regime is bearish; hold rather than open new long exposure.",
+    confidence_capped_bearish_regime: ({ confidenceCap = 0 }) =>
+      `Confidence capped at ${confidenceCap} in a bearish market regime.`,
+    decision_engine_unavailable:
+      "Decision engine unavailable for this row; defaulting to wait.",
+    unknown: "Awaiting a clearer decision summary.",
+  };
+}
+
+function buildBanglaDecisionReasons(): DecisionReasonCopy {
+  return {
+    stale_sparse_data: "ডেটা পুরনো বা কম; নতুন ডেটা দিয়ে নিশ্চিত হওয়া পর্যন্ত অপেক্ষা করুন।",
+    corporate_action_adjustment:
+      "এক দিনের তীব্র পতনটি corporate action বা ex-date adjustment-এর কারণে হতে পারে; breakdown নিশ্চিত না হওয়া পর্যন্ত অপেক্ষা করুন।",
+    failed_support: "দাম সাম্প্রতিক support-এর নিচে নেমে গেছে।",
+    buy_uptrend_reward: "Uptrend-এ ভালো সুযোগ আছে; লাভের সম্ভাবনাও ভালো।",
+    buy_uptrend_resistance_test:
+      "Uptrend-এ ভালো সুযোগ আছে; resistance-এর কাছে শেয়ারের আচরণও নজরে রাখার মতো।",
+    uptrend_near_resistance_wait_volume:
+      "Resistance-এর কাছে এসেও Uptrend ঠিক আছে; আরও শক্তিশালী volume confirmation না পাওয়া পর্যন্ত অপেক্ষা করুন।",
+    high_risk_selective_setup:
+      "ঝুঁকি বেশি, তবে trend ও participation শক্তিশালী; বেছে বেছে এগোনোর setup।",
+    bearish_structure: "দামের গঠন bearish; এখনো চাপই বেশি।",
+    risk_wait_confirmation: ({ riskLabel = "elevated" }) =>
+      `ঝুঁকির মাত্রা ${riskLabel}; জোর করে trade না নিয়ে পরিষ্কার confirmation-এর জন্য অপেক্ষা করুন।`,
+    momentum_extended_wait_entry:
+      "Resistance-এর কাছে momentum অনেকটা বেড়ে গেছে; ভালো entry-র জন্য অপেক্ষা করুন।",
+    momentum_elevated_hold:
+      "Momentum শক্তিশালী, Uptrend-ও ঠিক আছে; এখন chase না করে hold করুন।",
+    near_resistance_no_uptrend:
+      "দাম resistance-এর কাছে, কিন্তু Uptrend নেই; confirmation না পাওয়া পর্যন্ত অপেক্ষা করুন।",
+    constructive_hold:
+      "দামের গঠন ভালো আছে; আগের position hold করুন বা আরও ভালো entry-র অপেক্ষা করুন।",
+    sideways_constructive_monitor:
+      "Sideways base তৈরি হচ্ছে; দিক পরিষ্কার হওয়া পর্যন্ত নজরে রাখুন।",
+    no_directional_edge: "বাজারের দিক এখনো পরিষ্কার নয়; ধৈর্য ধরাই ভালো।",
+    reward_risk_below_minimum: ({ riskReward = 0, minRiskReward = 0 }) =>
+      `লাভ-ঝুঁকির অনুপাত ${riskReward.toFixed(2)} ন্যূনতম ${minRiskReward.toFixed(1)}-এর নিচে; এই দামে buy না করে hold করাই ভালো।`,
+    lower_structure_hold:
+      "দামের গঠন দুর্বল—lower high আর lower low তৈরি হচ্ছে; এখন buy না করাই ভালো।",
+    bearish_regime_hold:
+      "বাজারের সামগ্রিক trend bearish; নতুন long position না খুলে hold করুন।",
+    confidence_capped_bearish_regime: ({ confidenceCap = 0 }) =>
+      `বাজার bearish হওয়ায় confidence ${confidenceCap}-এ সীমিত রাখা হয়েছে।`,
+    decision_engine_unavailable:
+      "এই শেয়ারের decision engine পাওয়া যায়নি; আপাতত অপেক্ষা করুন।",
+    unknown: "আরও পরিষ্কার সিদ্ধান্তের সারাংশ আসছে।",
+  };
+}
 
 export type DashboardLanguage = {
   pulse: {
@@ -98,6 +199,10 @@ export type DashboardLanguage = {
     confidence: (value: string) => string;
     risk: (value: string) => string;
     awaitingContext: string;
+    contextJoiner: string;
+    contextRsi: (value: string) => string;
+    contextVolume: (ratio: string) => string;
+    decisionReasons: DecisionReasonCopy;
   };
   timeline: {
     eyebrow: string;
@@ -107,6 +212,31 @@ export type DashboardLanguage = {
   insights: {
     eyebrow: string;
     title: string;
+    categories: Record<InsightCategory, string>;
+    blocks: {
+      marketMood: {
+        title: (key: MarketMoodInsightKey) => string;
+        descriptions: Record<MarketMoodInsightKey, string>;
+      };
+      signalCoverage: {
+        title: string;
+        description: (signalCount: number) => string;
+      };
+      turnoverContext: {
+        title: string;
+        descriptionMissing: string;
+        liquidityGuidance: Record<TurnoverLiquidityInsightKey, string>;
+        descriptionAvailable: (
+          context: TurnoverInsightContext,
+          liquidityLabel: string,
+          guidance: string,
+        ) => string;
+      };
+      partialData: {
+        title: string;
+        description: string;
+      };
+    };
   };
   states: {
     backendError: string;
@@ -256,6 +386,10 @@ const dashboardLanguage = {
       confidence: (value) => `${value} confidence`,
       risk: (value) => `${value} risk`,
       awaitingContext: "Awaiting stronger context",
+      contextJoiner: " · ",
+      contextRsi: (value) => `RSI ${value}`,
+      contextVolume: (ratio) => `Volume ${ratio}x avg`,
+      decisionReasons: buildEnglishDecisionReasons(),
     },
     timeline: {
       eyebrow: "Market Timeline",
@@ -264,7 +398,71 @@ const dashboardLanguage = {
     },
     insights: {
       eyebrow: "Insights",
-      title: "Deterministic intelligence",
+      title: "Deterministic  intelligence",
+      categories: {
+        warning: "warning",
+        opportunity: "opportunity",
+        momentum: "momentum",
+        accumulation: "accumulation",
+        volatility: "volatility",
+        valuation: "valuation",
+        risk: "risk",
+        quality: "quality",
+      },
+      blocks: {
+        marketMood: {
+          title: (key) =>
+            ({
+              accumulation: "Accumulation market tone",
+              bullish: "Bullish market tone",
+              bearish: "Bearish market tone",
+              high_volatility: "High volatility market tone",
+              weak_recovery: "Weak recovery market tone",
+              cautious: "Cautious market tone",
+            })[key],
+          descriptions: {
+            accumulation:
+              "Positive breadth is pairing with stronger participation; prioritize liquid continuation setups.",
+            bullish: "Breadth and price action lean constructive for the latest available session.",
+            bearish: "Decliners are leading, so opportunity cards should be checked against risk first.",
+            high_volatility:
+              "Volatility is elevated; position sizing and data quality checks matter more than headline direction.",
+            weak_recovery:
+              "The market is attempting to recover, but breadth confirmation is still weak.",
+            cautious: "Market direction is mixed; confirmation matters more than headline movement.",
+          },
+        },
+        signalCoverage: {
+          title: "Signal layer ready",
+          description: (signalCount) =>
+            `${signalCount} highlighted signals can be explained with structured confidence and risk metadata.`,
+        },
+        turnoverContext: {
+          title: "Turnover context",
+          descriptionMissing:
+            "Turnover data is unavailable. Do not treat this as zero market activity—it may be a data sync or availability issue.",
+          liquidityGuidance: {
+            strong_liquidity:
+              "Liquid names can carry trends more reliably—prioritize them for new entries.",
+            average_liquidity:
+              "Participation is in line with recent norms—wait for cleaner confirmation before sizing up.",
+            weak_liquidity:
+              "Thin participation raises slippage risk—reduce size and favor higher-turnover names.",
+          },
+          descriptionAvailable: (context, liquidityLabel, guidance) => {
+            const sessionChange =
+              context.vsYesterday !== "N/A" ? ` (${context.vsYesterday} vs prior session)` : "";
+            const averageContext =
+              context.vs30DayAvg !== "N/A" ? `30-session avg is ${context.vs30DayAvg}. ` : "";
+            return `Latest turnover is ${context.turnoverLabel}${sessionChange}. ${averageContext}${liquidityLabel} ${guidance}`;
+          },
+        },
+        partialData: {
+          title: "Data quality caution",
+          description:
+            "Some market fields are partial or validation-only, so the UI should avoid false precision.",
+        },
+      },
     },
     states: {
       backendError:
@@ -408,6 +606,10 @@ const dashboardLanguage = {
       confidence: (value) => `${value} confidence`,
       risk: (value) => `${value} risk`,
       awaitingContext: "আরও পরিষ্কার context দরকার",
+      contextJoiner: " · ",
+      contextRsi: (value) => `RSI ${value}`,
+      contextVolume: (ratio) => `Volume স্বাভাবিকের তুলনায় ${ratio} গুণ`,
+      decisionReasons: buildBanglaDecisionReasons(),
     },
     timeline: {
       eyebrow: "Market Timeline",
@@ -417,6 +619,71 @@ const dashboardLanguage = {
     insights: {
       eyebrow: "Insights",
       title: "বাজার কী বলছে",
+      categories: {
+        warning: "সতর্কতা",
+        opportunity: "সুযোগ",
+        momentum: "momentum",
+        accumulation: "accumulation",
+        volatility: "volatility",
+        valuation: "valuation",
+        risk: "ঝুঁকি",
+        quality: "ডেটার মান",
+      },
+      blocks: {
+        marketMood: {
+          title: (key) =>
+            ({
+              accumulation: "বাজারে কেনার আগ্রহ",
+              bullish: "বাজার ঊর্ধ্বমুখী",
+              bearish: "বাজার নিম্নমুখী",
+              high_volatility: "বাজারে ওঠানামা বেশি",
+              weak_recovery: "বাজার ঘুরে দাঁড়ানোর চেষ্টা",
+              cautious: "বাজারে সতর্কতা",
+            })[key],
+          descriptions: {
+            accumulation:
+              "Breadth ভালো এবং participation বাড়ছে—ভালো liquidity থাকা stock-এর trend চলার সুযোগ আগে দেখুন।",
+            bullish: "Breadth ও price action দুটোই ভালো; সর্বশেষ session-এ বাজারের momentum ঊর্ধ্বমুখী।",
+            bearish: "Decliner বেশি; তাই opportunity দেখার আগে risk যাচাই করে নিন।",
+            high_volatility:
+              "Volatility বেশি; বাজারের দিকের চেয়ে position sizing আর data quality দেখা এখন বেশি জরুরি।",
+            weak_recovery:
+              "বাজার ঘুরে দাঁড়ানোর চেষ্টা করছে, কিন্তু Breadth এখনো recovery নিশ্চিত করছে না।",
+            cautious:
+              "বাজারের দিকটা mixed; headline movement-এর পেছনে না ছুটে confirmation আসা পর্যন্ত অপেক্ষা করুন।",
+          },
+        },
+        signalCoverage: {
+          title: "Signal layer তৈরি",
+          description: (signalCount) =>
+            `এই ${signalCount}টি signal-এর confidence ও risk দেখে কেন এমন signal এসেছে, তা বোঝা যাবে।`,
+        },
+        turnoverContext: {
+          title: "Turnover-এর ছবি",
+          descriptionMissing:
+            "Turnover data এখনো পাওয়া যায়নি। বাজারে লেনদেন হয়নি ধরে নেবেন না—sync বা data availability সমস্যা হতে পারে।",
+          liquidityGuidance: {
+            strong_liquidity:
+              "এক্ষেত্রে trend ধরে রাখার সম্ভাবনা বেশি—নতুন entry-তে এগুলো আগে দেখুন",
+            average_liquidity:
+              "Participation স্বাভাবিক—position বাড়ানোর আগে confirmation দেখুন",
+            weak_liquidity:
+              "লেনদেন কম হলে slippage ঝুঁকি বাড়ে—size কমান এবং বেশি turnover-এর stock বেছে নিন",
+          },
+          descriptionAvailable: (context, liquidityLabel, guidance) => {
+            const sessionChange =
+              context.vsYesterday !== "N/A" ? ` (গত session-এর তুলনায় ${context.vsYesterday})` : "";
+            const averageContext =
+              context.vs30DayAvg !== "N/A" ? `30-session গড় ${context.vs30DayAvg}। ` : "";
+            return `সর্বশেষ turnover ${context.turnoverLabel}${sessionChange}। ${averageContext}${liquidityLabel}—${guidance}।`;
+          },
+        },
+        partialData: {
+          title: "ডেটা নিয়ে সতর্কতা",
+          description:
+            "কিছু market field এখনো অসম্পূর্ণ বা শুধু validation-এর জন্য আছে; তাই সংখ্যাগুলোকে প্রয়োজনের চেয়ে বেশি নির্ভুল ধরে নেবেন না।",
+        },
+      },
     },
     states: {
       backendError:

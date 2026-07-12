@@ -17,10 +17,9 @@ export const InsightSidebar = memo(function InsightSidebar({ insights, copy }: I
       </div>
       {insights.map((insight) => (
         <article className={`insight-block insight-block-${insight.tone} insight-category-${insight.category}`} key={insight.id}>
-          <span className="insight-category-label">{insight.category}</span>
+          <span className="insight-category-label">{insight.categoryLabel ?? insight.category}</span>
           <strong>{insight.title}</strong>
           <p>{insight.description}</p>
-          <span>{insight.source}</span>
         </article>
       ))}
     </aside>

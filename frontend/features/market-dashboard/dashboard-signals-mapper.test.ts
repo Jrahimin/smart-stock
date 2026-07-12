@@ -39,7 +39,6 @@ function buildRow(symbol: string, rsi: number, opportunity: number): BackendScor
       data_quality: "OK",
       latest_trade_date: "2026-07-12",
       ohlcv_row_count: 90,
-      sparkline_closes: [95, 96, 97, 98, 100],
     },
     decision: {
       recommendation: "BUY",
@@ -69,6 +68,7 @@ describe("mapUniverseRowsToSignalFeed", () => {
     ]);
 
     expect(feed).toHaveLength(2);
+    expect(feed[0]?.reasonKey).toBe("buy_uptrend_reward");
     expect(feed[0]?.reason).not.toBe(feed[1]?.reason);
     expect(feed[0]?.reason).toContain("RSI");
     expect(feed[0]?.supportingContext[0]).toContain("RSI 61.2");

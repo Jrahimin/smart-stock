@@ -102,37 +102,49 @@ button {
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
   height: 100vh;
   min-height: 100vh;
-  overflow-x: hidden;
-  overflow-y: auto;
-  padding: 24px;
+  overflow: hidden;
+  padding: 16px;
   position: sticky;
   top: 0;
 }
 
 .terminal-sidebar-primary {
-  flex-shrink: 0;
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
   width: 100%;
 }
 
+.terminal-sidebar-primary::-webkit-scrollbar {
+  width: 4px;
+}
+
+.terminal-sidebar-primary::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--muted) 28%, transparent);
+  border-radius: 999px;
+}
+
 .terminal-sidebar-spacer {
-  flex: 1;
-  min-height: 10px;
-  width: 100%;
+  display: none;
 }
 
 .terminal-sidebar-utilities {
   display: grid;
   flex-shrink: 0;
-  gap: 12px;
+  gap: 10px;
   width: 100%;
 }
 
 .terminal-shell-collapsed .terminal-sidebar {
   align-items: center;
-  padding: 18px 10px;
+  gap: 8px;
+  padding: 12px 8px;
 }
 
 .terminal-sidebar-top {
@@ -166,9 +178,19 @@ button {
   width: 38px;
 }
 
+.terminal-shell-collapsed .terminal-sidebar-top {
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.terminal-shell-collapsed .terminal-brand {
+  justify-content: center;
+  min-height: 0;
+}
+
 .terminal-shell-collapsed .terminal-brand-wide,
-.terminal-shell-collapsed .terminal-sidebar nav > a > span,
-.terminal-shell-collapsed .terminal-nav-link-ops > span,
+.terminal-shell-collapsed .terminal-sidebar nav a:not(.wealth-workspace-nav-tile) > span,
 .terminal-shell-collapsed .terminal-nav-section-label {
   display: none;
 }
@@ -181,6 +203,14 @@ button {
 
 .terminal-shell-collapsed .terminal-brand-icon {
   display: block;
+  height: 32px;
+  width: 32px;
+}
+
+.terminal-shell-collapsed .sidebar-toggle-button {
+  height: 32px;
+  min-width: 32px;
+  width: 100%;
 }
 
 .terminal-brand span,
@@ -227,15 +257,23 @@ button {
   );
   flex-shrink: 0;
   height: 1px;
-  margin: 8px 0 6px;
+  margin: 6px 0 4px;
   width: 100%;
 }
 
 .terminal-nav-wealth-module {
-  margin-top: 2px;
-  padding: 2px 0 8px;
+  margin-top: 0;
+  padding: 0 0 4px;
   position: relative;
   width: 100%;
+}
+
+.terminal-shell-collapsed .terminal-nav-divider {
+  margin: 4px 0 2px;
+}
+
+.terminal-shell-collapsed .terminal-nav-wealth-module {
+  padding: 0;
 }
 
 .sidebar-theme-toggle {
@@ -359,14 +397,19 @@ button {
   color: color-mix(in srgb, var(--primary) 72%, var(--foreground));
   cursor: pointer;
   display: inline-flex;
-  height: 38px;
+  height: 36px;
   justify-content: center;
   transition:
     background 0.2s ease,
     border-color 0.2s ease,
     color 0.2s ease,
     transform 0.2s ease;
-  width: 38px;
+  width: 36px;
+}
+
+.terminal-shell-collapsed .sidebar-theme-icon-button {
+  height: 40px;
+  width: 40px;
 }
 
 .sidebar-theme-icon-button:hover {
@@ -384,9 +427,18 @@ button {
   border-top: 1px solid var(--border);
   display: grid;
   flex-shrink: 0;
-  gap: 8px;
-  padding-top: 14px;
+  gap: 6px;
+  padding-top: 10px;
   width: 100%;
+}
+
+.terminal-shell-collapsed .terminal-sidebar-footer {
+  gap: 4px;
+  padding-top: 8px;
+}
+
+.terminal-shell-collapsed .terminal-sidebar-utilities {
+  gap: 6px;
 }
 
 .terminal-user-chip {
@@ -398,8 +450,8 @@ button {
   display: flex;
   font-size: 0.86rem;
   gap: 10px;
-  height: 44px;
-  min-height: 44px;
+  height: 40px;
+  min-height: 40px;
   min-width: 0;
   padding: 0 12px;
   text-decoration: none;
@@ -441,9 +493,9 @@ button {
   flex-shrink: 0;
   font: inherit;
   gap: 10px;
-  height: 44px;
+  height: 40px;
   justify-content: flex-start;
-  min-height: 44px;
+  min-height: 40px;
   padding: 0 12px;
   text-decoration: none;
   width: 100%;
@@ -479,19 +531,20 @@ button {
 }
 
 .terminal-shell-collapsed .terminal-auth-button {
-  height: 44px;
+  height: 40px;
   justify-content: center;
-  min-height: 44px;
-  min-width: 44px;
+  min-height: 40px;
+  min-width: 40px;
   padding: 0;
-  width: 44px;
+  width: 40px;
 }
 
 .terminal-shell-collapsed .terminal-user-chip {
+  height: 40px;
   justify-content: center;
-  min-height: 44px;
+  min-height: 40px;
   padding: 0;
-  width: 44px;
+  width: 40px;
 }
 
 .terminal-shell-collapsed .terminal-user-name,
@@ -524,12 +577,12 @@ button {
 }
 
 .terminal-shell-collapsed .terminal-sidebar nav a:not(.wealth-workspace-nav-tile) {
-  height: 44px;
+  height: 40px;
   justify-content: center;
-  min-height: 44px;
-  min-width: 44px;
+  min-height: 40px;
+  min-width: 40px;
   padding: 0;
-  width: 44px;
+  width: 40px;
 }
 
 .terminal-sidebar nav a:hover:not(.wealth-workspace-nav-tile),
@@ -849,16 +902,16 @@ button {
 }
 
 .terminal-shell-collapsed .terminal-sidebar nav a.wealth-workspace-nav-tile {
-  height: 50px;
-  min-height: 50px;
+  height: 44px;
+  min-height: 44px;
   padding: 0;
 }
 
 .terminal-shell-collapsed .terminal-sidebar .wealth-workspace-nav-tile {
   align-items: center;
   justify-content: center;
-  min-width: 50px;
-  width: 50px;
+  min-width: 44px;
+  width: 44px;
 }
 
 .terminal-shell-collapsed .terminal-sidebar .wealth-workspace-nav-tile:hover {
