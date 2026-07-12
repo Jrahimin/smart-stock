@@ -173,12 +173,13 @@ describe("pulse generation identity", () => {
 });
 
 describe("pulse SSR dehydrated state", () => {
-  it("seeds freshness and anonymous summary only", () => {
+  it("seeds freshness, anonymous summary, and anonymous briefing", () => {
     const core: MarketPulseCorePayload = {
       fetchedAt: 1_700_000_000_000,
       lastSyncedAt: freshnessFixture.last_synced_at,
       freshness: freshnessFixture,
       summary: summaryFixture,
+      briefing: briefingFixture,
     };
 
     const dehydrated = buildPulseDehydratedState(core);
@@ -194,7 +195,7 @@ describe("pulse SSR dehydrated state", () => {
 
     expect(freshnessEntry?.state.data).toEqual(freshnessFixture);
     expect(summaryEntry?.state.data).toEqual(summaryFixture);
-    expect(briefingEntry).toBeUndefined();
+    expect(briefingEntry?.state.data).toEqual(briefingFixture);
   });
 });
 
@@ -211,7 +212,7 @@ describe("loadMarketPulseCore", () => {
     vi.restoreAllMocks();
   });
 
-  it("does not request briefing during SSR", async () => {
+  it("requests anonymous briefing during SSR", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
       if (url.includes("/market/freshness")) {
@@ -220,18 +221,24 @@ describe("loadMarketPulseCore", () => {
       if (url.includes("/market/pulse/summary")) {
         return jsonResponse(summaryFixture);
       }
+      if (url.includes("/market/pulse/briefing")) {
+        return jsonResponse(briefingFixture);
+      }
       return jsonResponse(null, 404);
     });
     global.fetch = fetchMock as typeof fetch;
 
-    await loadMarketPulseCore("DSE");
+    const result = await loadMarketPulseCore("DSE");
 
     const requestedUrls = fetchMock.mock.calls.map((call: unknown[]) => String(call[0]));
-    expect(requestedUrls.some((url) => url.includes("/market/pulse/briefing"))).toBe(false);
+    expect(requestedUrls.some((url) => url.includes("/market/pulse/briefing"))).toBe(true);
     expect(requestedUrls.some((url) => url.includes("/market/pulse/summary"))).toBe(true);
+    if (result.status !== "error") {
+      expect(result.data.briefing).toEqual(briefingFixture);
+    }
   });
 
-  it("drops summary when generation disagrees with freshness", async () => {
+  it("drops summary and briefing when generation disagrees with freshness", async () => {
     global.fetch = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
       if (url.includes("/market/freshness")) {
@@ -243,6 +250,9 @@ describe("loadMarketPulseCore", () => {
           last_synced_at: "2026-07-09T09:00:00Z",
         });
       }
+      if (url.includes("/market/pulse/briefing")) {
+        return jsonResponse(briefingFixture);
+      }
       return jsonResponse(null, 404);
     }) as typeof fetch;
 
@@ -251,10 +261,11 @@ describe("loadMarketPulseCore", () => {
     if (result.status !== "error") {
       expect(result.data.freshness).not.toBeNull();
       expect(result.data.summary).toBeNull();
+      expect(result.data.briefing).toBeNull();
     }
   });
 
-  it("returns ok when freshness and matching summary succeed", async () => {
+  it("returns ok when freshness, matching summary, and briefing succeed", async () => {
     global.fetch = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
       if (url.includes("/market/freshness")) {
@@ -263,6 +274,9 @@ describe("loadMarketPulseCore", () => {
       if (url.includes("/market/pulse/summary")) {
         return jsonResponse(summaryFixture);
       }
+      if (url.includes("/market/pulse/briefing")) {
+        return jsonResponse(briefingFixture);
+      }
       return jsonResponse(null, 404);
     }) as typeof fetch;
 
@@ -270,6 +284,7 @@ describe("loadMarketPulseCore", () => {
     expect(result.status).toBe("ok");
     if (result.status !== "error") {
       expect(result.data.summary).toEqual(summaryFixture);
+      expect(result.data.briefing).toEqual(briefingFixture);
       expect(result.data.fetchedAt).toBeGreaterThan(0);
     }
   });
@@ -286,6 +301,7 @@ describe("market pulse query orchestration", () => {
     lastSyncedAt: freshnessFixture.last_synced_at,
     freshness: freshnessFixture,
     summary: summaryFixture,
+    briefing: briefingFixture,
   };
 
   it("keeps resolved summary visible during personalized refetch", () => {
@@ -463,6 +479,7 @@ describe("market pulse query orchestration", () => {
 
   it("keeps anonymous briefing visible during personalized briefing refetch", () => {
     const resolved = resolveMarketPulseBriefing(
+      initialCore,
       {
         data: briefingFixture,
         isLoading: false,
@@ -478,6 +495,47 @@ describe("market pulse query orchestration", () => {
     );
 
     expect(resolved.resolvedBriefing).toEqual(briefingFixture);
+  });
+
+  it("hydrates anonymous briefing from SSR seed while query is pending", () => {
+    const resolved = resolveMarketPulseBriefing(
+      initialCore,
+      {
+        data: undefined,
+        isLoading: true,
+        isSuccess: false,
+        isError: false,
+      },
+      {
+        data: undefined,
+        isLoading: false,
+        isSuccess: false,
+        isError: false,
+      },
+    );
+
+    expect(resolved.anonymousBriefing).toEqual(briefingFixture);
+    expect(resolved.resolvedBriefing).toEqual(briefingFixture);
+  });
+
+  it("does not hydrate briefing when reconciled summary is absent from SSR seed", () => {
+    const resolved = resolveMarketPulseBriefing(
+      { ...initialCore, summary: null, briefing: briefingFixture },
+      {
+        data: undefined,
+        isLoading: true,
+        isSuccess: false,
+        isError: false,
+      },
+      {
+        data: undefined,
+        isLoading: false,
+        isSuccess: false,
+        isError: false,
+      },
+    );
+
+    expect(resolved.anonymousBriefing).toBeNull();
   });
 });
 
@@ -531,6 +589,7 @@ describe("PulseSsrHydrationGuard policy", () => {
       lastSyncedAt: "2026-07-09T09:00:00Z",
       freshness: freshnessFixture,
       summary: summaryFixture,
+      briefing: briefingFixture,
     };
 
     expect(shouldInvalidatePulseSsrSeed(initialCore, "2026-07-09T10:00:00Z", false)).toBe(true);

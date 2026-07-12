@@ -1,7 +1,7 @@
 import { QueryClient, dehydrate, type DehydratedState } from "@tanstack/react-query";
 
 import type { MarketPulseCorePayload } from "@/lib/api/pulse-server";
-import { PULSE_ANONYMOUS_SUMMARY_QUERY_KEY } from "@/lib/market/pulse-query-keys";
+import { PULSE_ANONYMOUS_BRIEFING_QUERY_KEY, PULSE_ANONYMOUS_SUMMARY_QUERY_KEY } from "@/lib/market/pulse-query-keys";
 
 const PULSE_FRESHNESS_QUERY_KEY = ["market-freshness", "DSE"] as const;
 
@@ -33,6 +33,11 @@ export function buildPulseDehydratedState(core: MarketPulseCorePayload | null): 
   if (core.summary) {
     queryClient.setQueryData(PULSE_ANONYMOUS_SUMMARY_QUERY_KEY, core.summary);
     stampQueryUpdatedAt(queryClient, PULSE_ANONYMOUS_SUMMARY_QUERY_KEY, core.fetchedAt);
+  }
+
+  if (core.briefing) {
+    queryClient.setQueryData(PULSE_ANONYMOUS_BRIEFING_QUERY_KEY, core.briefing);
+    stampQueryUpdatedAt(queryClient, PULSE_ANONYMOUS_BRIEFING_QUERY_KEY, core.fetchedAt);
   }
 
   return dehydrate(queryClient);

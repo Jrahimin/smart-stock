@@ -196,15 +196,15 @@ The `/market-pulse` route server-prefetches a **narrow core slice** before hydra
 
 | Aspect | Behavior |
 |--------|----------|
-| Endpoints | `GET /market/freshness` + anonymous `GET /market/pulse/summary` (no `display_name`, no `previous_snapshot`) |
+| Endpoints | `GET /market/freshness` + anonymous `GET /market/pulse/summary` + anonymous `GET /market/pulse/briefing` (no `display_name`, no `previous_snapshot`) |
 | Server URL | `SERVER_API_BASE_URL` (required in production), e.g. `http://backend-api:8000/api/v1` |
 | Fetch mode | `cache: "no-store"` — **no** Next.js Data Cache / ISR for market JSON |
 | Timeout | `PULSE_CORE_LOADER_TIMEOUT_MS`, default **5000ms** (aligned with dashboard core SSR) |
 | Redis | Anonymous summary uses `pulse:summary:{exchange}`; personalized requests bypass shared Redis reads and writes |
-| TanStack seed | `HydrationBoundary` + `PULSE_ANONYMOUS_SUMMARY_QUERY_KEY` + freshness |
-| Generation guard | Seed summary only when `summary.last_synced_at === freshness.last_synced_at`; missing identity is treated as stale |
+| TanStack seed | `HydrationBoundary` + `PULSE_ANONYMOUS_SUMMARY_QUERY_KEY` + `PULSE_ANONYMOUS_BRIEFING_QUERY_KEY` + freshness |
+| Generation guard | Seed summary only when `summary.last_synced_at === freshness.last_synced_at`; seed briefing only when reconciled summary is present |
 | Identity guard | On hydrate, if SSR `last_synced_at` ≠ client freshness → clear market IndexedDB + `syncMarketClientCachesOnBackendUpdate` |
-| Client-only | Briefing (`/market/pulse/briefing`), `display_name` greeting, `previous_snapshot` since-last-visit personalization |
+| Client-only | Personalized briefing (`display_name`), `display_name` greeting, `previous_snapshot` since-last-visit personalization |
 | Snapshot writes | Write `localStorage` only when resolved summary generation matches `freshness.last_synced_at`; personalized failures preserve prior snapshot |
 | Cloudflare | Unchanged |
 

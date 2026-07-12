@@ -29,6 +29,14 @@ function resolveSeededAnonymousSummary(initialCore: MarketPulseCorePayload | nul
     : null;
 }
 
+function resolveSeededAnonymousBriefing(initialCore: MarketPulseCorePayload | null) {
+  if (!initialCore?.briefing || !initialCore.summary) {
+    return null;
+  }
+
+  return initialCore.briefing;
+}
+
 export function resolveMarketPulseSummary(
   initialCore: MarketPulseCorePayload | null,
   anonymousSummaryQuery: SummaryQueryState,
@@ -64,10 +72,12 @@ export function resolveMarketPulseSummary(
 }
 
 export function resolveMarketPulseBriefing(
+  initialCore: MarketPulseCorePayload | null,
   anonymousBriefingQuery: BriefingQueryState,
   personalizedBriefingQuery: BriefingQueryState,
 ) {
-  const anonymousBriefing = anonymousBriefingQuery.data ?? null;
+  const seededAnonymousBriefing = resolveSeededAnonymousBriefing(initialCore);
+  const anonymousBriefing = anonymousBriefingQuery.data ?? seededAnonymousBriefing ?? null;
   const personalizedBriefing = personalizedBriefingQuery.data ?? null;
 
   const resolvedBriefing =

@@ -143,13 +143,13 @@ The `/market-pulse` route server-prefetches before hydration:
 
 | Aspect | Behavior |
 |--------|----------|
-| Endpoints | `GET /market/freshness` + anonymous `GET /market/pulse/summary` only |
+| Endpoints | `GET /market/freshness` + anonymous `GET /market/pulse/summary` + anonymous `GET /market/pulse/briefing` only |
 | Server URL | `SERVER_API_BASE_URL` (required in production) |
 | Fetch mode | `cache: "no-store"` |
 | Timeout | `PULSE_CORE_LOADER_TIMEOUT_MS`, falling back to `DASHBOARD_CORE_LOADER_TIMEOUT_MS` |
-| TanStack seed | `PULSE_ANONYMOUS_SUMMARY_QUERY_KEY` + freshness via `HydrationBoundary` |
-| Generation guard | Hydrate summary only when `summary.last_synced_at === freshness.last_synced_at` |
-| Client-only | Briefing panel (`/market/pulse/briefing`), `display_name` greeting, `previous_snapshot` since-last-visit personalization |
+| TanStack seed | `PULSE_ANONYMOUS_SUMMARY_QUERY_KEY` + `PULSE_ANONYMOUS_BRIEFING_QUERY_KEY` + freshness via `HydrationBoundary` |
+| Generation guard | Hydrate summary only when `summary.last_synced_at === freshness.last_synced_at`; hydrate briefing only when reconciled summary is present |
+| Client-only | Personalized briefing (`display_name`), `display_name` greeting, `previous_snapshot` since-last-visit personalization |
 | Shared Redis | Anonymous requests only (`pulse:summary:{exchange}`); personalized requests bypass shared cache reads and writes |
 | Snapshot writes | Protected — write only when resolved summary generation matches freshness; personalized failures preserve `localStorage` |
 

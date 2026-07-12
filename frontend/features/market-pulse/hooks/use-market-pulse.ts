@@ -140,6 +140,8 @@ export function useMarketPulse(options?: { initialCore?: MarketPulseCorePayload 
     staleTime,
     refetchInterval,
     enabled: Boolean(resolvedSummary),
+    initialData: initialCore?.briefing ?? undefined,
+    initialDataUpdatedAt: initialCore?.fetchedAt,
   });
 
   const personalizedBriefingQuery = useQuery({
@@ -155,6 +157,7 @@ export function useMarketPulse(options?: { initialCore?: MarketPulseCorePayload 
   });
 
   const { anonymousBriefing, resolvedBriefing } = resolveMarketPulseBriefing(
+    initialCore,
     anonymousBriefingQuery,
     personalizedBriefingQuery,
   );
