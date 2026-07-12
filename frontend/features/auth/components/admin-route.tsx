@@ -30,7 +30,7 @@ export function AdminRoute({ children }: Readonly<{ children: ReactNode }>) {
       return;
     }
     if (!hasAdminAccess(user?.role)) {
-      router.replace("/dashboard");
+      router.replace("/");
     }
   }, [isAuthenticated, isLoading, mounted, pathname, router, user?.role]);
 

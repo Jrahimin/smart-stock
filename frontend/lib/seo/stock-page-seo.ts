@@ -1,4 +1,5 @@
 import type { BackendStockDto, ExchangeCode } from "@/lib/api/backend-api-types";
+import { buildSiteCanonical } from "@/lib/seo/site-page-seo";
 import { siteConfig } from "@/lib/seo/site-config";
 
 export function encodeStockSymbolSegment(symbol: string) {
@@ -28,19 +29,19 @@ export function buildStockBreadcrumbJsonLd(exchange: ExchangeCode, symbol: strin
         "@type": "ListItem",
         position: 1,
         name: "Home",
-        item: siteConfig.url,
+        item: buildSiteCanonical("/"),
       },
       {
         "@type": "ListItem",
         position: 2,
         name: "Stocks",
-        item: `${siteConfig.url}/stocks`,
+        item: buildSiteCanonical("/stocks"),
       },
       {
         "@type": "ListItem",
         position: 3,
         name: exchange,
-        item: `${siteConfig.url}/stocks`,
+        item: buildSiteCanonical("/stocks"),
       },
       {
         "@type": "ListItem",

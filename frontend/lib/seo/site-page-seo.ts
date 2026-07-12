@@ -68,13 +68,29 @@ export function buildHomeMetadata(): Metadata {
   });
 }
 
-export function buildDashboardMetadata(): Metadata {
-  return buildSitePageMetadata({
-    title: "Market Dashboard",
-    description:
-      "Bangladesh market dashboard with breadth, heatmap, movers, signals, and institutional-style stock intelligence.",
-    path: "/dashboard",
-  });
+export function buildHomeJsonLd() {
+  const url = buildSiteCanonical("/");
+
+  return [
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      name: siteConfig.name,
+      url,
+      description: siteConfig.defaultDescription,
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "WebPage",
+      name: "Stock & Wealth Intelligence Dashboard",
+      url,
+      description: siteConfig.defaultDescription,
+      isPartOf: {
+        "@type": "WebSite",
+        url,
+      },
+    },
+  ];
 }
 
 export function buildMarketPulseMetadata(): Metadata {

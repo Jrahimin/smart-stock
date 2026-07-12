@@ -15,7 +15,7 @@ Related module docs: [market_universe.md](market_universe.md), [market_dashboard
 5. **Redis is optional.** Unset `REDIS_URL` → backend always computes; behavior is correct, only slower.
 6. **Browser fetches the API directly.** Next.js does not proxy or server-cache market JSON for client-side hooks; all client caching happens in the browser.
 
-**Exception (dashboard core SSR):** the Next.js server may prefetch **freshness + overview + sectors + movers** for `/` and `/dashboard` using `SERVER_API_BASE_URL` with `cache: "no-store"`. See [Dashboard core SSR (selective)](#dashboard-core-ssr-selective) below.
+**Exception (dashboard core SSR):** the Next.js server may prefetch **freshness + overview + sectors + movers** for `/` using `SERVER_API_BASE_URL` with `cache: "no-store"`. See [Dashboard core SSR (selective)](#dashboard-core-ssr-selective) below.
 
 **Exception (market pulse core SSR):** the Next.js server may prefetch **freshness + anonymous pulse summary** for `/market-pulse` using the same server-only fetch path. See [Market Pulse core SSR (selective)](#market-pulse-core-ssr-selective) below.
 
@@ -173,7 +173,7 @@ Market section data loads in the browser. API calls use `NEXT_PUBLIC_API_BASE_UR
 
 ### Dashboard core SSR (selective)
 
-The `/` and `/dashboard` routes server-prefetch a **narrow core slice** before hydration:
+The `/` route server-prefetches a **narrow core slice** before hydration:
 
 | Aspect | Behavior |
 |--------|----------|
@@ -337,7 +337,7 @@ Scenario: trader opens the dashboard during market hours; a scheduled snapshot r
 
 **Assumptions:** `REDIS_URL` set, `market_snapshot_interval_minutes=15`, session `OPEN`, defaults above.
 
-### T=0 — User opens `/dashboard`
+### T=0 — User opens `/`
 
 ```text
 1. useMarketDataFreshness mounts
@@ -525,7 +525,7 @@ Disabled during PRE_OPEN / HOLIDAY (refresh button only; programmatic refetch st
 | `lib/api/server-market-api.ts` | Server-only `no-store` market fetch + `getServerApiBaseUrl()` |
 | `lib/api/dashboard-server.ts` | `loadDashboardCore()` for dashboard SSR |
 | `lib/api/pulse-server.ts` | `loadMarketPulseCore()` for market pulse SSR |
-| `features/market-dashboard/dashboard-page-shell.tsx` | Shared async shell for `/` and `/dashboard` |
+| `features/market-dashboard/dashboard-page-shell.tsx` | Async shell for `/` (legacy `/dashboard` redirects to `/`) |
 | `features/market-pulse/market-pulse-page-shell.tsx` | Async shell for `/market-pulse` |
 | `features/market-dashboard/components/dashboard-query-hydration.tsx` | TanStack `HydrationBoundary` for dashboard SSR seeds |
 | `features/market-pulse/components/pulse-query-hydration.tsx` | TanStack `HydrationBoundary` for pulse SSR seeds |

@@ -10,6 +10,7 @@ node_modules/
 .next/
 out/
 .env.local
+tsconfig.tsbuildinfo
 
 # Tooling
 .pytest_cache/

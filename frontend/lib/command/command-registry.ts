@@ -6,7 +6,7 @@ export const coreCommandItems: CommandItem[] = [
     label: "Open Dashboard",
     description: "15-second read of market mood, breadth, signals, and events.",
     category: "NAVIGATION",
-    href: "/dashboard",
+    href: "/",
     keywords: ["market", "overview", "dsex", "intelligence"],
   },
   {

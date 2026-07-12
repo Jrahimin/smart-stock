@@ -35,10 +35,6 @@ type MobileNavigationDrawerProps = {
 
 const TRADING_WORKSPACE_HREFS = new Set(["/stocks", "/scanner", "/signals", "/watchlist"]);
 
-function guideTargetForHref(href: string) {
-  return `nav-${href.slice(1)}`;
-}
-
 function renderMarketNavLink(
   item: (typeof marketNavigationItems)[number],
   pathname: string,
@@ -51,7 +47,7 @@ function renderMarketNavLink(
     <Link
       aria-current={isActive ? "page" : undefined}
       className={isActive ? `mobile-nav-link active terminal-nav-link-${item.tone}` : `mobile-nav-link terminal-nav-link-${item.tone}`}
-      data-guide={guideTargetForHref(item.href)}
+      data-guide={item.guideId}
       href={item.href}
       key={item.href}
       onClick={onClose}
@@ -135,7 +131,7 @@ export function MobileNavigationDrawer({
         role={guideActive ? "navigation" : "dialog"}
       >
         <header className="mobile-nav-drawer-header">
-          <Link className="mobile-nav-drawer-brand" href="/dashboard" onClick={onClose}>
+          <Link className="mobile-nav-drawer-brand" href="/" onClick={onClose}>
             <Image alt="Stock Intelligence" height={40} src="/stock-icon-wide.png" width={160} />
           </Link>
           <button

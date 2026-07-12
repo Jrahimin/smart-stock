@@ -47,7 +47,7 @@ Completing or dismissing one surface does not affect the other.
 
 ### Auto-start rules (`use-dashboard-sidebar-guide-controller.ts`)
 
-1. Only on dashboard routes (`/` or `/dashboard`), after preference `gate.ready` (guest: immediate; authenticated:
+1. Only on the dashboard route (`/`), after preference `gate.ready` (guest: immediate; authenticated:
    after server sync or timeout).
 2. Desktop auto-start does **not** wait for market-pulse data. The welcome step is dim-only
    and shows immediately; pulse readiness is enforced only on the `market-pulse` step (Next
@@ -56,7 +56,7 @@ Completing or dismissing one surface does not affect the other.
    Only trusted `pointerdown` / `keydown` events count (not scroll/wheel). Interaction during
    that window:
    * Skips auto-start for this visit.
-   * Calls `markGuideAutoStartedThisSession` so revisiting `/dashboard` in the same session
+   * Calls `markGuideAutoStartedThisSession` so revisiting `/` in the same session
      does not retrigger auto-start.
    * Does **not** call `markGuideAutoStartShown`, so the header mascot launcher remains
      prominent and the user can start the tour manually.

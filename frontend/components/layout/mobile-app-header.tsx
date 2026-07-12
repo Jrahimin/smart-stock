@@ -51,7 +51,7 @@ export function MobileAppHeader({
       >
         <Menu aria-hidden="true" size={22} strokeWidth={2.1} />
       </button>
-      <Link aria-label="Smart Stock home" className="mobile-app-header-brand" href="/dashboard">
+      <Link aria-label="Smart Stock home" className="mobile-app-header-brand" href="/">
         <Image alt="" aria-hidden="true" className="mobile-app-header-brand-icon" height={32} src="/stock-icon.png" width={32} />
         <span className="mobile-app-header-brand-text">Stock Intelligence</span>
       </Link>

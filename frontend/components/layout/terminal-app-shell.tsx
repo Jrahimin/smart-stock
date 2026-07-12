@@ -70,7 +70,7 @@ export function TerminalAppShell({ children }: TerminalAppShellProps) {
       />
       <aside className="terminal-sidebar terminal-sidebar-desktop">
         <div className="terminal-sidebar-top">
-          <Link aria-label="Smart Stock home" className="terminal-brand" href="/dashboard">
+          <Link aria-label="Smart Stock home" className="terminal-brand" href="/">
             <Image
               alt="Stock Intelligence"
               className="terminal-brand-wide"

@@ -56,7 +56,7 @@ Mapping when persisting engine output to legacy rows:
 - Stock workspace decision rail (`/stocks/{exchange}/{symbol}`)
 - Signal Center (`/signals`)
 - Market Scanner (`/scanner`)
-- Dashboard smart signal feed (`/dashboard`)
+- Dashboard smart signal feed (`/`)
 
 Scanner category rules are independent **filters** on the same universe; badges on scan results still use `trader_decision`. Scans read shared engine fields (`is_breakout`, `return_20d_percent`, turnover-based liquidity), apply a BDT turnover floor to every scan, and use confirmed-rebound rules (oversold **and** turning up) rather than bare RSI thresholds.
 

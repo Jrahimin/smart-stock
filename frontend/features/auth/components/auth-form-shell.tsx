@@ -19,7 +19,7 @@ export function AuthFormShell({ eyebrow, title, description, footer, children }:
         {children}
         <div className="auth-footer">{footer}</div>
       </section>
-      <Link className="auth-back-link" href="/dashboard">
+      <Link className="auth-back-link" href="/">
         Back to dashboard
       </Link>
     </main>

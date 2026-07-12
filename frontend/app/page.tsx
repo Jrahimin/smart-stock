@@ -1,10 +1,16 @@
 import type { Metadata } from "next";
 
+import { JsonLdScript } from "@/components/seo/json-ld-script";
 import { DashboardPageShell } from "@/features/market-dashboard/dashboard-page-shell";
-import { buildHomeMetadata } from "@/lib/seo/site-page-seo";
+import { buildHomeJsonLd, buildHomeMetadata } from "@/lib/seo/site-page-seo";
 
 export const metadata: Metadata = buildHomeMetadata();
 
 export default function HomePage() {
-  return <DashboardPageShell />;
+  return (
+    <>
+      <JsonLdScript data={buildHomeJsonLd()} />
+      <DashboardPageShell />
+    </>
+  );
 }

@@ -19,10 +19,6 @@ type TerminalSidebarNavProps = {
 
 const TRADING_WORKSPACE_HREFS = new Set(["/stocks", "/scanner", "/signals", "/watchlist"]);
 
-function guideTargetForHref(href: string) {
-  return `nav-${href.slice(1)}`;
-}
-
 export function TerminalSidebarNav({ collapsed, pathname }: TerminalSidebarNavProps) {
   const { user, isLoading } = useAuth();
   const [mounted, setMounted] = useState(false);
@@ -122,7 +118,7 @@ export function TerminalSidebarNav({ collapsed, pathname }: TerminalSidebarNavPr
             <Link
               aria-current={isActive ? "page" : undefined}
               className={isActive ? `active terminal-nav-link-${item.tone}` : `terminal-nav-link-${item.tone}`}
-              data-guide={guideTargetForHref(item.href)}
+              data-guide={item.guideId}
               href={item.href}
               key={item.href}
               title={item.label}
@@ -143,7 +139,7 @@ export function TerminalSidebarNav({ collapsed, pathname }: TerminalSidebarNavPr
               <Link
                 aria-current={isActive ? "page" : undefined}
                 className={isActive ? `active terminal-nav-link-${item.tone}` : `terminal-nav-link-${item.tone}`}
-                data-guide={guideTargetForHref(item.href)}
+                data-guide={item.guideId}
                 href={item.href}
                 key={item.href}
                 title={item.label}

@@ -11,7 +11,10 @@ import { useAuth } from "@/features/auth/context/auth-context";
 
 function getSafeRedirect(value: string | null) {
   if (!value || !value.startsWith("/") || value.startsWith("//")) {
-    return "/dashboard";
+    return "/";
+  }
+  if (value === "/dashboard") {
+    return "/";
   }
   return value;
 }

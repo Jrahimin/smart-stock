@@ -13,12 +13,12 @@ import {
 } from "lucide-react";
 
 export const marketNavigationItems = [
-  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, tone: "blue" as const },
-  { label: "Market Pulse", href: "/market-pulse", icon: Flame, tone: "fire" as const },
-  { label: "Stocks", href: "/stocks", icon: LineChart, tone: "blue" as const },
-  { label: "Scanner", href: "/scanner", icon: ScanSearch, tone: "blue" as const },
-  { label: "Signals", href: "/signals", icon: Bell, tone: "blue" as const },
-  { label: "Watchlist", href: "/watchlist", icon: BarChart3, tone: "blue" as const },
+  { label: "Dashboard", href: "/", guideId: "nav-dashboard", icon: LayoutDashboard, tone: "blue" as const },
+  { label: "Market Pulse", href: "/market-pulse", guideId: "nav-market-pulse", icon: Flame, tone: "fire" as const },
+  { label: "Stocks", href: "/stocks", guideId: "nav-stocks", icon: LineChart, tone: "blue" as const },
+  { label: "Scanner", href: "/scanner", guideId: "nav-scanner", icon: ScanSearch, tone: "blue" as const },
+  { label: "Signals", href: "/signals", guideId: "nav-signals", icon: Bell, tone: "blue" as const },
+  { label: "Watchlist", href: "/watchlist", guideId: "nav-watchlist", icon: BarChart3, tone: "blue" as const },
 ] as const;
 
 export const adminNavigationItems = [
@@ -30,16 +30,10 @@ export const adminNavigationItems = [
   { label: "Email Campaigns", href: "/admin/email-campaigns", icon: Mail, exact: false },
 ] as const;
 
-function normalizeNavPathname(pathname: string) {
-  return pathname === "/" ? "/dashboard" : pathname;
-}
-
 export function isNavigationItemActive(pathname: string, href: string) {
-  const normalizedPathname = normalizeNavPathname(pathname);
-
-  if (href === "/stocks" || href === "/wealth" || href === "/market-pulse") {
-    return normalizedPathname === href || normalizedPathname.startsWith(`${href}/`);
+  if (href === "/") {
+    return pathname === "/";
   }
 
-  return normalizedPathname === href || normalizedPathname.startsWith(`${href}/`);
+  return pathname === href || pathname.startsWith(`${href}/`);
 }
