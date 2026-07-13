@@ -44,6 +44,10 @@ export function TerminalAppShell({ children, dashboardLocale = DEFAULT_LOCALE }:
   }, [theme]);
 
   useEffect(() => {
+    document.documentElement.lang = dashboardLocale;
+  }, [dashboardLocale]);
+
+  useEffect(() => {
     setMobileNavOpen(false);
   }, [pathname]);
 

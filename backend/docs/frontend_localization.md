@@ -167,9 +167,10 @@ Run: `cd frontend && npm test -- --run <feature>-locale`
 | `/` (dashboard) | `dashboard-language.ts` | `dashboard-page-shell.tsx` |
 | `/market-pulse` | `market-pulse-language.ts` | `market-pulse-page-shell.tsx` |
 | `/signals` | `signals-language.ts` | `signals-page-shell.tsx` |
+| `/scanner` | `scanner-language.ts` | `scanner-page-shell.tsx` |
 | `/stocks/{exchange}/{symbol}` | `stock-workspace-language.ts`, `stock-decision-language.ts` | `app/stocks/[exchange]/[symbol]/page.tsx` (cookie read inline) |
 
-Locale switcher: dashboard header, `WorkspacePageHero` on Market Pulse / Signal Center, stock detail top bar. All write the same `smart-stock-locale` cookie + `router.refresh()`.
+Locale switcher: dashboard header, `WorkspacePageHero` on Market Pulse / Signal Center / Scanner, stock detail top bar. All write the same `smart-stock-locale` cookie + `router.refresh()`.
 
 Backend payloads remain **English**. Market Pulse applies a frontend locale overlay to its known story headlines (tone + sector count from English headline), alert, focus-stock, leadership, and summary templates using stable alert types, focus labels, and structured values; unknown or newly added backend prose falls back to English until the API exposes semantic reason codes. Stock decision **smart warnings** (`warnings.py` codes) and decision signal chips are localized in `stock-decision-language.ts` via `applyStockDecisionLocalization` in `buildStockDecisionViewModel`. Other backend briefing narratives, decision `reasoning[]` lines, and event prose remain English until their surfaces add the same typed adapter.
 
@@ -229,6 +230,7 @@ export function getFeatureLanguage(locale: AppLocale): FeatureLanguage {
 - **Translate** section titles, helper text, narratives, empty states, guide/mascot copy.
 - **Keep English** where traders expect it: DSEX, RSI, BUY/HOLD/SELL, turnover, liquidity, symbols, prices.
 - **Digits:** use Western numerals (`120`) in Bangla copy — do not use Bengali digits unless product explicitly asks.
+- **Typography:** headings use tight negative `letter-spacing` for Latin UI; `:lang(bn) h1–h4 { letter-spacing: normal; }` in `globals.css` prevents Bengali word spaces from visually collapsing. Root `<html lang>` comes from the locale cookie (`app/layout.tsx`).
 
 ### Where to edit text today
 
@@ -354,7 +356,7 @@ Guide **preference** (completed/dismissed) is separate from language — see [us
 
 ### 8. Accessibility
 
-Set `lang={locale}` on modal/dialog surfaces (guide bubble, mobile sheet, nudge). Do not set `lang` on the whole dashboard root; section-level language is enough for mixed English/Bangla content.
+Set `lang={locale}` on modal/dialog surfaces (guide bubble, mobile sheet, nudge). Root `<html lang>` is set from the locale cookie in `app/layout.tsx` (and synced client-side in `TerminalAppShell` after switcher changes).
 
 ### 9. Tests must assert rendered behavior
 
@@ -414,12 +416,13 @@ Implemented — see `market-pulse-language.ts`, `market-pulse-page-shell.tsx`, `
 | `features/market-dashboard/dashboard-ssr.test.ts` | SSR/hydration with dashboard payloads |
 | `features/market-pulse/market-pulse-locale.test.ts` | Pulse dictionary, chip localization |
 | `features/signals/signals-locale.test.ts` | Signal Center copy, localized decision reasons |
+| `features/scanner/scanner-locale.test.ts` | Scanner hero, filters, category titles/descriptions |
 | `features/stock-workspace/stock-workspace-locale.test.ts` | Section nav, snapshot labels, related groups |
 | `features/stock-workspace/stock-decision-locale.test.ts` | Decision signals, smart warnings, score/risk labels |
 
 ```bash
 cd frontend
-npm test -- --run dashboard-locale dashboard-ssr market-pulse-locale signals-locale stock-workspace-locale stock-decision-locale
+npm test -- --run dashboard-locale dashboard-ssr market-pulse-locale signals-locale scanner-locale stock-workspace-locale stock-decision-locale
 ```
 
 **Per new feature**, add tests for:

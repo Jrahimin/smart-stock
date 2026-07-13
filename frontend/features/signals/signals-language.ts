@@ -58,8 +58,10 @@ function buildSignalsLanguage(locale: AppLocale): SignalsLanguage {
       hero: {
         eyebrow: "Signal Center",
         title: "Explanation-first trader decisions",
-        loadingSubtitle: "Loading decision-ready names from the shared deterministic engine",
-        readySubtitle: (count) => `${count} decision-ready names from the shared deterministic engine`,
+        loadingSubtitle:
+          "Loading decision-ready names from the shared deterministic engine",
+        readySubtitle: (count) =>
+          `${count} decision-ready names from the shared deterministic engine`,
         filterContextName: "signal center",
       },
       filters: {
@@ -78,7 +80,8 @@ function buildSignalsLanguage(locale: AppLocale): SignalsLanguage {
         loadError: "Could not load signal data.",
         loading: "Loading trader decisions...",
         emptyTitle: "No decision-ready names match these filters",
-        emptyDescription: "Adjust action, risk, or symbol filters after the universe finishes loading.",
+        emptyDescription:
+          "Adjust action, risk, or symbol filters after the universe finishes loading.",
         awaitingPriceData: "Awaiting price data",
         awaitingContext: "Awaiting stronger technical context",
         decisionEngine: "Decision engine",
@@ -112,46 +115,53 @@ function buildSignalsLanguage(locale: AppLocale): SignalsLanguage {
   return {
     hero: {
       eyebrow: "Signal Center",
-      title: "ব্যাখ্যাসহ ট্রেডার সিদ্ধান্ত",
-      loadingSubtitle: "deterministic engine থেকে সিদ্ধান্তের জন্য প্রস্তুত শেয়ার লোড হচ্ছে",
-      readySubtitle: (count) => `deterministic engine থেকে ${count}টি সিদ্ধান্ত-প্রস্তুত শেয়ার`,
+      title: "Explanation-first trader decisions",
+      loadingSubtitle:
+        "বাজারের তথ্য দেখে সিদ্ধান্ত নেওয়ার মতো শেয়ার খোঁজা হচ্ছে",
+      readySubtitle: (count) =>
+        `সিদ্ধান্ত নেওয়ার মতো ${count}টি শেয়ার পাওয়া গেছে`,
       filterContextName: "signal center",
     },
+
     filters: {
-      allActions: "সব action",
-      allRisk: "সব ঝুঁকি",
-      lowRisk: "কম ঝুঁকি",
-      mediumRisk: "মাঝারি ঝুঁকি",
-      highRisk: "উচ্চ ঝুঁকি",
-      speculative: "Speculative",
-      highestConviction: "সর্বোচ্চ conviction",
-        newest: "সর্বশেষ তারিখ",
-        riskAdjusted: "ঝুঁকি অনুযায়ী",
-        volumeConfirmed: "Volume দিয়ে নিশ্চিত",
+      allActions: "সব Action",
+      allRisk: "সব Risk",
+      lowRisk: "কম Risk",
+      mediumRisk: "মাঝারি Risk",
+      highRisk: "বেশি Risk",
+      speculative: "বেশি ঝুঁকির",
+      highestConviction: "সবচেয়ে শক্ত Signal",
+      newest: "সর্বশেষ",
+      riskAdjusted: "Risk বিবেচনায়",
+      volumeConfirmed: "Volume-এর সাপোর্ট আছে",
     },
+
     states: {
-      loadError: "Signal ডেটা আনা যাচ্ছে না।",
-      loading: "ট্রেডার সিদ্ধান্ত লোড হচ্ছে...",
-      emptyTitle: "এই ফিল্টারে কোনো সিদ্ধান্ত-প্রস্তুত নাম নেই",
-      emptyDescription: "Universe লোড হওয়ার পর action, ঝুঁকি বা symbol ফিল্টার বদলিয়ে দেখুন।",
-      awaitingPriceData: "দামের ডেটা আসছে",
-      awaitingContext: "আরও শক্তিশালী technical context আসছে",
-      decisionEngine: "Decision engine",
+      loadError: "Signal-এর তথ্য আনা যাচ্ছে না।",
+      loading: "ট্রেডার সিদ্ধান্ত তৈরি হচ্ছে...",
+      emptyTitle: "এই Filter-এ কোনো শেয়ার পাওয়া যায়নি",
+      emptyDescription:
+        "Action, Risk বা Symbol বদলে আবার দেখুন।",
+      awaitingPriceData: "Price data আসছে",
+      awaitingContext: "আরও পরিষ্কার Signal দরকার",
+      decisionEngine: "Decision Engine",
     },
-      row: {
-        confidenceAria: (value) => `${value}% confidence`,
-        confidence: (value) => `${value}% confidence`,
-        risk: (label) => `${label} risk`,
-        riskShort: (label) => `Risk ${label}`,
-        momentum: (recommendation) =>
-          recommendation === "BUY"
-            ? "Momentum বাড়ছে"
-            : recommendation === "SELL"
-              ? "চাপ বাড়ছে"
-              : recommendation === "WAIT"
-                ? "Confirmation-এর অপেক্ষা করুন"
-                : "আগের view ধরে রাখুন",
+
+    row: {
+      confidenceAria: (value) => `${value}% confidence`,
+      confidence: (value) => `${value}% confidence`,
+      risk: (label) => `${label} Risk`,
+      riskShort: (label) => `Risk ${label}`,
+      momentum: (recommendation) =>
+        recommendation === "BUY"
+          ? "কেনার গতি বাড়ছে"
+          : recommendation === "SELL"
+            ? "Sell pressure বাড়ছে"
+            : recommendation === "WAIT"
+              ? "আরও পরিষ্কার Signal-এর অপেক্ষা"
+              : "বর্তমান অবস্থান ধরে রাখুন",
     },
+
     signalReasons: {
       contextJoiner: dashboardSignals.contextJoiner,
       contextRsi: dashboardSignals.contextRsi,
@@ -160,23 +170,30 @@ function buildSignalsLanguage(locale: AppLocale): SignalsLanguage {
       contextOpportunity: dashboardSignals.contextOpportunity,
       decisionReasons: dashboardSignals.decisionReasons,
     },
-    localeSwitcherAria: "Signal Center ভাষা",
+
+    localeSwitcherAria: "Signal Center-এর ভাষা",
   };
 }
 
-const signalsLanguageCache: Partial<Record<AppLocale, SignalsLanguage>> = {};
+const signalsLanguageCache: Partial<
+  Record<AppLocale, SignalsLanguage>
+> = {};
 
-export function getSignalsLanguage(locale: AppLocale): SignalsLanguage {
+export function getSignalsLanguage(
+  locale: AppLocale,
+): SignalsLanguage {
   const cached = signalsLanguageCache[locale];
+
   if (cached) {
     return cached;
   }
 
   const language = buildSignalsLanguage(locale);
   signalsLanguageCache[locale] = language;
+
   return language;
 }
 
-// Ensure default locale is always available without lazy init gaps in tests.
-signalsLanguageCache[DEFAULT_LOCALE] = buildSignalsLanguage(DEFAULT_LOCALE);
-signalsLanguageCache.en = buildSignalsLanguage("en");
+// Keep the default locale ready for tests and initial renders.
+signalsLanguageCache[DEFAULT_LOCALE] =
+  buildSignalsLanguage(DEFAULT_LOCALE);

@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { cookies } from "next/headers";
 
 import "@/app/globals.css";
 import { AppGoogleAnalytics } from "@/components/analytics/google-analytics";
 import { AppProviders } from "@/app/providers";
+import { LOCALE_COOKIE_NAME, parseAppLocale } from "@/lib/locale/app-locale";
 import { siteConfig } from "@/lib/seo/site-config";
 
 export const metadata: Metadata = {
@@ -20,9 +22,12 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
+export default async function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
+  const cookieStore = await cookies();
+  const locale = parseAppLocale(cookieStore.get(LOCALE_COOKIE_NAME)?.value);
+
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang={locale} suppressHydrationWarning>
       <body suppressHydrationWarning>
         <AppProviders>{children}</AppProviders>
       </body>
