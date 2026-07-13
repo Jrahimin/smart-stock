@@ -2,12 +2,14 @@
 
 import type { PatternDetectionDto } from "@/lib/api/stock-decision-support-types";
 import { WorkspaceModal } from "@/components/ui/workspace-modal";
+import type { StockWorkspaceLanguage } from "@/features/stock-workspace/stock-workspace-language";
 
 type PatternDetailModalProps = {
   pattern: PatternDetectionDto | null;
   isOpen: boolean;
   onClose: () => void;
   riskLabel?: string;
+  copy: StockWorkspaceLanguage["pattern"];
 };
 
 function PatternIllustration({ name }: { name: string }) {
@@ -45,24 +47,24 @@ function PatternIllustration({ name }: { name: string }) {
   );
 }
 
-function buildTradingInterpretation(pattern: PatternDetectionDto): string[] {
+function buildTradingInterpretation(pattern: PatternDetectionDto, copy: StockWorkspaceLanguage["pattern"]): string[] {
   const lines = [
     pattern.direction === "bullish"
-      ? "Usually a continuation or reversal pattern with upside bias."
+      ? copy.bullishInterpretation
       : pattern.direction === "bearish"
-        ? "Usually a distribution pattern with downside risk."
-        : "Neutral structure; wait for directional confirmation.",
+        ? copy.bearishInterpretation
+        : copy.neutralInterpretation,
   ];
   if (pattern.breakout_level !== null) {
-    lines.push(`Watch breakout above ${pattern.breakout_level}.`);
+    lines.push(copy.breakoutAbove(pattern.breakout_level));
   }
   if (pattern.invalidation_level !== null) {
-    lines.push(`Failure below ${pattern.invalidation_level} invalidates the setup.`);
+    lines.push(copy.invalidatedBelow(pattern.invalidation_level));
   }
   return lines;
 }
 
-export function PatternDetailModal({ pattern, isOpen, onClose, riskLabel = "Medium" }: PatternDetailModalProps) {
+export function PatternDetailModal({ pattern, isOpen, onClose, riskLabel = "Medium", copy }: PatternDetailModalProps) {
   if (!pattern) {
     return null;
   }
@@ -78,15 +80,15 @@ export function PatternDetailModal({ pattern, isOpen, onClose, riskLabel = "Medi
             <h2>{pattern.name}</h2>
           </div>
           <div className="pattern-detail-meta">
-            <span>Confidence {pattern.confidence}%</span>
-            <span>Status {pattern.status}</span>
+            <span>{copy.confidence(pattern.confidence)}</span>
+            <span>{copy.status}: {pattern.status}</span>
           </div>
         </header>
 
         <PatternIllustration name={pattern.name} />
 
         <section>
-          <h3>Why it matched</h3>
+          <h3>{copy.whyMatched}</h3>
           <ul className="pattern-checklist">
             {pattern.matched_reasons.map((reason) => (
               <li key={reason}>✓ {reason}</li>
@@ -95,9 +97,9 @@ export function PatternDetailModal({ pattern, isOpen, onClose, riskLabel = "Medi
         </section>
 
         <section>
-          <h3>Trading interpretation</h3>
+          <h3>{copy.tradingInterpretation}</h3>
           <ul className="pattern-interpretation-list">
-            {buildTradingInterpretation(pattern).map((line) => (
+            {buildTradingInterpretation(pattern, copy).map((line) => (
               <li key={line}>{line}</li>
             ))}
           </ul>
@@ -105,17 +107,17 @@ export function PatternDetailModal({ pattern, isOpen, onClose, riskLabel = "Medi
 
         <div className="pattern-detail-stats">
           <div>
-            <span>Projected target</span>
+            <span>{copy.projectedTarget}</span>
             <strong>{pattern.target_estimate ?? "N/A"}</strong>
           </div>
           <div>
-            <span>Risk</span>
+            <span>{copy.risk}</span>
             <strong>{riskLabel}</strong>
           </div>
         </div>
 
         <footer className="pattern-detail-footer">
-          Pattern detection is deterministic and should be combined with risk management.
+          {copy.footer}
         </footer>
       </div>
     </WorkspaceModal>

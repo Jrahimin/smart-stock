@@ -14,7 +14,7 @@ Single reference for how Smart Stock localizes the UI, and how to extend the sam
 | Framework | **None** — no `next-intl`, no React context, no `/bn/...` routes |
 | Scope | Feature-local typed dictionaries + `locale` prop |
 | Backend text | Stays English (`reason`, `description`, etc.) |
-| Partial rollout | OK — unlocalized pages show English without errors |
+| Partial rollout | OK — unlocalized pages (e.g. Scanner, Stock Explorer list) show English without errors |
 
 ---
 
@@ -160,6 +160,19 @@ Run: `cd frontend && npm test -- --run <feature>-locale`
 | Locale switcher | `features/market-dashboard/components/dashboard-locale-switcher.tsx` |
 | Tests | `features/market-dashboard/dashboard-locale.test.ts` |
 
+### Localized surfaces (2026-07)
+
+| Route | Dictionary | Server shell |
+|-------|------------|--------------|
+| `/` (dashboard) | `dashboard-language.ts` | `dashboard-page-shell.tsx` |
+| `/market-pulse` | `market-pulse-language.ts` | `market-pulse-page-shell.tsx` |
+| `/signals` | `signals-language.ts` | `signals-page-shell.tsx` |
+| `/stocks/{exchange}/{symbol}` | `stock-workspace-language.ts`, `stock-decision-language.ts` | `app/stocks/[exchange]/[symbol]/page.tsx` (cookie read inline) |
+
+Locale switcher: dashboard header, `WorkspacePageHero` on Market Pulse / Signal Center, stock detail top bar. All write the same `smart-stock-locale` cookie + `router.refresh()`.
+
+Backend payloads remain **English**. Market Pulse applies a frontend locale overlay to its known story headlines (tone + sector count from English headline), alert, focus-stock, leadership, and summary templates using stable alert types, focus labels, and structured values; unknown or newly added backend prose falls back to English until the API exposes semantic reason codes. Stock decision **smart warnings** (`warnings.py` codes) and decision signal chips are localized in `stock-decision-language.ts` via `applyStockDecisionLocalization` in `buildStockDecisionViewModel`. Other backend briefing narratives, decision `reasoning[]` lines, and event prose remain English until their surfaces add the same typed adapter.
+
 ---
 
 ## Shared infrastructure
@@ -223,6 +236,9 @@ export function getFeatureLanguage(locale: AppLocale): FeatureLanguage {
 |---------|------|
 | Cookie, type, default locale | `frontend/lib/locale/app-locale.ts` |
 | Dashboard UI copy | `frontend/features/market-dashboard/dashboard-language.ts` |
+| Market Pulse UI copy | `frontend/features/market-pulse/market-pulse-language.ts` |
+| Stock details UI copy | `frontend/features/stock-workspace/stock-workspace-language.ts` |
+| Signal Center UI copy | `frontend/features/signals/signals-language.ts` (reuses dashboard `signals.decisionReasons` for Bangla reasons) |
 | Dashboard model localization | `frontend/features/market-dashboard/view-models/market-dashboard-view-model.ts` |
 | Guide / mascot (all surfaces) | `frontend/features/guide/dialogs/dashboard-dialogs.ts` |
 | Guide desktop steps | `frontend/features/guide/config/dashboard-sidebar-guide.ts` |
@@ -301,7 +317,7 @@ Benefits: one code path for API mapping, English tests stay simple, Bangla is an
 
 ### 1. Partial localization is safe
 
-Only the dashboard (+ guide when on home) fully consume `locale` today. Other routes (`/market-pulse`, `/stocks`, `/wealth`, …) ignore the cookie and show English. **No errors** — that is by design until each feature adds a dictionary.
+Dashboard, Market Pulse, Signal Center, and Stock Details consume `locale` today. Other routes (`/stocks` explorer list, `/scanner`, `/wealth`, …) ignore the cookie and show English. **No errors** — that is by design until each feature adds a dictionary.
 
 ### 2. Always pass `locale` from the server boundary
 
@@ -377,13 +393,16 @@ Step **targets** (selectors, order) stay in `dashboard-sidebar-guide.ts` / `mobi
 
 ## Example: localizing `/market-pulse` (outline)
 
+Implemented — see `market-pulse-language.ts`, `market-pulse-page-shell.tsx`, `market-pulse-locale.test.ts`.
+
 1. Add `frontend/features/market-pulse/market-pulse-language.ts`.
 2. In `market-pulse-page-shell.tsx`: read cookie, pass `locale` to `MarketPulseView`.
 3. In `market-pulse-view.tsx`: `const language = getMarketPulseLanguage(locale)`; pass `copy` to briefing sections.
 4. Localize `market-briefing-section.tsx` skeletons via language props.
-5. Pass `locale` to `MarketDataFreshnessBar` if shown on that page.
-6. Add `market-pulse-locale.test.ts`.
-7. Leave API narrative fields in English until backend supports locale.
+5. Pass `locale` to `MarketDataFreshnessBar` and `WorkspacePageHero` (locale switcher).
+6. Chip labels: stable chip `id` → `language.chips` (`localizePulseBriefingChips`).
+7. Add `market-pulse-locale.test.ts`.
+8. Leave API narrative fields in English until backend supports locale.
 
 ---
 
@@ -393,10 +412,14 @@ Step **targets** (selectors, order) stay in `dashboard-sidebar-guide.ts` / `mobi
 |------|--------|
 | `features/market-dashboard/dashboard-locale.test.ts` | Cookie default, narratives, guide copy, localized model output |
 | `features/market-dashboard/dashboard-ssr.test.ts` | SSR/hydration with dashboard payloads |
+| `features/market-pulse/market-pulse-locale.test.ts` | Pulse dictionary, chip localization |
+| `features/signals/signals-locale.test.ts` | Signal Center copy, localized decision reasons |
+| `features/stock-workspace/stock-workspace-locale.test.ts` | Section nav, snapshot labels, related groups |
+| `features/stock-workspace/stock-decision-locale.test.ts` | Decision signals, smart warnings, score/risk labels |
 
 ```bash
 cd frontend
-npm test -- --run dashboard-locale dashboard-ssr
+npm test -- --run dashboard-locale dashboard-ssr market-pulse-locale signals-locale stock-workspace-locale stock-decision-locale
 ```
 
 **Per new feature**, add tests for:
@@ -418,6 +441,11 @@ npm test -- --run dashboard-locale dashboard-ssr
 | Mobile intro text | `dashboard-dialogs.ts` → `mobileIntroDialogsBn` |
 | Guide button / nudge | `dashboard-dialogs.ts` → `guideLauncherBn` / `guideNudgeBn` |
 | New feature string | `features/<feature>/<feature>-language.ts` |
+| Market Pulse panel title (Bangla) | `market-pulse-language.ts` → section → `bn` |
+| Stock detail section nav | `stock-workspace-language.ts` → `sections` |
+| Stock smart warnings / decision chips | `stock-decision-language.ts` → `warnings` / `signals` by stable `code` |
+| Market Pulse story headline | `market-pulse-language.ts` → `briefing.storyHeadline(tone, sectorCount)` |
+| Signal Center filters | `signals-language.ts` → `filters` |
 | Cookie name | `app-locale.ts` → `LOCALE_COOKIE_NAME` + all server shells |
 
 ---

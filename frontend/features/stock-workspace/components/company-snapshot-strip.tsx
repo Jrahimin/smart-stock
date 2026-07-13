@@ -4,11 +4,12 @@ import type { CompanySnapshotCell } from "@/features/stock-workspace/view-models
 
 type CompanySnapshotStripProps = {
   cells: CompanySnapshotCell[];
+  ariaLabel: string;
 };
 
-export function CompanySnapshotStrip({ cells }: CompanySnapshotStripProps) {
+export function CompanySnapshotStrip({ cells, ariaLabel }: CompanySnapshotStripProps) {
   return (
-    <section aria-label="Company snapshot" className="company-snapshot-strip">
+    <section aria-label={ariaLabel} className="company-snapshot-strip">
       {cells.map((cell) => (
         <div className="company-snapshot-item" key={cell.key}>
           <span>{cell.label}</span>

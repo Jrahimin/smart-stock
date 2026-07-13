@@ -4,12 +4,14 @@ import { useState } from "react";
 
 import { WorkspaceModal } from "@/components/ui/workspace-modal";
 import type { StockDecisionViewModel } from "@/features/stock-workspace/view-models/stock-decision-view-model";
+import type { StockWorkspaceLanguage } from "@/features/stock-workspace/stock-workspace-language";
 
 type SmartWarningsPanelProps = {
   decision: StockDecisionViewModel;
+  copy: StockWorkspaceLanguage["panels"];
 };
 
-export function SmartWarningsPanel({ decision }: SmartWarningsPanelProps) {
+export function SmartWarningsPanel({ decision, copy }: SmartWarningsPanelProps) {
   const [selectedWarning, setSelectedWarning] = useState<(typeof decision.topWarnings)[number] | null>(null);
   if (!decision.available || decision.topWarnings.length === 0) {
     return null;
@@ -19,7 +21,7 @@ export function SmartWarningsPanel({ decision }: SmartWarningsPanelProps) {
     <>
       <section className="trader-workspace-strip warnings-strip warnings-strip-compact">
         <div className="strip-heading">
-          <span>Warnings</span>
+          <span>{copy.warningsSection}</span>
         </div>
         <div className="warning-chip-row">
           {decision.topWarnings.map((warning) => (
@@ -35,7 +37,7 @@ export function SmartWarningsPanel({ decision }: SmartWarningsPanelProps) {
           ))}
         </div>
       </section>
-      <WorkspaceModal isOpen={selectedWarning !== null} onClose={() => setSelectedWarning(null)} title={selectedWarning?.title ?? "Warning"}>
+      <WorkspaceModal isOpen={selectedWarning !== null} onClose={() => setSelectedWarning(null)} title={selectedWarning?.title ?? copy.warning}>
         {selectedWarning ? <p>{selectedWarning.message}</p> : null}
       </WorkspaceModal>
     </>

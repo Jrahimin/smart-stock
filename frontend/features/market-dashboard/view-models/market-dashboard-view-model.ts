@@ -17,7 +17,11 @@ import {
 } from "@/lib/market/market-pulse-metrics";
 import { buildMarketIndexContext } from "@/lib/market/market-index-context";
 import { getMarketSession } from "@/lib/market/market-session-engine";
-import { buildLocalizedSignalReason, resolveTraderDecisionReason } from "@/lib/market/trader-decision-reason";
+import {
+  buildLocalizedSignalReason,
+  buildLocalizedSignalSupportingContext,
+  resolveTraderDecisionReason,
+} from "@/lib/market/trader-decision-reason";
 import type {
   BreadthModel,
   ExchangeMetricSource,
@@ -365,18 +369,16 @@ function applyDashboardLocalization(
         resolvedReason,
         language.signals,
       );
-      const localizedPrimaryContext =
-        signal.technicalContext.rsi !== undefined
-          ? language.signals.contextRsi(signal.technicalContext.rsi.toFixed(1))
-          : signal.technicalContext.volumeRatio !== undefined
-            ? language.signals.contextVolume(signal.technicalContext.volumeRatio.toFixed(1))
-            : signal.supportingContext[0];
+      const localizedSupportingContext = buildLocalizedSignalSupportingContext(
+        signal.technicalContext,
+        language.signals,
+      );
 
       return {
         ...signal,
         reason: localizedReason,
-        supportingContext: localizedPrimaryContext
-          ? [localizedPrimaryContext, ...signal.supportingContext.slice(1)]
+        supportingContext: localizedSupportingContext.length
+          ? localizedSupportingContext
           : signal.supportingContext,
       };
     }),

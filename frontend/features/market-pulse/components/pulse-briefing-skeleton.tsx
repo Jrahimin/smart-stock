@@ -1,8 +1,9 @@
 "use client";
 
 import { LoadingStatus, Shimmer } from "@/components/ui/shimmer";
+import type { MarketPulseLanguage } from "@/features/market-pulse/market-pulse-language";
 
-function StoryCardSkeleton({ delay = 0 }: { delay?: number }) {
+function StoryCardSkeleton({ copy, delay = 0 }: { copy: MarketPulseLanguage; delay?: number }) {
   return (
     <article className="pulse-story-card pulse-briefing-skeleton-card" style={{ animationDelay: `${delay}ms` }}>
       <div className="pulse-story-main">
@@ -15,7 +16,7 @@ function StoryCardSkeleton({ delay = 0 }: { delay?: number }) {
         </div>
       </div>
       <div className="pulse-story-snapshot">
-        <span className="pulse-card-kicker pulse-skeleton-kicker">Market Breadth Snapshot</span>
+        <span className="pulse-card-kicker pulse-skeleton-kicker">{copy.briefing.breadthSnapshot}</span>
         <div className="pulse-story-metrics">
           {Array.from({ length: 5 }).map((_, index) => (
             <div className="pulse-story-metric pulse-story-metric-skeleton" key={index}>
@@ -29,10 +30,10 @@ function StoryCardSkeleton({ delay = 0 }: { delay?: number }) {
   );
 }
 
-function StateCardSkeleton({ delay = 0 }: { delay?: number }) {
+function StateCardSkeleton({ copy, delay = 0 }: { copy: MarketPulseLanguage; delay?: number }) {
   return (
     <article className="pulse-state-card pulse-briefing-skeleton-card" style={{ animationDelay: `${delay}ms` }}>
-      <p className="pulse-card-kicker">Market State</p>
+      <p className="pulse-card-kicker">{copy.briefing.marketState}</p>
       <ul className="pulse-state-list">
         {Array.from({ length: 4 }).map((_, index) => (
           <li className="pulse-state-row pulse-state-row-skeleton" key={index}>
@@ -51,10 +52,10 @@ function StateCardSkeleton({ delay = 0 }: { delay?: number }) {
   );
 }
 
-function FlowCardSkeleton({ delay = 0 }: { delay?: number }) {
+function FlowCardSkeleton({ copy, delay = 0 }: { copy: MarketPulseLanguage; delay?: number }) {
   return (
     <article className="pulse-flow-card pulse-briefing-skeleton-card" style={{ animationDelay: `${delay}ms` }}>
-      <p className="pulse-card-kicker">Money Flow</p>
+      <p className="pulse-card-kicker">{copy.briefing.moneyFlow}</p>
       <div className="pulse-flow-group">
         <div className="pulse-flow-heading pulse-flow-heading-in pulse-flow-heading-skeleton">
           <Shimmer className="pulse-shimmer-icon pulse-shimmer-icon-sm" delayMs={delay} />
@@ -93,17 +94,17 @@ function FlowCardSkeleton({ delay = 0 }: { delay?: number }) {
   );
 }
 
-function OpportunityCardSkeleton({ delay = 0 }: { delay?: number }) {
+function OpportunityCardSkeleton({ copy, delay = 0 }: { copy: MarketPulseLanguage; delay?: number }) {
   return (
     <article className="pulse-opportunity-card pulse-briefing-skeleton-card" style={{ animationDelay: `${delay}ms` }}>
-      <p className="pulse-card-kicker">Opportunity Score</p>
+      <p className="pulse-card-kicker">{copy.briefing.opportunityScore}</p>
       <div className="pulse-opportunity-gauge-wrap">
         <div className="pulse-opportunity-gauge-chart pulse-opportunity-gauge-chart-skeleton">
           <Shimmer className="pulse-shimmer-gauge-arc" delayMs={delay} />
           <Shimmer className="pulse-shimmer-gauge-score" delayMs={delay + 80} />
         </div>
         <div className="pulse-opportunity-history-wrap">
-          <span className="pulse-opportunity-history-label">Last 5 sessions</span>
+          <span className="pulse-opportunity-history-label">{copy.briefing.lastFiveSessions}</span>
           <div className="pulse-opportunity-history">
             {Array.from({ length: 5 }).map((_, index) => (
               <Shimmer className="pulse-shimmer-history-chip" delayMs={delay + 120 + index * 35} key={index} />
@@ -121,12 +122,12 @@ function OpportunityCardSkeleton({ delay = 0 }: { delay?: number }) {
   );
 }
 
-function LeadershipCardSkeleton({ delay = 0 }: { delay?: number }) {
+function LeadershipCardSkeleton({ copy, delay = 0 }: { copy: MarketPulseLanguage; delay?: number }) {
   return (
     <article className="pulse-leadership-card pulse-briefing-skeleton-card" style={{ animationDelay: `${delay}ms` }}>
       <div className="pulse-section-head pulse-section-head-compact">
         <div>
-          <p className="pulse-card-kicker">Market Leadership</p>
+          <p className="pulse-card-kicker">{copy.leadership.title}</p>
           <Shimmer className="pulse-shimmer-line pulse-shimmer-line-medium" delayMs={delay} />
         </div>
       </div>
@@ -157,11 +158,11 @@ function LeadershipCardSkeleton({ delay = 0 }: { delay?: number }) {
   );
 }
 
-function SummaryCardSkeleton({ delay = 0 }: { delay?: number }) {
+function SummaryCardSkeleton({ copy, delay = 0 }: { copy: MarketPulseLanguage; delay?: number }) {
   return (
     <article className="pulse-summary-card pulse-briefing-skeleton-card" style={{ animationDelay: `${delay}ms` }}>
       <div className="pulse-summary-head">
-        <p className="pulse-card-kicker">Market State Summary</p>
+        <p className="pulse-card-kicker">{copy.summary.title}</p>
       </div>
       <div className="pulse-summary-main">
         <section className="pulse-summary-narrative">
@@ -187,25 +188,29 @@ function SummaryCardSkeleton({ delay = 0 }: { delay?: number }) {
   );
 }
 
-export function MarketBriefingSectionSkeleton() {
+export function MarketBriefingSectionSkeleton({ copy }: { copy: MarketPulseLanguage }) {
   return (
     <div className="pulse-briefing-loading-shell">
-      <LoadingStatus className="pulse-briefing-loading-status" label="Loading market briefing" />
-      <section className="pulse-briefing-top pulse-briefing-top-loading" aria-busy="true" aria-label="Loading market briefing">
-        <StoryCardSkeleton delay={0} />
-        <StateCardSkeleton delay={80} />
-        <FlowCardSkeleton delay={160} />
-        <OpportunityCardSkeleton delay={240} />
+      <LoadingStatus className="pulse-briefing-loading-status" label={copy.states.loadingBriefing} />
+      <section
+        className="pulse-briefing-top pulse-briefing-top-loading"
+        aria-busy="true"
+        aria-label={copy.states.loadingBriefingAria}
+      >
+        <StoryCardSkeleton copy={copy} delay={0} />
+        <StateCardSkeleton copy={copy} delay={80} />
+        <FlowCardSkeleton copy={copy} delay={160} />
+        <OpportunityCardSkeleton copy={copy} delay={240} />
       </section>
     </div>
   );
 }
 
-export function MarketBriefingFooterSkeleton() {
+export function MarketBriefingFooterSkeleton({ copy }: { copy: MarketPulseLanguage }) {
   return (
     <>
-      <LeadershipCardSkeleton delay={0} />
-      <SummaryCardSkeleton delay={120} />
+      <LeadershipCardSkeleton copy={copy} delay={0} />
+      <SummaryCardSkeleton copy={copy} delay={120} />
     </>
   );
 }

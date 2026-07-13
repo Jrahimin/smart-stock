@@ -202,6 +202,8 @@ export type DashboardLanguage = {
     contextJoiner: string;
     contextRsi: (value: string) => string;
     contextVolume: (ratio: string) => string;
+    contextTrend: (value: string) => string;
+    contextOpportunity: (value: number) => string;
     decisionReasons: DecisionReasonCopy;
   };
   timeline: {
@@ -389,6 +391,8 @@ const dashboardLanguage = {
       contextJoiner: " · ",
       contextRsi: (value) => `RSI ${value}`,
       contextVolume: (ratio) => `Volume ${ratio}x avg`,
+      contextTrend: (value) => `Trend ${value}`,
+      contextOpportunity: (value) => `Opportunity ${value}`,
       decisionReasons: buildEnglishDecisionReasons(),
     },
     timeline: {
@@ -609,6 +613,8 @@ const dashboardLanguage = {
       contextJoiner: " · ",
       contextRsi: (value) => `RSI ${value}`,
       contextVolume: (ratio) => `Volume স্বাভাবিকের তুলনায় ${ratio} গুণ`,
+      contextTrend: (value) => `Trend ${value}`,
+      contextOpportunity: (value) => `Opportunity ${value}`,
       decisionReasons: buildBanglaDecisionReasons(),
     },
     timeline: {

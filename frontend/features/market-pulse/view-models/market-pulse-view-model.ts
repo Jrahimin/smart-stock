@@ -1,6 +1,11 @@
 import type { BackendMarketPulseDto, BackendFocusStockDto, BackendMarketMoverDto, BackendMarketBriefingDto } from "@/lib/api/backend-api-types";
 import { getMarketSession } from "@/lib/market/market-session-engine";
 import { buildStockDetailPath } from "@/lib/seo/stock-page-seo";
+import type { AppLocale } from "@/lib/locale/app-locale";
+import {
+  getMarketPulseLanguage,
+  type MarketPulseLeadershipCardKind,
+} from "@/features/market-pulse/market-pulse-language";
 
 import type {
   FocusStockModel,
@@ -273,6 +278,147 @@ function mapBriefing(briefing: BackendMarketBriefingDto): MarketBriefingModel {
   };
 }
 
+function mapLeadershipCardKind(kind: string): MarketPulseLeadershipCardKind | null {
+  if (kind === "sector" || kind === "accumulation") {
+    return kind;
+  }
+  if (kind === "stock") {
+    return kind;
+  }
+  return null;
+}
+
+function extractStorySectorCount(headline: string): number {
+  const match = headline.match(/ACROSS (\d+) SECTORS/i);
+  return match ? Number(match[1]) : 1;
+}
+
+function localizeEmptyMessage(model: MarketPulseModel, locale: AppLocale) {
+  if (locale === "en" || !model.emptyMessage) {
+    return model.emptyMessage;
+  }
+
+  const language = getMarketPulseLanguage(locale);
+  if (model.emptyState === "waiting-snapshot") return language.states.emptyWaitingSnapshot;
+  if (model.emptyState === "insufficient-history") return language.states.emptyInsufficientHistory;
+  if (model.emptyState === "no-attention") return language.states.emptyNoAttention;
+  return model.emptyMessage;
+}
+
+export function applyMarketPulseLocalization(model: MarketPulseModel, locale: AppLocale): MarketPulseModel {
+  if (locale === "en") {
+    return model;
+  }
+
+  const language = getMarketPulseLanguage(locale);
+  const briefing = model.briefing;
+  const sectorCard = briefing?.leadership.cards.find((card) => card.kind === "sector");
+  const sectors = sectorCard?.name ? [sectorCard.name] : [];
+  const localizedBriefing = briefing
+    ? {
+        ...briefing,
+        story: {
+          ...briefing.story,
+          headline: language.briefing.storyHeadline(
+            briefing.story.tone,
+            extractStorySectorCount(briefing.story.headline),
+          ),
+          explanation: language.briefing
+            .storyExplanation(
+              briefing.story.tone,
+              briefing.moneyFlow.inflows[0]?.sector ?? null,
+              briefing.moneyFlow.outflows[0]?.sector ?? null,
+            )
+            .join("\n"),
+          metrics: briefing.story.metrics.map((metric) => ({
+            ...metric,
+            label: language.briefing.storyMetricLabel(metric.label),
+          })),
+        },
+        state: {
+          ...briefing.state,
+          dimensions: briefing.state.dimensions.map((dimension) => ({
+            ...dimension,
+            label: language.briefing.stateDimensionLabel(dimension.key, dimension.label),
+            value: language.briefing.stateDimensionValue(dimension.value),
+          })),
+          overallLabel: language.briefing.overallStateLabel(briefing.state.overallLabel),
+        },
+        opportunityScore: {
+          ...briefing.opportunityScore,
+          label: language.briefing.opportunityLabel(briefing.opportunityScore.score),
+          trendLabel: briefing.opportunityScore.trendLabel
+            ? language.briefing.opportunityTrendLabel(briefing.opportunityScore.trendLabel)
+            : null,
+        },
+        leadership: {
+          ...briefing.leadership,
+          narrative: sectorCard
+            ? language.leadership.narrative(sectorCard.name)
+            : briefing.leadership.narrative,
+          cards: briefing.leadership.cards.map((card) => ({
+            ...card,
+            subtitle: language.leadership.cardSubtitle(mapLeadershipCardKind(card.kind), card.subtitle),
+          })),
+        },
+        summary: {
+          ...briefing.summary,
+          text: language.summary
+            .narrative(
+              briefing.summary.tone,
+              briefing.summary.tradingEnvironment?.overallLabel ?? "Selective Opportunity",
+              sectors,
+            )
+            .join("\n"),
+          tradingEnvironment: briefing.summary.tradingEnvironment
+            ? {
+                ...briefing.summary.tradingEnvironment,
+                signals: briefing.summary.tradingEnvironment.signals.map((signal) => ({
+                  ...signal,
+                  text: language.summary.signal(signal.text),
+                })),
+              }
+            : null,
+        },
+      }
+    : null;
+
+  const localizeFocusStock = (stock: FocusStockModel): FocusStockModel => ({
+    ...stock,
+    whyHere: stock.whyHere.map((reason) => language.focus.reason(reason, stock.focusLabel)),
+    trigger: language.focus.trigger(stock.trigger),
+    actionSummary: language.focus.actionSummary(stock.actionSummary),
+  });
+
+  const qualityCount = model.dataQualityNote?.match(/^(\d+)/)?.[1];
+
+  return {
+    ...model,
+    hero: {
+      ...model.hero,
+      attentionSubline: language.hero.subline,
+    },
+    sinceLastVisit: {
+      ...model.sinceLastVisit,
+      summaryLabel: language.sinceLastVisit.summary(
+        model.sinceLastVisit.newChangesCount,
+        model.sinceLastVisit.newFocusCount,
+        model.sinceLastVisit.newAlertsCount,
+      ),
+    },
+    briefing: localizedBriefing,
+    focusStocks: model.focusStocks.map(localizeFocusStock),
+    monitorCandidates: model.monitorCandidates.map(localizeFocusStock),
+    alerts: model.alerts.map((alert) => ({
+      ...alert,
+      eventExplanation: language.alerts.eventExplanation(alert.type, alert.metricLabel, alert.symbol),
+      whyItMatters: language.alerts.whyItMatters(alert.type),
+    })),
+    emptyMessage: localizeEmptyMessage(model, locale),
+    dataQualityNote: qualityCount ? language.states.dataQualityNote(Number(qualityCount)) : model.dataQualityNote,
+  };
+}
+
 function mapMover(mover: BackendMarketMoverDto): MarketMoverModel {
   return {
     symbol: mover.symbol,
@@ -346,12 +492,12 @@ function resolveMarketMovers(dto: BackendMarketPulseDto, focusStocks: FocusStock
   return deriveMoversFromFocusStocks(unique);
 }
 
-export function buildMarketPulseViewModel(dto: BackendMarketPulseDto): MarketPulseModel {
+export function buildMarketPulseViewModel(dto: BackendMarketPulseDto, locale: AppLocale = "en"): MarketPulseModel {
   const session = getMarketSession();
   const focusStocks = dto.focus_stocks.map(mapFocusStock);
   const monitorCandidates = dto.monitor_candidates.map(mapFocusStock);
 
-  return {
+  const model: MarketPulseModel = {
     hero: {
       greeting: dto.hero.greeting,
       attentionHeadline: dto.hero.attention_headline,
@@ -383,6 +529,8 @@ export function buildMarketPulseViewModel(dto: BackendMarketPulseDto): MarketPul
     sessionDisablesRefresh: session.disablesFreshDataActions,
     sessionDescription: session.description,
   };
+
+  return applyMarketPulseLocalization(model, locale);
 }
 
 export function buildMarketPulseSnapshotFromDto(dto: BackendMarketPulseDto) {

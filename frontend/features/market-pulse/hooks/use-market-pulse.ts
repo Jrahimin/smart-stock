@@ -16,6 +16,8 @@ import {
 } from "@/lib/api/market-pulse-api";
 import type { BackendMarketPulseDto, BackendMarketPulsePreviousSnapshotDto } from "@/lib/api/backend-api-types";
 import type { MarketPulseCorePayload } from "@/lib/api/pulse-server";
+import type { AppLocale } from "@/lib/locale/app-locale";
+import { DEFAULT_LOCALE } from "@/lib/locale/app-locale";
 import { useMarketCacheRefresh } from "@/hooks/market/use-market-cache-coordinator";
 import { useMarketDataFreshness } from "@/hooks/market/use-market-data-freshness";
 import { getMarketRefetchIntervalMs, getMarketStaleTimeMs } from "@/lib/market/market-cache-policy";
@@ -73,8 +75,12 @@ export type MarketPulseHookResult = {
   refetch: () => void;
 };
 
-export function useMarketPulse(options?: { initialCore?: MarketPulseCorePayload | null }): MarketPulseHookResult {
+export function useMarketPulse(options?: {
+  initialCore?: MarketPulseCorePayload | null;
+  locale?: AppLocale;
+}): MarketPulseHookResult {
   const initialCore = options?.initialCore ?? null;
+  const locale = options?.locale ?? DEFAULT_LOCALE;
   const { user } = useAuth();
   const refreshMarketCaches = useMarketCacheRefresh();
   const freshnessQuery = useMarketDataFreshness("DSE", {
@@ -178,7 +184,10 @@ export function useMarketPulse(options?: { initialCore?: MarketPulseCorePayload 
     return buildPulseDtoFromSummary(resolvedSummary, resolvedBriefing);
   }, [resolvedBriefing, resolvedSummary]);
 
-  const model = useMemo(() => (pulseDto ? buildMarketPulseViewModel(pulseDto) : null), [pulseDto]);
+  const model = useMemo(
+    () => (pulseDto ? buildMarketPulseViewModel(pulseDto, locale) : null),
+    [locale, pulseDto],
+  );
 
   const {
     anonymousSettled,

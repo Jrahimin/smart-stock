@@ -17,6 +17,8 @@ import {
 import { useMarketDataFreshness } from "@/hooks/market/use-market-data-freshness";
 import { getMarketStaleTimeMs } from "@/lib/market/market-cache-policy";
 import { STOCK_DETAIL_STALE_TIME_MS } from "@/lib/seo/stock-detail-cache";
+import type { AppLocale } from "@/lib/locale/app-locale";
+import { DEFAULT_LOCALE } from "@/lib/locale/app-locale";
 
 export type StockWorkspaceLoadState = "loading" | "loaded" | "notFound" | "error";
 
@@ -25,6 +27,7 @@ type UseStockWorkspaceOptions = {
   symbol: string;
   sectorContext?: SectorContextDto | null;
   initialWorkspace?: StockWorkspaceDto | null;
+  locale?: AppLocale;
 };
 
 export function useStockWorkspace({
@@ -32,6 +35,7 @@ export function useStockWorkspace({
   symbol,
   sectorContext,
   initialWorkspace = null,
+  locale = DEFAULT_LOCALE,
 }: UseStockWorkspaceOptions) {
   const freshnessQuery = useMarketDataFreshness(exchange);
   const staleTimeMs = freshnessQuery.data
@@ -86,8 +90,8 @@ export function useStockWorkspace({
   }, [exchange, loadState, symbol, workspaceQuery.data]);
 
   const decisionModel = useMemo(
-    () => buildStockDecisionViewModel(workspaceQuery.data?.decision_support),
-    [workspaceQuery.data?.decision_support],
+    () => buildStockDecisionViewModel(workspaceQuery.data?.decision_support, locale),
+    [locale, workspaceQuery.data?.decision_support],
   );
 
   const fundamentalsModel = useMemo(

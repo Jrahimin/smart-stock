@@ -29,15 +29,26 @@ import { useSectorContext } from "@/features/stock-workspace/hooks/use-sector-co
 import { useStockSectionNav } from "@/features/stock-workspace/hooks/use-stock-section-nav";
 import { useStockWorkspace } from "@/features/stock-workspace/hooks/use-stock-workspace";
 import { STOCK_SECTION_DEFINITIONS, type StockSectionId } from "@/features/stock-workspace/types/stock-section-types";
+import {
+  getStockSectionDefinitions,
+  getStockWorkspaceLanguage,
+  localizeCompanySnapshotLabel,
+  localizeRelatedStocksCta,
+  localizeRelatedStocksGroupTitle,
+} from "@/features/stock-workspace/stock-workspace-language";
 import { buildCompanySnapshotStrip } from "@/features/stock-workspace/view-models/company-snapshot-view-model";
 import { buildSectorIntelligenceViewModel } from "@/features/stock-workspace/view-models/sector-context-view-model";
 import { buildStockSemanticSummary } from "@/features/stock-workspace/view-models/stock-semantic-summary-view-model";
 import { frontendConfig } from "@/lib/frontend-config";
+import type { AppLocale } from "@/lib/locale/app-locale";
+import { DEFAULT_LOCALE } from "@/lib/locale/app-locale";
+import { DashboardLocaleSwitcher } from "@/features/market-dashboard/components/dashboard-locale-switcher";
 
 type StockDetailWorkspaceViewProps = {
   exchange: ExchangeCode;
   symbol: string;
   initialWorkspace?: StockWorkspaceDto | null;
+  locale?: AppLocale;
 };
 
 function resolveEnabledSections(decisionAvailable: boolean, hasOwnership: boolean, hasEvents: boolean): StockSectionId[] {
@@ -59,7 +70,9 @@ export function StockDetailWorkspaceView({
   exchange,
   symbol,
   initialWorkspace = null,
+  locale = DEFAULT_LOCALE,
 }: StockDetailWorkspaceViewProps) {
+  const language = getStockWorkspaceLanguage(locale);
   const [relatedLoadEnabled, setRelatedLoadEnabled] = useState(false);
   const [sectorContextEnabled, setSectorContextEnabled] = useState(false);
 
@@ -85,6 +98,7 @@ export function StockDetailWorkspaceView({
     symbol,
     sectorContext: sectorContextQuery.sectorContext,
     initialWorkspace,
+    locale,
   });
   const intelligence = model.intelligence;
   const chartSupport = decisionModel.available ? decisionModel.support : intelligence?.support;
@@ -102,10 +116,10 @@ export function StockDetailWorkspaceView({
     [decisionModel.available, hasEvents, hasOwnership],
   );
 
-  const visibleSections = useMemo(
-    () => STOCK_SECTION_DEFINITIONS.filter((section) => enabledSectionIds.includes(section.id)),
-    [enabledSectionIds],
-  );
+  const visibleSections = useMemo(() => {
+    const definitions = locale === "en" ? STOCK_SECTION_DEFINITIONS : getStockSectionDefinitions(locale);
+    return definitions.filter((section) => enabledSectionIds.includes(section.id));
+  }, [enabledSectionIds, locale]);
 
   const { activeSection, scrollToSection } = useStockSectionNav({ enabledSectionIds });
 
@@ -158,16 +172,37 @@ export function StockDetailWorkspaceView({
     return () => observer.disconnect();
   }, [enableSectorContext]);
 
-  const companySnapshotCells = useMemo(
-    () => buildCompanySnapshotStrip(model, decisionModel, displayMetrics),
-    [decisionModel, displayMetrics, model],
+  const companySnapshotCells = useMemo(() => {
+    const cells = buildCompanySnapshotStrip(model, decisionModel, displayMetrics);
+    if (locale === "en") {
+      return cells;
+    }
+
+    return cells.map((cell) => ({
+      ...cell,
+      label: localizeCompanySnapshotLabel(cell.key, locale) ?? cell.label,
+    }));
+  }, [decisionModel, displayMetrics, locale, model]);
+
+  const localizedRelatedGroups = useMemo(
+    () =>
+      relatedStocks.groups.map((group) => ({
+        ...group,
+        title: localizeRelatedStocksGroupTitle(group.id, locale),
+      })),
+    [locale, relatedStocks.groups],
   );
+
+  const localizedRelatedCta = useMemo(() => {
+    const sectorPeers = relatedStocks.groups.find((group) => group.id === "sector-peers");
+    return localizeRelatedStocksCta(model.header.sector, Boolean(sectorPeers?.items.length), locale);
+  }, [locale, model.header.sector, relatedStocks.groups]);
   const semanticSummary = useMemo(() => buildStockSemanticSummary(model, decisionModel), [decisionModel, model]);
 
   if (isLoading) {
     return (
       <div className="stock-workspace-view stock-workspace-view-v2 trader-workspace-fade-in" data-testid="stock-workspace-loading">
-        <MarketActivityLoader label="Loading stock intelligence..." />
+        <MarketActivityLoader label={language.states.loading} />
       </div>
     );
   }
@@ -175,29 +210,28 @@ export function StockDetailWorkspaceView({
   if (isNotFound) {
     return (
       <div className="stock-workspace-view stock-workspace-view-v2 trader-workspace-fade-in" data-testid="stock-workspace-not-found">
-        <div className="data-warning">Stock not found for {symbol}.</div>
+        <div className="data-warning">{language.states.notFound(symbol)}</div>
       </div>
     );
   }
 
   return (
     <div className="stock-workspace-view stock-workspace-view-v2 trader-workspace-fade-in" data-testid="stock-workspace-loaded">
-      {isError ? <div className="data-warning">Could not load stock workspace data for {symbol}.</div> : null}
-      {isDecisionError ? <div className="data-warning">Decision support unavailable; chart remains active.</div> : null}
+      {isError ? <div className="data-warning">{language.states.workspaceError(symbol)}</div> : null}
+      {isDecisionError ? <div className="data-warning">{language.states.decisionError}</div> : null}
       <div className="trader-workspace-topbar">
-        <StockWorkspaceHeader
-          decision={decisionModel}
-          model={model}
-          stockId={model.intelligence?.stock.id}
-        />
+        <StockWorkspaceHeader copy={language.header} decision={decisionModel} model={model} stockId={model.intelligence?.stock.id} />
         <div className="trader-workspace-topbar-rail">
-          <MarketDataFreshnessBar variant="inline" />
+          <MarketDataFreshnessBar locale={locale} variant="inline" />
+          <div aria-label={language.localeSwitcherAria} className="stock-workspace-locale-switcher">
+            <DashboardLocaleSwitcher locale={locale} />
+          </div>
           <WorkspaceCommandSearch filterContextName="stocks" showQuickActions={false} variant="compact" />
         </div>
       </div>
 
-      <StockSectionNav activeSection={activeSection} onNavigate={handleNavigate} sections={visibleSections} />
-      <CompanySnapshotStrip cells={companySnapshotCells} />
+      <StockSectionNav activeSection={activeSection} copy={language.nav} onNavigate={handleNavigate} sections={visibleSections} />
+      <CompanySnapshotStrip ariaLabel={language.companySnapshot.ariaLabel} cells={companySnapshotCells} />
 
       <p className="sr-only">{semanticSummary}</p>
 
@@ -215,44 +249,49 @@ export function StockDetailWorkspaceView({
                 sma20={intelligence?.sma20}
                 support={chartSupport}
                 volumeBars={intelligence?.volumeBars ?? []}
+                chartCopy={language.chart}
+                patternCopy={language.pattern}
               />
             </section>
           </StockResearchSection>
 
-          <StockResearchSection divided id="technicals" showHeader title="Technicals">
-            <BreakoutAnalysisCard decision={decisionModel} />
-            <PricePositionPanel decision={decisionModel} />
-            <TradePlanPanel decision={decisionModel} />
-            <SmartWarningsPanel decision={decisionModel} />
-            <TechnicalSummaryPanel model={model} />
+          <StockResearchSection divided id="technicals" showHeader title={language.sections.technicals.label}>
+            <BreakoutAnalysisCard copy={language.panels} decision={decisionModel} />
+            <PricePositionPanel copy={language.panels} decision={decisionModel} />
+            <TradePlanPanel copy={language.panels} decision={decisionModel} />
+            <SmartWarningsPanel copy={language.panels} decision={decisionModel} />
+            <TechnicalSummaryPanel copy={language.technicalSummary} model={model} />
           </StockResearchSection>
 
-          <StockResearchSection divided id="fundamentals" showHeader title="Fundamentals">
-            <FundamentalsPanel fundamentals={fundamentalsModel} />
+          <StockResearchSection divided id="fundamentals" showHeader title={language.sections.fundamentals.label}>
+            <FundamentalsPanel columnCopy={language.panels} copy={language.fundamentals} fundamentals={fundamentalsModel} />
           </StockResearchSection>
 
-          <StockResearchSection divided hidden={!hasOwnership} id="ownership" showHeader title="Ownership">
-            <OwnershipInsightsPanel decision={decisionModel} />
+          <StockResearchSection divided hidden={!hasOwnership} id="ownership" showHeader title={language.sections.ownership.label}>
+            <OwnershipInsightsPanel copy={language.panels} decision={decisionModel} />
           </StockResearchSection>
 
-          <StockResearchSection divided hidden={!hasEvents} id="events" showHeader title="Events">
-            <EventTimelinePanel decision={decisionModel} />
+          <StockResearchSection divided hidden={!hasEvents} id="events" showHeader title={language.sections.events.label}>
+            <EventTimelinePanel copy={language.panels} decision={decisionModel} />
           </StockResearchSection>
 
           <StockResearchSection divided id="related">
             {sectorContextEnabled && sectorIntelligence ? (
               <>
-                <h2 className="stock-research-subsection-heading">Sector Intelligence</h2>
-                <SectorIntelligenceCard sector={sectorIntelligence} />
+                <h2 className="stock-research-subsection-heading">{language.subsections.sectorIntelligence}</h2>
+                <SectorIntelligenceCard copy={language.sector} sector={sectorIntelligence} />
               </>
             ) : null}
             {sectorContextEnabled && sectorContextQuery.isError ? (
-              <div className="data-warning data-warning-compact">Sector context unavailable.</div>
+              <div className="data-warning data-warning-compact">{language.states.sectorContextError}</div>
             ) : null}
-            <h2 className="stock-research-subsection-heading stock-research-subsection-heading-spaced">Related Stocks</h2>
+            <h2 className="stock-research-subsection-heading stock-research-subsection-heading-spaced">
+              {language.subsections.relatedStocks}
+            </h2>
             <RelatedStocksSection
-              cta={relatedStocks.cta}
-              groups={relatedStocks.groups}
+              copy={language.relatedStocks}
+              cta={localizedRelatedCta}
+              groups={localizedRelatedGroups}
               hasResults={relatedStocks.hasResults}
               isError={relatedStocks.isError}
               isLoading={relatedStocks.isLoading}
@@ -263,9 +302,9 @@ export function StockDetailWorkspaceView({
         </main>
 
         <aside className="trader-decision-rail">
-          <TraderDecisionCard decision={decisionModel} />
-          <DecisionScoresPanel decision={decisionModel} />
-          {isDecisionLoading ? <div className="data-warning data-warning-compact">Updating decision…</div> : null}
+          <TraderDecisionCard copy={language.decision} decision={decisionModel} />
+          <DecisionScoresPanel copy={language.decision} decision={decisionModel} />
+          {isDecisionLoading ? <div className="data-warning data-warning-compact">{language.states.decisionUpdating}</div> : null}
         </aside>
       </div>
     </div>

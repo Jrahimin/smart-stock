@@ -47,7 +47,7 @@ describe("dashboard insights localization", () => {
     expect(localized[0]?.categoryLabel).toBe("momentum");
     expect(localized[1]?.description).toContain("সর্বশেষ turnover BDT 16.7B");
     expect(localized[1]?.description).toContain("গত session-এর তুলনায় +5.2%");
-    expect(localized[1]?.description).toContain("৩০-session গড় BDT 14.2B");
+    expect(localized[1]?.description).toContain("30-session গড় BDT 14.2B");
     expect(localized[1]?.description).toContain("লেনদেন বেশ ভালো");
     expect(localized[1]?.description).toContain("নতুন entry-তে এগুলো আগে দেখুন");
   });

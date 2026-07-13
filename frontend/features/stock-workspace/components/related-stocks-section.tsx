@@ -5,6 +5,7 @@ import Link from "next/link";
 
 import { SignalBadge } from "@/components/ui/signal-badge";
 import type { RelatedStocksCta, RelatedStocksGroup } from "@/features/stock-workspace/view-models/related-stocks-view-model";
+import type { StockWorkspaceLanguage } from "@/features/stock-workspace/stock-workspace-language";
 import type { TraderRecommendation } from "@/lib/api/backend-api-types";
 
 type RelatedStocksSectionProps = {
@@ -15,6 +16,7 @@ type RelatedStocksSectionProps = {
   isError: boolean;
   loadEnabled: boolean;
   onRequestLoad: () => void;
+  copy: StockWorkspaceLanguage["relatedStocks"];
 };
 
 export function RelatedStocksSection({
@@ -25,6 +27,7 @@ export function RelatedStocksSection({
   isError,
   loadEnabled,
   onRequestLoad,
+  copy,
 }: RelatedStocksSectionProps) {
   useEffect(() => {
     const section = document.getElementById("related");
@@ -49,7 +52,7 @@ export function RelatedStocksSection({
 
   return (
     <div className="related-stocks-panel">
-      {isError ? <div className="data-warning data-warning-compact">Could not load related stocks.</div> : null}
+      {isError ? <div className="data-warning data-warning-compact">{copy.loadError}</div> : null}
 
       {showSkeleton ? (
         <div aria-hidden="true" className="related-stocks-skeleton">
@@ -95,7 +98,7 @@ export function RelatedStocksSection({
                     );
                   })
                 ) : (
-                  <div className="related-stocks-empty related-stocks-empty-row">No matches in this group yet.</div>
+                  <div className="related-stocks-empty related-stocks-empty-row">{copy.emptyRow}</div>
                 )}
                 </div>
               </div>
@@ -105,7 +108,7 @@ export function RelatedStocksSection({
       ) : null}
 
       {loadEnabled && !showSkeleton && !hasResults && !isError ? (
-        <div className="related-stocks-empty related-stocks-empty-section">No related stocks to suggest for this symbol yet.</div>
+        <div className="related-stocks-empty related-stocks-empty-section">{copy.emptySection}</div>
       ) : null}
 
       {loadEnabled && !showSkeleton && hasResults ? (

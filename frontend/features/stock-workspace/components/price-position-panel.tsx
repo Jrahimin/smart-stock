@@ -1,11 +1,13 @@
 import { formatNumber } from "@/lib/formatters/financial-formatters";
 import type { StockDecisionViewModel } from "@/features/stock-workspace/view-models/stock-decision-view-model";
+import type { StockWorkspaceLanguage } from "@/features/stock-workspace/stock-workspace-language";
 
 type PricePositionPanelProps = {
   decision: StockDecisionViewModel;
+  copy: StockWorkspaceLanguage["panels"];
 };
 
-export function PricePositionPanel({ decision }: PricePositionPanelProps) {
+export function PricePositionPanel({ decision, copy }: PricePositionPanelProps) {
   const visual = decision.pricePositionVisual;
   if (!decision.available || visual.current === null) {
     return null;
@@ -16,21 +18,21 @@ export function PricePositionPanel({ decision }: PricePositionPanelProps) {
   return (
     <section className="trader-workspace-strip price-position-strip">
       <div className="strip-heading">
-        <span>Price Position</span>
-        <strong>{Math.round(percent)}% toward resistance</strong>
+        <span>{copy.pricePosition}</span>
+        <strong>{copy.towardResistance(Math.round(percent))}</strong>
       </div>
       <div className="price-position-rail">
         <span>{formatNumber(visual.support)}</span>
         <div className="price-position-track">
           <div className="price-position-fill" style={{ width: `${percent}%` }} />
-          <div className="price-position-marker" style={{ left: `${percent}%` }} title={`Current ${formatNumber(visual.current)}`} />
+          <div className="price-position-marker" style={{ left: `${percent}%` }} title={copy.current(formatNumber(visual.current))} />
         </div>
         <span>{formatNumber(visual.resistance)}</span>
       </div>
       <div className="price-position-labels">
-        <span>Support</span>
-        <span>Current {formatNumber(visual.current)}</span>
-        <span>Resistance</span>
+        <span>{copy.support}</span>
+        <span>{copy.current(formatNumber(visual.current))}</span>
+        <span>{copy.resistance}</span>
       </div>
     </section>
   );

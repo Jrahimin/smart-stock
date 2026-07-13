@@ -4304,6 +4304,19 @@ button {
   position: relative;
 }
 
+.explorer-hero-status-row {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  width: 100%;
+}
+
+.explorer-hero-locale-switcher,
+.stock-workspace-locale-switcher {
+  flex-shrink: 0;
+}
+
 .explorer-hero-head {
   align-self: start;
   padding-right: min(240px, 36%);
@@ -24506,9 +24519,11 @@ button {
 }
 
 .pulse-score-badge-compact .pulse-score-badge-ring {
-  min-height: 44px;
-  min-width: 44px;
-  padding: 4px 10px;
+  height: 40px;
+  min-height: 40px;
+  min-width: 0;
+  padding: 0 5px;
+  width: 62px;
 }
 
 .pulse-score-badge-positive .pulse-score-badge-ring {
@@ -24547,7 +24562,7 @@ button {
 }
 
 .pulse-score-badge-compact .pulse-score-value {
-  font-size: 1.05rem;
+  font-size: 0.98rem;
 }
 
 .pulse-score-badge-info .pulse-score-value {
@@ -24565,7 +24580,7 @@ button {
 }
 
 .pulse-score-badge-compact .pulse-score-max {
-  font-size: 0.62rem;
+  font-size: 0.56rem;
 }
 
 .pulse-score-band {

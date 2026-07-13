@@ -1,4 +1,5 @@
 import type { StockIntelligenceModel } from "@/lib/market/market-intelligence-types";
+import { resolveTraderDecision } from "@/lib/market/trader-decision";
 
 export type TraderDecisionReasonKey =
   | "stale_sparse_data"
@@ -45,12 +46,16 @@ export type ResolvedTraderDecisionReason = {
 export type SignalTechnicalContext = {
   rsi?: number;
   volumeRatio?: number;
+  trend?: string;
+  opportunityScore?: number;
 };
 
 export type SignalReasonCopy = {
   contextJoiner: string;
   contextRsi: (value: string) => string;
   contextVolume: (ratio: string) => string;
+  contextTrend: (value: string) => string;
+  contextOpportunity: (value: number) => string;
   decisionReasons: DecisionReasonCopy;
 };
 
@@ -187,7 +192,25 @@ export function buildSignalTechnicalContext(stock: StockIntelligenceModel): Sign
     context.volumeRatio = stock.volume / stock.averageVolume;
   }
 
+  context.trend = stock.trend.replace("_", " ").toLowerCase();
+  const opportunityScore = resolveTraderDecision(stock).opportunityScore;
+  if (opportunityScore !== null) {
+    context.opportunityScore = opportunityScore;
+  }
+
   return context;
+}
+
+export function buildLocalizedSignalSupportingContext(
+  technicalContext: SignalTechnicalContext,
+  copy: SignalReasonCopy,
+): string[] {
+  return [
+    technicalContext.rsi !== undefined ? copy.contextRsi(technicalContext.rsi.toFixed(1)) : null,
+    technicalContext.volumeRatio !== undefined ? copy.contextVolume(technicalContext.volumeRatio.toFixed(1)) : null,
+    technicalContext.trend ? copy.contextTrend(technicalContext.trend) : null,
+    technicalContext.opportunityScore !== undefined ? copy.contextOpportunity(technicalContext.opportunityScore) : null,
+  ].filter((value): value is string => Boolean(value));
 }
 
 export function resolveDecisionReasonSummary(

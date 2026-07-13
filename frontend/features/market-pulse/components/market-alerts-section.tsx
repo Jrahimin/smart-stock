@@ -4,10 +4,12 @@ import Link from "next/link";
 import { AlertTriangle, BarChart3, Flame, RotateCcw, TrendingUp, Zap } from "lucide-react";
 
 import type { MarketAlertModel } from "@/features/market-pulse/types/market-pulse-types";
+import type { MarketPulseLanguage } from "@/features/market-pulse/market-pulse-language";
 
 type MarketAlertsSectionProps = {
   alerts: MarketAlertModel[];
   isLoading?: boolean;
+  copy: MarketPulseLanguage["alerts"];
 };
 
 function AlertIcon({ type }: { type: MarketAlertModel["type"] }) {
@@ -29,7 +31,7 @@ function AlertIcon({ type }: { type: MarketAlertModel["type"] }) {
   return <AlertTriangle aria-hidden="true" size={13} />;
 }
 
-export function MarketAlertsSection({ alerts, isLoading = false }: MarketAlertsSectionProps) {
+export function MarketAlertsSection({ alerts, isLoading = false, copy }: MarketAlertsSectionProps) {
   if (!isLoading && alerts.length === 0) {
     return null;
   }
@@ -39,11 +41,11 @@ export function MarketAlertsSection({ alerts, isLoading = false }: MarketAlertsS
       <div className="pulse-panel-card">
         <div className="pulse-section-head pulse-section-head-compact">
           <div>
-            <p className="pulse-section-eyebrow">Market Alerts</p>
-            <h2 id="pulse-alerts-heading">High priority signals for today.</h2>
+            <p className="pulse-section-eyebrow">{copy.eyebrow}</p>
+            <h2 id="pulse-alerts-heading">{copy.title}</h2>
           </div>
           <Link className="pulse-section-link" href="/signals">
-            View all alerts →
+            {copy.viewAll}
           </Link>
         </div>
 
@@ -60,7 +62,7 @@ export function MarketAlertsSection({ alerts, isLoading = false }: MarketAlertsS
                 <div className="pulse-alert-content">
                   <div className="pulse-alert-head">
                     <span className={`pulse-alert-priority pulse-alert-priority-${alert.significance.toLowerCase()}`}>
-                      {alert.significance}
+                      {copy.significance[alert.significance]}
                     </span>
                     <div className="pulse-alert-title-row">
                       <div className="pulse-alert-icon">

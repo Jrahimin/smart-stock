@@ -6,16 +6,18 @@ import { CircularProgressRing } from "@/components/ui/circular-progress-ring";
 import { WorkspaceModal } from "@/components/ui/workspace-modal";
 import { formatNumber } from "@/lib/formatters/financial-formatters";
 import type { StockDecisionViewModel } from "@/features/stock-workspace/view-models/stock-decision-view-model";
+import type { StockWorkspaceLanguage } from "@/features/stock-workspace/stock-workspace-language";
 
 type BreakoutAnalysisCardProps = {
   decision: StockDecisionViewModel;
+  copy: StockWorkspaceLanguage["panels"];
 };
 
 function resolveBreakoutScenario(decision: StockDecisionViewModel) {
   return decision.breakout?.direction === "breakdown" ? "breakdown" : "breakout";
 }
 
-export function BreakoutAnalysisCard({ decision }: BreakoutAnalysisCardProps) {
+export function BreakoutAnalysisCard({ decision, copy }: BreakoutAnalysisCardProps) {
   const [isOpen, setIsOpen] = useState(false);
   if (!decision.available || !decision.breakout) {
     return null;
@@ -25,10 +27,10 @@ export function BreakoutAnalysisCard({ decision }: BreakoutAnalysisCardProps) {
   const scenario = resolveBreakoutScenario(decision);
   const isBreakdown = scenario === "breakdown";
   const compactFactors = breakout.factors.slice(0, 3);
-  const title = isBreakdown ? "📉 Breakdown Probability" : "🚀 Breakout Probability";
-  const triggerLabel = isBreakdown ? "Breakdown" : "Breakout";
-  const modalTitle = isBreakdown ? "Breakdown Analysis" : "Breakout Analysis";
-  const levelLabel = isBreakdown ? "Breakdown level" : "Breakout level";
+  const title = isBreakdown ? copy.breakdownProbability : copy.breakoutProbability;
+  const triggerLabel = isBreakdown ? copy.breakdown : copy.breakout;
+  const modalTitle = isBreakdown ? copy.breakdownAnalysis : copy.breakoutAnalysis;
+  const levelLabel = isBreakdown ? copy.breakdownLevel : copy.breakoutLevel;
 
   return (
     <>
@@ -44,7 +46,7 @@ export function BreakoutAnalysisCard({ decision }: BreakoutAnalysisCardProps) {
               <span>
                 {triggerLabel} {formatNumber(breakout.breakout_level)}
               </span>
-              <span>Target {formatNumber(breakout.projected_target)}</span>
+              <span>{copy.target} {formatNumber(breakout.projected_target)}</span>
             </div>
           </div>
           <CircularProgressRing
@@ -70,10 +72,10 @@ export function BreakoutAnalysisCard({ decision }: BreakoutAnalysisCardProps) {
             <strong>{levelLabel}:</strong> {breakout.breakout_level ?? "N/A"}
           </p>
           <p>
-            <strong>Confirmation level:</strong> {breakout.confirmation_level ?? "N/A"}
+            <strong>{copy.confirmationLevel}:</strong> {breakout.confirmation_level ?? "N/A"}
           </p>
           <p>
-            <strong>Projected target:</strong> {breakout.projected_target ?? "N/A"}
+            <strong>{copy.projectedTarget}:</strong> {breakout.projected_target ?? "N/A"}
           </p>
           <ul>
             {breakout.factors.map((factor) => (
