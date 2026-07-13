@@ -10,6 +10,7 @@ import { SnapshotCompletenessCard } from "@/features/wealth/components/snapshot-
 import { SnapshotEntryList } from "@/features/wealth/components/snapshot-entry-list";
 import { WealthInsightCard } from "@/features/wealth/components/wealth-insight-card";
 import { WealthSubNav } from "@/features/wealth/components/wealth-sub-nav";
+import { getCalculatorAccountIdentifierLabel } from "@/features/wealth/lib/calculator-snapshot";
 import { useMoneySnapshot } from "@/features/wealth/hooks/use-money-snapshot";
 import { useWealthDashboard } from "@/features/wealth/hooks/use-wealth-dashboard";
 import { readLocalMoneySnapshot, saveLocalMoneySnapshotDraft } from "@/features/wealth/lib/local-money-snapshot";
@@ -34,6 +35,14 @@ import {
 } from "@/features/wealth/lib/snapshot-dashboard-helpers";
 import { formatWealthCurrency } from "@/features/wealth/view-models/wealth-view-model";
 import { useAuth } from "@/features/auth/context/auth-context";
+import {
+  getWealthSnapshotLanguage,
+  localizeSnapshotAllocationLabel,
+  localizeUpcomingEventLabel,
+  type SnapshotEntryId,
+} from "@/features/wealth/wealth-snapshot-language";
+import { getWealthToolsLanguage } from "@/features/wealth/wealth-tools-language";
+import type { AppLocale } from "@/lib/locale/app-locale";
 
 type SnapshotEntryKind = "asset" | "liability";
 
@@ -128,7 +137,9 @@ function createLiabilityDraft(option: SnapshotEntryOption): DraftLiability {
   };
 }
 
-export function MoneySnapshotDashboardView() {
+export function MoneySnapshotDashboardView({ locale }: { locale: AppLocale }) {
+  const copy = getWealthSnapshotLanguage(locale);
+  const toolsCopy = getWealthToolsLanguage(locale);
   const { isAuthenticated } = useAuth();
   const { dashboard } = useWealthDashboard();
   const { snapshot, patchSnapshot, isSaving } = useMoneySnapshot();
@@ -356,32 +367,30 @@ export function MoneySnapshotDashboardView() {
       assets: payloadAssets,
       liabilities: payloadLiabilities,
     });
-    setSaveMessage("Money Snapshot updated.");
+    setSaveMessage(copy.addSection.saved);
   }
 
   return (
     <section className="wealth-snapshot-page">
-      <WealthSubNav />
+      <WealthSubNav locale={locale} />
 
       <header className="wealth-hero-card wealth-snapshot-hero">
-        <p className="eyebrow">My Financial Picture</p>
-        <h1>Money Snapshot</h1>
-        <p>
-          Start with a few broad numbers. Add dates, rates, and notes only when they help your future projections.
-        </p>
+        <p className="eyebrow">{copy.hero.eyebrow}</p>
+        <h1>{copy.hero.title}</h1>
+        <p>{copy.hero.description}</p>
       </header>
 
       <div className="wealth-metric-grid wealth-snapshot-summary-grid">
-        <MetricCard label="Net Worth" tone="info" value={formatWealthCurrency(netWorth)} />
-        <MetricCard label="Total Assets" tone="positive" value={formatWealthCurrency(totalAssets)} />
-        <MetricCard label="Total Liabilities" tone="warning" value={formatWealthCurrency(totalLiabilities)} />
-        <SnapshotCompletenessCard completeness={snapshotCompleteness} />
+        <MetricCard label={copy.metrics.netWorth} tone="info" value={formatWealthCurrency(netWorth)} />
+        <MetricCard label={copy.metrics.totalAssets} tone="positive" value={formatWealthCurrency(totalAssets)} />
+        <MetricCard label={copy.metrics.totalLiabilities} tone="warning" value={formatWealthCurrency(totalLiabilities)} />
+        <SnapshotCompletenessCard completeness={snapshotCompleteness} locale={locale} />
       </div>
 
       <section className="wealth-panel wealth-snapshot-entry-panel">
         <div className="wealth-section-heading">
-          <p className="eyebrow">Add gradually</p>
-          <h2>What would you like to add?</h2>
+          <p className="eyebrow">{copy.addSection.eyebrow}</p>
+          <h2>{copy.addSection.title}</h2>
         </div>
         <div className="wealth-add-card-grid">
           {ENTRY_OPTIONS.map((option) => (
@@ -392,7 +401,7 @@ export function MoneySnapshotDashboardView() {
               type="button"
             >
               <span>{option.icon}</span>
-              <strong>{option.title}</strong>
+              <strong>{copy.entryOptions[option.id as SnapshotEntryId]}</strong>
             </button>
           ))}
         </div>
@@ -401,15 +410,15 @@ export function MoneySnapshotDashboardView() {
           <div className="wealth-entry-drawer-heading">
             <span>{selectedOption.icon}</span>
             <div>
-              <h3>{selectedOption.title}</h3>
-              <p>Start with the amount. You can improve projections now or later.</p>
+              <h3>{copy.entryOptions[selectedOption.id as SnapshotEntryId]}</h3>
+              <p>{copy.addSection.drawerHint}</p>
             </div>
           </div>
 
           {selectedOption.kind === "asset" ? (
-            <AssetDraftForm draft={assetDraft} onChange={setAssetDraft} option={selectedOption} />
+            <AssetDraftForm copy={copy} draft={assetDraft} locale={locale} onChange={setAssetDraft} option={selectedOption} toolsCopy={toolsCopy} />
           ) : (
-            <LiabilityDraftForm draft={liabilityDraft} onChange={setLiabilityDraft} />
+            <LiabilityDraftForm copy={copy} draft={liabilityDraft} locale={locale} onChange={setLiabilityDraft} toolsCopy={toolsCopy} />
           )}
 
           <div className="wealth-entry-actions">
@@ -419,24 +428,22 @@ export function MoneySnapshotDashboardView() {
                 onClick={() => setShowProjectionDetails((current) => !current)}
                 type="button"
               >
-                {showProjectionDetails ? "Hide projection details" : "✨ Improve Projections"}
+                {showProjectionDetails ? copy.addSection.hideDetails : copy.addSection.improveProjections}
               </button>
             ) : (
               <span />
             )}
             <button className="wealth-primary-button wealth-add-entry-button" onClick={handleAddEntry} type="button">
-              Add to list
+              {copy.addSection.addToList}
             </button>
           </div>
           {showProjectionDetails && hasProjectionDetails ? (
             <div className="wealth-advanced-section">
-              <p className="wealth-advanced-helper">
-                These optional details unlock future value projections, maturity timelines, reminders, and smarter insights.
-              </p>
+              <p className="wealth-advanced-helper">{copy.addSection.advancedHelper}</p>
               {selectedOption.kind === "asset" ? (
-                <AssetProjectionForm draft={assetDraft} onChange={setAssetDraft} option={selectedOption} />
+                <AssetProjectionForm copy={copy} draft={assetDraft} locale={locale} onChange={setAssetDraft} option={selectedOption} toolsCopy={toolsCopy} />
               ) : (
-                <LiabilityProjectionForm draft={liabilityDraft} onChange={setLiabilityDraft} />
+                <LiabilityProjectionForm copy={copy} draft={liabilityDraft} locale={locale} onChange={setLiabilityDraft} toolsCopy={toolsCopy} />
               )}
             </div>
           ) : null}
@@ -445,15 +452,16 @@ export function MoneySnapshotDashboardView() {
             <SnapshotEntryList
               assets={assets}
               liabilities={liabilities}
+              locale={locale}
               onRemoveAsset={handleRemoveAsset}
               onRemoveLiability={handleRemoveLiability}
               onUpdateAsset={handleUpdateAsset}
               onUpdateLiability={handleUpdateLiability}
               renderAssetEditForm={(draft, onChange) => (
-                <SnapshotAssetEditForm asset={draft} onChange={onChange} />
+                <SnapshotAssetEditForm asset={draft} copy={copy} locale={locale} onChange={onChange} toolsCopy={toolsCopy} />
               )}
               renderLiabilityEditForm={(draft, onChange) => (
-                <SnapshotLiabilityEditForm liability={draft} onChange={onChange} />
+                <SnapshotLiabilityEditForm copy={copy} liability={draft} locale={locale} onChange={onChange} toolsCopy={toolsCopy} />
               )}
             />
           ) : null}
@@ -462,20 +470,20 @@ export function MoneySnapshotDashboardView() {
         {isAuthenticated && hasPendingEntries ? (
           <div className="wealth-snapshot-save-bar">
             <div>
-              <strong>Ready to save?</strong>
-              <p className="wealth-muted-copy">Your list is stored here until you save it to your account.</p>
+              <strong>{copy.addSection.readyToSave}</strong>
+              <p className="wealth-muted-copy">{copy.addSection.readyHint}</p>
             </div>
             <button className="wealth-primary-button wealth-save-snapshot-button" disabled={isSaving} onClick={() => void handleSaveSnapshot()} type="button">
-              {isSaving ? "Saving..." : "Save Money Snapshot"}
+              {isSaving ? copy.addSection.saving : copy.addSection.save}
             </button>
           </div>
         ) : null}
         {!isAuthenticated ? (
           <p className="wealth-muted-copy wealth-signin-hint">
             <Link className="wealth-inline-link" href="/login">
-              Sign in
+              {copy.addSection.signIn}
             </Link>{" "}
-            to save your snapshot to your account. Until then, items stay on this device only.
+            {copy.addSection.signInHint}
           </p>
         ) : null}
         {saveMessage ? <p className="wealth-local-note">{saveMessage}</p> : null}
@@ -483,12 +491,12 @@ export function MoneySnapshotDashboardView() {
 
       <section className="wealth-snapshot-side-grid">
         <div className="wealth-panel">
-          <h2>Upcoming Money Events</h2>
+          <h2>{copy.upcoming.title}</h2>
           {upcomingEventGroups.length ? (
             <div className="wealth-money-event-groups">
               {upcomingEventGroups.map((group) => (
                 <div className="wealth-money-event-group" key={group.id}>
-                  <h3>{group.label}</h3>
+                  <h3>{group.id === "30-days" ? copy.upcoming.next30Days : copy.upcoming.next12Months}</h3>
                   <div className="wealth-money-event-list wealth-money-event-list-expanded">
                     {group.events.map((event) => (
                       <div
@@ -496,7 +504,7 @@ export function MoneySnapshotDashboardView() {
                         key={`${group.id}-${event.kind}-${event.label}-${event.dateLabel}`}
                       >
                         <span>{event.dateLabel}</span>
-                        <strong>{event.label}</strong>
+                        <strong>{localizeUpcomingEventLabel(event.label, locale)}</strong>
                         <small>{event.value}</small>
                       </div>
                     ))}
@@ -505,20 +513,20 @@ export function MoneySnapshotDashboardView() {
               ))}
             </div>
           ) : (
-            <p className="wealth-muted-copy">Add a maturity date, profit rate, or EMI to see upcoming money events.</p>
+            <p className="wealth-muted-copy">{copy.upcoming.empty}</p>
           )}
         </div>
 
         <div className="wealth-snapshot-side-stack">
           <div className="wealth-panel wealth-snapshot-savings-panel">
-            <h2>Monthly savings</h2>
-            <p className="wealth-muted-copy">Optional. This improves your dashboard without becoming a full financial profile.</p>
+            <h2>{copy.monthlySavings.title}</h2>
+            <p className="wealth-muted-copy">{copy.monthlySavings.hint}</p>
             <label className="wealth-field">
-              <span>How much do you usually save monthly?</span>
+              <span>{copy.monthlySavings.label}</span>
               <input inputMode="decimal" onChange={(event) => setMonthlySavings(event.target.value)} value={monthlySavings} />
             </label>
           </div>
-          <SnapshotAssetAllocation slices={assetAllocation} />
+          <SnapshotAssetAllocation locale={locale} slices={assetAllocation} />
         </div>
       </section>
 
@@ -534,13 +542,19 @@ export function MoneySnapshotDashboardView() {
 }
 
 function AssetDraftForm({
+  copy,
   draft,
+  locale,
   onChange,
   option,
+  toolsCopy,
 }: {
+  copy: ReturnType<typeof getWealthSnapshotLanguage>;
   draft: DraftAsset;
+  locale: AppLocale;
   onChange: (draft: DraftAsset) => void;
   option: SnapshotEntryOption;
+  toolsCopy: ReturnType<typeof getWealthToolsLanguage>;
 }) {
   const essentialFields = getAssetEssentialFields(option.id);
 
@@ -554,10 +568,13 @@ function AssetDraftForm({
       {essentialFields.map((field) => (
         <AssetField
           asset={draft}
+          copy={copy}
           field={field}
           key={field}
+          locale={locale}
           onChange={onChange}
           option={option}
+          toolsCopy={toolsCopy}
         />
       ))}
     </div>
@@ -565,18 +582,24 @@ function AssetDraftForm({
 }
 
 function AssetProjectionForm({
+  copy,
   draft,
+  locale,
   onChange,
   option,
+  toolsCopy,
 }: {
+  copy: ReturnType<typeof getWealthSnapshotLanguage>;
   draft: DraftAsset;
+  locale: AppLocale;
   onChange: (draft: DraftAsset) => void;
   option: SnapshotEntryOption;
+  toolsCopy: ReturnType<typeof getWealthToolsLanguage>;
 }) {
   const detailFields = getAssetDetailFields(option.id);
 
   if (option.id === "sanchayapatra") {
-    return <SanchayapatraSnapshotDetailFields draft={draft} onChange={onChange} />;
+    return <SanchayapatraSnapshotDetailFields copy={copy} draft={draft} locale={locale} onChange={onChange} toolsCopy={toolsCopy} />;
   }
 
   return (
@@ -584,10 +607,13 @@ function AssetProjectionForm({
       {detailFields.map((field) => (
         <AssetField
           asset={draft}
+          copy={copy}
           field={field}
           key={field}
+          locale={locale}
           onChange={onChange}
           option={option}
+          toolsCopy={toolsCopy}
         />
       ))}
     </div>
@@ -595,11 +621,17 @@ function AssetProjectionForm({
 }
 
 function SanchayapatraSnapshotDetailFields({
+  copy,
   draft,
+  locale,
   onChange,
+  toolsCopy,
 }: {
+  copy: ReturnType<typeof getWealthSnapshotLanguage>;
   draft: DraftAsset;
+  locale: AppLocale;
   onChange: (draft: DraftAsset) => void;
+  toolsCopy: ReturnType<typeof getWealthToolsLanguage>;
 }) {
   const certificateType = metadataValue(draft.metadata, "certificate_type") || "family-savings";
   const config = getSanchayapatraConfig(certificateType);
@@ -609,7 +641,7 @@ function SanchayapatraSnapshotDetailFields({
     <div className="wealth-sp-snapshot-details">
       <div className="wealth-form-row">
         <label className="wealth-field">
-          <span>Certificate type</span>
+          <span>{copy.fields.certificateType}</span>
           <select
             onChange={(event) => {
               const nextType = event.target.value;
@@ -628,7 +660,7 @@ function SanchayapatraSnapshotDetailFields({
           </select>
         </label>
         <label className="wealth-field">
-          <span>Start date</span>
+          <span>{copy.fields.startDate}</span>
           <input
             onChange={(event) =>
               onChange({ ...draft, metadata: setMetadataValue(draft.metadata, "purchase_date", event.target.value) })
@@ -638,18 +670,18 @@ function SanchayapatraSnapshotDetailFields({
           />
         </label>
         <label className="wealth-field wealth-field-optional">
-          <span>End / maturity date (optional)</span>
+          <span>{copy.fields.maturityDateOptional}</span>
           <input
             onChange={(event) =>
               onChange({ ...draft, metadata: setMetadataValue(draft.metadata, "maturity_date", event.target.value) })
             }
-            placeholder="Auto from certificate term"
+            placeholder={copy.fields.autoMaturity}
             type="date"
             value={metadataValue(draft.metadata, "maturity_date")}
           />
         </label>
         <label className="wealth-field">
-          <span>Source tax (%)</span>
+          <span>{copy.fields.sourceTax}</span>
           <select
             onChange={(event) =>
               onChange({
@@ -666,23 +698,23 @@ function SanchayapatraSnapshotDetailFields({
           >
             <option value="10">10%</option>
             <option value="15">15%</option>
-            <option value="custom">Custom</option>
+            <option value="custom">{toolsCopy.common.custom}</option>
           </select>
         </label>
       </div>
 
       <div className="wealth-government-rate-chip-row">
         <div className="wealth-government-rate-chip">
-          <span>Default rate</span>
+          <span>{copy.fields.defaultRate}</span>
           <strong>{config.defaultRate}%</strong>
         </div>
-        <small>Updated from configuration</small>
+        <small>{copy.fields.governmentRateHint}</small>
       </div>
 
       <div className="wealth-form-row">
         {sourceTaxPreset === "custom" ? (
           <label className="wealth-field wealth-field-optional">
-            <span>Custom source tax (%)</span>
+            <span>{copy.fields.customSourceTax}</span>
             <input
               inputMode="decimal"
               onChange={(event) =>
@@ -693,7 +725,7 @@ function SanchayapatraSnapshotDetailFields({
           </label>
         ) : null}
         <label className="wealth-field wealth-field-optional">
-          <span>Rate override (%) (optional)</span>
+          <span>{copy.fields.rateOverride}</span>
           <input
             inputMode="decimal"
             onChange={(event) =>
@@ -704,38 +736,38 @@ function SanchayapatraSnapshotDetailFields({
           />
         </label>
         <label className="wealth-field">
-          <span>Profit distribution</span>
+          <span>{copy.fields.profitDistribution}</span>
           <select
             onChange={(event) =>
               onChange({ ...draft, metadata: setMetadataValue(draft.metadata, "profit_distribution", event.target.value) })
             }
             value={metadataValue(draft.metadata, "profit_distribution") || config.profitDistribution}
           >
-            <option value="monthly">Monthly</option>
-            <option value="quarterly">Quarterly</option>
-            <option value="yearly">Yearly</option>
-            <option value="maturity">At maturity</option>
+            <option value="monthly">{copy.profitDistribution.monthly}</option>
+            <option value="quarterly">{copy.profitDistribution.quarterly}</option>
+            <option value="yearly">{copy.profitDistribution.yearly}</option>
+            <option value="maturity">{copy.profitDistribution.atMaturity}</option>
           </select>
         </label>
       </div>
 
       <div className="wealth-form-row wealth-form-row-optional">
         <label className="wealth-field wealth-field-optional">
-          <span>Certificate / SP no. (optional)</span>
+          <span>{copy.fields.certificateNumber}</span>
           <input
             onChange={(event) =>
               onChange({ ...draft, metadata: setMetadataValue(draft.metadata, "account_identifier", event.target.value) })
             }
-            placeholder="Optional reference"
+            placeholder={copy.fields.optionalReference}
             value={metadataValue(draft.metadata, "account_identifier")}
           />
         </label>
         <label className="wealth-field wealth-field-optional">
-          <span>Name or label (optional)</span>
-          <input onChange={(event) => onChange({ ...draft, label: event.target.value })} placeholder="Sanchayapatra" value={draft.label} />
+          <span>{copy.fields.labelOptional}</span>
+          <input onChange={(event) => onChange({ ...draft, label: event.target.value })} placeholder={copy.entryOptions.sanchayapatra} value={draft.label} />
         </label>
         <label className="wealth-field wealth-field-optional">
-          <span>Notes (optional)</span>
+          <span>{copy.fields.notesOptional}</span>
           <input
             onChange={(event) => onChange({ ...draft, metadata: setMetadataValue(draft.metadata, "notes", event.target.value) })}
             value={metadataValue(draft.metadata, "notes")}
@@ -805,19 +837,27 @@ function getAssetDetailFields(optionId: string): AssetFieldKey[] {
 
 function AssetField({
   asset: draft,
+  copy,
   field,
+  locale,
   onChange,
   option,
+  toolsCopy,
 }: {
   asset: DraftAsset;
+  copy: ReturnType<typeof getWealthSnapshotLanguage>;
   field: AssetFieldKey;
+  locale: AppLocale;
   onChange: (draft: DraftAsset) => void;
   option: SnapshotEntryOption;
+  toolsCopy: ReturnType<typeof getWealthToolsLanguage>;
 }) {
+  const entryTitle = copy.entryOptions[option.id as SnapshotEntryId] ?? option.title;
+
   if (field === "value") {
     return (
       <label className="wealth-field">
-        <span>Amount</span>
+        <span>{copy.fields.amount}</span>
         <input inputMode="decimal" onChange={(event) => onChange({ ...draft, value: event.target.value })} value={draft.value} />
       </label>
     );
@@ -826,8 +866,8 @@ function AssetField({
   if (field === "label") {
     return (
       <label className="wealth-field wealth-field-optional">
-        <span>Name or label (optional)</span>
-        <input onChange={(event) => onChange({ ...draft, label: event.target.value })} placeholder={option.title} value={draft.label} />
+        <span>{copy.fields.labelOptional}</span>
+        <input onChange={(event) => onChange({ ...draft, label: event.target.value })} placeholder={entryTitle} value={draft.label} />
       </label>
     );
   }
@@ -835,7 +875,7 @@ function AssetField({
   if (field === "payment_count") {
     return (
       <label className="wealth-field">
-        <span>No. of payments</span>
+        <span>{copy.fields.paymentCount}</span>
         <input
           inputMode="numeric"
           onChange={(event) =>
@@ -851,7 +891,7 @@ function AssetField({
   if (field === "gold_weight") {
     return (
       <label className="wealth-field wealth-field-optional">
-        <span>Weight (optional)</span>
+        <span>{copy.fields.weightOptional}</span>
         <input
           inputMode="decimal"
           onChange={(event) =>
@@ -867,7 +907,7 @@ function AssetField({
   if (field === "gold_weight_unit") {
     return (
       <label className="wealth-field wealth-field-optional">
-        <span>Unit (optional)</span>
+        <span>{copy.fields.unitOptional}</span>
         <select
           onChange={(event) =>
             onChange({ ...draft, metadata: setMetadataValue(draft.metadata, "gold_weight_unit", event.target.value) })
@@ -876,7 +916,7 @@ function AssetField({
         >
           {GOLD_WEIGHT_UNITS.map((unit) => (
             <option key={unit.value} value={unit.value}>
-              {unit.label}
+              {copy.goldUnits[unit.value] ?? unit.label}
             </option>
           ))}
         </select>
@@ -885,7 +925,7 @@ function AssetField({
   }
 
   if (field === "interest_rate") {
-    const rateLabel = option.id === "sanchayapatra" ? "Rate override (%) (optional)" : "Interest rate (%)";
+    const rateLabel = option.id === "sanchayapatra" ? copy.fields.rateOverride : copy.fields.interestRate;
     return (
       <label className={`wealth-field ${option.id === "sanchayapatra" ? "wealth-field-optional" : ""}`}>
         <span>{rateLabel}</span>
@@ -903,12 +943,12 @@ function AssetField({
   if (field === "account_identifier") {
     return (
       <label className="wealth-field wealth-field-optional">
-        <span>{identifierLabel(option.id)}</span>
+        <span>{identifierLabel(option.id, locale)}</span>
         <input
           onChange={(event) =>
             onChange({ ...draft, metadata: setMetadataValue(draft.metadata, "account_identifier", event.target.value) })
           }
-          placeholder="Optional reference number"
+          placeholder={copy.fields.optionalReference}
           value={metadataValue(draft.metadata, "account_identifier")}
         />
       </label>
@@ -918,17 +958,17 @@ function AssetField({
   if (field === "profit_distribution" && option.id === "fdr") {
     return (
       <label className="wealth-field">
-        <span>Profit sharing</span>
+        <span>{copy.fields.profitSharing}</span>
         <select
           onChange={(event) =>
             onChange({ ...draft, metadata: setMetadataValue(draft.metadata, "profit_distribution", event.target.value) })
           }
           value={metadataValue(draft.metadata, "profit_distribution") || "maturity"}
         >
-          <option value="maturity">Compound at maturity</option>
-          <option value="monthly">Monthly profit payout</option>
-          <option value="quarterly">Quarterly profit payout</option>
-          <option value="yearly">Yearly profit payout</option>
+          <option value="maturity">{copy.profitDistribution.maturity}</option>
+          <option value="monthly">{copy.profitDistribution.monthly}</option>
+          <option value="quarterly">{copy.profitDistribution.quarterly}</option>
+          <option value="yearly">{copy.profitDistribution.yearly}</option>
         </select>
       </label>
     );
@@ -937,17 +977,17 @@ function AssetField({
   if (field === "profit_distribution" && option.id === "sanchayapatra") {
     return (
       <label className="wealth-field">
-        <span>Profit distribution</span>
+        <span>{copy.fields.profitDistribution}</span>
         <select
           onChange={(event) =>
             onChange({ ...draft, metadata: setMetadataValue(draft.metadata, "profit_distribution", event.target.value) })
           }
           value={metadataValue(draft.metadata, "profit_distribution") || "monthly"}
         >
-          <option value="monthly">Monthly</option>
-          <option value="quarterly">Quarterly</option>
-          <option value="yearly">Yearly</option>
-          <option value="maturity">At maturity</option>
+          <option value="monthly">{copy.profitDistribution.monthly}</option>
+          <option value="quarterly">{copy.profitDistribution.quarterly}</option>
+          <option value="yearly">{copy.profitDistribution.yearly}</option>
+          <option value="maturity">{copy.profitDistribution.atMaturity}</option>
         </select>
       </label>
     );
@@ -958,9 +998,9 @@ function AssetField({
     const config = getSanchayapatraConfig(certificateType);
     return (
       <div className="wealth-government-rate-card wealth-field-compact">
-        <span>Government default rate</span>
+        <span>{copy.fields.governmentRate}</span>
         <strong>{config.defaultRate}%</strong>
-        <small>Updated from configuration.</small>
+        <small>{copy.fields.governmentRateHint}</small>
       </div>
     );
   }
@@ -968,7 +1008,7 @@ function AssetField({
   if (field === "certificate_type") {
     return (
       <label className="wealth-field wealth-field-compact">
-        <span>Certificate type</span>
+        <span>{copy.fields.certificateType}</span>
         <select
           onChange={(event) => {
             const certificateType = event.target.value;
@@ -995,7 +1035,7 @@ function AssetField({
   if (field === "source_tax_preset") {
     return (
       <label className="wealth-field wealth-field-compact">
-        <span>Source tax (%)</span>
+        <span>{copy.fields.sourceTax}</span>
         <select
           onChange={(event) =>
             onChange({
@@ -1011,7 +1051,7 @@ function AssetField({
         >
           <option value="10">10%</option>
           <option value="15">15%</option>
-          <option value="custom">Custom</option>
+          <option value="custom">{toolsCopy.common.custom}</option>
         </select>
       </label>
     );
@@ -1020,7 +1060,7 @@ function AssetField({
   if (field === "source_tax_rate" && metadataValue(draft.metadata, "source_tax_preset") === "custom") {
     return (
       <label className="wealth-field wealth-field-compact">
-        <span>Custom source tax (%)</span>
+        <span>{copy.fields.customSourceTax}</span>
         <input
           inputMode="decimal"
           onChange={(event) =>
@@ -1039,7 +1079,7 @@ function AssetField({
   if (field === "purchase_date") {
     return (
       <label className="wealth-field">
-        <span>Start date</span>
+        <span>{copy.fields.startDate}</span>
         <input
           onChange={(event) =>
             onChange({ ...draft, metadata: setMetadataValue(draft.metadata, "purchase_date", event.target.value) })
@@ -1054,7 +1094,7 @@ function AssetField({
   if (field === "start_date") {
     return (
       <label className="wealth-field">
-        <span>Start date</span>
+        <span>{copy.fields.startDate}</span>
         <input
           onChange={(event) =>
             onChange({ ...draft, metadata: setMetadataValue(draft.metadata, "start_date", event.target.value) })
@@ -1069,7 +1109,7 @@ function AssetField({
   if (field === "maturity_date") {
     return (
       <label className="wealth-field">
-        <span>End / maturity date</span>
+        <span>{copy.fields.maturityDate}</span>
         <input
           onChange={(event) =>
             onChange({ ...draft, metadata: setMetadataValue(draft.metadata, "maturity_date", event.target.value) })
@@ -1084,7 +1124,7 @@ function AssetField({
   if (field === "notes") {
     return (
       <label className="wealth-field wealth-field-optional">
-        <span>Notes (optional)</span>
+        <span>{copy.fields.notesOptional}</span>
         <input
           onChange={(event) => onChange({ ...draft, metadata: setMetadataValue(draft.metadata, "notes", event.target.value) })}
           value={metadataValue(draft.metadata, "notes")}
@@ -1097,20 +1137,26 @@ function AssetField({
 }
 
 function LiabilityDraftForm({
+  copy,
   draft,
+  locale,
   onChange,
+  toolsCopy,
 }: {
+  copy: ReturnType<typeof getWealthSnapshotLanguage>;
   draft: DraftLiability;
+  locale: AppLocale;
   onChange: (draft: DraftLiability) => void;
+  toolsCopy: ReturnType<typeof getWealthToolsLanguage>;
 }) {
   return (
     <div className="wealth-progressive-form">
       <label className="wealth-field">
-        <span>Outstanding balance</span>
+        <span>{copy.fields.outstandingBalance}</span>
         <input inputMode="decimal" onChange={(event) => onChange({ ...draft, balance: event.target.value })} value={draft.balance} />
       </label>
       <label className="wealth-field">
-        <span>Interest rate (%)</span>
+        <span>{copy.fields.interestRate}</span>
         <input
           inputMode="decimal"
           onChange={(event) => onChange({ ...draft, interest_rate: event.target.value })}
@@ -1118,43 +1164,49 @@ function LiabilityDraftForm({
         />
       </label>
       <label className="wealth-field wealth-field-optional">
-        <span>EMI amount (optional)</span>
+        <span>{copy.fields.emiOptional}</span>
         <input
           inputMode="decimal"
           onChange={(event) => onChange({ ...draft, monthly_emi: event.target.value })}
-          placeholder="Optional"
+          placeholder={toolsCopy.common.optional}
           value={draft.monthly_emi}
         />
       </label>
       <label className="wealth-field wealth-field-optional">
-        <span>Loan name (optional)</span>
-        <input onChange={(event) => onChange({ ...draft, label: event.target.value })} placeholder="Loan" value={draft.label} />
+        <span>{copy.fields.loanNameOptional}</span>
+        <input onChange={(event) => onChange({ ...draft, label: event.target.value })} placeholder={copy.entryOptions.loan} value={draft.label} />
       </label>
     </div>
   );
 }
 
 function LiabilityProjectionForm({
+  copy,
   draft,
+  locale,
   onChange,
+  toolsCopy,
 }: {
+  copy: ReturnType<typeof getWealthSnapshotLanguage>;
   draft: DraftLiability;
+  locale: AppLocale;
   onChange: (draft: DraftLiability) => void;
+  toolsCopy: ReturnType<typeof getWealthToolsLanguage>;
 }) {
   return (
     <div className="wealth-progressive-form">
       <label className="wealth-field wealth-field-optional">
-        <span>Loan account number (optional)</span>
+        <span>{copy.fields.loanAccountOptional}</span>
         <input
           onChange={(event) =>
             onChange({ ...draft, metadata: setMetadataValue(draft.metadata, "account_identifier", event.target.value) })
           }
-          placeholder="Optional reference number"
+          placeholder={copy.fields.optionalReference}
           value={metadataValue(draft.metadata, "account_identifier")}
         />
       </label>
       <label className="wealth-field">
-        <span>Remaining months</span>
+        <span>{copy.fields.remainingMonths}</span>
         <input
           inputMode="numeric"
           onChange={(event) => onChange({ ...draft, remaining_months: event.target.value })}
@@ -1162,7 +1214,7 @@ function LiabilityProjectionForm({
         />
       </label>
       <label className="wealth-field wealth-field-optional">
-        <span>Loan start date (optional)</span>
+        <span>{copy.fields.loanStartOptional}</span>
         <input
           onChange={(event) =>
             onChange({ ...draft, metadata: setMetadataValue(draft.metadata, "start_date", event.target.value) })
@@ -1177,10 +1229,16 @@ function LiabilityProjectionForm({
 
 function SnapshotAssetEditForm({
   asset,
+  copy,
+  locale,
   onChange,
+  toolsCopy,
 }: {
   asset: DraftAsset;
+  copy: ReturnType<typeof getWealthSnapshotLanguage>;
+  locale: AppLocale;
   onChange: (asset: DraftAsset) => void;
+  toolsCopy: ReturnType<typeof getWealthToolsLanguage>;
 }) {
   const optionId = optionIdForAsset(asset);
   const option = ENTRY_OPTIONS.find((item) => item.id === optionId) ?? ENTRY_OPTIONS[0];
@@ -1190,10 +1248,10 @@ function SnapshotAssetEditForm({
     return (
       <div className="wealth-pending-entry-edit-form">
         <label className="wealth-field">
-          <span>Amount</span>
+          <span>{copy.fields.amount}</span>
           <input inputMode="decimal" onChange={(event) => onChange({ ...asset, value: event.target.value })} value={asset.value} />
         </label>
-        <SanchayapatraSnapshotDetailFields draft={asset} onChange={onChange} />
+        <SanchayapatraSnapshotDetailFields copy={copy} draft={asset} locale={locale} onChange={onChange} toolsCopy={toolsCopy} />
       </div>
     );
   }
@@ -1201,23 +1259,29 @@ function SnapshotAssetEditForm({
   return (
     <div className="wealth-pending-entry-edit-form">
       {fields.map((field) => (
-        <AssetField asset={asset} field={field} key={field} onChange={onChange} option={option} />
+        <AssetField asset={asset} copy={copy} field={field} key={field} locale={locale} onChange={onChange} option={option} toolsCopy={toolsCopy} />
       ))}
     </div>
   );
 }
 
 function SnapshotLiabilityEditForm({
+  copy,
   liability,
+  locale,
   onChange,
+  toolsCopy,
 }: {
+  copy: ReturnType<typeof getWealthSnapshotLanguage>;
   liability: DraftLiability;
+  locale: AppLocale;
   onChange: (liability: DraftLiability) => void;
+  toolsCopy: ReturnType<typeof getWealthToolsLanguage>;
 }) {
   return (
     <div className="wealth-pending-entry-edit-form">
-      <LiabilityDraftForm draft={liability} onChange={onChange} />
-      <LiabilityProjectionForm draft={liability} onChange={onChange} />
+      <LiabilityDraftForm copy={copy} draft={liability} locale={locale} onChange={onChange} toolsCopy={toolsCopy} />
+      <LiabilityProjectionForm copy={copy} draft={liability} locale={locale} onChange={onChange} toolsCopy={toolsCopy} />
     </div>
   );
 }
@@ -1248,13 +1312,7 @@ function defaultLabelForAsset(asset: DraftAsset) {
   return option?.title ?? asset.category;
 }
 
-function identifierLabel(optionId: string) {
-  if (optionId === "fdr") {
-    return "FDR account number (optional)";
-  }
-  if (optionId === "dps") {
-    return "DPS account number (optional)";
-  }
-  return "Certificate / SP number (optional)";
+function identifierLabel(optionId: string, locale: AppLocale) {
+  return getCalculatorAccountIdentifierLabel(optionId, locale) ?? "Reference (optional)";
 }
 

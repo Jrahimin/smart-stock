@@ -1,5 +1,7 @@
 import { WealthSourceTaxControl } from "@/features/wealth/components/wealth-source-tax-control";
 import { WEALTH_TOOL_DETAILS_DEFAULTS } from "@/features/wealth/catalog/wealth-catalog";
+import { getWealthToolsLanguage } from "@/features/wealth/wealth-tools-language";
+import type { AppLocale } from "@/lib/locale/app-locale";
 
 type WealthProjectionSectionProps = {
   accountIdentifier?: string;
@@ -17,6 +19,7 @@ type WealthProjectionSectionProps = {
   sourceTaxPreset?: string;
   title?: string;
   compactTop?: boolean;
+  locale?: AppLocale;
 };
 
 export function WealthProjectionSection({
@@ -35,7 +38,13 @@ export function WealthProjectionSection({
   accountIdentifier = "",
   onAccountIdentifierChange,
   compactTop = false,
+  locale,
 }: WealthProjectionSectionProps) {
+  const copy = getWealthToolsLanguage(locale);
+  const resolvedTitle =
+    locale && title === WEALTH_TOOL_DETAILS_DEFAULTS.title ? copy.common.detailsTitle : title;
+  const resolvedHint =
+    locale && hint === WEALTH_TOOL_DETAILS_DEFAULTS.hint ? copy.common.detailsHint : hint;
   const showAccountIdentifier = accountIdentifierLabel != null && onAccountIdentifierChange != null;
 
   if (!showSourceTax && !showInflation && !showAccountIdentifier) {
@@ -50,11 +59,12 @@ export function WealthProjectionSection({
           onCustomRateChange={onCustomSourceTaxChange}
           onPresetChange={onSourceTaxPresetChange}
           preset={sourceTaxPreset}
+          locale={locale}
         />
       ) : null}
       {showInflation && inflationRate != null && onInflationRateChange ? (
         <label className="wealth-field">
-          <span>Inflation rate (%)</span>
+          <span>{copy.common.inflationRate}</span>
           <input inputMode="decimal" onChange={(event) => onInflationRateChange(event.target.value)} value={inflationRate} />
         </label>
       ) : null}
@@ -63,7 +73,7 @@ export function WealthProjectionSection({
           <span>{accountIdentifierLabel}</span>
           <input
             onChange={(event) => onAccountIdentifierChange(event.target.value)}
-            placeholder="Optional"
+            placeholder={copy.common.optional}
             value={accountIdentifier}
           />
         </label>
@@ -78,8 +88,8 @@ export function WealthProjectionSection({
   return (
     <div className={`wealth-projection-section${compactTop ? " wealth-projection-section-compact-top" : ""}`}>
       <div className="wealth-form-section-break">
-        <span>{title}</span>
-        {hint ? <p>{hint}</p> : null}
+        <span>{resolvedTitle}</span>
+        {resolvedHint ? <p>{resolvedHint}</p> : null}
       </div>
       <div className="wealth-projection-fields">{fields}</div>
     </div>

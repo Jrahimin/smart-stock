@@ -12,7 +12,9 @@ import {
   type SnapshotDraftLiability,
 } from "@/features/wealth/lib/snapshot-entry-helpers";
 import { formatAssetProjectionLine } from "@/features/wealth/lib/snapshot-dashboard-helpers";
+import { getWealthSnapshotLanguage } from "@/features/wealth/wealth-snapshot-language";
 import { formatWealthCurrency } from "@/features/wealth/view-models/wealth-view-model";
+import type { AppLocale } from "@/lib/locale/app-locale";
 
 const ENTRY_ICONS: Record<string, string> = {
   cash: "💵",
@@ -30,6 +32,7 @@ const ENTRY_ICONS: Record<string, string> = {
 type SnapshotEntryListProps = {
   assets: SnapshotDraftAsset[];
   liabilities: SnapshotDraftLiability[];
+  locale: AppLocale;
   onUpdateAsset: (index: number, asset: SnapshotDraftAsset) => void;
   onUpdateLiability: (index: number, liability: SnapshotDraftLiability) => void;
   onRemoveAsset: (index: number) => void;
@@ -44,6 +47,7 @@ type SnapshotEntryListProps = {
 export function SnapshotEntryList({
   assets,
   liabilities,
+  locale,
   onUpdateAsset,
   onUpdateLiability,
   onRemoveAsset,
@@ -51,6 +55,7 @@ export function SnapshotEntryList({
   renderAssetEditForm,
   renderLiabilityEditForm,
 }: SnapshotEntryListProps) {
+  const copy = getWealthSnapshotLanguage(locale);
   const totalCount = assets.length + liabilities.length;
 
   if (!totalCount) {
@@ -60,13 +65,14 @@ export function SnapshotEntryList({
   return (
     <div className="wealth-pending-entry-panel">
       <div className="wealth-pending-entry-panel-heading">
-        <strong>Saved items ({totalCount})</strong>
-        {totalCount > 4 ? <span className="wealth-pending-entry-scroll-hint">Scroll for more</span> : null}
+        <strong>{copy.entryList.savedItems(totalCount)}</strong>
+        {totalCount > 4 ? <span className="wealth-pending-entry-scroll-hint">{copy.entryList.scrollHint}</span> : null}
       </div>
       <div className="wealth-pending-entry-scroll">
         {assets.map((asset, index) => (
           <SnapshotAssetRow
             asset={asset}
+            copy={copy}
             index={index}
             key={`asset-${index}-${asset.label}-${metadataValue(asset.metadata, "account_identifier")}`}
             onRemove={() => onRemoveAsset(index)}
@@ -76,6 +82,7 @@ export function SnapshotEntryList({
         ))}
         {liabilities.map((liability, index) => (
           <SnapshotLiabilityRow
+            copy={copy}
             index={index}
             key={`liability-${index}-${liability.label}`}
             liability={liability}
@@ -91,11 +98,13 @@ export function SnapshotEntryList({
 
 function SnapshotAssetRow({
   asset,
+  copy,
   onUpdate,
   onRemove,
   renderEditForm,
 }: {
   asset: SnapshotDraftAsset;
+  copy: ReturnType<typeof getWealthSnapshotLanguage>;
   index: number;
   onUpdate: (asset: SnapshotDraftAsset) => void;
   onRemove: () => void;
@@ -132,15 +141,15 @@ function SnapshotAssetRow({
           <span className="wealth-pending-entry-icon" aria-hidden="true">
             {icon}
           </span>
-          <strong>Edit {asset.label}</strong>
+          <strong>{copy.entryList.editItem(asset.label)}</strong>
         </div>
         {renderEditForm(editDraft, setEditDraft)}
         <div className="wealth-pending-entry-edit-actions">
           <button className="wealth-chip wealth-chip-compact" onClick={handleCancelEdit} type="button">
-            Cancel
+            {copy.entryList.cancel}
           </button>
           <button className="wealth-primary-button wealth-chip-compact" onClick={handleSaveEdit} type="button">
-            Done
+            {copy.entryList.done}
           </button>
         </div>
       </div>
@@ -166,7 +175,7 @@ function SnapshotAssetRow({
       </div>
       <div className="wealth-pending-entry-actions">
         <button
-          aria-label={`Edit ${asset.label}`}
+          aria-label={copy.entryList.editItem(asset.label)}
           className="wealth-pending-entry-action"
           onClick={handleStartEdit}
           type="button"
@@ -174,7 +183,7 @@ function SnapshotAssetRow({
           ✎
         </button>
         <button
-          aria-label={`Remove ${asset.label}`}
+          aria-label={copy.entryList.removeItem(asset.label)}
           className="wealth-pending-entry-action wealth-pending-entry-action-danger"
           onClick={onRemove}
           type="button"
@@ -188,11 +197,13 @@ function SnapshotAssetRow({
 
 function SnapshotLiabilityRow({
   liability,
+  copy,
   onUpdate,
   onRemove,
   renderEditForm,
 }: {
   liability: SnapshotDraftLiability;
+  copy: ReturnType<typeof getWealthSnapshotLanguage>;
   index: number;
   onUpdate: (liability: SnapshotDraftLiability) => void;
   onRemove: () => void;
@@ -230,15 +241,15 @@ function SnapshotLiabilityRow({
           <span className="wealth-pending-entry-icon" aria-hidden="true">
             💳
           </span>
-          <strong>Edit {liability.label}</strong>
+          <strong>{copy.entryList.editItem(liability.label)}</strong>
         </div>
         {renderEditForm(editDraft, setEditDraft)}
         <div className="wealth-pending-entry-edit-actions">
           <button className="wealth-chip wealth-chip-compact" onClick={handleCancelEdit} type="button">
-            Cancel
+            {copy.entryList.cancel}
           </button>
           <button className="wealth-primary-button wealth-chip-compact" onClick={handleSaveEdit} type="button">
-            Done
+            {copy.entryList.done}
           </button>
         </div>
       </div>
@@ -259,7 +270,7 @@ function SnapshotLiabilityRow({
       </div>
       <div className="wealth-pending-entry-actions">
         <button
-          aria-label={`Edit ${liability.label}`}
+          aria-label={copy.entryList.editItem(liability.label)}
           className="wealth-pending-entry-action"
           onClick={handleStartEdit}
           type="button"
@@ -267,7 +278,7 @@ function SnapshotLiabilityRow({
           ✎
         </button>
         <button
-          aria-label={`Remove ${liability.label}`}
+          aria-label={copy.entryList.removeItem(liability.label)}
           className="wealth-pending-entry-action wealth-pending-entry-action-danger"
           onClick={onRemove}
           type="button"

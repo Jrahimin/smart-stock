@@ -29,9 +29,12 @@ import {
   syncHorizonToInputs,
 } from "@/features/wealth/view-models/wealth-comparison-view-model";
 import { useWealthComparison } from "@/features/wealth/hooks/use-wealth-comparison";
+import { getWealthToolsLanguage, type ComparisonScenarioChipId } from "@/features/wealth/wealth-tools-language";
+import type { AppLocale } from "@/lib/locale/app-locale";
 
 type WealthComparisonWorkspaceProps = {
   comparisonSlug: WealthComparisonSlug;
+  locale: AppLocale;
 };
 
 const HERO_COPY: Partial<Record<WealthComparisonSlug, { title: string; subtitle: string }>> = {
@@ -42,9 +45,11 @@ const HERO_COPY: Partial<Record<WealthComparisonSlug, { title: string; subtitle:
   },
 };
 
-export function WealthComparisonWorkspace({ comparisonSlug }: WealthComparisonWorkspaceProps) {
+export function WealthComparisonWorkspace({ comparisonSlug, locale }: WealthComparisonWorkspaceProps) {
+  const toolsCopy = getWealthToolsLanguage(locale);
+  const copy = toolsCopy.comparison;
   const card = WEALTH_COMPARISON_CARDS.find((item) => item.slug === comparisonSlug);
-  const hero = HERO_COPY[comparisonSlug];
+  const hero = comparisonSlug === "dps-vs-fdr" ? { title: copy.title, subtitle: copy.subtitle } : HERO_COPY[comparisonSlug];
   const defaults = WEALTH_COMPARISON_DEFAULTS[comparisonSlug];
   const story = WEALTH_COMPARISON_STORIES[comparisonSlug];
   const [leftInputs, setLeftInputs] = useState(defaults.left);
@@ -85,6 +90,12 @@ export function WealthComparisonWorkspace({ comparisonSlug }: WealthComparisonWo
         : null,
     [assumptions, comparisonSlug, mergedLeft, mergedRight, result, scenarioMonths, viewMonths],
   );
+  const localizedJourneyMoment = presentation && locale === "bn" ? {
+    ...presentation.journeyMoment,
+    visitHeadline: presentation.journeyMoment.visitHeadline.replace("Looking ahead", "সামনে তাকালে").replace("The future flips", "ভবিষ্যতের পথ বদলায়"),
+    summaryLine: presentation.journeyMoment.summaryLine.replace("At Year", "Year").replace("is ahead by", "এগিয়ে আছে, পার্থক্য")
+      .replace("DPS overtakes FDR after about", "প্রায়").replace("Monthly saving", "মাসিক saving"),
+  } : presentation?.journeyMoment;
 
   const updateScenario = (months: number) => {
     const nextMonths = Math.max(0, Math.min(COMPARISON_MAX_MONTHS, months));
@@ -125,10 +136,10 @@ export function WealthComparisonWorkspace({ comparisonSlug }: WealthComparisonWo
 
   return (
     <section className="wealth-tool-workspace wealth-comparison-page">
-      <WealthSubNav />
+      <WealthSubNav locale={locale} />
 
-      {isInitialLoading ? <p className="wealth-muted-copy">Exploring futures…</p> : null}
-      {isError ? <p className="wealth-error-copy">Could not evaluate this comparison right now.</p> : null}
+      {isInitialLoading ? <p className="wealth-muted-copy">{copy.loading}</p> : null}
+      {isError ? <p className="wealth-error-copy">{copy.error}</p> : null}
 
       {result && presentation ? (
         <>
@@ -136,6 +147,8 @@ export function WealthComparisonWorkspace({ comparisonSlug }: WealthComparisonWo
             beats={presentation.narrativeBeats}
             subtitle={hero?.subtitle ?? card?.description ?? ""}
             title={hero?.title ?? card?.title ?? "Comparison"}
+            copy={copy}
+            locale={locale}
           />
 
           <WealthComparisonScenarioInputs
@@ -146,21 +159,23 @@ export function WealthComparisonWorkspace({ comparisonSlug }: WealthComparisonWo
             onRightChange={setRightInputs}
             rightInputs={rightInputs}
             viewProjection={viewProjection}
+            locale={locale}
           />
 
           <div className={`wealth-comparison-journey-shell ${isUpdating ? "wealth-comparison-journey-shell-updating" : ""}`}>
-            {isUpdating ? <p className="wealth-comparison-updating-hint">Updating your futures…</p> : null}
+            {isUpdating ? <p className="wealth-comparison-updating-hint">{copy.updating}</p> : null}
 
             {defaults.left.years != null || defaults.right.years != null ? (
               <WealthComparisonTimeControl
                 activeStopId={presentation.horizonSnapshot.activeStopId}
-                journeyMoment={presentation.journeyMoment}
+                journeyMoment={localizedJourneyMoment ?? presentation.journeyMoment}
                 onScenarioChange={updateScenario}
                 onViewChange={updateView}
                 scenarioMonths={scenarioMonths}
                 turningPointYear={presentation.turningPointYear}
                 unifiedStops={presentation.unifiedJourneyStops}
                 viewMonths={viewMonths}
+                locale={locale}
               />
             ) : null}
 
@@ -170,48 +185,55 @@ export function WealthComparisonWorkspace({ comparisonSlug }: WealthComparisonWo
               horizonSnapshot={presentation.horizonSnapshot}
               leftLabel={result.left.label}
               rightLabel={result.right.label}
+              locale={locale}
             />
           </div>
 
           <section className="wealth-comparison-reflection">
             <section className="wealth-comparison-scenario-explorer" id="comparison-scenario-chips">
               <div className="wealth-comparison-section-intro">
-                <p className="eyebrow">Alternate futures</p>
-                <h2>Step into another possible reality</h2>
+                <p className="eyebrow">{copy.alternate}</p>
+                <h2>{copy.alternateTitle}</h2>
               </div>
               <div className="wealth-comparison-scenario-grid">
-                {COMPARISON_SCENARIO_CHIPS.map((chip) => (
+                {COMPARISON_SCENARIO_CHIPS.map((chip) => {
+                  const localizedChip = copy.scenarioChips[chip.id as ComparisonScenarioChipId];
+                  return (
                   <button className="wealth-comparison-scenario-card" key={chip.id} onClick={() => applyScenarioChip(chip.id)} type="button">
-                    <strong>{chip.label}</strong>
-                    <span>{chip.description}</span>
+                    <strong>{localizedChip.label}</strong>
+                    <span>{localizedChip.description}</span>
                   </button>
-                ))}
+                  );
+                })}
               </div>
             </section>
 
             <div className="wealth-comparison-summary-grid">
-              <section className="wealth-comparison-summary-panel wealth-comparison-insights-panel" aria-label="What this future teaches">
+              <section className="wealth-comparison-summary-panel wealth-comparison-insights-panel" aria-label={copy.insights}>
                 <header className="wealth-comparison-summary-panel-head">
-                  <p className="eyebrow">What this future teaches</p>
-                  <h2>Observations from your journey</h2>
+                  <p className="eyebrow">{copy.insights}</p>
+                  <h2>{copy.insightsTitle}</h2>
                 </header>
                 <ul className="wealth-comparison-insight-list">
-                  {presentation.contextualInsights.map((insight, index) => (
+                  {presentation.contextualInsights.map((insight, index) => {
+                    const localizedInsight = locale === "bn" ? localizeComparisonInsight(insight, index) : insight;
+                    return (
                     <li
                       className={`wealth-comparison-insight-card ${index === 0 ? "wealth-comparison-insight-card-primary" : ""}`}
                       key={insight.id}
                     >
-                      <strong>{insight.title}</strong>
-                      <p>{insight.body}</p>
+                      <strong>{localizedInsight.title}</strong>
+                      <p>{localizedInsight.body}</p>
                     </li>
-                  ))}
+                    );
+                  })}
                 </ul>
               </section>
 
-              <section className="wealth-comparison-summary-panel wealth-comparison-outcomes-panel" aria-label="Purchasing power at horizon">
+              <section className="wealth-comparison-summary-panel wealth-comparison-outcomes-panel" aria-label={copy.power}>
                 <header className="wealth-comparison-summary-panel-head">
-                  <p className="eyebrow">Purchasing power</p>
-                  <h2>What each future feels like after inflation</h2>
+                  <p className="eyebrow">{copy.power}</p>
+                  <h2>{copy.powerTitle}</h2>
                 </header>
                 <div className="wealth-comparison-outcomes-row">
                   <article
@@ -220,7 +242,7 @@ export function WealthComparisonWorkspace({ comparisonSlug }: WealthComparisonWo
                     <div className="wealth-comparison-outcome-card-head">
                       <span>{result.left.label}</span>
                       {presentation.horizonSnapshot.favoredKey === "left" ? (
-                        <span className="wealth-comparison-outcome-badge">Ahead</span>
+                        <span className="wealth-comparison-outcome-badge">{copy.ahead}</span>
                       ) : null}
                     </div>
                     <strong className="wealth-comparison-animated-value">
@@ -228,11 +250,11 @@ export function WealthComparisonWorkspace({ comparisonSlug }: WealthComparisonWo
                     </strong>
                     <dl className="wealth-comparison-outcome-metrics">
                       <div>
-                        <dt>Real purchasing power</dt>
+                        <dt>{copy.realPower}</dt>
                         <dd>{formatWealthCurrency(presentation.purchasingPower.left.realValue)}</dd>
                       </div>
                       <div className="wealth-comparison-outcome-metrics-warn">
-                        <dt>Inflation takes</dt>
+                        <dt>{copy.inflationTakes}</dt>
                         <dd>{formatWealthCurrency(presentation.purchasingPower.left.inflationImpact)}</dd>
                       </div>
                     </dl>
@@ -243,7 +265,7 @@ export function WealthComparisonWorkspace({ comparisonSlug }: WealthComparisonWo
                     <div className="wealth-comparison-outcome-card-head">
                       <span>{result.right.label}</span>
                       {presentation.horizonSnapshot.favoredKey === "right" ? (
-                        <span className="wealth-comparison-outcome-badge">Ahead</span>
+                        <span className="wealth-comparison-outcome-badge">{copy.ahead}</span>
                       ) : null}
                     </div>
                     <strong className="wealth-comparison-animated-value">
@@ -251,11 +273,11 @@ export function WealthComparisonWorkspace({ comparisonSlug }: WealthComparisonWo
                     </strong>
                     <dl className="wealth-comparison-outcome-metrics">
                       <div>
-                        <dt>Real purchasing power</dt>
+                        <dt>{copy.realPower}</dt>
                         <dd>{formatWealthCurrency(presentation.purchasingPower.right.realValue)}</dd>
                       </div>
                       <div className="wealth-comparison-outcome-metrics-warn">
-                        <dt>Inflation takes</dt>
+                        <dt>{copy.inflationTakes}</dt>
                         <dd>{formatWealthCurrency(presentation.purchasingPower.right.inflationImpact)}</dd>
                       </div>
                     </dl>
@@ -268,23 +290,23 @@ export function WealthComparisonWorkspace({ comparisonSlug }: WealthComparisonWo
           <p className="wealth-disclaimer">{result.disclaimer}</p>
 
           <section className="wealth-comparison-story-end">
-            <p className="eyebrow">Continue the story</p>
+            <p className="eyebrow">{copy.continue}</p>
             <div className="wealth-chip-row">
               <Link className="wealth-chip" href="/wealth/snapshot">
-                Save this scenario
+                {copy.save}
               </Link>
               <button
                 className="wealth-chip wealth-chip-button"
                 onClick={() => document.getElementById("comparison-scenario-chips")?.scrollIntoView({ behavior: "smooth", block: "center" })}
                 type="button"
               >
-                Explore a different assumption
+                {copy.explore}
               </button>
               <Link className="wealth-chip" href="/wealth/calendar">
-                View in Time Travel
+                {copy.timeTravel}
               </Link>
               <Link className="wealth-chip" href="/wealth/snapshot">
-                Add to Money Snapshot
+                {toolsCopy.common.addToSnapshot}
               </Link>
             </div>
           </section>
@@ -292,4 +314,14 @@ export function WealthComparisonWorkspace({ comparisonSlug }: WealthComparisonWo
       ) : null}
     </section>
   );
+}
+
+function localizeComparisonInsight(insight: { title: string; body: string }, index: number) {
+  const copy = [
+    { title: "নিয়মিত saving-এর জোর", body: "মাসে মাসে রাখা টাকা সময়ের সঙ্গে কাজে লাগতে থাকে, যদিও শুরুতে lump sum এগিয়ে থাকতে পারে।" },
+    { title: "শুরুতে lump sum-এর সুবিধা", body: "একসঙ্গে টাকা থাকলে FDR আগে এগোতে পারে, কারণ শুরু থেকেই পুরো amount return পায়।" },
+    { title: "সময় বাড়লে ছবিটা বদলায়", body: "দীর্ঘ সময় ধরে DPS চললে নিয়মিত saving ধীরে ধীরে gap কমাতে পারে।" },
+    { title: "Inflation দুটো পথেই লাগে", body: "Nominal amount বাড়লেও বাজারদর বাড়লে আজকের টাকায় আসল value কমে যেতে পারে।" },
+  ][index];
+  return copy ?? insight;
 }

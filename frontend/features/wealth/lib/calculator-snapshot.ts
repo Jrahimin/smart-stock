@@ -1,21 +1,15 @@
 import type { WealthToolCalculateResponse, WealthToolSlug } from "@/features/wealth/types/wealth-types";
 import { buildSanchayapatraMetadata } from "@/features/wealth/catalog/sanchayapatra-catalog";
+import { getWealthToolsLanguage } from "@/features/wealth/wealth-tools-language";
+import type { AppLocale } from "@/lib/locale/app-locale";
+import { DEFAULT_LOCALE } from "@/lib/locale/app-locale";
 
-export function getCalculatorAccountIdentifierLabel(toolSlug: string): string | null {
-  switch (toolSlug) {
-    case "fdr":
-      return "FDR account number (optional)";
-    case "dps":
-      return "DPS account number (optional)";
-    case "sanchayapatra":
-      return "Certificate / SP number (optional)";
-    case "emi":
-      return "Loan account number (optional)";
-    case "compound-growth":
-      return "Portfolio reference (optional)";
-    default:
-      return null;
-  }
+export function getCalculatorAccountIdentifierLabel(
+  toolSlug: string,
+  locale: AppLocale = DEFAULT_LOCALE,
+): string | null {
+  const labels = getWealthToolsLanguage(locale).common.accountIdentifiers;
+  return labels[toolSlug] ?? null;
 }
 
 export function canSaveCalculatorToSnapshot(toolSlug: WealthToolSlug): boolean {

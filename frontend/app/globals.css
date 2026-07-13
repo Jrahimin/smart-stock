@@ -7549,6 +7549,184 @@ button {
   line-height: 1;
 }
 
+.wealth-zakat-guide-trigger {
+  align-items: center;
+  background: linear-gradient(135deg, rgb(53 214 159 / 18%), rgb(128 104 255 / 22%));
+  border: 1px solid rgb(137 119 255 / 60%);
+  border-radius: 999px;
+  color: var(--text);
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 0.88rem;
+  font-weight: 700;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 9px 13px;
+  transition: border-color 160ms ease, transform 160ms ease, background 160ms ease;
+}
+
+.wealth-zakat-guide-trigger:hover {
+  background: linear-gradient(135deg, rgb(53 214 159 / 27%), rgb(128 104 255 / 30%));
+  border-color: var(--primary);
+  transform: translateY(-1px);
+}
+
+.wealth-tool-error-state {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.wealth-info-modal {
+  display: grid;
+  gap: 16px;
+}
+
+.wealth-info-modal-opening {
+  align-items: center;
+  background: linear-gradient(135deg, rgb(128 104 255 / 16%), rgb(53 214 159 / 9%));
+  border: 1px solid rgb(128 104 255 / 32%);
+  border-radius: 14px;
+  display: flex;
+  gap: 12px;
+  padding: 10px 12px;
+}
+
+.wealth-info-modal-opening-mark {
+  align-items: center;
+  background: rgb(128 104 255 / 24%);
+  border-radius: 10px;
+  color: var(--primary);
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-size: 1.05rem;
+  height: 32px;
+  justify-content: center;
+  width: 32px;
+}
+
+.wealth-info-modal-opening .eyebrow {
+  font-size: 0.76rem;
+  margin-bottom: 2px;
+}
+
+.wealth-info-modal-opening .wealth-info-modal-intro {
+  font-size: 0.88rem;
+  line-height: 1.42;
+}
+
+.wealth-info-modal-intro {
+  color: var(--muted);
+  font-size: 0.98rem;
+  line-height: 1.65;
+  margin: 0;
+}
+
+.wealth-info-modal-rate {
+  align-items: center;
+  background: linear-gradient(135deg, rgb(53 214 159 / 16%), rgb(128 104 255 / 12%));
+  border: 1px solid rgb(53 214 159 / 32%);
+  border-radius: 14px;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: auto 1fr;
+  padding: 14px;
+}
+
+.wealth-info-modal-rate > span {
+  color: var(--positive);
+  font-size: 1.7rem;
+  font-weight: 800;
+}
+
+.wealth-info-modal h4,
+.wealth-info-modal p {
+  margin: 0;
+}
+
+.wealth-info-modal-rate p,
+.wealth-info-modal-card p,
+.wealth-info-modal-note {
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.wealth-info-modal-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.wealth-info-modal-card,
+.wealth-info-modal-checklist {
+  background: rgb(255 255 255 / 3%);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+}
+
+.wealth-info-modal-card {
+  display: grid;
+  gap: 6px;
+  min-height: 132px;
+}
+
+.wealth-info-modal-card-intention {
+  background: linear-gradient(135deg, rgb(53 214 159 / 14%), rgb(53 214 159 / 4%));
+  border-color: rgb(53 214 159 / 34%);
+}
+
+.wealth-info-modal-icon {
+  align-items: center;
+  background: rgb(128 104 255 / 14%);
+  border-radius: 8px;
+  color: var(--positive);
+  display: inline-flex;
+  height: 30px;
+  justify-content: center;
+  width: 30px;
+}
+
+.wealth-info-modal-checklist ol {
+  color: var(--muted);
+  display: grid;
+  gap: 8px;
+  line-height: 1.5;
+  margin: 10px 0 0;
+  padding-left: 20px;
+}
+
+.wealth-info-modal-note {
+  align-items: flex-start;
+  background: rgb(245 184 75 / 9%);
+  border: 1px solid rgb(245 184 75 / 30%);
+  border-radius: 10px;
+  display: flex;
+  font-size: 0.88rem;
+  gap: 9px;
+  padding: 11px 12px;
+}
+
+.wealth-info-modal-note > span {
+  align-items: center;
+  background: rgb(245 184 75 / 20%);
+  border-radius: 50%;
+  color: var(--warning);
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-weight: 800;
+  height: 20px;
+  justify-content: center;
+  width: 20px;
+}
+
+@media (max-width: 560px) {
+  .wealth-info-modal-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .score-breakdown-item,
 .pattern-detail-modal,
 .breakout-detail-modal,
@@ -11608,7 +11786,7 @@ button {
 
 .wealth-comparison-hero-copy h1 {
   color: var(--foreground);
-  font-size: clamp(2rem, 4.8vw, 3.4rem);
+  font-size: clamp(1.7rem, 4vw, 2rem);
   letter-spacing: -0.04em;
   line-height: 1.02;
   margin: 0;
@@ -18921,6 +19099,11 @@ button {
   gap: 2px;
   min-width: 0;
   padding-left: 2px;
+}
+
+.wealth-sub-nav > .dashboard-locale-switcher,
+.wealth-sub-nav > [class*="locale-switcher"] {
+  margin-left: auto;
 }
 
 .wealth-sub-nav-inline-icon {

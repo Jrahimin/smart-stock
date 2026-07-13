@@ -2,19 +2,23 @@
 
 import { useId } from "react";
 
+import type { WealthToolsLanguage } from "@/features/wealth/wealth-tools-language";
 import type { ComparisonNarrativeBeat } from "@/features/wealth/view-models/wealth-comparison-view-model";
+import type { AppLocale } from "@/lib/locale/app-locale";
 
 type WealthComparisonHeroProps = {
   beats: ComparisonNarrativeBeat[];
   subtitle: string;
   title: string;
+  copy?: Pick<WealthToolsLanguage["comparison"], "scenarioTitle" | "heroEyebrow" | "prelude">;
+  locale: AppLocale;
 };
 
-export function WealthComparisonHero({ beats, subtitle, title }: WealthComparisonHeroProps) {
+export function WealthComparisonHero({ beats, subtitle, title, copy, locale }: WealthComparisonHeroProps) {
   const gradientId = useId();
 
   return (
-    <header className="wealth-comparison-hero-canvas" aria-label="Comparison story introduction">
+    <header className="wealth-comparison-hero-canvas" aria-label={copy?.scenarioTitle ?? "Comparison story introduction"}>
       <div aria-hidden="true" className="wealth-comparison-hero-glow" />
       <div aria-hidden="true" className="wealth-comparison-hero-abstract">
         <svg preserveAspectRatio="xMaxYMid slice" viewBox="0 0 420 320">
@@ -61,24 +65,36 @@ export function WealthComparisonHero({ beats, subtitle, title }: WealthCompariso
       </div>
 
       <div className="wealth-comparison-hero-copy">
-        <p className="eyebrow">Future simulator</p>
+        <p className="eyebrow">{copy?.heroEyebrow ?? "Future simulator"}</p>
         <h1>{title}</h1>
         <p className="wealth-comparison-hero-subtitle">{subtitle}</p>
-        <p className="wealth-comparison-hero-prelude">You are about to explore two possible futures.</p>
+        <p className="wealth-comparison-hero-prelude">{copy?.prelude ?? "You are about to explore two possible futures."}</p>
       </div>
 
-      <ol className="wealth-comparison-narrative-beats" aria-label="Story beats">
-        {beats.map((beat) => (
+      <ol className="wealth-comparison-narrative-beats" aria-label={locale === "bn" ? "গল্পের গুরুত্বপূর্ণ মুহূর্ত" : "Story beats"}>
+        {beats.map((beat, index) => {
+          const displayBeat = locale === "bn" ? localizeBeat(beat, index) : beat;
+          return (
           <li
-            className={`wealth-comparison-narrative-beat ${beat.isHere ? "wealth-comparison-narrative-beat-here" : ""} ${beat.isFuture ? "wealth-comparison-narrative-beat-future" : ""}`}
-            key={beat.id}
+            className={`wealth-comparison-narrative-beat ${displayBeat.isHere ? "wealth-comparison-narrative-beat-here" : ""} ${displayBeat.isFuture ? "wealth-comparison-narrative-beat-future" : ""}`}
+            key={displayBeat.id}
           >
-            <span>{beat.when}</span>
-            <strong>{beat.headline}</strong>
-            <p>{beat.detail}</p>
+            <span>{displayBeat.when}</span>
+            <strong>{displayBeat.headline}</strong>
+            <p>{displayBeat.detail}</p>
           </li>
-        ))}
+          );
+        })}
       </ol>
     </header>
   );
+}
+
+function localizeBeat(beat: ComparisonNarrativeBeat, index: number): ComparisonNarrativeBeat {
+  const copy = [
+    { when: "আজ", headline: "আজ থেকেই শুরু", detail: "আজকের সিদ্ধান্তেই দুই পথ তৈরি হচ্ছে।" },
+    { when: "শুরুতে", headline: "FDR এগিয়ে", detail: "শুরুতেই পুরো amount কাজে লাগায় বলে FDR আগে এগোতে পারে।" },
+    { when: beat.when, headline: "সময় গেলে ছবিটা বদলায়", detail: "নিয়মিত saving চললে DPS ধীরে ধীরে gap কমাতে পারে।" },
+  ][index];
+  return copy ? { ...beat, ...copy } : beat;
 }

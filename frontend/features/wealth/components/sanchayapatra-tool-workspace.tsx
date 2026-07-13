@@ -18,17 +18,20 @@ import type { WealthToolCalculateResponse } from "@/features/wealth/types/wealth
 import { formatWealthCurrency } from "@/features/wealth/view-models/wealth-view-model";
 import { useAuth } from "@/features/auth/context/auth-context";
 import { saveWealthScenario } from "@/lib/api/wealth-api";
+import { getWealthToolsLanguage } from "@/features/wealth/wealth-tools-language";
+import type { AppLocale } from "@/lib/locale/app-locale";
 
 type PlannerMode = "income" | "wealth";
 
-const JOURNEY_STOPS = [
-  { key: "purchase", label: "Certificate Purchased" },
-  { key: "first-payment", label: "First Profit Payment" },
-  { key: "passive-income", label: "Years of Passive Income" },
-  { key: "maturity", label: "Certificate Matures" },
+const JOURNEY_STOP_KEYS = [
+  { key: "purchase" as const, labelKey: "journeyPurchase" as const },
+  { key: "first-payment" as const, labelKey: "journeyFirstPayment" as const },
+  { key: "passive-income" as const, labelKey: "journeyPassiveIncome" as const },
+  { key: "maturity" as const, labelKey: "journeyMaturity" as const },
 ] as const;
 
-export function SanchayapatraToolWorkspace() {
+export function SanchayapatraToolWorkspace({ locale }: { locale: AppLocale }) {
+  const copy = getWealthToolsLanguage(locale);
   const { isAuthenticated } = useAuth();
   const [mode, setMode] = useState<PlannerMode>("income");
   const [certificateType, setCertificateType] = useState("family-savings");
@@ -81,7 +84,7 @@ export function SanchayapatraToolWorkspace() {
     const inflationAdjusted = findMetricValue(result, "inflation-adjusted");
     const rawPayout = assumptionsUsed.next_payment_amount ?? findMetricValue(result, "profit");
     const normalizedPayout = rawPayout != null ? Number(rawPayout) : null;
-    const payoutLabel = resolvePayoutLabel(result);
+    const payoutLabel = resolvePayoutLabel(result, locale);
 
     return {
       assumptionsUsed,
@@ -94,7 +97,7 @@ export function SanchayapatraToolWorkspace() {
       payoutLabel,
       returnShare,
     };
-  }, [principal, result]);
+  }, [principal, result, locale]);
 
   function handleCertificateChange(nextType: string) {
     const config = getSanchayapatraConfig(nextType);
@@ -142,35 +145,33 @@ export function SanchayapatraToolWorkspace() {
       });
     }
 
-    setSaveMessage("Certificate added to your Money Snapshot draft.");
+    setSaveMessage(copy.sanchayapatra.saveMessage);
   }
 
   return (
     <section className="wealth-tool-workspace wealth-sp-planner">
-      <WealthSubNav />
+      <WealthSubNav locale={locale} />
 
       <header className="wealth-hero-card wealth-sp-hero">
         <div>
-          <p className="eyebrow">Government Savings Planner</p>
-          <h1>Turn today&apos;s savings into years of predictable family income.</h1>
-          <p>
-            Government savings certificates help preserve capital while generating reliable cash flow for future needs.
-          </p>
+          <p className="eyebrow">{copy.sanchayapatra.eyebrow}</p>
+          <h1>{copy.sanchayapatra.title}</h1>
+          <p>{copy.sanchayapatra.description}</p>
         </div>
-        <div className="wealth-sp-mode-toggle" aria-label="Planner presentation mode">
+        <div className="wealth-sp-mode-toggle" aria-label={copy.sanchayapatra.eyebrow}>
           <button
             className={mode === "income" ? "wealth-sp-mode-active" : ""}
             onClick={() => setMode("income")}
             type="button"
           >
-            Generate Income
+            {copy.sanchayapatra.income}
           </button>
           <button
             className={mode === "wealth" ? "wealth-sp-mode-active" : ""}
             onClick={() => setMode("wealth")}
             type="button"
           >
-            Preserve Wealth
+            {copy.sanchayapatra.wealth}
           </button>
         </div>
       </header>
@@ -179,7 +180,7 @@ export function SanchayapatraToolWorkspace() {
         <section className="wealth-panel wealth-sp-control-panel">
           <div className="wealth-sp-primary-inputs">
             <label className="wealth-field">
-              <span>Certificate type</span>
+              <span>{copy.sanchayapatra.certificate}</span>
               <select onChange={(event) => handleCertificateChange(event.target.value)} value={certificateType}>
                 {SANCHAYAPATRA_CERTIFICATE_OPTIONS.map((certificate) => (
                   <option key={certificate.value} value={certificate.value}>
@@ -189,24 +190,24 @@ export function SanchayapatraToolWorkspace() {
               </select>
             </label>
             <label className="wealth-field wealth-sp-large-field">
-              <span>Investment amount</span>
+              <span>{copy.sanchayapatra.investment}</span>
               <input inputMode="decimal" onChange={(event) => setPrincipal(event.target.value)} value={principal} />
             </label>
             <label className="wealth-field wealth-field-optional">
-              <span>Purchase date</span>
+              <span>{copy.sanchayapatra.purchaseDate}</span>
               <input onChange={(event) => setPurchaseDate(event.target.value)} type="date" value={purchaseDate} />
             </label>
           </div>
 
           <article className="wealth-sp-rate-info" aria-label="Government rate information">
-            <span>Government rate</span>
+            <span>{copy.sanchayapatra.governmentRate}</span>
             <strong>{certificateConfig.defaultRate}%</strong>
-            <small>Current official configured rate</small>
+            <small>{copy.sanchayapatra.configuredRate}</small>
           </article>
 
           <WealthProjectionSection
             accountIdentifier={accountIdentifier}
-            accountIdentifierLabel={getCalculatorAccountIdentifierLabel("sanchayapatra")}
+            accountIdentifierLabel={getCalculatorAccountIdentifierLabel("sanchayapatra", locale)}
             customSourceTax={customSourceTax}
             inflationRate={inflationRate}
             onAccountIdentifierChange={setAccountIdentifier}
@@ -216,32 +217,40 @@ export function SanchayapatraToolWorkspace() {
             showInflation
             showSourceTax
             sourceTaxPreset={sourceTaxPreset}
-            title="Improve projection"
+            title={copy.common.detailsTitle}
+            hint={copy.common.detailsHint}
+            locale={locale}
           />
         </section>
 
         <section className="wealth-panel wealth-sp-result-panel">
-          {isLoading ? <p className="wealth-muted-copy">Updating your projection…</p> : null}
-          {isError ? <p className="wealth-error-copy">Could not calculate this scenario right now.</p> : null}
+          {isLoading ? <p className="wealth-muted-copy">{copy.common.updating}</p> : null}
+          {isError ? <p className="wealth-error-copy">{copy.common.calculationError}</p> : null}
           {result && projection ? (
             <>
               <div className="wealth-result-hero">
-                <p className="eyebrow">Estimated maturity value</p>
+                <p className="eyebrow">{copy.sanchayapatra.maturityEyebrow}</p>
                 <h2>{formatWealthCurrency(projection.maturityValue)}</h2>
                 <p className="wealth-result-summary">
-                  {buildHeadlineSummary(mode, projection.investment, projection.maturityValue, certificateConfig)}
+                  {buildHeadlineSummary(mode, projection.investment, projection.maturityValue, certificateConfig, copy.sanchayapatra)}
                 </p>
               </div>
 
               {mode === "income" && projection.payoutAmount != null && projection.payoutAmount > 0 ? (
                 <article className="wealth-sp-income-highlight">
-                  <p className="eyebrow">Steady income potential</p>
+                  <p className="eyebrow">{copy.sanchayapatra.incomeEyebrow}</p>
                   <h3>{formatWealthCurrency(projection.payoutAmount)}</h3>
-                  <p>Estimated {projection.payoutLabel.toLowerCase()} from government profit payouts.</p>
+                  <p>
+                    {copy.sanchayapatra.incomeBody.replace(
+                      "{payout}",
+                      projection.payoutLabel.toLowerCase(),
+                    )}
+                  </p>
                 </article>
               ) : null}
 
               <CapitalReturnCard
+                copy={copy.sanchayapatra}
                 capitalShare={projection.capitalShare}
                 earnedReturn={projection.earnedReturn}
                 investment={projection.investment}
@@ -251,6 +260,8 @@ export function SanchayapatraToolWorkspace() {
               <JourneyTimeline
                 assumptionsUsed={projection.assumptionsUsed}
                 certificateConfig={certificateConfig}
+                copy={copy.sanchayapatra}
+                locale={locale}
                 purchaseDate={purchaseDate}
               />
 
@@ -258,28 +269,27 @@ export function SanchayapatraToolWorkspace() {
                 <article className="wealth-sp-purchasing-card">
                   <div className="wealth-sp-card-heading">
                     <div>
-                      <p className="eyebrow">Today&apos;s buying power</p>
-                      <h3>What maturity may feel like later</h3>
+                      <p className="eyebrow">{copy.sanchayapatra.purchasingEyebrow}</p>
+                      <h3>{copy.sanchayapatra.purchasingTitle}</h3>
                     </div>
                   </div>
                   <div className="wealth-sp-purchasing-values">
                     <div>
-                      <span>Nominal maturity value</span>
+                      <span>{copy.sanchayapatra.nominalMaturity}</span>
                       <strong>{formatWealthCurrency(projection.maturityValue)}</strong>
                     </div>
                     <div>
-                      <span>Equivalent value in today&apos;s money</span>
+                      <span>{copy.sanchayapatra.equivalentToday}</span>
                       <strong>{formatWealthCurrency(projection.inflationAdjusted)}</strong>
                     </div>
                   </div>
-                  <p className="wealth-sp-purchasing-helper">
-                    Inflation may reduce future purchasing power over time.
-                  </p>
+                  <p className="wealth-sp-purchasing-helper">{copy.sanchayapatra.purchasingHelper}</p>
                 </article>
               ) : null}
 
               <PlannerInsightCard
                 certificateName={certificateConfig.displayName}
+                copy={copy.sanchayapatra}
                 durationYears={certificateConfig.durationYears}
                 mode={mode}
                 payoutLabel={projection.payoutLabel}
@@ -288,9 +298,11 @@ export function SanchayapatraToolWorkspace() {
 
               <WealthSaveSnapshotCard
                 onSave={() => void handleSaveCertificate()}
-                saveLabel="Save Certificate"
+                saveLabel={copy.sanchayapatra.save}
                 saveMessage={saveMessage}
-                title="Track this certificate, future profit payments, and maturity automatically."
+                title={copy.sanchayapatra.snapshotTrackTitle}
+                description={copy.common.snapshotEyebrow}
+                locale={locale}
               />
 
               <p className="wealth-disclaimer">{result.disclaimer}</p>
@@ -300,18 +312,20 @@ export function SanchayapatraToolWorkspace() {
       </div>
 
       <footer className="wealth-sp-educational-footer">
-        Educational projection only. Actual certificate terms, taxes, and government rules may differ.
+        {copy.sanchayapatra.disclaimer}
       </footer>
     </section>
   );
 }
 
 function CapitalReturnCard({
+  copy,
   investment,
   earnedReturn,
   capitalShare,
   returnShare,
 }: {
+  copy: ReturnType<typeof getWealthToolsLanguage>["sanchayapatra"];
   investment: number;
   earnedReturn: number;
   capitalShare: number;
@@ -321,18 +335,18 @@ function CapitalReturnCard({
     <article className="wealth-sp-capital-card">
       <div className="wealth-sp-card-heading">
         <div>
-          <p className="eyebrow">Your savings at work</p>
-          <h3>Your original capital stays protected. Government returns quietly build the rest.</h3>
+          <p className="eyebrow">{copy.capitalEyebrow}</p>
+          <h3>{copy.capitalTitle}</h3>
         </div>
-        <span>{Math.round(returnShare)}% generated through returns</span>
+        <span>{copy.capitalShare.replace("{pct}", String(Math.round(returnShare)))}</span>
       </div>
-      <div className="wealth-sp-capital-bar" aria-label="Investment versus earned return">
+      <div className="wealth-sp-capital-bar" aria-label={copy.capitalAria}>
         <span className="wealth-sp-capital-principal" style={{ width: `${capitalShare}%` }} />
         <span className="wealth-sp-capital-return" style={{ width: `${returnShare}%` }} />
       </div>
       <div className="wealth-sp-capital-values">
-        <span>Your investment {formatWealthCurrency(investment)}</span>
-        <span>Earned return {formatWealthCurrency(earnedReturn)}</span>
+        <span>{copy.capitalInvestment.replace("{amount}", formatWealthCurrency(investment))}</span>
+        <span>{copy.capitalReturn.replace("{amount}", formatWealthCurrency(earnedReturn))}</span>
       </div>
     </article>
   );
@@ -341,28 +355,32 @@ function CapitalReturnCard({
 function JourneyTimeline({
   assumptionsUsed,
   certificateConfig,
+  copy,
+  locale,
   purchaseDate,
 }: {
   assumptionsUsed: Record<string, unknown>;
   certificateConfig: ReturnType<typeof getSanchayapatraConfig>;
+  copy: ReturnType<typeof getWealthToolsLanguage>["sanchayapatra"];
+  locale: AppLocale;
   purchaseDate: string;
 }) {
   const purchaseLabel = purchaseDate
-    ? formatPreviewDate(purchaseDate)
-    : formatPreviewDate(String(assumptionsUsed.purchase_date ?? new Date().toISOString().slice(0, 10)));
+    ? formatPreviewDate(purchaseDate, locale)
+    : formatPreviewDate(String(assumptionsUsed.purchase_date ?? new Date().toISOString().slice(0, 10)), locale);
   const firstPaymentLabel = assumptionsUsed.next_payment_date
-    ? formatPreviewDate(String(assumptionsUsed.next_payment_date))
+    ? formatPreviewDate(String(assumptionsUsed.next_payment_date), locale)
     : certificateConfig.profitDistribution === "maturity"
-      ? "At maturity"
-      : "After purchase";
+      ? copy.atMaturity
+      : copy.afterPurchase;
   const maturityLabel = assumptionsUsed.maturity_date
-    ? formatPreviewDate(String(assumptionsUsed.maturity_date))
-    : `${certificateConfig.durationYears} years`;
+    ? formatPreviewDate(String(assumptionsUsed.maturity_date), locale)
+    : copy.yearsDuration.replace("{years}", String(certificateConfig.durationYears));
 
-  const stopDetails: Record<(typeof JOURNEY_STOPS)[number]["key"], string> = {
+  const stopDetails: Record<(typeof JOURNEY_STOP_KEYS)[number]["key"], string> = {
     purchase: purchaseLabel,
     "first-payment": firstPaymentLabel,
-    "passive-income": `${certificateConfig.durationYears} years`,
+    "passive-income": copy.yearsDuration.replace("{years}", String(certificateConfig.durationYears)),
     maturity: maturityLabel,
   };
 
@@ -370,22 +388,22 @@ function JourneyTimeline({
     <article className="wealth-sp-journey-card">
       <div className="wealth-sp-card-heading">
         <div>
-          <p className="eyebrow">Certificate journey</p>
-          <h3>Savings → Security → Monthly income → Future maturity</h3>
+          <p className="eyebrow">{copy.journeyEyebrow}</p>
+          <h3>{copy.journeyTitle}</h3>
         </div>
       </div>
       <div className="wealth-sp-journey-track" aria-hidden="true">
         <span className="wealth-sp-journey-line" />
-        {JOURNEY_STOPS.map((stop, index) => (
-          <span className="wealth-sp-journey-stop" key={stop.key} style={{ left: `${(index / (JOURNEY_STOPS.length - 1)) * 100}%` }}>
+        {JOURNEY_STOP_KEYS.map((stop, index) => (
+          <span className="wealth-sp-journey-stop" key={stop.key} style={{ left: `${(index / (JOURNEY_STOP_KEYS.length - 1)) * 100}%` }}>
             <span className="wealth-sp-journey-dot" />
           </span>
         ))}
       </div>
       <div className="wealth-sp-journey-labels">
-        {JOURNEY_STOPS.map((stop) => (
+        {JOURNEY_STOP_KEYS.map((stop) => (
           <div className="wealth-sp-journey-label" key={stop.key}>
-            <strong>{stop.label}</strong>
+            <strong>{copy[stop.labelKey]}</strong>
             <small>{stopDetails[stop.key]}</small>
           </div>
         ))}
@@ -400,18 +418,20 @@ function PlannerInsightCard({
   durationYears,
   payoutLabel,
   certificateName,
+  copy,
 }: {
   mode: PlannerMode;
   returnShare: number;
   durationYears: number;
   payoutLabel: string;
   certificateName: string;
+  copy: ReturnType<typeof getWealthToolsLanguage>["sanchayapatra"];
 }) {
-  const insight = buildPlannerInsight({ certificateName, durationYears, mode, payoutLabel, returnShare });
+  const insight = buildPlannerInsight({ certificateName, durationYears, mode, payoutLabel, returnShare, copy });
 
   return (
     <article className="wealth-insight-card wealth-insight-neutral wealth-sp-insight-card">
-      <p className="eyebrow">Insight</p>
+      <p className="eyebrow">{copy.insightEyebrow}</p>
       <h3>{insight}</h3>
     </article>
   );
@@ -422,11 +442,13 @@ function buildHeadlineSummary(
   investment: number,
   maturityValue: number,
   certificateConfig: ReturnType<typeof getSanchayapatraConfig>,
+  copy: ReturnType<typeof getWealthToolsLanguage>["sanchayapatra"],
 ) {
-  if (mode === "income") {
-    return `Your ${formatWealthCurrency(investment)} investment could provide steady government-backed income over ${certificateConfig.durationYears} years and grow into approximately ${formatWealthCurrency(maturityValue)} by maturity.`;
-  }
-  return `Your ${formatWealthCurrency(investment)} investment could preserve capital while government returns quietly build toward approximately ${formatWealthCurrency(maturityValue)} over the certificate period.`;
+  const template = mode === "income" ? copy.headlineIncome : copy.headlineWealth;
+  return template
+    .replace("{investment}", formatWealthCurrency(investment))
+    .replace("{years}", String(certificateConfig.durationYears))
+    .replace("{maturity}", formatWealthCurrency(maturityValue));
 }
 
 function buildPlannerInsight({
@@ -435,31 +457,27 @@ function buildPlannerInsight({
   durationYears,
   payoutLabel,
   certificateName,
+  copy,
 }: {
   mode: PlannerMode;
   returnShare: number;
   durationYears: number;
   payoutLabel: string;
   certificateName: string;
+  copy: ReturnType<typeof getWealthToolsLanguage>["sanchayapatra"];
 }) {
   if (returnShare >= 55) {
-    return "Your investment is approaching maturity.";
+    return copy.insightApproaching;
   }
   if (returnShare < 28) {
-    return "Most of your capital remains protected while profits accumulate.";
+    return copy.insightProtected;
   }
   if (mode === "income") {
-    return `Your certificate is beginning to generate steady income through ${payoutLabel.toLowerCase()} payouts.`;
+    return copy.insightSteadyIncome.replace("{payout}", payoutLabel.toLowerCase());
   }
-  return `${certificateName} offers government-backed stability rather than aggressive growth over ${durationYears} years.`;
-}
-
-function resolvePayoutLabel(result: WealthToolCalculateResponse) {
-  const payoutMetric = result.metrics.find((metric) => {
-    const label = metric.label.toLowerCase();
-    return label.includes("profit") && !label.includes("total");
-  });
-  return payoutMetric?.label ?? "Profit payment";
+  return copy.insightStability
+    .replace("{name}", certificateName)
+    .replace("{years}", String(durationYears));
 }
 
 function findMetricValue(result: WealthToolCalculateResponse, needle: string) {
@@ -470,10 +488,25 @@ function findMetricValue(result: WealthToolCalculateResponse, needle: string) {
   return metric.value;
 }
 
-function formatPreviewDate(value: string) {
+function resolvePayoutLabel(result: WealthToolCalculateResponse, locale: AppLocale) {
+  const payoutMetric = result.metrics.find((metric) => {
+    const label = metric.label.toLowerCase();
+    return label.includes("profit") && !label.includes("total");
+  });
+  if (locale === "bn") {
+    return getWealthToolsLanguage(locale).sanchayapatra.profitPayment;
+  }
+  return payoutMetric?.label ?? "Profit payment";
+}
+
+function formatPreviewDate(value: string, locale: AppLocale) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
     return value;
   }
-  return new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric" }).format(date);
+  return new Intl.DateTimeFormat(locale === "bn" ? "bn-BD" : "en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(date);
 }

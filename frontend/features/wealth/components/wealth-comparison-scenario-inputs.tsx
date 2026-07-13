@@ -4,6 +4,8 @@ import type {
   ScenarioContributionSummary,
   ScenarioViewProjection,
 } from "@/features/wealth/view-models/wealth-comparison-view-model";
+import type { AppLocale } from "@/lib/locale/app-locale";
+import { getWealthToolsLanguage } from "@/features/wealth/wealth-tools-language";
 
 type WealthComparisonScenarioInputsProps = {
   contributionSummary: ScenarioContributionSummary;
@@ -13,6 +15,7 @@ type WealthComparisonScenarioInputsProps = {
   onRightChange: (next: Record<string, string>) => void;
   rightInputs: Record<string, string>;
   viewProjection: ScenarioViewProjection | null;
+  locale: AppLocale;
 };
 
 export function WealthComparisonScenarioInputs({
@@ -23,13 +26,15 @@ export function WealthComparisonScenarioInputs({
   onRightChange,
   rightInputs,
   viewProjection,
+  locale,
 }: WealthComparisonScenarioInputsProps) {
+  const copy = getWealthToolsLanguage(locale).comparison;
   return (
-    <section aria-label="Your comparison scenario" className="wealth-comparison-scenario-panel">
+    <section aria-label={copy.scenarioTitle} className="wealth-comparison-scenario-panel">
       <div className="wealth-comparison-scenario-panel-head">
-        <span className="eyebrow">Your scenario</span>
+        <span className="eyebrow">{copy.scenarioEyebrow}</span>
         <span aria-hidden="true" className="wealth-comparison-scenario-panel-sep" />
-        <h2>What you&apos;re comparing</h2>
+        <h2>{copy.scenarioTitle}</h2>
       </div>
 
       <div className="wealth-comparison-scenario-row">
@@ -37,7 +42,7 @@ export function WealthComparisonScenarioInputs({
           <div className="wealth-comparison-scenario-fields">
             {leftInputs.monthly_payment != null ? (
               <label className="wealth-comparison-scenario-field">
-                <span>{fieldLabels.monthly_payment ?? "Monthly saving"}</span>
+                <span>{locale === "bn" ? "মাসে কত রাখবেন" : fieldLabels.monthly_payment ?? "Monthly saving"}</span>
                 <input
                   inputMode="decimal"
                   onChange={(event) => onLeftChange({ ...leftInputs, monthly_payment: event.target.value })}
@@ -47,7 +52,7 @@ export function WealthComparisonScenarioInputs({
             ) : null}
             {leftInputs.principal != null ? (
               <label className="wealth-comparison-scenario-field">
-                <span>{fieldLabels.principal ?? "Amount"}</span>
+                <span>{locale === "bn" ? "কত টাকা" : fieldLabels.principal ?? "Amount"}</span>
                 <input
                   inputMode="decimal"
                   onChange={(event) => onLeftChange({ ...leftInputs, principal: event.target.value })}
@@ -57,7 +62,7 @@ export function WealthComparisonScenarioInputs({
             ) : null}
             {leftInputs.amount != null ? (
               <label className="wealth-comparison-scenario-field">
-                <span>{fieldLabels.amount ?? "Amount"}</span>
+                <span>{locale === "bn" ? "কত টাকা" : fieldLabels.amount ?? "Amount"}</span>
                 <input
                   inputMode="decimal"
                   onChange={(event) => onLeftChange({ ...leftInputs, amount: event.target.value })}
@@ -67,7 +72,7 @@ export function WealthComparisonScenarioInputs({
             ) : null}
             {leftInputs.extra_amount != null ? (
               <label className="wealth-comparison-scenario-field">
-                <span>{fieldLabels.extra_amount ?? "Extra amount"}</span>
+                <span>{locale === "bn" ? "অতিরিক্ত amount" : fieldLabels.extra_amount ?? "Extra amount"}</span>
                 <input
                   inputMode="decimal"
                   onChange={(event) => onLeftChange({ ...leftInputs, extra_amount: event.target.value })}
@@ -77,7 +82,7 @@ export function WealthComparisonScenarioInputs({
             ) : null}
             {leftInputs.annual_rate != null ? (
               <label className="wealth-comparison-scenario-field wealth-comparison-scenario-field-rate">
-                <span>{resolveRateLabel("left", fieldLabels)}</span>
+                <span>{locale === "bn" ? "DPS rate (%)" : resolveRateLabel("left", fieldLabels)}</span>
                 <input
                   inputMode="decimal"
                   onChange={(event) => onLeftChange({ ...leftInputs, annual_rate: event.target.value })}
@@ -87,7 +92,7 @@ export function WealthComparisonScenarioInputs({
             ) : null}
             {leftInputs.loan_rate != null ? (
               <label className="wealth-comparison-scenario-field wealth-comparison-scenario-field-rate">
-                <span>{fieldLabels.loan_rate ?? "Loan rate (%)"}</span>
+                <span>{locale === "bn" ? "Loan rate (%)" : fieldLabels.loan_rate ?? "Loan rate (%)"}</span>
                 <input
                   inputMode="decimal"
                   onChange={(event) => onLeftChange({ ...leftInputs, loan_rate: event.target.value })}
@@ -99,14 +104,14 @@ export function WealthComparisonScenarioInputs({
         </div>
 
         <span aria-hidden="true" className="wealth-comparison-scenario-vs">
-          vs
+          {locale === "bn" ? "vs" : "vs"}
         </span>
 
         <div className="wealth-comparison-scenario-group wealth-comparison-scenario-group-right">
           <div className="wealth-comparison-scenario-fields">
             {rightInputs.principal != null ? (
               <label className="wealth-comparison-scenario-field">
-                <span>{fieldLabels.principal ?? "Amount to lock"}</span>
+                <span>{locale === "bn" ? "FDR-এ কত রাখবেন" : fieldLabels.principal ?? "Amount to lock"}</span>
                 <input
                   inputMode="decimal"
                   onChange={(event) => onRightChange({ ...rightInputs, principal: event.target.value })}
@@ -116,7 +121,7 @@ export function WealthComparisonScenarioInputs({
             ) : null}
             {rightInputs.amount != null ? (
               <label className="wealth-comparison-scenario-field">
-                <span>{fieldLabels.amount ?? "Amount"}</span>
+                <span>{locale === "bn" ? "কত টাকা" : fieldLabels.amount ?? "Amount"}</span>
                 <input
                   inputMode="decimal"
                   onChange={(event) => onRightChange({ ...rightInputs, amount: event.target.value })}
@@ -126,7 +131,7 @@ export function WealthComparisonScenarioInputs({
             ) : null}
             {rightInputs.extra_amount != null ? (
               <label className="wealth-comparison-scenario-field">
-                <span>{fieldLabels.extra_amount ?? "Extra amount"}</span>
+                <span>{locale === "bn" ? "অতিরিক্ত amount" : fieldLabels.extra_amount ?? "Extra amount"}</span>
                 <input
                   inputMode="decimal"
                   onChange={(event) => onRightChange({ ...rightInputs, extra_amount: event.target.value })}
@@ -136,7 +141,7 @@ export function WealthComparisonScenarioInputs({
             ) : null}
             {rightInputs.annual_rate != null ? (
               <label className="wealth-comparison-scenario-field wealth-comparison-scenario-field-rate">
-                <span>{resolveRateLabel("right", fieldLabels)}</span>
+                <span>{locale === "bn" ? "FDR rate (%)" : resolveRateLabel("right", fieldLabels)}</span>
                 <input
                   inputMode="decimal"
                   onChange={(event) => onRightChange({ ...rightInputs, annual_rate: event.target.value })}
@@ -152,19 +157,19 @@ export function WealthComparisonScenarioInputs({
         {contributionSummary.kind === "dps-vs-fdr" ? (
           <>
             <p className="wealth-comparison-scenario-setup">
-              <span className="wealth-comparison-scenario-amount">{contributionSummary.monthly}</span>/mo into DPS vs{" "}
-              <span className="wealth-comparison-scenario-amount">{contributionSummary.fdrTotal}</span> locked in FDR
+              <span className="wealth-comparison-scenario-amount">{contributionSummary.monthly}</span>/{locale === "bn" ? "মাসে DPS" : "mo into DPS"} vs{" "}
+              <span className="wealth-comparison-scenario-amount">{contributionSummary.fdrTotal}</span> {locale === "bn" ? "FDR-এ রাখা" : "locked in FDR"}
               {contributionSummary.horizon !== "today" ? (
                 <>
                   {" "}
                   over <span className="wealth-comparison-scenario-amount">{contributionSummary.horizon}</span>
                 </>
               ) : null}
-              — same starting capital, two different rhythms.
+              — {locale === "bn" ? "একই starting capital, দুই রকম পথ।" : "same starting capital, two different rhythms."}
             </p>
             {viewProjection ? (
               <p className="wealth-comparison-scenario-projection">
-                At <span className="wealth-comparison-scenario-amount">{viewProjection.yearLabel}</span>: DPS{" "}
+                {locale === "bn" ? "Year" : "At"} <span className="wealth-comparison-scenario-amount">{viewProjection.yearLabel}</span>: DPS{" "}
                 <span className="wealth-comparison-scenario-amount wealth-comparison-scenario-amount-dps">
                   {viewProjection.dpsValue}
                 </span>
@@ -178,13 +183,13 @@ export function WealthComparisonScenarioInputs({
               </p>
             ) : (
               <p className="wealth-comparison-scenario-projection">
-                Scrub the timeline below to see how each path grows over time.
+                {locale === "bn" ? "নিচের timeline টেনে দেখুন, সময়ের সঙ্গে কোন path কীভাবে বাড়ে।" : "Scrub the timeline below to see how each path grows over time."}
               </p>
             )}
           </>
         ) : (
           <p className="wealth-comparison-scenario-setup">
-            Simulating over {contributionSummary.horizon} — scrub the journey below to visit any moment in time.
+            {locale === "bn" ? `${contributionSummary.horizon} ধরে হিসাব হচ্ছে — নিচের timeline টেনে যেকোনো সময় দেখুন।` : `Simulating over ${contributionSummary.horizon} — scrub the journey below to visit any moment in time.`}
           </p>
         )}
       </div>
