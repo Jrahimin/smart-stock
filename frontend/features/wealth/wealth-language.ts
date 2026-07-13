@@ -141,7 +141,7 @@ const wealthLanguage = {
       },
     },
     seasonal: {
-      eyebrow: "Today's Money Lens",
+      eyebrow: "আজকের Money Lens",
       bySeason: {
         income_tax_season: {
           title: "Income tax season — get your estimate in order",
@@ -330,7 +330,7 @@ const wealthLanguage = {
     },
   },
 
-  bn: {
+    bn: {
     nav: {
       ariaLabel: "Wealth Workspace",
       overview: "Overview",
@@ -360,60 +360,60 @@ const wealthLanguage = {
     },
 
     seasonal: {
-      eyebrow: "Today's Money Lens",
+      eyebrow: "আজকের Money Lens",
       bySeason: {
         income_tax_season: {
-          title: "এই কর বছরের Income tax এর হিসাবটা বুঝে নিন",
+          title: "এই কর বছরে tax-এর ছবিটা আগে বুঝে নিন",
           description:
-            "বেতন, investment আর rebate কীভাবে return-এ প্রভাব ফেলতে পারে—deadline চাপ আসার আগেই দেখে নিতে পারেন।",
+            "বেতন, investment আর rebate মিলে আপনার return কীভাবে বদলাতে পারে—deadline আসার আগেই দেখে নিন।",
           ctaLabel: "Tax estimate দেখুন",
         },
         // Future seasonal lens — enable when `season_key` is `ramadan` in wealth_guide_service.py
         ramadan: {
-          title: "Zakat-এর হিসাবটা এবার গুছিয়ে নিন",
+          title: "Zakat-এর হিসাবটা শান্তভাবে গুছিয়ে নিন",
           description:
-            "কোন সম্পদ Zakat-এর মধ্যে আসবে, কত হতে পারে, আর কীভাবে প্রস্তুতি নেবেন—ধীরে ধীরে দেখে নিন।",
+            "কোন সম্পদ Zakat-এর মধ্যে আসবে, কত হতে পারে, আর কীভাবে প্রস্তুতি নেবেন—সহজভাবে দেখে নিন।",
           ctaLabel: "Zakat হিসাব করুন",
         },
       },
     },
 
     scenarios: {
-      eyebrow: "Start with your question",
-      title: "আজ কোন সিদ্ধান্ত নিয়ে ভাবছেন?",
+      eyebrow: "প্রশ্ন থেকেই শুরু করুন",
+      title: "কোন বিষয়টা বুঝতে চান?",
       description:
-        "আপনার বর্তমান প্রশ্নের সঙ্গে যে option-টা সবচেয়ে মেলে, সেখান থেকেই শুরু করুন।",
+        "আজকের সিদ্ধান্তের সঙ্গে যে প্রশ্নটা সবচেয়ে মেলে, সেখান থেকেই শুরু করুন।",
       items: {
         "tax-planning": {
-          eyebrow: "Tax নিয়ে আগে থেকে ভাবতে চাই",
+          eyebrow: "Tax নিয়ে আগে থেকে গুছাতে চাই",
           title: "বছরের tax কত হতে পারে?",
           description:
-            "Income আর investment বদলালে tax estimate কীভাবে বদলায়, আগে দেখে নিন।",
-          cue: "planning",
+            "Income আর tax-saving investment বদলালে হিসাবটা কীভাবে বদলায়, আগে দেখে নিন।",
+          cue: "পরিকল্পনা",
         },
 
         "extra-savings": {
           eyebrow: "হাতে কিছু extra savings আছে",
-          title: "FDR-এ রাখলে কী পাবেন?",
+          title: "FDR-এ রাখলে কী হতে পারে?",
           description:
-            "Return কত হবে, টাকা কতদিন আটকে থাকবে, আর flexibility কতটা থাকবে—একসঙ্গে দেখুন।",
-          cue: "steady",
+            "Return কত হতে পারে, টাকা কতদিন আটকে থাকবে, আর flexibility কতটা থাকবে—একসঙ্গে দেখুন।",
+          cue: "স্থিরতা",
         },
 
         "passive-income": {
           eyebrow: "নিয়মিত income চাই",
-          title: "Sanchayapatra থেকে আয় কেমন হতে পারে?",
+          title: "Sanchayapatra থেকে income কেমন হতে পারে?",
           description:
             "আজকের savings থেকে নিয়মিত income আর maturity-তে কত পাওয়া যেতে পারে, দেখে নিন।",
-          cue: "income",
+          cue: "আয়",
         },
 
         "retire-earlier": {
-          eyebrow: "আগে থেকেই future গুছাতে চাই",
+          eyebrow: "Future আগে থেকেই গুছাতে চাই",
           title: "মাসে মাসে savings কতদূর নিয়ে যাবে?",
           description:
             "ছোট একটা নিয়মিত অভ্যাস কয়েক বছর পর কত বড় হতে পারে, দেখে নিন।",
-          cue: "habit",
+          cue: "অভ্যাস",
         },
 
         loan: {
@@ -421,7 +421,7 @@ const wealthLanguage = {
           title: "EMI আর total interest পরিষ্কার করুন",
           description:
             "মাসে কত যাবে, মোট কত দিতে হবে, আর আগে শোধ করলে কী বদলাবে—সব এক জায়গায় দেখুন।",
-          cue: "loan",
+          cue: "ঋণ",
         },
 
         zakat: {
@@ -429,15 +429,15 @@ const wealthLanguage = {
           title: "Zakat-এর প্রস্তুতি সহজ করুন",
           description:
             "কোন সম্পদ ধরা হবে আর আনুমানিক কত হতে পারে, ধাপে ধাপে বুঝে নিন।",
-          cue: "care",
+          cue: "যত্ন",
         },
 
         compare: {
-          eyebrow: "দুইটা option মিলিয়ে দেখতে চাই",
+          eyebrow: "দুইটা option পাশাপাশি দেখতে চাই",
           title: "কোন পথে কী পাওয়া যাবে?",
           description:
             "দুই সিদ্ধান্ত পাশাপাশি রেখে লাভ, সীমাবদ্ধতা আর ভবিষ্যৎ ফল তুলনা করুন।",
-          cue: "choice",
+          cue: "পছন্দ",
         },
 
         inflation: {
@@ -445,7 +445,7 @@ const wealthLanguage = {
           title: "ভবিষ্যতে টাকার আসল মূল্য কত থাকবে?",
           description:
             "আজকের বড় number কয়েক বছর পর বাস্তবে কতটা কাজে আসবে, সেটা দেখে নিন।",
-          cue: "real",
+          cue: "বাস্তব হিসাব",
         },
       },
     },
@@ -453,60 +453,60 @@ const wealthLanguage = {
     comparison: {
       eyebrow: "Compare choices",
       title: "দুই পথের ভবিষ্যৎ পাশাপাশি দেখুন",
-      cardCta: "তুলনা করে দেখুন →",
+      cardCta: "গল্পটা খুলুন →",
       items: {
         "dps-vs-fdr": {
           title: "DPS না FDR—কোনটা আপনার জন্য?",
           description:
-            "একটায় মাসে মাসে অভ্যাস গড়ে, আরেকটায় শুরুতেই টাকা রেখে নিশ্চয়তা পাওয়া যায়। দুটো পথ কোথায় নিয়ে যেতে পারে, দেখুন।",
-          cue: "Recommended first",
+            "একটায় মাসে মাসে saving-এর অভ্যাস, আরেকটায় শুরুতেই টাকা রেখে নির্দিষ্ট return-এর পথ। দুটো কোথায় নিয়ে যায়, দেখে নিন।",
+          cue: "শুরু করার মতো",
         },
 
         "fdr-vs-stocks": {
-          title: "FDR-এর নিশ্চয়তা, নাকি Stock-এর growth?",
+          title: "FDR-এর স্থিরতা, নাকি Stocks-এর growth?",
           description:
             "একদিকে স্থির return, অন্যদিকে ওঠানামার সঙ্গে বেশি growth-এর সম্ভাবনা। কোনটা আপনার পরিকল্পনার সঙ্গে মেলে?",
-          cue: "Growth path",
+          cue: "Growth-এর পথ",
         },
 
         "save-vs-spend": {
           title: "আজ খরচ করবেন, নাকি future option রাখবেন?",
           description:
             "আজকের আনন্দ আর আগামী দিনের সুযোগ—দুটোর trade-off সহজভাবে দেখুন।",
-          cue: "Life choice",
+          cue: "জীবনের পছন্দ",
         },
 
         "loan-prepayment-vs-investing": {
           title: "Loan আগে কমাবেন, নাকি invest করবেন?",
           description:
             "এক পথে ঋণের চাপ কমে, অন্য পথে growth-এর সুযোগ থাকে। আপনার জন্য কোনটা বেশি স্বস্তির, দেখুন।",
-          cue: "Debt decision",
+          cue: "ঋণের সিদ্ধান্ত",
         },
 
         "inflation-impact": {
-          title: "টাকার amount বাড়ছে, কিন্তু value?",
+          title: "টাকার অঙ্ক বাড়ছে, কিন্তু value?",
           description:
             "Inflation কীভাবে ধীরে ধীরে টাকার buying power কমায়, সেটা বাস্তব সংখ্যায় দেখুন।",
-          cue: "Reality check",
+          cue: "বাস্তবতা দেখুন",
         },
       },
     },
 
     snapshot: {
       guestEyebrow: "My Financial Picture",
-      guestTitle: "ধীরে ধীরে আপনার Money Snapshot তৈরি করুন",
+      guestTitle: "ধীরে ধীরে নিজের Money Snapshot বানান",
       guestDescription:
-        "শুরুতেই সব তথ্য দিতে হবে না। একটা scenario দিয়ে শুরু করুন, তারপর প্রয়োজন হলে cash, deposit, loan আর goal যোগ করুন।",
+        "সব তথ্য একসঙ্গে দিতে হবে না। একটা scenario দিয়ে শুরু করুন, তারপর দরকার হলে cash, deposit, loan আর goal যোগ করুন।",
       localScenarioSingular:
-        "এই device-এ আপনার {count}টি saved scenario আছে।",
+        "এই device-এ {count}টি scenario save করা আছে।",
       localScenarioPlural:
-        "এই device-এ আপনার {count}টি saved scenario আছে।",
+        "এই device-এ {count}টি scenario save করা আছে।",
       addAssets: "Assets & liabilities যোগ করুন",
       signInToSync: "Sync করতে Sign in করুন",
       eyebrow: "Money Snapshot",
       title: "আপনার টাকার পুরো ছবি",
       description:
-        "Saved assets, liabilities আর scenario মিলিয়ে একটি সহজ summary—পূর্ণ accounting system নয়।",
+        "Saved assets, liabilities আর scenarios মিলিয়ে তৈরি সহজ summary—পুরো accounting setup নয়।",
       netWorth: "Net Worth",
       monthlySavings: "Monthly Savings",
       passiveIncome: "Passive Income",
@@ -514,7 +514,7 @@ const wealthLanguage = {
       netWorthHint: "মোট assets থেকে liabilities বাদ দিলে",
       updateAssets: "Assets & liabilities update করুন",
       clarity: "Clarity",
-      clarityTitle: "টাকার পরিমাণ নয়, তথ্য যত পরিষ্কার",
+      clarityTitle: "টাকার size নয়, context-টাই আসল",
       clarityDescription:
         "Savings, assets, liabilities, goals আর scenarios যোগ করলে আপনার financial picture আরও পরিষ্কার হবে।",
     },
@@ -533,13 +533,13 @@ const wealthLanguage = {
         "monthly-savings": {
           title: "আপনার savings habit দেখা যাচ্ছে",
           body:
-            "বর্তমান হিসাব অনুযায়ী মাসে প্রায় {amount} savings করা সম্ভব হচ্ছে।",
+            "বর্তমান হিসাব বলছে, মাসে প্রায় {amount} save করার capacity আছে।",
         },
 
         "debt-ratio": {
-          title: "Debt-ও ছবির গুরুত্বপূর্ণ অংশ",
+          title: "Debt-ও picture-এর অংশ",
           body:
-            "এই snapshot-এ total assets-এর প্রায় {ratio}% liabilities হিসেবে আছে।",
+            "এই snapshot-এ total assets-এর প্রায় {ratio}% liabilities হিসেবে ধরা আছে।",
         },
 
         "goal-progress": {
@@ -566,7 +566,7 @@ const wealthLanguage = {
       empty:
         "এখনো কোনো financial picture নেই। একটা প্রশ্ন দিয়ে শুরু করুন, পরে দরকারমতো তথ্য যোগ করবেন।",
       error:
-        "Wealth data এখন আনা যাচ্ছে না। নিচের calculators ব্যবহার করা যাবে।",
+        "এখন Wealth data আনা যাচ্ছে না। তবু নিচের calculators দেখে নিতে পারেন।",
     },
   },
 } as const satisfies Record<AppLocale, WealthLandingLanguage>;

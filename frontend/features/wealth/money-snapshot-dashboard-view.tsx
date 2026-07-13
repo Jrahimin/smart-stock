@@ -489,8 +489,8 @@ export function MoneySnapshotDashboardView({ locale }: { locale: AppLocale }) {
         {saveMessage ? <p className="wealth-local-note">{saveMessage}</p> : null}
       </section>
 
-      <section className="wealth-snapshot-side-grid">
-        <div className="wealth-panel">
+      <section className="wealth-snapshot-bottom-grid">
+        <div className="wealth-panel wealth-snapshot-events-panel">
           <h2>{copy.upcoming.title}</h2>
           {upcomingEventGroups.length ? (
             <div className="wealth-money-event-groups">
@@ -513,21 +513,27 @@ export function MoneySnapshotDashboardView({ locale }: { locale: AppLocale }) {
               ))}
             </div>
           ) : (
-            <p className="wealth-muted-copy">{copy.upcoming.empty}</p>
+            <div className="wealth-snapshot-empty-state">
+              <span aria-hidden="true" className="wealth-snapshot-empty-icon">
+                ◷
+              </span>
+              <p className="wealth-muted-copy">{copy.upcoming.empty}</p>
+            </div>
           )}
         </div>
 
-        <div className="wealth-snapshot-side-stack">
-          <div className="wealth-panel wealth-snapshot-savings-panel">
+        <div className="wealth-panel wealth-snapshot-savings-panel wealth-snapshot-compact-panel">
+          <div className="wealth-snapshot-compact-panel-head">
             <h2>{copy.monthlySavings.title}</h2>
             <p className="wealth-muted-copy">{copy.monthlySavings.hint}</p>
-            <label className="wealth-field">
-              <span>{copy.monthlySavings.label}</span>
-              <input inputMode="decimal" onChange={(event) => setMonthlySavings(event.target.value)} value={monthlySavings} />
-            </label>
           </div>
-          <SnapshotAssetAllocation locale={locale} slices={assetAllocation} />
+          <label className="wealth-field wealth-snapshot-savings-field">
+            <span>{copy.monthlySavings.label}</span>
+            <input inputMode="decimal" onChange={(event) => setMonthlySavings(event.target.value)} value={monthlySavings} />
+          </label>
         </div>
+
+        <SnapshotAssetAllocation locale={locale} slices={assetAllocation} />
       </section>
 
       {dashboard?.insights?.length ? (

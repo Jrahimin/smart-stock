@@ -25,7 +25,7 @@ export type SmartWarningCode =
   | "bearish_pattern"
   | "near_support";
 
-type WarningTemplate = string | ((params: Record<string, string | number>) => string);
+type WarningTemplate = string | ((params: Record<string, string | number | boolean>) => string);
 
 export type StockDecisionLanguage = {
   signals: Record<Exclude<DecisionSignalKey, "warning_ref">, string>;
@@ -321,7 +321,7 @@ function extractWarningParams(
 }
 
 export function localizeSmartWarning(
-  warning: { code: string; title: string; message: string },
+  warning: { code: string; title: string; message: string; severity: string },
   locale: AppLocale,
 ): { title: string; message: string; severity: string; code: string } {
   if (locale === "en") {

@@ -215,7 +215,7 @@ const bangla: WealthSnapshotLanguage = {
     eyebrow: "আমার financial picture",
     title: "Money Snapshot",
     description:
-      "শুরুতে কয়েকটা মোটামুটি সংখ্যাই যথেষ্ট। Projection আরও বাস্তব করতে চাইলে তারিখ, rate বা note যোগ করুন।",
+      "শুরুতে মোটামুটি কয়েকটা সংখ্যাই যথেষ্ট। Projection আরও বাস্তব করতে দরকার হলে তারিখ, rate আর note যোগ করুন।",
   },
   metrics: {
     netWorth: "Net Worth",
@@ -224,7 +224,7 @@ const bangla: WealthSnapshotLanguage = {
   },
   completeness: {
     eyebrow: "Snapshot কতটা পূর্ণ",
-    ariaLabel: (complete, total) => `Snapshot completeness: ${complete}/${total} সম্পন্ন`,
+    ariaLabel: (complete, total) => `Snapshot কতটা পূর্ণ: ${complete}/${total} সম্পন্ন`,
     summary: (complete, total) => `${complete}/${total} সম্পন্ন`,
     items: {
       assets: "Assets যোগ হয়েছে",
@@ -236,18 +236,18 @@ const bangla: WealthSnapshotLanguage = {
   addSection: {
     eyebrow: "ধীরে ধীরে যোগ করুন",
     title: "এবার কী যোগ করবেন?",
-    drawerHint: "প্রথমে amount দিন। Projection এখনই বা পরে গুছিয়ে নিতে পারবেন।",
-    improveProjections: "✨ Projection আরও বাস্তব করুন",
+    drawerHint: "প্রথমে amount দিন। Projection-এর extra detail এখনই বা পরে যোগ করতে পারেন।",
+    improveProjections: "✨ Projection আরও কাজে লাগুক",
     hideDetails: "বিস্তারিত লুকান",
     advancedHelper:
-      "এই optional তথ্য future value, maturity timeline, reminder আর insight আরও পরিষ্কার করে।",
+      "এই optional তথ্য future value, maturity timeline, reminder আর insight-কে আরও পরিষ্কার করে।",
     addToList: "তালিকায় যোগ করুন",
-    readyToSave: "Save করতে প্রস্তুত?",
-    readyHint: "Account-এ save না করা পর্যন্ত তালিকাটা এখানেই থাকবে।",
+    readyToSave: "Save করবেন?",
+    readyHint: "Account-এ save না করা পর্যন্ত এই তালিকা শুধু এই device-এ থাকবে।",
     saving: "Save হচ্ছে...",
     save: "Money Snapshot save করুন",
     signIn: "Sign in",
-    signInHint: "করলে snapshot account-এ রাখা যাবে। ততক্ষণ শুধু এই device-এ থাকবে।",
+    signInHint: "করলে Money Snapshot account-এ sync হবে। ততক্ষণ এটি শুধু এই device-এ থাকবে।",
     saved: "Money Snapshot আপডেট হয়েছে।",
   },
   entryOptions: {
@@ -263,17 +263,17 @@ const bangla: WealthSnapshotLanguage = {
   },
   upcoming: {
     title: "সামনের money events",
-    empty: "Maturity date, profit rate বা EMI যোগ করলে সামনের ইভেন্ট দেখা যাবে।",
-    next30Days: "আগামী ৩০ দিন",
-    next12Months: "আগামী ১২ মাস",
-    matures: "maturity",
+    empty: "Maturity date, profit rate বা EMI যোগ করলে সামনে কী আসছে তা দেখা যাবে।",
+    next30Days: "আগামী 30 দিন",
+    next12Months: "আগামী 12 মাস",
+    matures: "maturity হবে",
     emi: "EMI",
     completed: "শেষ",
     profit: "profit",
   },
   monthlySavings: {
     title: "মাসিক savings",
-    hint: "ঐচ্ছিক। Dashboard-এর projection ভালো করতে সাহায্য করে, পুরো profile বানাতে বাধ্য করবে না।",
+    hint: "ঐচ্ছিক। Dashboard-এর projection ভালো হবে, কিন্তু পুরো profile বানাতে হবে না।",
     label: "সাধারণত মাসে কত save করেন?",
   },
   allocation: {
@@ -282,13 +282,13 @@ const bangla: WealthSnapshotLanguage = {
     centerLabel: "Assets",
   },
   entryList: {
-    savedItems: (count) => `তালিকায় আছে (${count})`,
+    savedItems: (count) => `এই তালিকায় (${count})`,
     scrollHint: "আরও দেখতে scroll করুন",
     edit: "Edit",
     remove: "সরান",
     save: "Save করুন",
     cancel: "বাতিল",
-    done: "Done",
+    done: "হয়ে গেছে",
     editItem: (label: string) => `${label} edit করুন`,
     removeItem: (label: string) => `${label} সরান`,
   },

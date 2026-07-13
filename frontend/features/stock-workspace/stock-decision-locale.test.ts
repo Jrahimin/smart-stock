@@ -98,6 +98,7 @@ describe("stock decision localization", () => {
         code: "rsi_overheated",
         title: "RSI overheated",
         message: "RSI at 78.5 suggests extended momentum.",
+        severity: "warning",
       },
       "bn",
     );

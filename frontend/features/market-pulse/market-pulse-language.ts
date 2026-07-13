@@ -427,9 +427,9 @@ const marketPulseLanguage = {
       stateDimensionLabel: (key, label) => {
         const labels: Record<string, string> = {
           sentiment: "Sentiment",
-          participation: "অংশগ্রহণ",
+          participation: "Participation",
           momentum: "Momentum",
-          leadership: "নেতৃত্ব",
+          leadership: "Leadership",
         };
         return labels[key] ?? label;
       },
@@ -438,17 +438,17 @@ const marketPulseLanguage = {
           Bearish: "Bearish",
           Bullish: "Bullish",
           Neutral: "Neutral",
-          Weak: "দুর্বল",
-          Strong: "শক্তিশালী",
-          Moderate: "মাঝারি",
+          Weak: "Weak",
+          Strong: "Strong",
+          Moderate: "Moderate",
           Positive: "Positive",
           Negative: "Negative",
-          Narrow: "সীমিত",
-          Broad: "বিস্তৃত",
+          Narrow: "Narrow",
+          Broad: "Broad",
           "Defensive Rotation": "Defensive Rotation",
           "Risk-On Expansion": "Risk-On Expansion",
-          "Selective Opportunity": "বেছে সুযোগ",
-          "Cautious Positioning": "সতর্ক থাকা",
+          "Selective Opportunity": "Selective Opportunity",
+          "Cautious Positioning": "Cautious Positioning",
         };
         return values[value] ?? value;
       },

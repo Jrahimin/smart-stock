@@ -74,7 +74,7 @@ export function FdrToolWorkspace({ locale }: { locale: AppLocale }) {
   const displayViewModel = localizeFdrViewModel(
     viewModel,
     locale,
-    result,
+    result ?? null,
     inputs,
     sourceTaxPreset,
     customSourceTax,

@@ -8,9 +8,14 @@ import { writeAppLocaleCookie } from "@/lib/locale/app-locale";
 type DashboardLocaleSwitcherProps = {
   locale: AppLocale;
   ariaLabel?: string;
+  variant?: "default" | "compact";
 };
 
-export function DashboardLocaleSwitcher({ locale, ariaLabel = "Dashboard language" }: DashboardLocaleSwitcherProps) {
+export function DashboardLocaleSwitcher({
+  locale,
+  ariaLabel = "Dashboard language",
+  variant = "default",
+}: DashboardLocaleSwitcherProps) {
   const router = useRouter();
 
   function selectLocale(nextLocale: AppLocale) {
@@ -23,10 +28,20 @@ export function DashboardLocaleSwitcher({ locale, ariaLabel = "Dashboard languag
   }
 
   return (
-    <div aria-label={ariaLabel} className="dashboard-locale-switcher" role="group">
+    <div
+      aria-label={ariaLabel}
+      className={`dashboard-locale-switcher ${variant === "compact" ? "dashboard-locale-switcher-compact" : ""}`.trim()}
+      role="group"
+    >
+      <span aria-hidden="true" className="dashboard-locale-switcher-icon">
+        <svg fill="none" height="13" viewBox="0 0 24 24" width="13">
+          <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.6" />
+          <path d="M3 12h18M12 3c2.8 2.4 4.2 5.6 4.2 9s-1.4 6.6-4.2 9M12 3c-2.8 2.4-4.2 5.6-4.2 9s1.4 6.6 4.2 9" stroke="currentColor" strokeWidth="1.6" />
+        </svg>
+      </span>
       <button
         aria-pressed={locale === "en"}
-        className={locale === "en" ? "dashboard-locale-switcher-button is-active" : "dashboard-locale-switcher-button"}
+        className={`dashboard-locale-switcher-button dashboard-locale-switcher-button-en ${locale === "en" ? "is-active" : ""}`.trim()}
         onClick={() => selectLocale("en")}
         type="button"
       >
@@ -34,7 +49,7 @@ export function DashboardLocaleSwitcher({ locale, ariaLabel = "Dashboard languag
       </button>
       <button
         aria-pressed={locale === "bn"}
-        className={locale === "bn" ? "dashboard-locale-switcher-button is-active" : "dashboard-locale-switcher-button"}
+        className={`dashboard-locale-switcher-button dashboard-locale-switcher-button-bn ${locale === "bn" ? "is-active" : ""}`.trim()}
         onClick={() => selectLocale("bn")}
         type="button"
       >

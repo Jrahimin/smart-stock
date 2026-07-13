@@ -67,8 +67,16 @@ export function WealthSubNav({ locale }: { locale?: AppLocale }) {
         <WealthSubNavLink item={snapshot} label={language.nav[snapshot.key]} pathname={pathname} />
         <WealthSubNavLink item={calendar} label={language.nav[calendar.key]} pathname={pathname} />
         <WealthSubNavLink item={compare} label={language.nav[compare.key]} pathname={pathname} />
-        {locale ? <DashboardLocaleSwitcher ariaLabel={language.nav.localeSwitcherAria} locale={locale} /> : null}
       </nav>
+
+      {locale ? (
+        <>
+          <span aria-hidden="true" className="wealth-sub-nav-divider wealth-sub-nav-utilities-divider" />
+          <div className="wealth-sub-nav-utilities">
+            <DashboardLocaleSwitcher ariaLabel={language.nav.localeSwitcherAria} locale={locale} variant="compact" />
+          </div>
+        </>
+      ) : null}
     </div>
   );
 }

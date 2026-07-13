@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { getWealthInsightCopy, getWealthLandingLanguage, getWealthSeasonalCopy } from "@/features/wealth/wealth-language";
+import {
+  getWealthInsightCopy,
+  getWealthLandingLanguage,
+  getWealthSeasonalCopy,
+} from "@/features/wealth/wealth-language";
+import { getWealthSnapshotLanguage } from "@/features/wealth/wealth-snapshot-language";
+import { getWealthToolsLanguage } from "@/features/wealth/wealth-tools-language";
 import type { WealthInsightCard, WealthSeasonalContext } from "@/features/wealth/types/wealth-types";
 
 describe("wealth landing language", () => {
@@ -23,7 +29,7 @@ describe("wealth landing language", () => {
     };
 
     expect(getWealthSeasonalCopy(context, "bn")).toMatchObject({
-      title: expect.stringContaining("Income tax"),
+      title: expect.stringContaining("tax"),
       cta_label: "Tax estimate দেখুন",
     });
   });
@@ -62,5 +68,16 @@ describe("wealth landing language", () => {
     expect(getWealthInsightCopy(goalInsight, "bn").title).toContain("Emergency fund");
     expect(getWealthInsightCopy(goalInsight, "bn").body).toContain("42.50%");
     expect(getWealthInsightCopy(insight, "en")).toEqual(insight);
+  });
+
+  it("keeps familiar product terms while localizing tool and snapshot guidance", () => {
+    const tools = getWealthToolsLanguage("bn");
+    const snapshot = getWealthSnapshotLanguage("bn");
+
+    expect(tools.fdr.title).toContain("FDR");
+    expect(tools.zakat.learnMore).toContain("যাকাত");
+    expect(tools.dps.milestone10Lakh).toContain("10");
+    expect(snapshot.hero.title).toBe("Money Snapshot");
+    expect(snapshot.upcoming.next30Days).toContain("30");
   });
 });

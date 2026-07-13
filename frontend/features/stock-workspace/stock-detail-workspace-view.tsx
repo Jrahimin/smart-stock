@@ -219,14 +219,16 @@ export function StockDetailWorkspaceView({
     <div className="stock-workspace-view stock-workspace-view-v2 trader-workspace-fade-in" data-testid="stock-workspace-loaded">
       {isError ? <div className="data-warning">{language.states.workspaceError(symbol)}</div> : null}
       {isDecisionError ? <div className="data-warning">{language.states.decisionError}</div> : null}
-      <div className="trader-workspace-topbar">
+      <div className="trader-workspace-topbar stock-workspace-topbar">
         <StockWorkspaceHeader copy={language.header} decision={decisionModel} model={model} stockId={model.intelligence?.stock.id} />
-        <div className="trader-workspace-topbar-rail">
-          <MarketDataFreshnessBar locale={locale} variant="inline" />
-          <div aria-label={language.localeSwitcherAria} className="stock-workspace-locale-switcher">
+        <div className="stock-workspace-topbar-status-row">
+          <MarketDataFreshnessBar locale={locale} variant="status" />
+          <div aria-label={language.localeSwitcherAria} className="explorer-hero-locale-switcher">
             <DashboardLocaleSwitcher locale={locale} />
           </div>
-          <WorkspaceCommandSearch filterContextName="stocks" showQuickActions={false} variant="compact" />
+        </div>
+        <div className="stock-workspace-topbar-search">
+          <WorkspaceCommandSearch filterContextName="stocks" showQuickActions={false} variant="discovery" />
         </div>
       </div>
 
