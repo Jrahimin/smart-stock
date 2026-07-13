@@ -1,42 +1,51 @@
 import Link from "next/link";
 
 import type { WealthScenarioLauncher } from "@/features/wealth/types/wealth-types";
+import { getWealthLandingLanguage } from "@/features/wealth/wealth-language";
+import { DEFAULT_LOCALE, type AppLocale } from "@/lib/locale/app-locale";
 
 type ScenarioLauncherProps = {
   scenarios: WealthScenarioLauncher[];
+  locale?: AppLocale;
 };
 
-export function ScenarioLauncher({ scenarios }: ScenarioLauncherProps) {
+export function ScenarioLauncher({ scenarios, locale = DEFAULT_LOCALE }: ScenarioLauncherProps) {
+  const language = getWealthLandingLanguage(locale);
+
   return (
     <section className="wealth-section wealth-scenario-launcher-section">
       <div className="wealth-section-heading">
-        <p className="eyebrow">Start with your question</p>
-        <h2>What are you trying to understand?</h2>
-        <p className="wealth-muted-copy">Choose the money story that feels closest to today&apos;s decision.</p>
+        <p className="eyebrow">{language.scenarios.eyebrow}</p>
+        <h2>{language.scenarios.title}</h2>
+        <p className="wealth-muted-copy">{language.scenarios.description}</p>
       </div>
       <div className="wealth-scenario-grid">
-        {scenarios.map((scenario) => (
-          <Link className={`wealth-scenario-card wealth-scenario-card-${scenario.cue}`} href={scenario.href} key={scenario.id}>
-            <div className="wealth-scenario-card-header">
-              <span className="wealth-scenario-icon-inline" aria-hidden="true">
-                {scenarioIcon(scenario.cue)}
-              </span>
-              <div className="wealth-scenario-card-badges">
-                {scenario.productLabel ? (
-                  <span className="wealth-scenario-product">{scenario.productLabel}</span>
-                ) : null}
-                <span className="wealth-scenario-cue" aria-hidden="true">
-                  {scenario.cue}
+        {scenarios.map((scenario) => {
+          const item = language.scenarios.items[scenario.id];
+
+          return (
+            <Link className={`wealth-scenario-card wealth-scenario-card-${scenario.cue}`} href={scenario.href} key={scenario.id}>
+              <div className="wealth-scenario-card-header">
+                <span className="wealth-scenario-icon-inline" aria-hidden="true">
+                  {scenarioIcon(scenario.cue)}
                 </span>
+                <div className="wealth-scenario-card-badges">
+                  {scenario.productLabel ? (
+                    <span className="wealth-scenario-product">{scenario.productLabel}</span>
+                  ) : null}
+                  <span className="wealth-scenario-cue" aria-hidden="true">
+                    {item.cue}
+                  </span>
+                </div>
               </div>
-            </div>
-            <div>
-              <p className="eyebrow">{scenario.eyebrow}</p>
-              <h3>{scenario.title}</h3>
-              <p>{scenario.description}</p>
-            </div>
-          </Link>
-        ))}
+              <div>
+                <p className="eyebrow">{item.eyebrow}</p>
+                <h3>{item.title}</h3>
+                <p>{item.description}</p>
+              </div>
+            </Link>
+          );
+        })}
       </div>
     </section>
   );

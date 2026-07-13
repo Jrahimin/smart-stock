@@ -9115,10 +9115,6 @@ button {
   padding: 16px;
 }
 
-.wealth-scenario-launcher-section .wealth-section-heading h2 {
-  font-size: clamp(1.7rem, 2.6vw, 2.5rem);
-}
-
 .wealth-primary-button {
   background: linear-gradient(135deg, color-mix(in srgb, var(--primary) 92%, white), var(--primary));
   border: 0;

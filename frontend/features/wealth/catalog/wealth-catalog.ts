@@ -1,20 +1,21 @@
 import type {
   WealthComparisonCardModel,
   WealthComparisonSlug,
+  WealthIntentHref,
   WealthScenarioLauncher,
   WealthToolSlug,
 } from "@/features/wealth/types/wealth-types";
 
 export const WEALTH_INTENT_OPTIONS = [
-  { label: "Tax Planner", href: "/wealth/tools/tax-planner" },
-  { label: "DPS — save monthly", href: "/wealth/tools/dps" },
-  { label: "FDR — lock money", href: "/wealth/tools/fdr" },
-  { label: "Sanchayapatra", href: "/wealth/tools/sanchayapatra" },
-  { label: "Invest", href: "/wealth/tools/compound-growth" },
-  { label: "Loan / EMI", href: "/wealth/tools/emi" },
-  { label: "Zakat", href: "/wealth/tools/zakat" },
-  { label: "Retirement goal", href: "/wealth/tools/retirement" },
-] as const;
+  { href: "/wealth/tools/tax-planner" },
+  { href: "/wealth/tools/dps" },
+  { href: "/wealth/tools/fdr" },
+  { href: "/wealth/tools/sanchayapatra" },
+  { href: "/wealth/tools/compound-growth" },
+  { href: "/wealth/tools/emi" },
+  { href: "/wealth/tools/zakat" },
+  { href: "/wealth/tools/retirement" },
+] as const satisfies ReadonlyArray<{ href: WealthIntentHref }>;
 
 export const WEALTH_CALCULATOR_NAV_ITEMS = [
   { label: "FDR", href: "/wealth/tools/fdr", icon: "🏦" },
@@ -31,72 +32,48 @@ export const WEALTH_CALCULATOR_NAV_ITEMS = [
 export const WEALTH_SCENARIO_LAUNCHERS: WealthScenarioLauncher[] = [
   {
     id: "tax-planning",
-    eyebrow: "I want to plan taxes",
-    title: "Estimate yearly tax",
-    description: "Explore how income and tax saving investments may affect your estimate.",
     href: "/wealth/tools/tax-planner",
     cue: "planning",
     productLabel: "Tax Planner",
   },
   {
     id: "extra-savings",
-    eyebrow: "I have extra savings",
-    title: "Lock money in FDR",
-    description: "See what steadiness gives you, and what flexibility you give up.",
     href: "/wealth/tools/fdr",
     cue: "steady",
     productLabel: "FDR",
   },
   {
     id: "passive-income",
-    eyebrow: "I want passive income",
-    title: "Plan government savings income",
-    description: "Explore how today's savings could provide steady family income and future maturity.",
     href: "/wealth/tools/sanchayapatra",
     cue: "income",
     productLabel: "Sanchayapatra",
   },
   {
     id: "retire-earlier",
-    eyebrow: "I want to retire earlier",
-    title: "Grow a monthly habit",
-    description: "Watch small recurring decisions change the long-term picture.",
     href: "/wealth/tools/retirement",
     cue: "habit",
     productLabel: "DPS",
   },
   {
     id: "loan",
-    eyebrow: "I have a loan to plan",
-    title: "Understand loan pressure",
-    description: "See monthly EMI, total interest, and what prepaying could change.",
     href: "/wealth/tools/emi",
     cue: "loan",
     productLabel: "Loan",
   },
   {
     id: "zakat",
-    eyebrow: "I need to calculate Zakat",
-    title: "Prepare Zakat calmly",
-    description: "Estimate eligible wealth with space for care and context.",
     href: "/wealth/tools/zakat",
     cue: "care",
     productLabel: "Zakat",
   },
   {
     id: "compare",
-    eyebrow: "I want to compare my options",
-    title: "Choose between two paths",
-    description: "Turn a money decision into a side-by-side story.",
     href: "/wealth/compare/dps-vs-fdr",
     cue: "choice",
     productLabel: "DPS vs FDR",
   },
   {
     id: "inflation",
-    eyebrow: "Prices may keep rising",
-    title: "Protect purchasing power",
-    description: "See the headline number beside what it may feel like later.",
     href: "/wealth/compare/inflation-impact",
     cue: "real",
     productLabel: "Inflation",
@@ -241,13 +218,6 @@ export const WEALTH_COMPARISON_STORIES: Record<
     },
   },
 };
-
-export const WEALTH_EDUCATION_BITES = [
-  "Inflation can make a fixed return feel smaller than it looks.",
-  "Liquidity often matters before headline return.",
-  "Comparing paths is usually more useful than one isolated number.",
-  "Your Money Snapshot can grow gradually—no big setup required.",
-];
 
 export const WEALTH_TOOL_DETAILS_DEFAULTS = {
   title: "Better forecasts",

@@ -4,38 +4,49 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
+import { DashboardLocaleSwitcher } from "@/features/market-dashboard/components/dashboard-locale-switcher";
 import { WEALTH_CALCULATOR_NAV_ITEMS } from "@/features/wealth/catalog/wealth-catalog";
+import { getWealthLandingLanguage, type WealthLandingLanguage } from "@/features/wealth/wealth-language";
+import type { AppLocale } from "@/lib/locale/app-locale";
 
-const WEALTH_SUB_NAV_ITEMS = [
-  { href: "/wealth", label: "Overview", icon: "⌂", match: (path: string) => path === "/wealth" },
+type WealthSubNavKey = "overview" | "taxPlanner" | "snapshot" | "timeTravel" | "compare";
+
+const WEALTH_SUB_NAV_ITEMS: Array<{
+  href: string;
+  key: WealthSubNavKey;
+  icon: string;
+  match: (path: string) => boolean;
+}> = [
+  { href: "/wealth", key: "overview", icon: "⌂", match: (path: string) => path === "/wealth" },
   {
     href: "/wealth/tools/tax-planner",
-    label: "Tax Planner",
+    key: "taxPlanner",
     icon: "◇",
     match: (path: string) => path.startsWith("/wealth/tools/tax-planner"),
   },
   {
     href: "/wealth/snapshot",
-    label: "Snapshot",
+    key: "snapshot",
     icon: "◈",
     match: (path: string) => path.startsWith("/wealth/snapshot"),
   },
   {
     href: "/wealth/calendar",
-    label: "Time Travel",
+    key: "timeTravel",
     icon: "◷",
     match: (path: string) => path.startsWith("/wealth/calendar"),
   },
   {
     href: "/wealth/compare/dps-vs-fdr",
-    label: "DPS vs FDR",
+    key: "compare",
     icon: "⇄",
     match: (path: string) => path.startsWith("/wealth/compare"),
   },
 ] as const;
 
-export function WealthSubNav() {
+export function WealthSubNav({ locale }: { locale?: AppLocale }) {
   const pathname = usePathname();
+  const language = getWealthLandingLanguage(locale ?? "en");
   const [overview, taxPlanner, snapshot, calendar, compare] = WEALTH_SUB_NAV_ITEMS;
 
   return (
@@ -49,13 +60,14 @@ export function WealthSubNav() {
 
       <span aria-hidden="true" className="wealth-sub-nav-divider" />
 
-      <nav aria-label="Wealth workspace" className="wealth-sub-nav">
-        <WealthSubNavLink item={overview} pathname={pathname} />
-        <WealthCalculatorsNavItem pathname={pathname} />
-        <WealthSubNavLink item={taxPlanner} pathname={pathname} />
-        <WealthSubNavLink item={snapshot} pathname={pathname} />
-        <WealthSubNavLink item={calendar} pathname={pathname} />
-        <WealthSubNavLink item={compare} pathname={pathname} />
+      <nav aria-label={language.nav.ariaLabel} className="wealth-sub-nav">
+        <WealthSubNavLink item={overview} label={language.nav[overview.key]} pathname={pathname} />
+        <WealthCalculatorsNavItem copy={language.nav} pathname={pathname} />
+        <WealthSubNavLink item={taxPlanner} label={language.nav[taxPlanner.key]} pathname={pathname} />
+        <WealthSubNavLink item={snapshot} label={language.nav[snapshot.key]} pathname={pathname} />
+        <WealthSubNavLink item={calendar} label={language.nav[calendar.key]} pathname={pathname} />
+        <WealthSubNavLink item={compare} label={language.nav[compare.key]} pathname={pathname} />
+        {locale ? <DashboardLocaleSwitcher ariaLabel={language.nav.localeSwitcherAria} locale={locale} /> : null}
       </nav>
     </div>
   );
@@ -63,9 +75,11 @@ export function WealthSubNav() {
 
 function WealthSubNavLink({
   item,
+  label,
   pathname,
 }: {
   item: (typeof WEALTH_SUB_NAV_ITEMS)[number];
+  label: string;
   pathname: string;
 }) {
   const isActive = item.match(pathname);
@@ -79,12 +93,12 @@ function WealthSubNavLink({
       <span aria-hidden="true" className="wealth-sub-nav-inline-icon">
         {item.icon}
       </span>
-      <span className="wealth-sub-nav-item-label">{item.label}</span>
+      <span className="wealth-sub-nav-item-label">{label}</span>
     </Link>
   );
 }
 
-function WealthCalculatorsNavItem({ pathname }: { pathname: string }) {
+function WealthCalculatorsNavItem({ pathname, copy }: { pathname: string; copy: WealthLandingLanguage["nav"] }) {
   const [isOpen, setIsOpen] = useState(false);
   const shellRef = useRef<HTMLDivElement>(null);
   const isActive = pathname.startsWith("/wealth/tools") && !pathname.startsWith("/wealth/tools/tax-planner");
@@ -128,7 +142,7 @@ function WealthCalculatorsNavItem({ pathname }: { pathname: string }) {
           {activeCalculator?.icon ?? "✦"}
         </span>
         <span className="wealth-sub-nav-trigger-label">
-          {activeCalculator ? `Calculators · ${activeCalculator.label}` : "Calculators"}
+          {activeCalculator ? `${copy.calculators} · ${activeCalculator.label}` : copy.calculators}
         </span>
         <span aria-hidden="true" className="wealth-sub-nav-chevron">
           ▾

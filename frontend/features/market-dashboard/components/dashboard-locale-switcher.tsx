@@ -7,9 +7,10 @@ import { writeAppLocaleCookie } from "@/lib/locale/app-locale";
 
 type DashboardLocaleSwitcherProps = {
   locale: AppLocale;
+  ariaLabel?: string;
 };
 
-export function DashboardLocaleSwitcher({ locale }: DashboardLocaleSwitcherProps) {
+export function DashboardLocaleSwitcher({ locale, ariaLabel = "Dashboard language" }: DashboardLocaleSwitcherProps) {
   const router = useRouter();
 
   function selectLocale(nextLocale: AppLocale) {
@@ -22,7 +23,7 @@ export function DashboardLocaleSwitcher({ locale }: DashboardLocaleSwitcherProps
   }
 
   return (
-    <div aria-label="Dashboard language" className="dashboard-locale-switcher" role="group">
+    <div aria-label={ariaLabel} className="dashboard-locale-switcher" role="group">
       <button
         aria-pressed={locale === "en"}
         className={locale === "en" ? "dashboard-locale-switcher-button is-active" : "dashboard-locale-switcher-button"}
