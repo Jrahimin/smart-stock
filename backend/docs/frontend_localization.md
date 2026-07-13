@@ -14,7 +14,53 @@ Single reference for how Smart Stock localizes the UI, and how to extend the sam
 | Framework | **None** — no `next-intl`, no React context, no `/bn/...` routes |
 | Scope | Feature-local typed dictionaries + `locale` prop |
 | Backend text | Stays English (`reason`, `description`, etc.) |
-| Partial rollout | OK — unlocalized pages (e.g. Scanner, Stock Explorer list) show English without errors |
+| Partial rollout | OK — unlocalized routes (e.g. `/wealth`, stock explorer list) show English until wired |
+
+---
+
+## Reference files for new page conversions
+
+Read these before implementing a new localized route. **Technical wiring** and **copy taste** are split on purpose.
+
+### Technical pattern (minimal → full)
+
+| Order | File | Why |
+|-------|------|-----|
+| 1 | `backend/docs/frontend_localization.md` | Checklist, edge cases, tests (this doc) |
+| 2 | `frontend/lib/locale/app-locale.ts` | Cookie, `AppLocale`, `DEFAULT_LOCALE` |
+| 3 | `frontend/app/layout.tsx` | Root `<html lang>` from cookie |
+| 4 | `frontend/features/scanner/scanner-page-shell.tsx` | **Smallest** server shell — cookie → `locale` prop |
+| 5 | `frontend/features/scanner/scanner-workspace-view.tsx` | Client view — `getScannerLanguage(locale)` |
+| 6 | `frontend/features/market-dashboard/dashboard-page-shell.tsx` | Full shell with data hydration (dashboard) |
+| 7 | `frontend/components/layout/workspace-page-hero.tsx` | Hero + optional `DashboardLocaleSwitcher` |
+| 8 | `frontend/features/market-dashboard/components/dashboard-locale-switcher.tsx` | Cookie write + `router.refresh()` |
+
+**New feature files to add:** `features/<feature>/<feature>-language.ts`, `<feature>-page-shell.tsx`, `<feature>-locale.test.ts`; wire `app/<route>/page.tsx` to the shell.
+
+### Copy taste samples (read `bn` branches)
+
+Casual Bangla, mixed trading terms (BUY, RSI, Volume, FDR, etc.), Western digits — match these, do not invent a new voice.
+
+| Sample | File | Good for |
+|--------|------|----------|
+| **Start here** | `frontend/features/scanner/scanner-language.ts` | New hub pages with titles, filters, empty states |
+| Signals / tables | `frontend/features/signals/signals-language.ts` | Filters, row labels, loading/error copy |
+| Briefing / narrative | `frontend/features/market-pulse/market-pulse-language.ts` | Multi-section prose, chips by stable id |
+| Full product voice | `frontend/features/market-dashboard/dashboard-language.ts` | Panels, narratives, insights, guide-adjacent copy |
+| Stock detail chrome | `frontend/features/stock-workspace/stock-workspace-language.ts` | Section nav, panels, related groups |
+| API overlay by code | `frontend/features/stock-workspace/stock-decision-language.ts` | Backend English + stable `code` → Bangla |
+
+### View-model overlay (backend stays English)
+
+| Pattern | File |
+|---------|------|
+| Apply overlay at end of build | `frontend/features/market-pulse/view-models/market-pulse-view-model.ts` → `applyMarketPulseLocalization` |
+| Semantic keys, not English strings | `frontend/features/market-dashboard/view-models/market-dashboard-view-model.ts` |
+| Warnings / signals by `code` | `frontend/features/stock-workspace/view-models/stock-decision-view-model.ts` + `stock-decision-language.ts` |
+
+### Routes not localized yet (2026-07)
+
+`/wealth` and sub-routes (`/wealth/snapshot`, `/wealth/calendar`, `/wealth/tools/*`, `/wealth/compare/*`) — strings live in `frontend/features/wealth/` (start with `wealth-workspace-view.tsx`, `catalog/wealth-catalog.ts`). Stock explorer list (`/stocks`) is still English-only.
 
 ---
 
@@ -241,6 +287,8 @@ export function getFeatureLanguage(locale: AppLocale): FeatureLanguage {
 | Market Pulse UI copy | `frontend/features/market-pulse/market-pulse-language.ts` |
 | Stock details UI copy | `frontend/features/stock-workspace/stock-workspace-language.ts` |
 | Signal Center UI copy | `frontend/features/signals/signals-language.ts` (reuses dashboard `signals.decisionReasons` for Bangla reasons) |
+| Scanner UI copy | `frontend/features/scanner/scanner-language.ts` |
+| Stock decision warnings / chips | `frontend/features/stock-workspace/stock-decision-language.ts` |
 | Dashboard model localization | `frontend/features/market-dashboard/view-models/market-dashboard-view-model.ts` |
 | Guide / mascot (all surfaces) | `frontend/features/guide/dialogs/dashboard-dialogs.ts` |
 | Guide desktop steps | `frontend/features/guide/config/dashboard-sidebar-guide.ts` |
@@ -319,7 +367,7 @@ Benefits: one code path for API mapping, English tests stay simple, Bangla is an
 
 ### 1. Partial localization is safe
 
-Dashboard, Market Pulse, Signal Center, and Stock Details consume `locale` today. Other routes (`/stocks` explorer list, `/scanner`, `/wealth`, …) ignore the cookie and show English. **No errors** — that is by design until each feature adds a dictionary.
+Dashboard, Market Pulse, Signal Center, Scanner, and Stock Details consume `locale` today. Other routes (`/wealth`, `/stocks` explorer list, …) ignore the cookie and show English. **No errors** — that is by design until each feature adds a dictionary. **New client-facing routes should ship with localization** — see `.cursor/rules/architecture.md`.
 
 ### 2. Always pass `locale` from the server boundary
 
@@ -393,6 +441,18 @@ Step **targets** (selectors, order) stay in `dashboard-sidebar-guide.ts` / `mobi
 
 ---
 
+## Example: localizing `/wealth` (outline)
+
+Not implemented yet — use Scanner as the wiring template and Wealth catalog for string inventory.
+
+1. Add `frontend/features/wealth/wealth-language.ts` (hero, sub-nav, tool labels — move copy out of `catalog/wealth-catalog.ts` or localize by stable id).
+2. Add `frontend/features/wealth/wealth-page-shell.tsx`; wire all `frontend/app/wealth/**/page.tsx` routes.
+3. Pass `locale` through `WealthWorkspaceView`, `money-snapshot-dashboard-view.tsx`, tool workspaces under `components/`.
+4. Add `wealth-locale.test.ts`.
+5. Backend seasonal/insight payloads can stay English until semantic keys exist.
+
+---
+
 ## Example: localizing `/market-pulse` (outline)
 
 Implemented — see `market-pulse-language.ts`, `market-pulse-page-shell.tsx`, `market-pulse-locale.test.ts`.
@@ -455,6 +515,7 @@ npm test -- --run dashboard-locale dashboard-ssr market-pulse-locale signals-loc
 
 ## Related docs
 
+* Architecture rule (localization in scope for new pages): `.cursor/rules/architecture.md`
 * Guide completion API (not language): [user_preferences.md](user_preferences.md)
 * Dashboard API (English payloads): [market_dashboard.md](market_dashboard.md)
 * Project code map: `.cursor/rules/project_context.md`

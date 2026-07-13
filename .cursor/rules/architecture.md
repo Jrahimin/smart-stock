@@ -235,6 +235,7 @@ After price ingest / `sync_market_snapshot`, call `spawn_rebuild_market_read_cac
 * Keep App Router route files minimal; framework-required names like `page.tsx` and `layout.tsx` are allowed
 * Group hooks by domain, for example `hooks/market/useMarketOverview.ts`
 * Design should be mobile responsive
+* New App Router pages and feature modules that render user-facing copy must include Bangla/English localization per `backend/docs/frontend_localization.md` — dictionary, server shell, and locale tests are part of the feature, not optional polish
 
 ---
 
@@ -251,8 +252,21 @@ Use feature-based modules under `frontend/features/`:
 * `scanner/` for opportunity scans and filterable candidate groups
 * `signals/` for explanation-first deterministic signal feeds
 * `watchlist/` for grouped local watchlists and future backend persistence
+* `wealth/` for money tools, snapshot, calendar, and comparisons
 
 Feature modules own their components, hooks, view models, services, and types. Shared UI belongs under `frontend/components/`; shared API, formatter, insight, command, and market logic belongs under `frontend/lib/`.
+
+### Localization (Bangla / English)
+
+**Any new client-facing route or feature module is in scope for Bangla/English localization** at implementation time — not a follow-up task.
+
+Rules:
+
+* Follow **`backend/docs/frontend_localization.md`** end-to-end (dictionary, server shell, `locale` prop, tests).
+* Add `features/<feature>/<feature>-language.ts` and `<feature>-page-shell.tsx`; read cookie via `parseAppLocale`, pass `locale` into the client view.
+* Match existing **copy taste** from reference samples in that doc (start with `scanner-language.ts` for new hubs; `dashboard-language.ts` for full voice).
+* Backend API prose stays English; localize in the frontend with **semantic keys** or stable `code` fields — never match English display strings in view-models.
+* Default locale is `bn` (`DEFAULT_LOCALE`); unlocalized legacy routes may still show English until converted — **do not add new English-only user surfaces**.
 
 ### Data Flow And View Models
 
@@ -364,6 +378,7 @@ Initial insights should be deterministic, auditable, and based on market data, i
 * Large, unstructured pages ❌
 * Tight coupling between components ❌
 * Vague reusable filenames when a purpose-specific name improves searchability ❌
+* Shipping a new client-facing page or module without `*-language.ts`, server locale shell, and `locale` prop wiring ❌
 
 ---
 
