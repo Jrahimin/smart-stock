@@ -19,6 +19,26 @@ export type WealthComparisonSlug =
 
 export type WealthInsightSeverity = "INFO" | "POSITIVE" | "WARNING" | "NEUTRAL";
 
+export type WealthScenarioId =
+  | "tax-planning"
+  | "extra-savings"
+  | "passive-income"
+  | "retire-earlier"
+  | "loan"
+  | "zakat"
+  | "compare"
+  | "inflation";
+
+export type WealthIntentHref =
+  | "/wealth/tools/tax-planner"
+  | "/wealth/tools/dps"
+  | "/wealth/tools/fdr"
+  | "/wealth/tools/sanchayapatra"
+  | "/wealth/tools/compound-growth"
+  | "/wealth/tools/emi"
+  | "/wealth/tools/zakat"
+  | "/wealth/tools/retirement";
+
 export type WealthInsightCard = {
   id: string;
   title: string;
@@ -125,11 +145,8 @@ export type WealthDashboard = {
 };
 
 export type WealthScenarioLauncher = {
-  id: string;
-  title: string;
-  description: string;
+  id: WealthScenarioId;
   href: string;
-  eyebrow: string;
   cue: string;
   productLabel?: string;
 };

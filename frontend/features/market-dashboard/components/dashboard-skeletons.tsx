@@ -11,15 +11,24 @@ import {
   ShimmerTimelineTiles,
   WorkspaceCardSkeleton,
 } from "@/components/ui/shimmer";
+import type { DashboardLanguage } from "@/features/market-dashboard/dashboard-language";
 
-export function MarketPulseCoreSkeleton({ leadersLoading = true }: { leadersLoading?: boolean }) {
+type PulseSkeletonCopy = DashboardLanguage["skeletons"];
+
+export function MarketPulseCoreSkeleton({
+  copy,
+  leadersLoading = true,
+}: {
+  copy: PulseSkeletonCopy;
+  leadersLoading?: boolean;
+}) {
   return (
     <section
       className="market-pulse-panel market-pulse-panel-loading"
       aria-busy="true"
-      aria-label="Loading market pulse"
+      aria-label={copy.pulseLoadingAria}
     >
-      <LoadingStatus className="market-dashboard-loading-status" label="Loading market pulse" />
+      <LoadingStatus className="market-dashboard-loading-status" label={copy.pulseLoading} />
       <div className="market-pulse-card">
         <div className="market-pulse-strip market-pulse-strip-skeleton" role="list">
           {Array.from({ length: 4 }).map((_, index) => (
@@ -50,13 +59,19 @@ export function MarketPulseLeadersSkeleton() {
 }
 
 /** @deprecated Use MarketPulseCoreSkeleton — full strip blocks on leaders. */
-export function MarketPulseStripSkeleton() {
-  return <MarketPulseCoreSkeleton />;
+export function MarketPulseStripSkeleton({ copy }: { copy: PulseSkeletonCopy }) {
+  return <MarketPulseCoreSkeleton copy={copy} />;
 }
 
-export function MarketBreadthPanelSkeleton() {
+export function MarketBreadthPanelSkeleton({
+  eyebrow,
+  title,
+}: {
+  eyebrow: string;
+  title: string;
+}) {
   return (
-    <WorkspaceCardSkeleton delayMs={0} eyebrow="Market Breadth" title="Advancing, declining, unchanged">
+    <WorkspaceCardSkeleton delayMs={0} eyebrow={eyebrow} title={title}>
       <ShimmerBreadthTrack delayMs={80} />
     </WorkspaceCardSkeleton>
   );
@@ -78,42 +93,61 @@ export function MarketMoversPanelSkeleton({
   );
 }
 
-export function SmartSignalFeedSkeleton() {
+export function SmartSignalFeedSkeleton({
+  eyebrow,
+  title,
+}: {
+  eyebrow: string;
+  title: string;
+}) {
   return (
-    <WorkspaceCardSkeleton delayMs={120} eyebrow="Smart Signals" title="Explanation-first feed">
+    <WorkspaceCardSkeleton delayMs={120} eyebrow={eyebrow} title={title}>
       <ShimmerSignalRows count={3} delayMs={200} />
     </WorkspaceCardSkeleton>
   );
 }
 
-export function InstitutionalHeatmapSkeleton() {
+export function InstitutionalHeatmapSkeleton({
+  eyebrow,
+  title,
+}: {
+  eyebrow: string;
+  title: string;
+}) {
   return (
-    <WorkspaceCardSkeleton className="heatmap-card" delayMs={160} eyebrow="Institutional Heatmap" title="Sector-weighted market map">
+    <WorkspaceCardSkeleton className="heatmap-card" delayMs={160} eyebrow={eyebrow} title={title}>
       <ShimmerHeatmapGrid delayMs={240} />
     </WorkspaceCardSkeleton>
   );
 }
 
-export function InsightSidebarSkeleton() {
+export function InsightSidebarSkeleton({
+  eyebrow,
+  title,
+}: {
+  eyebrow: string;
+  title: string;
+}) {
   return (
     <aside className="insight-sidebar insight-sidebar-skeleton" aria-busy="true">
       <div className="section-heading">
-        <p className="eyebrow">Insights</p>
-        <h2>Deterministic intelligence</h2>
+        <p className="eyebrow">{eyebrow}</p>
+        <h2>{title}</h2>
       </div>
       <ShimmerInsightBlocks count={3} delayMs={200} />
     </aside>
   );
 }
 
-export function MarketTimelineSkeleton() {
+export function MarketTimelineSkeleton({
+  eyebrow,
+  title,
+}: {
+  eyebrow: string;
+  title: string;
+}) {
   return (
-    <WorkspaceCardSkeleton
-      className="market-timeline-section"
-      delayMs={280}
-      eyebrow="Market Timeline"
-      title="Events and operating context"
-    >
+    <WorkspaceCardSkeleton className="market-timeline-section" delayMs={280} eyebrow={eyebrow} title={title}>
       <ShimmerTimelineTiles count={4} delayMs={360} />
     </WorkspaceCardSkeleton>
   );

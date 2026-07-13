@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 
 import { JsonLdScript } from "@/components/seo/json-ld-script";
@@ -10,6 +11,7 @@ import { StockDetailWorkspaceView } from "@/features/stock-workspace/stock-detai
 import { buildStockDecisionViewModel } from "@/features/stock-workspace/view-models/stock-decision-view-model";
 import { buildStockSemanticSummary } from "@/features/stock-workspace/view-models/stock-semantic-summary-view-model";
 import { buildStockWorkspaceModel } from "@/features/stock-workspace/view-models/stock-workspace-view-model";
+import { LOCALE_COOKIE_NAME, parseAppLocale } from "@/lib/locale/app-locale";
 import {
   buildStockBreadcrumbJsonLd,
   buildStockDetailCanonical,
@@ -85,6 +87,8 @@ export async function generateMetadata({ params }: StockDetailPageProps): Promis
 export default async function StockDetailPage({ params }: StockDetailPageProps) {
   const { exchange, symbol } = await params;
   const normalizedSymbol = symbol.toUpperCase();
+  const cookieStore = await cookies();
+  const locale = parseAppLocale(cookieStore.get(LOCALE_COOKIE_NAME)?.value);
   const result = await loadStockWorkspace(exchange, normalizedSymbol);
 
   if (result.status === "not_found") {
@@ -104,10 +108,15 @@ export default async function StockDetailPage({ params }: StockDetailPageProps) 
   ];
 
   return (
-    <TerminalAppShell>
+    <TerminalAppShell dashboardLocale={locale}>
       <JsonLdScript data={structuredData} />
-      <StockDurableSummary workspace={workspace} />
-      <StockDetailWorkspaceView exchange={exchange} initialWorkspace={workspace} symbol={normalizedSymbol} />
+      <StockDurableSummary locale={locale} workspace={workspace} />
+      <StockDetailWorkspaceView
+        exchange={exchange}
+        initialWorkspace={workspace}
+        locale={locale}
+        symbol={normalizedSymbol}
+      />
     </TerminalAppShell>
   );
 }

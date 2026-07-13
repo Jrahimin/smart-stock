@@ -1,10 +1,11 @@
 "use client";
 
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
-import { mapTraderDecisionsToSignalFeed } from "@/features/market-dashboard/view-models/dashboard-sections-mapper";
+import { mapUniverseRowsToSignalFeed } from "@/features/market-dashboard/view-models/dashboard-sections-mapper";
 import { BackendApiError } from "@/lib/api/backend-api-client";
-import { fetchDashboardTraderSignals } from "@/lib/api/signals-api";
+import { listUniverseRows } from "@/lib/api/market-universe-api";
 import type { ExchangeCode } from "@/lib/api/backend-api-types";
 import type { SignalFeedItemModel } from "@/features/market-dashboard/types/market-dashboard-types";
 
@@ -19,6 +20,8 @@ export type DashboardStocksInFocusQueryData = {
   signals: SignalFeedItemModel[];
   evaluatedCount: number;
 };
+
+const UNIVERSE_ROWS_QUERY_KEY_LIMIT = 500;
 
 const UNIVERSE_CACHE_WARM_MAX_RETRIES = 20;
 const UNIVERSE_CACHE_WARM_RETRY_DELAY_MS = 2000;
@@ -36,19 +39,29 @@ export function useDashboardStocksInFocus({
   refetchIntervalMs = false,
   enabled = true,
 }: UseDashboardSectionOptions) {
-  return useQuery({
-    queryKey: ["dashboard", "trader-signals", exchange],
-    queryFn: async (): Promise<DashboardStocksInFocusQueryData> => {
-      const payload = await fetchDashboardTraderSignals(exchange);
-      return {
-        signals: mapTraderDecisionsToSignalFeed(payload.signals),
-        evaluatedCount: payload.evaluatedCount,
-      };
-    },
+  const universeQuery = useQuery({
+    queryKey: ["market-universe-rows", exchange, UNIVERSE_ROWS_QUERY_KEY_LIMIT],
+    queryFn: () => listUniverseRows(exchange),
     staleTime: staleTimeMs,
     refetchInterval: refetchIntervalMs,
     enabled,
     retry: shouldRetryTraderSignals,
     retryDelay: () => UNIVERSE_CACHE_WARM_RETRY_DELAY_MS,
   });
+
+  const data = useMemo((): DashboardStocksInFocusQueryData | undefined => {
+    if (!universeQuery.data?.rows) {
+      return undefined;
+    }
+
+    return {
+      signals: mapUniverseRowsToSignalFeed(universeQuery.data.rows),
+      evaluatedCount: universeQuery.data.rows.filter((row) => row.decision !== null).length,
+    };
+  }, [universeQuery.data]);
+
+  return {
+    ...universeQuery,
+    data,
+  };
 }

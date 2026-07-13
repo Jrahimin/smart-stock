@@ -5,11 +5,21 @@ import type {
   BackendDashboardMarketSentimentDto,
   BackendDashboardSectorsDto,
   BackendDashboardStocksInFocusDto,
+  BackendScoredUniverseRowDto,
   BackendStockTraderDecisionDto,
 } from "@/lib/api/backend-api-types";
 import type { InsightBlockModel } from "@/lib/insights/insight-types";
 import type { LeadersPulseContext } from "@/lib/market/market-pulse-metrics";
 import { isActionableDecision } from "@/lib/market/trader-decision";
+import {
+  buildDecisionSupportingContext,
+  resolveTraderDecision,
+} from "@/lib/market/trader-decision";
+import {
+  buildSignalTechnicalContext,
+  resolveTraderDecisionReason,
+} from "@/lib/market/trader-decision-reason";
+import { mapUniverseRowToListRow } from "@/lib/market/universe-row-mapper";
 import { buildStockDetailPath } from "@/lib/seo/stock-page-seo";
 import type {
   HeatmapTileModel,
@@ -34,6 +44,73 @@ function formatGeneratedAt(latestTradeDate: string | null): string {
   return latestTradeDate ?? "Awaiting price data";
 }
 
+function buildSignalFeedReason(stock: ReturnType<typeof mapUniverseRowToListRow>): string {
+  const decision = resolveTraderDecision(stock);
+  const stockSpecific = buildDecisionSupportingContext(stock).slice(0, 2).join(" · ");
+  return stockSpecific ? `${stockSpecific}. ${decision.reason}` : decision.reason;
+}
+
+function compareSignalFeedCandidates(
+  left: ReturnType<typeof mapUniverseRowToListRow>,
+  right: ReturnType<typeof mapUniverseRowToListRow>,
+): number {
+  const leftDecision = resolveTraderDecision(left);
+  const rightDecision = resolveTraderDecision(right);
+
+  if (rightDecision.confidence !== leftDecision.confidence) {
+    return rightDecision.confidence - leftDecision.confidence;
+  }
+
+  const opportunityDelta =
+    (rightDecision.opportunityScore ?? 0) - (leftDecision.opportunityScore ?? 0);
+  if (opportunityDelta !== 0) {
+    return opportunityDelta;
+  }
+
+  return left.stock.symbol.localeCompare(right.stock.symbol);
+}
+
+export function mapUniverseRowsToSignalFeed(
+  rows: BackendScoredUniverseRowDto[],
+  limit = DASHBOARD_SIGNAL_FEED_LIMIT,
+): SignalFeedItemModel[] {
+  return rows
+    .map(mapUniverseRowToListRow)
+    .filter((stock) => {
+      const decision = resolveTraderDecision(stock);
+      return isActionableDecision(decision.recommendation) || decision.confidence >= 55;
+    })
+    .sort(compareSignalFeedCandidates)
+    .slice(0, limit)
+    .map((stock) => {
+      const decision = resolveTraderDecision(stock);
+      const supportingContext = buildDecisionSupportingContext(stock);
+      const resolvedReason = resolveTraderDecisionReason(decision.reason);
+
+      return {
+        symbol: stock.stock.symbol,
+        signal: decision.recommendation,
+        confidence: `${decision.confidence}%`,
+        confidenceValue: decision.confidence,
+        reason: buildSignalFeedReason(stock),
+        reasonSummary: decision.reason,
+        reasonKey: resolvedReason.key,
+        reasonParams: resolvedReason.params,
+        technicalContext: buildSignalTechnicalContext(stock),
+        risk: decision.riskLabel,
+        priority: decisionPriority(decision.confidence),
+        href: buildStockDetailPath(stock.stock.exchange, stock.stock.symbol),
+        supportingContext: supportingContext.length
+          ? supportingContext
+          : [
+              decision.opportunityScore !== null ? `Opportunity ${decision.opportunityScore}` : "Opportunity —",
+              `${decision.riskLabel} risk`,
+            ],
+        generatedAt: formatGeneratedAt(stock.latestTradeDate),
+      };
+    });
+}
+
 export function mapTraderDecisionsToSignalFeed(
   decisions: BackendStockTraderDecisionDto[],
   limit = DASHBOARD_SIGNAL_FEED_LIMIT,
@@ -46,33 +123,49 @@ export function mapTraderDecisionsToSignalFeed(
     .sort((left, right) => right.decision.confidence - left.decision.confidence)
     .slice(0, limit);
 
-  return ranked.map(({ stock, decision, latest_trade_date }) => ({
-    symbol: stock.symbol,
-    signal: decision.recommendation,
-    confidence: `${decision.confidence}%`,
-    confidenceValue: decision.confidence,
-    reason: decision.reason,
-    risk: decision.risk_label,
-    priority: decisionPriority(decision.confidence),
-    href: buildStockDetailPath(stock.exchange, stock.symbol),
-    supportingContext: [`Opportunity ${decision.opportunity_score}`, `${decision.risk_label} risk`],
-    generatedAt: formatGeneratedAt(latest_trade_date),
-  }));
+  return ranked.map(({ stock, decision, latest_trade_date }) => {
+    const resolvedReason = resolveTraderDecisionReason(decision.reason);
+
+    return {
+      symbol: stock.symbol,
+      signal: decision.recommendation,
+      confidence: `${decision.confidence}%`,
+      confidenceValue: decision.confidence,
+      reason: decision.reason,
+      reasonSummary: decision.reason,
+      reasonKey: resolvedReason.key,
+      reasonParams: resolvedReason.params,
+      technicalContext: {},
+      risk: decision.risk_label,
+      priority: decisionPriority(decision.confidence),
+      href: buildStockDetailPath(stock.exchange, stock.symbol),
+      supportingContext: [`Opportunity ${decision.opportunity_score}`, `${decision.risk_label} risk`],
+      generatedAt: formatGeneratedAt(latest_trade_date),
+    };
+  });
 }
 
 export function mapDashboardSignalsDto(dto: BackendDashboardStocksInFocusDto): SignalFeedItemModel[] {
-  return dto.signals.map((signal) => ({
-    symbol: signal.symbol,
-    signal: signal.signal,
-    confidence: `${signal.confidence}%`,
-    confidenceValue: signal.confidence,
-    reason: signal.reason,
-    risk: signal.risk,
-    priority: signal.priority as SignalFeedItemModel["priority"],
-    href: buildStockDetailPath(signal.exchange, signal.symbol),
-    supportingContext: signal.supporting_context,
-    generatedAt: signal.generated_at,
-  }));
+  return dto.signals.map((signal) => {
+    const resolvedReason = resolveTraderDecisionReason(signal.reason);
+
+    return {
+      symbol: signal.symbol,
+      signal: signal.signal,
+      confidence: `${signal.confidence}%`,
+      confidenceValue: signal.confidence,
+      reason: signal.reason,
+      reasonSummary: signal.reason,
+      reasonKey: resolvedReason.key,
+      reasonParams: resolvedReason.params,
+      technicalContext: {},
+      risk: signal.risk,
+      priority: signal.priority as SignalFeedItemModel["priority"],
+      href: buildStockDetailPath(signal.exchange, signal.symbol),
+      supportingContext: signal.supporting_context,
+      generatedAt: signal.generated_at,
+    };
+  });
 }
 
 export function mapDashboardAlertsDto(dto: BackendDashboardMarketAlertsDto): MarketTimelineItemModel[] {
@@ -146,6 +239,7 @@ export function mapDashboardSectorsToLeadersContext(dto: BackendDashboardSectors
   const rows: LeadersPulseContext["rows"] = [];
   if (primary) {
     rows.push({
+      kind: "top_sector",
       label: "Top Sector",
       name: primary.name,
       performanceBadge: formatPercent(primary.changePercent),
@@ -154,6 +248,7 @@ export function mapDashboardSectorsToLeadersContext(dto: BackendDashboardSectors
   }
   if (runnerUp) {
     rows.push({
+      kind: "runner_up",
       label: "Runner-up",
       name: runnerUp.name,
       performanceBadge: formatPercent(runnerUp.changePercent),
@@ -163,6 +258,7 @@ export function mapDashboardSectorsToLeadersContext(dto: BackendDashboardSectors
   if (dto.top_gainer) {
     const change = toNumber(dto.top_gainer.change_percent) ?? 0;
     rows.push({
+      kind: "top_stock",
       label: "Top Stock",
       name: dto.top_gainer.symbol,
       performanceBadge: formatPercent(change),

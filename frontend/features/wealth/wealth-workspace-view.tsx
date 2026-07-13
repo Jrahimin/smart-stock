@@ -10,65 +10,82 @@ import { WealthInsightCard } from "@/features/wealth/components/wealth-insight-c
 import { WealthSubNav } from "@/features/wealth/components/wealth-sub-nav";
 import {
   WEALTH_COMPARISON_CARDS,
-  WEALTH_EDUCATION_BITES,
   WEALTH_INTENT_OPTIONS,
   WEALTH_SCENARIO_LAUNCHERS,
 } from "@/features/wealth/catalog/wealth-catalog";
 import { useWealthDashboard } from "@/features/wealth/hooks/use-wealth-dashboard";
 import { readLocalMoneySnapshot } from "@/features/wealth/lib/local-money-snapshot";
 import { useAuth } from "@/features/auth/context/auth-context";
+import { getWealthLandingLanguage, getWealthSeasonalCopy } from "@/features/wealth/wealth-language";
+import { DEFAULT_LOCALE, type AppLocale } from "@/lib/locale/app-locale";
 
-export function WealthWorkspaceView() {
+export function WealthWorkspaceView({ locale = DEFAULT_LOCALE }: { locale?: AppLocale }) {
   const { isAuthenticated } = useAuth();
-  const { dashboard, seasonalContext } = useWealthDashboard();
+  const { dashboard, seasonalContext, isLoading, isError } = useWealthDashboard();
+  const language = getWealthLandingLanguage(locale);
+  const localizedSeasonalContext = seasonalContext ? getWealthSeasonalCopy(seasonalContext, locale) : null;
   const localDraft = useMemo(() => readLocalMoneySnapshot(), []);
 
   return (
     <div className="wealth-workspace-view">
-      <WealthSubNav />
+      <WealthSubNav locale={locale} />
+
+      {isLoading ? (
+        <p className="wealth-muted-copy" role="status">
+          {language.states.loading}
+        </p>
+      ) : null}
+      {isError ? (
+        <p className="wealth-error-copy" role="alert">
+          {language.states.error}
+        </p>
+      ) : null}
+      {isAuthenticated && !dashboard && !isLoading && !isError ? (
+        <p className="wealth-muted-copy" role="status">
+          {language.states.empty}
+        </p>
+      ) : null}
 
       <header className="wealth-hero-card">
-        <p className="eyebrow">My Money</p>
-        <h1>Explore your money decisions before you make them</h1>
-        <p>Understand today&apos;s choice. See tomorrow&apos;s impact. No forms. No accounting. Just clarity.</p>
+        <p className="eyebrow">{language.hero.eyebrow}</p>
+        <h1>{language.hero.title}</h1>
+        <p>{language.hero.description}</p>
         <div className="wealth-intent-row">
           {WEALTH_INTENT_OPTIONS.map((intent) => (
             <Link className="wealth-chip" href={intent.href} key={intent.href}>
-              {intent.label}
+              {language.hero.intentLabels[intent.href]}
             </Link>
           ))}
         </div>
       </header>
 
-      {seasonalContext ? (
+      {localizedSeasonalContext ? (
         <section className="wealth-seasonal-card">
           <div>
-            <p className="eyebrow">Today&apos;s Money Lens</p>
-            <h2>{seasonalContext.title}</h2>
-            <p>{seasonalContext.description}</p>
+            <p className="eyebrow">{language.seasonal.eyebrow}</p>
+            <h2>{localizedSeasonalContext.title}</h2>
+            <p>{localizedSeasonalContext.description}</p>
           </div>
-          <Link className="wealth-primary-button" href={seasonalContext.cta_href}>
-            {seasonalContext.cta_label}
+          <Link className="wealth-primary-button" href={localizedSeasonalContext.cta_href}>
+            {localizedSeasonalContext.cta_label}
           </Link>
         </section>
       ) : null}
 
-      <ScenarioLauncher scenarios={WEALTH_SCENARIO_LAUNCHERS} />
+      <ScenarioLauncher locale={locale} scenarios={WEALTH_SCENARIO_LAUNCHERS} />
 
       <section className="wealth-section">
         <div className="wealth-section-heading">
-          <p className="eyebrow">Compare choices</p>
-          <h2>Which path feels more interesting?</h2>
+          <p className="eyebrow">{language.comparison.eyebrow}</p>
+          <h2>{language.comparison.title}</h2>
         </div>
         <div className="wealth-comparison-strip">
           {WEALTH_COMPARISON_CARDS.map((comparison) => (
             <ComparisonCard
-              description={comparison.description}
               accent={comparison.accent}
-              cue={comparison.cue}
               key={comparison.slug}
+              locale={locale}
               slug={comparison.slug}
-              title={comparison.title}
             />
           ))}
         </div>
@@ -77,24 +94,27 @@ export function WealthWorkspaceView() {
       <MoneySnapshotCard
         dashboard={dashboard}
         isAuthenticated={isAuthenticated}
+        isError={isError}
+        isLoading={isLoading}
         localScenarioCount={localDraft.savedScenarioTitles.length}
+        locale={locale}
       />
 
       {dashboard?.insights?.length ? (
         <section className="wealth-section">
           <div className="wealth-section-heading">
-            <p className="eyebrow">Gentle observations</p>
-            <h2>What your picture suggests so far</h2>
+            <p className="eyebrow">{language.insights.eyebrow}</p>
+            <h2>{language.insights.title}</h2>
           </div>
           <div className="wealth-insight-grid">
             {dashboard.insights.map((insight) => (
-              <WealthInsightCard insight={insight} key={insight.id} />
+              <WealthInsightCard insight={insight} key={insight.id} locale={locale} />
             ))}
           </div>
         </section>
       ) : (
         <section className="wealth-education-strip">
-          {WEALTH_EDUCATION_BITES.map((bite) => (
+          {language.insights.education.map((bite) => (
             <article className="wealth-education-card" key={bite}>
               <p>{bite}</p>
             </article>

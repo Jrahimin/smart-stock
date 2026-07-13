@@ -18,6 +18,7 @@ export type InsightBlockModel = {
   description: string;
   tone: InsightTone;
   category: InsightCategory;
+  categoryLabel?: string;
   source: InsightSource;
   confidenceLabel?: string;
 };

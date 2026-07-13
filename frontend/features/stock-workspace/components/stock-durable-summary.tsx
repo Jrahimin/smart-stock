@@ -1,15 +1,20 @@
 import { formatNumber, formatPercent, formatMarketCapBdt } from "@/lib/formatters/financial-formatters";
 import type { StockWorkspaceDto } from "@/lib/api/stock-decision-support-types";
+import { getStockWorkspaceLanguage } from "@/features/stock-workspace/stock-workspace-language";
+import type { AppLocale } from "@/lib/locale/app-locale";
+import { DEFAULT_LOCALE } from "@/lib/locale/app-locale";
 
 type StockDurableSummaryProps = {
   workspace: StockWorkspaceDto;
+  locale?: AppLocale;
 };
 
 /**
  * Server-presentable durable facts for the stock details page.
  * Renders without client JS. Interactive workspace hydrates around this.
  */
-export function StockDurableSummary({ workspace }: StockDurableSummaryProps) {
+export function StockDurableSummary({ workspace, locale = DEFAULT_LOCALE }: StockDurableSummaryProps) {
+  const copy = getStockWorkspaceLanguage(locale);
   const stock = workspace.stock;
   const decision = workspace.decision_support;
   const display = workspace.display_metrics;
@@ -24,20 +29,24 @@ export function StockDurableSummary({ workspace }: StockDurableSummaryProps) {
     decision.valuation?.market_cap ??
     (stock.market_cap != null ? Number(stock.market_cap) : null);
 
-  const freshnessLabel = freshness.is_stale ? "Stale" : freshness.is_sparse ? "Sparse" : "Fresh";
+  const freshnessLabel = freshness.is_stale
+    ? copy.durableSummary.freshness.stale
+    : freshness.is_sparse
+      ? copy.durableSummary.freshness.sparse
+      : copy.durableSummary.freshness.fresh;
   const uncertaintyBits = [
-    freshness.is_stale ? "stale prices" : null,
-    freshness.is_sparse ? "sparse history" : null,
-    ...(freshness.missing_fields ?? []).slice(0, 3).map((field) => `missing ${field}`),
+    freshness.is_stale ? copy.durableSummary.uncertaintyStale : null,
+    freshness.is_sparse ? copy.durableSummary.uncertaintySparse : null,
+    ...(freshness.missing_fields ?? []).slice(0, 3).map((field) => copy.durableSummary.missingField(field)),
   ].filter(Boolean);
 
   return (
-    <section aria-label="Stock summary" className="sr-only" data-testid="stock-durable-summary">
+    <section aria-label={copy.durableSummary.ariaLabel} className="sr-only" data-testid="stock-durable-summary">
       <div className="stock-durable-summary-identity">
         <p className="eyebrow">
           {stock.exchange}
           {stock.sector ? ` / ${stock.sector}` : ""}
-          {stock.category ? ` / Category ${stock.category}` : ""}
+          {stock.category ? ` / ${copy.durableSummary.categoryPrefix} ${stock.category}` : ""}
         </p>
         <p className="stock-durable-summary-symbol">{stock.symbol}</p>
         <p className="stock-durable-summary-name">{stock.name}</p>
@@ -45,42 +54,42 @@ export function StockDurableSummary({ workspace }: StockDurableSummaryProps) {
 
       <dl className="stock-durable-summary-metrics">
         <div>
-          <dt>Last</dt>
+          <dt>{copy.header.last}</dt>
           <dd>{formatNumber(latestPrice)}</dd>
         </div>
         <div>
-          <dt>Change</dt>
+          <dt>{copy.header.change}</dt>
           <dd>{formatPercent(changePercent)}</dd>
         </div>
         <div>
-          <dt>Market Cap</dt>
+          <dt>{copy.header.marketCap}</dt>
           <dd>{formatMarketCapBdt(marketCap)}</dd>
         </div>
         <div>
-          <dt>Decision support</dt>
+          <dt>{copy.durableSummary.decisionSupport}</dt>
           <dd>
             {decision.decision.recommendation}
             <span className="stock-durable-summary-confidence">
               {" "}
-              · {decision.decision.confidence}% model confidence
+              · {copy.durableSummary.modelConfidence(decision.decision.confidence)}
             </span>
           </dd>
         </div>
         <div>
-          <dt>Risk</dt>
+          <dt>{copy.decision.risk}</dt>
           <dd>{decision.risk.label}</dd>
         </div>
         <div>
-          <dt>Data</dt>
+          <dt>{copy.durableSummary.data}</dt>
           <dd>
             {freshnessLabel}
-            {freshness.latest_trade_date ? ` · as of ${freshness.latest_trade_date}` : ""}
+            {freshness.latest_trade_date ? copy.durableSummary.asOf(freshness.latest_trade_date) : ""}
           </dd>
         </div>
       </dl>
 
       <p className="stock-durable-summary-disclaimer">
-        Snapshot-based market data and rule-based decision support — not live quotes and not investment advice.
+        {copy.durableSummary.disclaimer}
         {uncertaintyBits.length > 0 ? ` Uncertainty: ${uncertaintyBits.join("; ")}.` : ""}
       </p>
     </section>

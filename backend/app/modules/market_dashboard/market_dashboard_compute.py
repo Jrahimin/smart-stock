@@ -452,7 +452,11 @@ def build_market_insights(
         {
             "id": "turnover-context",
             "title": "Turnover context",
-            "description": f"Latest turnover is {turnover_label}. Treat missing values as a data availability issue, not a zero-activity market.",
+            "description": (
+                "Turnover data is unavailable. Do not treat this as zero market activity—it may be a data sync or availability issue."
+                if turnover_label == "N/A"
+                else f"Latest turnover is {turnover_label}."
+            ),
             "tone": "warning" if turnover_label == "N/A" else "neutral",
             "category": "quality" if turnover_label == "N/A" else "valuation",
             "source": "DETERMINISTIC",

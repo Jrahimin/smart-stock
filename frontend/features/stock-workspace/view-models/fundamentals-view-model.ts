@@ -21,6 +21,8 @@ export type FundamentalsMetricCell = {
 
 export type FundamentalsViewModel = {
   fiscalPeriodNote: string | null;
+  fiscalYear: number | null;
+  fiscalAsOfDate: string | null;
   metrics: FundamentalsMetricCell[];
 };
 
@@ -214,6 +216,8 @@ export function buildFundamentalsViewModel(
 
   return {
     fiscalPeriodNote,
+    fiscalYear: snapshot?.latest_fiscal_year ?? null,
+    fiscalAsOfDate: snapshot?.latest_as_of_date ?? null,
     metrics,
   };
 }

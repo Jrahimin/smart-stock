@@ -4,9 +4,11 @@ import { useState } from "react";
 
 import { WorkspaceModal } from "@/components/ui/workspace-modal";
 import type { StockDecisionViewModel } from "@/features/stock-workspace/view-models/stock-decision-view-model";
+import type { StockWorkspaceLanguage } from "@/features/stock-workspace/stock-workspace-language";
 
 type EventTimelinePanelProps = {
   decision: StockDecisionViewModel;
+  copy: StockWorkspaceLanguage["panels"];
 };
 
 function truncateEventTitle(title: string, maxLength = 20): string {
@@ -17,7 +19,7 @@ function truncateEventTitle(title: string, maxLength = 20): string {
   return `${trimmed.slice(0, maxLength)}...`;
 }
 
-export function EventTimelinePanel({ decision }: EventTimelinePanelProps) {
+export function EventTimelinePanel({ decision, copy }: EventTimelinePanelProps) {
   const [selectedEventIndex, setSelectedEventIndex] = useState<number | null>(null);
   if (!decision.available || decision.events.length === 0) {
     return null;
@@ -45,19 +47,19 @@ export function EventTimelinePanel({ decision }: EventTimelinePanelProps) {
           ))}
         </div>
       </div>
-      <WorkspaceModal isOpen={selectedEvent !== null} onClose={() => setSelectedEventIndex(null)} title="Event Details">
+      <WorkspaceModal isOpen={selectedEvent !== null} onClose={() => setSelectedEventIndex(null)} title={copy.eventDetails}>
         {selectedEvent ? (
           <div className="event-detail-modal">
             <p>
-              <strong>Category:</strong> {selectedEvent.category}
+              <strong>{copy.eventCategory}:</strong> {selectedEvent.category}
             </p>
             <p>
-              <strong>Date:</strong> {selectedEvent.event_date}
+              <strong>{copy.eventDate}:</strong> {selectedEvent.event_date}
             </p>
             <p>
-              <strong>Title:</strong> {selectedEvent.title}
+              <strong>{copy.eventTitle}:</strong> {selectedEvent.title}
             </p>
-            <p>{selectedEvent.summary ?? "No additional details available."}</p>
+            <p>{selectedEvent.summary ?? copy.noEventDetails}</p>
           </div>
         ) : null}
       </WorkspaceModal>

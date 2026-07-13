@@ -1,37 +1,39 @@
 "use client";
 
 import type { StockDecisionViewModel } from "@/features/stock-workspace/view-models/stock-decision-view-model";
+import type { StockWorkspaceLanguage } from "@/features/stock-workspace/stock-workspace-language";
 
 type TraderDecisionCardProps = {
   decision: StockDecisionViewModel;
+  copy: StockWorkspaceLanguage["decision"];
 };
 
-export function TraderDecisionCard({ decision }: TraderDecisionCardProps) {
+export function TraderDecisionCard({ decision, copy }: TraderDecisionCardProps) {
   if (!decision.available) {
     return (
       <section className="trader-decision-hero trader-decision-neutral trader-decision-loading">
-        <span className="trader-decision-label">Decision</span>
+        <span className="trader-decision-label">{copy.label}</span>
         <strong className="trader-decision-action">—</strong>
-        <p className="trader-decision-subtle">Loading decision support…</p>
+        <p className="trader-decision-subtle">{copy.loading}</p>
       </section>
     );
   }
 
   return (
     <section className={`trader-decision-hero trader-decision-${decision.recommendationTone}`}>
-      <span className="trader-decision-label">Decision</span>
+      <span className="trader-decision-label">{copy.label}</span>
       <strong className="trader-decision-action">{decision.recommendation}</strong>
       <div className="trader-decision-metrics">
         <div>
-          <span>Confidence</span>
+          <span>{copy.confidence}</span>
           <strong>{decision.confidenceLabel}</strong>
         </div>
         <div>
-          <span>Opportunity</span>
+          <span>{copy.opportunity}</span>
           <strong>{decision.opportunityScore}</strong>
         </div>
         <div>
-          <span>Risk</span>
+          <span>{copy.risk}</span>
           <strong>{decision.riskLabel}</strong>
         </div>
       </div>

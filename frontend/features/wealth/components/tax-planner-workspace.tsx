@@ -32,6 +32,8 @@ import {
   ActiveLimiterBadge,
 } from "@/features/wealth/components/tax-planner-rebate-breakdown-hint";
 import { formatWealthCurrency, formatWealthNumber } from "@/features/wealth/view-models/wealth-view-model";
+import { getWealthToolsLanguage, type WealthToolsLanguage } from "@/features/wealth/wealth-tools-language";
+import type { AppLocale } from "@/lib/locale/app-locale";
 
 type NumericInputState<T extends Record<string, unknown>> = Record<keyof T, string>;
 
@@ -121,8 +123,6 @@ const QUICK_PROFILE: TaxPlannerProfileInput = {
   freedom_fighter: false,
   location_code: null,
 };
-
-const HERO_CHIPS = ["No tax forms", "No uploads", "Plain language", "Planning focused"] as const;
 
 const HERO_EDU_CHIPS = [
   { label: "PF", icon: "🧾" },
@@ -251,7 +251,8 @@ const JOURNEY_STEPS = [
 
 const SIMULATION_DEBOUNCE_MS = 120;
 
-export function TaxPlannerWorkspace() {
+export function TaxPlannerWorkspace({ locale }: { locale: AppLocale }) {
+  const copy = getWealthToolsLanguage(locale).tax;
   const [draftHydrated, setDraftHydrated] = useState(false);
   const [mode, setMode] = useState<TaxPlannerMode>("QUICK");
   const [profile, setProfile] = useState<TaxPlannerProfileState>(DEFAULT_PROFILE);
@@ -374,20 +375,22 @@ export function TaxPlannerWorkspace() {
 
   return (
     <section aria-labelledby="tax-planner-title" className="wealth-tool-workspace wealth-tax-planner-workspace">
-      <WealthSubNav />
+      <WealthSubNav locale={locale} />
 
       <TaxHero
+        copy={copy}
         displayName={plannerConfig?.display_name ?? "FY 2025-2026"}
         isLoading={showResultsSkeleton}
         potentialSavings={potentialSavings}
       />
 
-      <TaxModeSegment activeMode={mode} onChange={changeMode} />
+      <TaxModeSegment activeMode={mode} locale={locale} onChange={changeMode} />
 
       <div className="wealth-tax-workspace-card wealth-panel" ref={workspaceRef}>
         {mode === "QUICK" ? (
           <QuickEstimateForm
             income={income}
+            locale={locale}
             onIncomeChange={updateIncome}
             onSwitchDetailed={() => changeMode("DETAILED")}
             taxSavingInvestments={quickTaxSavingInvestments}
@@ -396,6 +399,7 @@ export function TaxPlannerWorkspace() {
         ) : (
           <DetailedWizard
             activeStep={activeStep}
+            locale={locale}
             income={income}
             investments={investments}
             investmentCategories={investmentCategories}
@@ -423,22 +427,21 @@ export function TaxPlannerWorkspace() {
       >
         {showResultsSkeleton ? <TaxResultsSkeleton /> : null}
         {isError ? (
-          <p className="wealth-error-copy" role="alert">
-            Could not calculate this estimate right now. Check your connection and try again.
-          </p>
+          <p className="wealth-error-copy" role="alert">{copy.error}</p>
         ) : null}
         {baseResult && liveResult ? (
           <div className="wealth-tax-results">
-            <TaxSnapshot baseResult={baseResult} mode={mode} />
+            <TaxSnapshot baseResult={baseResult} locale={locale} mode={mode} />
             <PlayAndExplore
               additionalInvestment={simulatedAdditionalInvestment}
               baseResult={baseResult}
+              locale={locale}
               onChange={setSimulatedAdditionalInvestment}
               plannerConfig={plannerConfig}
               sectionRef={playExploreRef}
               simResult={liveResult}
             />
-            <TaxJourney onExploreSavings={() => scrollToRebateSection(playExploreRef)} result={liveResult} />
+            <TaxJourney locale={locale} onExploreSavings={() => scrollToRebateSection(playExploreRef)} result={liveResult} />
             <p className="wealth-tax-footer-disclaimer">{liveResult.disclaimer}</p>
           </div>
         ) : null}
@@ -448,10 +451,12 @@ export function TaxPlannerWorkspace() {
 }
 
 function TaxHero({
+  copy,
   displayName,
   isLoading,
   potentialSavings,
 }: {
+  copy: WealthToolsLanguage["tax"];
   displayName: string;
   isLoading: boolean;
   potentialSavings: string | number;
@@ -460,12 +465,10 @@ function TaxHero({
     <header className="wealth-tax-hero">
       <div className="wealth-tax-hero-content">
         <span className="wealth-tax-badge">{displayName}</span>
-        <h1 id="tax-planner-title">Tax Planner</h1>
-        <p className="wealth-tax-hero-subtitle">
-          Estimate your yearly tax and discover legal ways to reduce it through tax-saving investments.
-        </p>
+        <h1 id="tax-planner-title">{copy.title}</h1>
+        <p className="wealth-tax-hero-subtitle">{copy.hero}</p>
         <ul aria-label="Planner benefits" className="wealth-tax-chip-row">
-          {HERO_CHIPS.map((chip) => (
+          {copy.heroChips.map((chip) => (
             <li className="wealth-tax-chip" key={chip}>
               <span aria-hidden="true">✓</span>
               {chip}
@@ -477,12 +480,12 @@ function TaxHero({
       <aside aria-label="Savings preview" className="wealth-tax-hero-aside">
         <SavingsJar compact fillPercent={50} floating />
         <div className="wealth-tax-savings-card">
-          <p className="eyebrow">Potential Annual Tax Savings</p>
+          <p className="eyebrow">{copy.potentialSavings}</p>
           <strong aria-live="polite">{isLoading ? "…" : formatWealthCurrency(potentialSavings)}</strong>
-          <span>More money kept in your pocket.</span>
+          <span>{copy.heroAsideCaption}</span>
         </div>
         <div className="wealth-tax-edu-chips">
-          <span className="wealth-tax-edu-chips-label">What usually helps</span>
+          <span className="wealth-tax-edu-chips-label">{copy.eduLabel}</span>
           <div className="wealth-tax-edu-chips-row">
             {HERO_EDU_CHIPS.map((chip) => (
               <span className="wealth-tax-edu-chip" key={chip.label}>
@@ -499,15 +502,18 @@ function TaxHero({
 
 function TaxModeSegment({
   activeMode,
+  locale,
   onChange,
 }: {
   activeMode: TaxPlannerMode;
+  locale: AppLocale;
   onChange: (mode: TaxPlannerMode) => void;
 }) {
+  const copy = getWealthToolsLanguage(locale).tax;
   return (
     <div className="wealth-tax-mode-segment">
       <span className="wealth-tax-mode-segment-label" id="tax-planner-mode-label">
-        Estimate mode
+        {locale === "bn" ? "হিসাবের ধরন" : "Estimate mode"}
       </span>
       <div
         aria-labelledby="tax-planner-mode-label"
@@ -523,7 +529,7 @@ function TaxModeSegment({
           role="tab"
           type="button"
         >
-          <span aria-hidden="true">⚡</span> Quick Estimate
+          <span aria-hidden="true">⚡</span> {copy.quick}
         </button>
         <button
           aria-controls="tax-planner-panel"
@@ -534,7 +540,7 @@ function TaxModeSegment({
           role="tab"
           type="button"
         >
-          <span aria-hidden="true">✦</span> Detailed Estimate
+          <span aria-hidden="true">✦</span> {copy.detailed}
         </button>
       </div>
     </div>
@@ -556,35 +562,38 @@ function TaxResultsSkeleton() {
 
 function QuickEstimateForm({
   income,
+  locale,
   onIncomeChange,
   onSwitchDetailed,
   onTaxSavingInvestmentChange,
   taxSavingInvestments,
 }: {
   income: IncomeFormState;
+  locale: AppLocale;
   onIncomeChange: (key: IncomeFormKey, value: string) => void;
   onSwitchDetailed: () => void;
   onTaxSavingInvestmentChange: (value: string) => void;
   taxSavingInvestments: string;
 }) {
+  const isBangla = locale === "bn";
   return (
     <div aria-labelledby="tax-planner-tab-quick" className="wealth-tax-quick" id="tax-planner-panel" role="tabpanel">
       <div className="wealth-tax-workspace-head">
-        <h2>Three yearly numbers, one quick picture</h2>
-        <p className="wealth-muted-copy">Your estimate updates live below as you type.</p>
+        <h2>{isBangla ? "তিনটি বার্ষিক তথ্য, এক নজরে হিসাব" : "Three yearly numbers, one quick picture"}</h2>
+        <p className="wealth-muted-copy">{isBangla ? "তথ্য বদলালেই নিচের estimate update হবে।" : "Your estimate updates live below as you type."}</p>
       </div>
       <div className="wealth-form-grid">
         <TaxInput
-          hint="Yearly gross salary before tax deductions."
+          hint={isBangla ? "Tax কাটার আগের বছরের মোট salary।" : "Yearly gross salary before tax deductions."}
           inputMode="decimal"
-          label="Annual Salary"
+          label={isBangla ? "বার্ষিক Salary" : "Annual Salary"}
           onChange={(value) => onIncomeChange("employment_income", value)}
           value={income.employment_income}
         />
         <TaxInput
-          hint="Freelance, rental, bonus, or any other yearly income."
+          hint={isBangla ? "Freelance, rent, bonus বা অন্য বার্ষিক আয়।" : "Freelance, rental, bonus, or any other yearly income."}
           inputMode="decimal"
-          label="Other Yearly Income"
+          label={isBangla ? "অন্যান্য বার্ষিক আয়" : "Other Yearly Income"}
           onChange={(value) => onIncomeChange("other_yearly_income", value)}
           value={income.other_yearly_income}
         />
@@ -599,14 +608,14 @@ function QuickEstimateForm({
             </>
           }
           inputMode="decimal"
-          label="Tax Saving Investments"
+          label={isBangla ? "Tax-saving investment" : "Tax Saving Investments"}
           onChange={onTaxSavingInvestmentChange}
           value={taxSavingInvestments}
         />
       </div>
       <p className="wealth-tax-quick-foot">
         <button className="wealth-inline-link wealth-tax-link-button" onClick={onSwitchDetailed} type="button">
-          Need more accuracy? Try detailed estimate
+          {isBangla ? "আরও মিলিয়ে দেখতে চান? Detailed Planner ব্যবহার করুন" : "Need more accuracy? Try detailed estimate"}
         </button>
       </p>
     </div>
@@ -615,6 +624,7 @@ function QuickEstimateForm({
 
 function DetailedWizard({
   activeStep,
+  locale,
   income,
   investments,
   investmentCategories,
@@ -632,6 +642,7 @@ function DetailedWizard({
   taxFreeAllowance,
 }: {
   activeStep: WizardStep;
+  locale: AppLocale;
   income: IncomeFormState;
   investments: DetailedInvestmentState;
   investmentCategories: TaxPlannerInvestmentCategoryConfig[];
@@ -648,6 +659,7 @@ function DetailedWizard({
   selectedInvestmentCards: string[];
   taxFreeAllowance?: string | number | null;
 }) {
+  const copy = getWealthToolsLanguage(locale).tax;
   const currentIndex = WIZARD_STEPS.findIndex((step) => step.id === activeStep);
 
   function goNext() {
@@ -675,7 +687,7 @@ function DetailedWizard({
             <li className={`wealth-tax-step wealth-tax-step-${state}`} key={step.id}>
               <button onClick={() => onStepChange(step.id)} type="button">
                 <span className="wealth-tax-step-index">{index < currentIndex ? "✓" : index + 1}</span>
-                <span className="wealth-tax-step-label">{step.label}</span>
+                <span className="wealth-tax-step-label">{copy[step.id] ?? step.label}</span>
               </button>
             </li>
           );
@@ -707,7 +719,7 @@ function DetailedWizard({
             selectedInvestmentCards={selectedInvestmentCards}
           />
         ) : (
-          <ReviewStep income={income} investments={investments} onStepChange={onStepChange} profile={profile} />
+          <ReviewStep income={income} investments={investments} locale={locale} onStepChange={onStepChange} profile={profile} />
         )}
       </div>
 
@@ -718,10 +730,10 @@ function DetailedWizard({
           onClick={goBack}
           type="button"
         >
-          ← Back
+          ← {locale === "bn" ? "পেছনে" : "Back"}
         </button>
         <button className="wealth-tax-next-button" onClick={goNext} type="button">
-          {currentIndex === WIZARD_STEPS.length - 1 ? "Calculate My Estimated Tax" : "Next →"}
+          {currentIndex === WIZARD_STEPS.length - 1 ? (locale === "bn" ? "Tax estimate দেখুন" : "Calculate My Estimated Tax") : locale === "bn" ? "পরের ধাপ →" : "Next →"}
         </button>
       </div>
     </div>
@@ -1091,25 +1103,28 @@ function InvestmentKnowHow({ tips }: { tips: ReturnType<typeof buildInvestmentTi
 function ReviewStep({
   income,
   investments,
+  locale,
   onStepChange,
   profile,
 }: {
   income: IncomeFormState;
   investments: DetailedInvestmentState;
+  locale: AppLocale;
   onStepChange: (step: WizardStep) => void;
   profile: TaxPlannerProfileState;
 }) {
+  const isBangla = locale === "bn";
   return (
     <div className="wealth-tax-step-content">
       <div className="wealth-tax-workspace-head">
-        <h2>Your picture so far</h2>
+        <h2>{isBangla ? "এখন পর্যন্ত আপনার হিসাব" : "Your picture so far"}</h2>
       </div>
       <div className="wealth-tax-review-grid">
-        <ReviewBlock onEdit={() => onStepChange("about")} title="Tax Profile" value={profileSummary(profile)} />
-        <ReviewBlock onEdit={() => onStepChange("income")} title="Income Sources" value={formatWealthCurrency(sumStateValues(income))} />
+        <ReviewBlock onEdit={() => onStepChange("about")} title={isBangla ? "Tax profile" : "Tax Profile"} value={profileSummary(profile)} />
+        <ReviewBlock onEdit={() => onStepChange("income")} title={isBangla ? "Income sources" : "Income Sources"} value={formatWealthCurrency(sumStateValues(income))} />
         <ReviewBlock
           onEdit={() => onStepChange("investments")}
-          title="Tax Saving Investments"
+          title={isBangla ? "Tax-saving investment" : "Tax Saving Investments"}
           value={formatWealthCurrency(sumStateValues(investments))}
         />
       </div>
@@ -1119,11 +1134,14 @@ function ReviewStep({
 
 function TaxSnapshot({
   baseResult,
+  locale,
   mode,
 }: {
   baseResult: TaxPlannerCalculateResponse;
+  locale: AppLocale;
   mode: TaxPlannerMode;
 }) {
+  const isBangla = locale === "bn";
   const effectiveRate = effectiveTaxRate(baseResult.final_tax, baseResult.total_income);
   const confidence = mode === "DETAILED" ? 4 : 2;
   const confidenceLabel = mode === "DETAILED" ? "Strong" : "Good";
@@ -1131,28 +1149,28 @@ function TaxSnapshot({
   return (
     <section className="wealth-tax-snapshot wealth-panel">
       <div className="wealth-tax-snapshot-head">
-        <p className="wealth-tax-section-eyebrow">Tax Snapshot</p>
-        <h2>Here&apos;s your current picture</h2>
+        <p className="wealth-tax-section-eyebrow">{isBangla ? "Tax Snapshot" : "Tax Snapshot"}</p>
+        <h2>{isBangla ? "এখনকার হিসাব এক নজরে" : "Here’s your current picture"}</h2>
       </div>
 
       <div className="wealth-tax-story-grid">
         <article className="wealth-tax-story-card wealth-tax-story-pay">
-          <span className="wealth-tax-story-label">You May Pay</span>
+          <span className="wealth-tax-story-label">{isBangla ? "সম্ভাব্য Tax" : "You May Pay"}</span>
           <strong>{formatWealthCurrency(baseResult.final_tax)}</strong>
         </article>
         <article className="wealth-tax-story-card wealth-tax-story-save">
-          <span className="wealth-tax-story-label">You Could Still Save</span>
+          <span className="wealth-tax-story-label">{isBangla ? "আরও বাঁচতে পারে" : "You Could Still Save"}</span>
           <strong>{formatWealthCurrency(baseResult.potential_additional_tax_saving)}</strong>
         </article>
         <article className="wealth-tax-story-card wealth-tax-story-max">
-          <span className="wealth-tax-story-label">Target Investment for Max Rebate</span>
+          <span className="wealth-tax-story-label">{isBangla ? "সর্বোচ্চ Rebate-এর জন্য investment" : "Target Investment for Max Rebate"}</span>
           <strong>{formatWealthCurrency(baseResult.required_investment_for_full_rebate)}</strong>
         </article>
       </div>
 
       <div className="wealth-tax-stat-pills" role="list">
         <span className="wealth-tax-stat-pill" role="listitem">
-          <span>Confidence</span>
+          <span>{isBangla ? "হিসাবের গভীরতা" : "Confidence"}</span>
           <strong aria-label={`Confidence ${confidence} of 4, ${confidenceLabel}`}>
             {"★".repeat(confidence)}
             {"☆".repeat(4 - confidence)} {confidenceLabel}
@@ -1160,7 +1178,7 @@ function TaxSnapshot({
         </span>
         <span className="wealth-tax-stat-pill" role="listitem">
           <span className="wealth-tax-stat-pill-label">
-            Effective rate
+            {isBangla ? "Effective tax rate" : "Effective rate"}
             <TaxInfoTooltip ariaLabel="How effective tax rate is calculated" title="Final tax divided by total income.">
               Final tax divided by total income.
             </TaxInfoTooltip>
@@ -1191,6 +1209,7 @@ function TaxSnapshot({
 function PlayAndExplore({
   additionalInvestment,
   baseResult,
+  locale,
   onChange,
   plannerConfig,
   sectionRef,
@@ -1198,11 +1217,13 @@ function PlayAndExplore({
 }: {
   additionalInvestment: number;
   baseResult: TaxPlannerCalculateResponse;
+  locale: AppLocale;
   onChange: (value: number) => void;
   plannerConfig?: TaxPlannerConfigResponse | null;
   sectionRef?: React.RefObject<HTMLElement | null>;
   simResult: TaxPlannerCalculateResponse;
 }) {
+  const isBangla = locale === "bn";
   const [draftAdditional, setDraftAdditional] = useState(additionalInvestment);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -1273,7 +1294,7 @@ function PlayAndExplore({
       tabIndex={-1}
     >
       <div className="wealth-tax-play-head">
-        <h2>What If I Invest More?</h2>
+        <h2>{isBangla ? "আরও Invest করলে কী হতে পারে?" : "What If I Invest More?"}</h2>
       </div>
 
       <div className="wealth-tax-play-layout wealth-tax-play-layout-compact">
@@ -1281,14 +1302,14 @@ function PlayAndExplore({
           <SavingsJar compact fillPercent={heroUtilizationPct} label={`${heroUtilizationPct}% rebate utilization`} />
           <div className="wealth-tax-play-aside-investment">
             <div className="wealth-tax-play-aside-row wealth-tax-play-aside-row--current">
-              <span>Current Investment</span>
+              <span>{isBangla ? "এখনকার Investment" : "Current Investment"}</span>
               <strong>{formatWealthCurrency(currentInvestment)}</strong>
             </div>
             <div className="wealth-tax-play-aside-row wealth-tax-play-aside-row--target">
-              <span>{targetAchieved ? "Required Investment" : "Target Investment"}</span>
+              <span>{targetAchieved ? (isBangla ? "যত Investment দরকার" : "Required Investment") : isBangla ? "লক্ষ্যের Investment" : "Target Investment"}</span>
               <strong>{formatWealthCurrency(requiredInvestment)}</strong>
             </div>
-            {targetAchieved ? <p className="wealth-tax-target-achieved">✓ Target Achieved</p> : null}
+            {targetAchieved ? <p className="wealth-tax-target-achieved">✓ {isBangla ? "লক্ষ্যে পৌঁছে গেছেন" : "Target Achieved"}</p> : null}
           </div>
         </aside>
 
@@ -1297,16 +1318,16 @@ function PlayAndExplore({
             {isSimulating ? (
               <>
                 <p className="wealth-tax-play-hero-pct">
-                  Projected Rebate Utilization: {heroUtilizationPct}%
+                  {isBangla ? "Projected Rebate ব্যবহার:" : "Projected Rebate Utilization:"} {heroUtilizationPct}%
                 </p>
                 <p className="wealth-tax-play-hero-context">
-                  After investing {formatWealthCurrency(simulatedAdditional)} more
+                  {isBangla ? `${formatWealthCurrency(simulatedAdditional)} বেশি invest করলে` : `After investing ${formatWealthCurrency(simulatedAdditional)} more`}
                 </p>
               </>
             ) : (
               <>
-                <p className="wealth-tax-play-hero-pct">Current Rebate Utilization: {baseUtilizationPct}%</p>
-                <p className="wealth-tax-play-hero-context">Based on your current investments today</p>
+                <p className="wealth-tax-play-hero-pct">{isBangla ? "এখনকার Rebate ব্যবহার:" : "Current Rebate Utilization:"} {baseUtilizationPct}%</p>
+                <p className="wealth-tax-play-hero-context">{isBangla ? "আজকের investment অনুযায়ী" : "Based on your current investments today"}</p>
               </>
             )}
             <div className="wealth-tax-progress-track wealth-tax-progress-track--hero">
@@ -1316,42 +1337,42 @@ function PlayAndExplore({
             <div className="wealth-tax-play-recommendation" role="status">
               {isSimulating && additionalInvestment > 0 && projectedRebateMaxed ? (
                 <p>
-                  ✓ Projected outcome: full rebate unlocked. Rebate rises to{" "}
+                  {isBangla ? "✓ পুরো rebate unlock হয়েছে। Rebate হবে" : "✓ Projected outcome: full rebate unlocked. Rebate rises to "}{" "}
                   <strong className="wealth-tax-play-recommendation-save">
                     {formatWealthCurrency(projectedRebate)}
                   </strong>
-                  , saving an additional{" "}
+                  {isBangla ? ", tax আরও কমবে" : ", saving an additional "}{" "}
                   <strong className="wealth-tax-play-recommendation-save">
                     {formatWealthCurrency(projectedTaxSaving)}
                   </strong>{" "}
-                  in tax.
+                  {isBangla ? "।" : " in tax."}
                 </p>
               ) : isSimulating ? (
                 <p>
-                  Invest{" "}
+                  {isBangla ? "আরও" : "Invest "}{" "}
                   <span className="wealth-tax-play-recommendation-invest">
                     {formatWealthCurrency(simulatedAdditional)}
                   </span>{" "}
-                  more to get Maximum Rebate{" "}
+                  {isBangla ? "দিলে Maximum Rebate" : " more to get Maximum Rebate "}{" "}
                   <strong className="wealth-tax-play-recommendation-save">
                     {formatWealthCurrency(maximumAvailableRebate)}
                   </strong>
                 </p>
               ) : rebateMaxed ? (
                 <p>
-                  ✓ Maximum rebate achieved on current investments. You are saving{" "}
+                  {isBangla ? "✓ এখনকার investment-এই maximum rebate হয়েছে। Tax কমছে" : "✓ Maximum rebate achieved on current investments. You are saving "}{" "}
                   <strong className="wealth-tax-play-recommendation-save">
                     {formatWealthCurrency(currentRebate)}
                   </strong>{" "}
-                  on tax today.
+                  {isBangla ? "।" : " on tax today."}
                 </p>
               ) : (
                 <p>
-                  Invest{" "}
+                  {isBangla ? "আরও" : "Invest "}{" "}
                   <span className="wealth-tax-play-recommendation-invest">
                     {formatWealthCurrency(additionalNeeded)}
                   </span>{" "}
-                  more to get Maximum Rebate{" "}
+                  {isBangla ? "দিলে Maximum Rebate" : " more to get Maximum Rebate "}{" "}
                   <strong className="wealth-tax-play-recommendation-save">
                     {formatWealthCurrency(maximumAvailableRebate)}
                   </strong>
@@ -1362,11 +1383,11 @@ function PlayAndExplore({
             <div className="wealth-tax-play-context">
               <div className="wealth-tax-play-context-chips">
                 <span className="wealth-tax-play-rebate-chip">
-                  <span className="wealth-tax-play-rebate-chip-label">Current Rebate (today)</span>
+                  <span className="wealth-tax-play-rebate-chip-label">{isBangla ? "এখনকার Rebate" : "Current Rebate (today)"}</span>
                   <strong>{formatWealthCurrency(currentRebate)}</strong>
                 </span>
                 <span className="wealth-tax-play-rebate-chip wealth-tax-play-rebate-chip--max">
-                  <span className="wealth-tax-play-rebate-chip-label">Maximum Rebate</span>
+                  <span className="wealth-tax-play-rebate-chip-label">{isBangla ? "সর্বোচ্চ Rebate" : "Maximum Rebate"}</span>
                   <strong>{formatWealthCurrency(maximumAvailableRebate)}</strong>
                 </span>
               </div>
@@ -1386,11 +1407,11 @@ function PlayAndExplore({
             <div className="wealth-tax-slider-block wealth-tax-slider-block--compact">
               <div aria-live="polite" className="wealth-tax-slider-summary">
                 <span className="wealth-tax-slider-summary-item">
-                  <em>Additional Investment</em>
+                    <em>{isBangla ? "অতিরিক্ত Investment" : "Additional Investment"}</em>
                   <strong>{formatWealthCurrency(simulatedAdditional)}</strong>
                 </span>
                 <span className="wealth-tax-slider-summary-item wealth-tax-slider-summary-item--total">
-                  <em>Total Investment</em>
+                    <em>{isBangla ? "মোট Investment" : "Total Investment"}</em>
                   <strong>{formatWealthCurrency(totalSimulatedInvestment)}</strong>
                 </span>
               </div>
@@ -1449,15 +1470,15 @@ function PlayAndExplore({
 
           <div className="wealth-tax-play-metrics wealth-tax-play-metrics-action">
             <div className="wealth-tax-play-metric wealth-tax-metric-current">
-              <span>Current Tax</span>
+              <span>{isBangla ? "এখনকার Tax" : "Current Tax"}</span>
               <strong>{formatWealthCurrency(currentTax)}</strong>
             </div>
             <div className="wealth-tax-play-metric wealth-tax-metric-saved">
-              <span>Additional Investment Needed</span>
+              <span>{isBangla ? "আরও যত Investment দরকার" : "Additional Investment Needed"}</span>
               <strong>{formatWealthCurrency(additionalNeeded)}</strong>
             </div>
             <div className="wealth-tax-play-metric wealth-tax-metric-unlocked">
-              <span>Additional Tax Saving</span>
+              <span>{isBangla ? "অতিরিক্ত Tax কমবে" : "Additional Tax Saving"}</span>
               <strong>{formatWealthCurrency(additionalTaxSaving)}</strong>
             </div>
           </div>
@@ -1468,12 +1489,15 @@ function PlayAndExplore({
 }
 
 function TaxJourney({
+  locale,
   onExploreSavings,
   result,
 }: {
+  locale: AppLocale;
   onExploreSavings: () => void;
   result: TaxPlannerCalculateResponse;
 }) {
+  const isBangla = locale === "bn";
   const grossSalary = toNumber(result.gross_salary);
   const employmentExemption = toNumber(result.employment_income_exemption);
   const taxableSalary = toNumber(result.taxable_salary);
@@ -1502,24 +1526,48 @@ function TaxJourney({
 
   function journeyStepCaption(stepKey: (typeof JOURNEY_STEPS)[number]["key"]) {
     if (stepKey === "employment_income_exemption") {
-      return grossSalary > 0 ? "min(⅓ salary, cap)" : "No salary income";
+      return isBangla ? (grossSalary > 0 ? "Salary থেকে নির্দিষ্ট ছাড়" : "Salary income নেই") : grossSalary > 0 ? "min(⅓ salary, cap)" : "No salary income";
     }
     if (stepKey === "total_income") {
-      return `Taxable salary + ${formatWealthCurrency(otherTaxableIncome)} other`;
+      return isBangla ? `Salary + ${formatWealthCurrency(otherTaxableIncome)} অন্যান্য income` : `Taxable salary + ${formatWealthCurrency(otherTaxableIncome)} other`;
     }
     if (stepKey === "taxable_income") {
-      return `${taxablePct}% taxable`;
+      return isBangla ? `মোট আয়ের ${taxablePct}%` : `${taxablePct}% taxable`;
     }
     if (stepKey === "rebate") {
-      return "Rebate unlocked";
+      return isBangla ? "Rebate unlock হয়েছে" : "Rebate unlocked";
     }
     if (stepKey === "final_tax") {
-      return `${formatWealthNumber(effectiveRate)}% of income`;
+      return isBangla ? `Income-এর ${formatWealthNumber(effectiveRate)}%` : `${formatWealthNumber(effectiveRate)}% of income`;
     }
-    return JOURNEY_STEPS.find((step) => step.key === stepKey)?.caption ?? "";
+    const caption = JOURNEY_STEPS.find((step) => step.key === stepKey)?.caption ?? "";
+    if (!isBangla) {
+      return caption;
+    }
+    const captions: Record<string, string> = {
+      gross_salary: "বছরের মোট salary",
+      taxable_salary: "ছাড়ের পর salary",
+      tax_free_allowance: "এই অংশে tax নেই",
+      gross_tax: "Rebate-এর আগে",
+    };
+    return captions[stepKey] ?? caption;
   }
 
   function journeyStepLabel(stepKey: (typeof JOURNEY_STEPS)[number]["key"]) {
+    if (isBangla) {
+      const labels: Record<string, string> = {
+        gross_salary: "মোট Salary",
+        employment_income_exemption: "Salary ছাড়",
+        taxable_salary: "Taxable Salary",
+        total_income: "মোট Income",
+        tax_free_allowance: "Tax-free অংশ",
+        taxable_income: "Taxable Income",
+        gross_tax: "মোট Tax",
+        rebate: "Investment Rebate",
+        final_tax: "শেষে Tax",
+      };
+      return labels[stepKey] ?? stepKey;
+    }
     if (stepKey === "total_income") {
       return "Salary + Other";
     }
@@ -1534,8 +1582,8 @@ function TaxJourney({
     <section className="wealth-tax-journey-section wealth-panel">
       <header className="wealth-tax-journey-head">
         <p className="wealth-tax-section-eyebrow">Tax Journey</p>
-        <h2>Your tax journey, simplified</h2>
-        <p className="wealth-tax-journey-subtitle">See how your income becomes your final tax.</p>
+        <h2>{isBangla ? "Income থেকে শেষের Tax কীভাবে আসে" : "Your tax journey, simplified"}</h2>
+        <p className="wealth-tax-journey-subtitle">{isBangla ? "ধাপে ধাপে দেখুন, কোন জায়গায় tax কমছে বা বাড়ছে।" : "See how your income becomes your final tax."}</p>
       </header>
 
       <div className="wealth-tax-journey-main">
@@ -1618,9 +1666,9 @@ function TaxJourney({
             </span>
           </span>
           <div className="wealth-tax-journey-metric-body">
-            <span className="wealth-tax-journey-metric-label">Before Allowance</span>
+            <span className="wealth-tax-journey-metric-label">{isBangla ? "Allowance-এর আগে" : "Before Allowance"}</span>
             <span className="wealth-tax-journey-metric-hint">
-              {otherTaxableIncome > 0 ? "Taxable salary + other" : "After salary exemption"}
+              {otherTaxableIncome > 0 ? (isBangla ? "Taxable Salary + অন্য Income" : "Taxable salary + other") : isBangla ? "Salary ছাড়ের পরে" : "After salary exemption"}
             </span>
             <strong>{formatWealthCurrency(totalIncome)}</strong>
           </div>
@@ -1630,7 +1678,7 @@ function TaxJourney({
             <span className="wealth-tax-journey-metric-icon">🎯</span>
           </span>
           <div className="wealth-tax-journey-metric-body">
-            <span className="wealth-tax-journey-metric-label">Tax Saved</span>
+            <span className="wealth-tax-journey-metric-label">{isBangla ? "Tax কমেছে" : "Tax Saved"}</span>
             <strong>{formatWealthCurrency(rebate)}</strong>
           </div>
         </article>
@@ -1639,7 +1687,7 @@ function TaxJourney({
             <span className="wealth-tax-journey-metric-icon">🧾</span>
           </span>
           <div className="wealth-tax-journey-metric-body">
-            <span className="wealth-tax-journey-metric-label">You Pay</span>
+            <span className="wealth-tax-journey-metric-label">{isBangla ? "আপনার Tax" : "You Pay"}</span>
             <strong>{formatWealthCurrency(finalTax)}</strong>
           </div>
         </article>
@@ -1648,7 +1696,7 @@ function TaxJourney({
             <span className="wealth-tax-journey-metric-icon">📊</span>
           </span>
           <div className="wealth-tax-journey-metric-body">
-            <span className="wealth-tax-journey-metric-label">Effective Tax Rate</span>
+            <span className="wealth-tax-journey-metric-label">{isBangla ? "Effective Tax Rate" : "Effective Tax Rate"}</span>
             <strong>{formatWealthNumber(effectiveRate)}%</strong>
           </div>
         </article>
@@ -1657,24 +1705,27 @@ function TaxJourney({
 
       <div className="wealth-tax-journey-insights-block">
         <p className="wealth-tax-section-eyebrow wealth-tax-journey-insights-eyebrow">
-          <span aria-hidden="true">💡</span> Smart Insights
+          <span aria-hidden="true">💡</span> {isBangla ? "কাজের কথা" : "Smart Insights"}
         </p>
         <div className="wealth-tax-journey-insights-layout">
           <div className="wealth-tax-journey-insights-grid">
-            {insightCards.map((card) => (
+            {insightCards.map((card) => {
+              const displayCard = isBangla ? localizeTaxJourneyInsight(card) : card;
+              return (
               <article className={`wealth-tax-journey-insight-card wealth-tax-journey-insight-${card.tone}`} key={card.id}>
                 <span className="wealth-tax-journey-insight-icon-wrap" aria-hidden="true">
                   <span className="wealth-tax-journey-insight-icon">{card.icon}</span>
                 </span>
                 <div className="wealth-tax-journey-insight-body">
-                  <h3>{card.title}</h3>
-                  <p>{card.body}</p>
+                  <h3>{displayCard.title}</h3>
+                  <p>{displayCard.body}</p>
                 </div>
               </article>
-            ))}
+              );
+            })}
           </div>
           <button className="wealth-tax-journey-cta" onClick={handleExploreSavings} type="button">
-            Explore More Savings
+            {isBangla ? "আরও Tax-saving option দেখুন" : "Explore More Savings"}
             <span aria-hidden="true">→</span>
           </button>
         </div>
@@ -1788,6 +1839,24 @@ function buildTaxJourneyInsightCards({
       ),
     },
   ];
+}
+
+function localizeTaxJourneyInsight(card: { id: string; title: string; body: ReactNode }) {
+  const copy: Record<string, { title: string; body: string }> = {
+    "biggest-saver": {
+      title: "সবচেয়ে বেশি সাশ্রয়",
+      body: "Tax-free allowance-এর কারণে এই অংশটুকু tax-এর বাইরে থাকছে।",
+    },
+    "unlock-more": {
+      title: "আরও সাশ্রয়ের সুযোগ",
+      body: "আরও eligible investment করলে rebate বাড়তে পারে।",
+    },
+    "rebate-progress": {
+      title: "Rebate-এর অগ্রগতি",
+      body: "আপনার eligible investment-এর কতটা rebate-এ কাজে লাগছে, এখানে দেখুন।",
+    },
+  };
+  return copy[card.id] ?? { title: card.title, body: typeof card.body === "string" ? card.body : card.title };
 }
 
 function JourneyCardVisual({

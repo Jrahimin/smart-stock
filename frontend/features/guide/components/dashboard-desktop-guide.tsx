@@ -8,9 +8,14 @@ import { GuideCharacter } from "@/features/guide/components/guide-character";
 import { GuideDialogBubble } from "@/features/guide/components/guide-dialog-bubble";
 import { GuideTourNudge } from "@/features/guide/components/guide-tour-nudge";
 import {
+  getGuideControls,
+  getGuideNudgeCopy,
+  type GuideControls,
+} from "@/features/guide/dialogs/dashboard-dialogs";
+import {
   DASHBOARD_GUIDE_DASHBOARD_STEP_COUNT,
   DASHBOARD_GUIDE_SIDEBAR_EXPAND_STEP_INDEX,
-  dashboardSidebarGuideSteps,
+  getDashboardSidebarGuideSteps,
 } from "@/features/guide/config/dashboard-sidebar-guide";
 import { useDashboardDesktopGuideController } from "@/features/guide/hooks/use-dashboard-sidebar-guide-controller";
 import { useGuideContentBounds } from "@/features/guide/hooks/use-guide-content-bounds";
@@ -30,6 +35,8 @@ import {
   type GuideRect,
 } from "@/features/guide/lib/guide-positioning";
 import type { GuideStep } from "@/features/guide/types/guide-types";
+import type { AppLocale } from "@/lib/locale/app-locale";
+import { DEFAULT_LOCALE } from "@/lib/locale/app-locale";
 import { useWorkspaceStore } from "@/stores/use-workspace-store";
 
 type GuideLayout = {
@@ -55,14 +62,14 @@ function useViewport() {
   return viewport;
 }
 
-function getGuidePhase(stepIndex: number) {
+function getGuidePhase(stepIndex: number, controls: GuideControls, totalStepCount: number) {
   const isDashboardPhase = stepIndex < DASHBOARD_GUIDE_DASHBOARD_STEP_COUNT;
   return {
-    label: isDashboardPhase ? "ড্যাশবোর্ড" : "মেনু",
+    label: isDashboardPhase ? controls.dashboardPhase : controls.menuPhase,
     stepIndex: isDashboardPhase ? stepIndex : stepIndex - DASHBOARD_GUIDE_DASHBOARD_STEP_COUNT,
     stepCount: isDashboardPhase
       ? DASHBOARD_GUIDE_DASHBOARD_STEP_COUNT
-      : dashboardSidebarGuideSteps.length - DASHBOARD_GUIDE_DASHBOARD_STEP_COUNT,
+      : totalStepCount - DASHBOARD_GUIDE_DASHBOARD_STEP_COUNT,
   };
 }
 
@@ -163,13 +170,16 @@ function buildGuideLayout(input: {
   };
 }
 
-export function DashboardDesktopGuide() {
+export function DashboardDesktopGuide({ locale = DEFAULT_LOCALE }: { locale?: AppLocale }) {
   const reduceMotion = useReducedMotion();
   const viewport = useViewport();
   const contentBounds = useGuideContentBounds(true, false);
   const sidebarCollapsed = useWorkspaceStore((state) => state.sidebarCollapsed);
   const toggleSidebar = useWorkspaceStore((state) => state.toggleSidebar);
   const expandedSidebarForGuideRef = useRef(false);
+  const guideControls = useMemo(() => getGuideControls(locale), [locale]);
+  const guideNudgeCopy = useMemo(() => getGuideNudgeCopy(locale), [locale]);
+  const dashboardSidebarGuideSteps = useMemo(() => getDashboardSidebarGuideSteps(locale), [locale]);
 
   const {
     acceptGuideNudge,
@@ -200,7 +210,7 @@ export function DashboardDesktopGuide() {
   const sidebarRight = targetSnapshot?.sidebarRight ?? null;
   const isLastStep = stepIndex === dashboardSidebarGuideSteps.length - 1;
   const isNavigationStep = currentStep?.highlightStyle === "navigation";
-  const phase = getGuidePhase(stepIndex);
+  const phase = getGuidePhase(stepIndex, guideControls, dashboardSidebarGuideSteps.length);
   const pulseTargetReady = useGuideTargetAvailable('[data-guide="market-pulse"]', { requireReady: true });
   const isWaitingForPulse = currentStep?.id === "market-pulse" && !pulseTargetReady;
   const showFullDim = isDimOnlyStep || isWaitingForPulse;
@@ -364,7 +374,13 @@ export function DashboardDesktopGuide() {
   const nudgeLayer =
     nudgeOpen && typeof document !== "undefined"
       ? createPortal(
-          <GuideTourNudge onAccept={acceptGuideNudge} onDismiss={dismissGuideNudge} onSnooze={snoozeGuideNudge} />,
+          <GuideTourNudge
+            {...guideNudgeCopy}
+            locale={locale}
+            onAccept={acceptGuideNudge}
+            onDismiss={dismissGuideNudge}
+            onSnooze={snoozeGuideNudge}
+          />,
           document.body,
         )
       : null;
@@ -432,9 +448,11 @@ export function DashboardDesktopGuide() {
             >
               <GuideDialogBubble
                 characterPose={currentStep.characterPose}
+                controls={guideControls}
                 dialog={currentStep.dialog}
                 isLastStep={isLastStep}
                 isSkipConfirmationOpen={skipConfirmationOpen}
+                locale={locale}
                 nextDisabled={nextDisabled}
                 onCancelSkip={() => setSkipConfirmationOpen(false)}
                 onConfirmSkip={skipGuide}

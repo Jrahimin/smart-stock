@@ -1,8 +1,10 @@
 import { formatNumber } from "@/lib/formatters/financial-formatters";
 import type { StockDecisionViewModel } from "@/features/stock-workspace/view-models/stock-decision-view-model";
+import type { StockWorkspaceLanguage } from "@/features/stock-workspace/stock-workspace-language";
 
 type TradePlanPanelProps = {
   decision: StockDecisionViewModel;
+  copy: StockWorkspaceLanguage["panels"];
 };
 
 function positionPercent(value: number | null, min: number, max: number) {
@@ -12,7 +14,7 @@ function positionPercent(value: number | null, min: number, max: number) {
   return Math.max(4, Math.min(96, ((value - min) / (max - min)) * 100));
 }
 
-export function TradePlanPanel({ decision }: TradePlanPanelProps) {
+export function TradePlanPanel({ decision, copy }: TradePlanPanelProps) {
   const plan = decision.tradePlanVisual;
   if (!decision.available || plan.current === null) {
     return null;
@@ -28,29 +30,29 @@ export function TradePlanPanel({ decision }: TradePlanPanelProps) {
   return (
     <section className="trader-workspace-strip trade-plan-strip">
       <div className="strip-heading">
-        <span>Trade Plan</span>
+        <span>{copy.tradePlan}</span>
         <strong className={plan.riskReward !== null && plan.riskReward >= 1 ? "trade-plan-rr-good" : "trade-plan-rr-weak"}>
           R/R {plan.riskReward !== null ? plan.riskReward.toFixed(2) : "N/A"}
         </strong>
       </div>
       <div className="trade-plan-timeline">
         <div className="trade-plan-row">
-          <span>Entry Zone</span>
+          <span>{copy.entryZone}</span>
           <div className="trade-plan-track">
             <div className="trade-plan-zone" style={{ left: `${Math.min(entryPos, currentPos)}%`, width: `${Math.abs(currentPos - entryPos) || 8}%` }} />
-            <div className="trade-plan-dot trade-plan-dot-current" style={{ left: `${currentPos}%` }} title={`Current ${formatNumber(plan.current)}`} />
+            <div className="trade-plan-dot trade-plan-dot-current" style={{ left: `${currentPos}%` }} title={copy.current(formatNumber(plan.current))} />
           </div>
           <strong>{formatNumber(plan.entryLow)} – {formatNumber(plan.entryHigh)}</strong>
         </div>
         <div className="trade-plan-row trade-plan-stop">
-          <span>Stop Loss ▼</span>
+          <span>{copy.stopLoss} ▼</span>
           <div className="trade-plan-track">
             <div className="trade-plan-marker trade-plan-marker-stop" style={{ left: `${stopPos}%` }} />
           </div>
           <strong>{formatNumber(plan.stopLoss)}</strong>
         </div>
         <div className="trade-plan-row trade-plan-target">
-          <span>Target ▲</span>
+          <span>{copy.target} ▲</span>
           <div className="trade-plan-track">
             <div className="trade-plan-marker trade-plan-marker-target" style={{ left: `${targetPos}%` }} />
           </div>

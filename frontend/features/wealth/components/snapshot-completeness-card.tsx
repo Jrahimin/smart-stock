@@ -1,20 +1,24 @@
 import type { SnapshotCompleteness } from "@/features/wealth/lib/snapshot-dashboard-helpers";
+import { getWealthSnapshotLanguage } from "@/features/wealth/wealth-snapshot-language";
+import type { AppLocale } from "@/lib/locale/app-locale";
 
 type SnapshotCompletenessCardProps = {
   completeness: SnapshotCompleteness;
+  locale: AppLocale;
 };
 
-export function SnapshotCompletenessCard({ completeness }: SnapshotCompletenessCardProps) {
+export function SnapshotCompletenessCard({ completeness, locale }: SnapshotCompletenessCardProps) {
+  const copy = getWealthSnapshotLanguage(locale);
   const completeCount = completeness.items.filter((item) => item.complete).length;
   const totalCount = completeness.items.length;
 
   return (
     <section className="metric-card metric-card-neutral wealth-snapshot-completeness-card">
       <div className="wealth-snapshot-completeness-head">
-        <p className="eyebrow">Snapshot Completeness</p>
+        <p className="eyebrow">{copy.completeness.eyebrow}</p>
         <div className="wealth-snapshot-completeness-info">
           <button
-            aria-label={`Snapshot completeness: ${completeCount} of ${totalCount} completed`}
+            aria-label={copy.completeness.ariaLabel(completeCount, totalCount)}
             className="wealth-snapshot-completeness-info-trigger"
             type="button"
           >
@@ -26,13 +30,13 @@ export function SnapshotCompletenessCard({ completeness }: SnapshotCompletenessC
           </button>
           <div className="wealth-snapshot-completeness-popover" role="tooltip">
             <p className="wealth-snapshot-completeness-popover-summary">
-              {completeCount} of {totalCount} completed
+              {copy.completeness.summary(completeCount, totalCount)}
             </p>
             <ul className="wealth-snapshot-completeness-list">
               {completeness.items.map((item) => (
                 <li className={item.complete ? "wealth-snapshot-completeness-done" : ""} key={item.id}>
                   <span aria-hidden="true">{item.complete ? "✓" : "○"}</span>
-                  {item.label}
+                  {copy.completeness.items[item.id] ?? item.label}
                 </li>
               ))}
             </ul>

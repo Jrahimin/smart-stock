@@ -16,12 +16,15 @@ import { useAuth } from "@/features/auth/context/auth-context";
 import { DashboardSidebarGuide } from "@/features/guide/components/dashboard-sidebar-guide";
 import { isDashboardGuideRoute } from "@/features/guide/lib/guide-route";
 import { useWorkspaceStore } from "@/stores/use-workspace-store";
+import type { AppLocale } from "@/lib/locale/app-locale";
+import { DEFAULT_LOCALE } from "@/lib/locale/app-locale";
 
 type TerminalAppShellProps = {
   children: ReactNode;
+  dashboardLocale?: AppLocale;
 };
 
-export function TerminalAppShell({ children }: TerminalAppShellProps) {
+export function TerminalAppShell({ children, dashboardLocale = DEFAULT_LOCALE }: TerminalAppShellProps) {
   const pathname = usePathname();
   const { user, isAuthenticated, isLoading, logout } = useAuth();
   const sidebarCollapsed = useWorkspaceStore((state) => state.sidebarCollapsed);
@@ -41,6 +44,10 @@ export function TerminalAppShell({ children }: TerminalAppShellProps) {
   }, [theme]);
 
   useEffect(() => {
+    document.documentElement.lang = dashboardLocale;
+  }, [dashboardLocale]);
+
+  useEffect(() => {
     setMobileNavOpen(false);
   }, [pathname]);
 
@@ -56,6 +63,7 @@ export function TerminalAppShell({ children }: TerminalAppShellProps) {
   return (
     <div className={isSidebarCollapsed ? "terminal-shell terminal-shell-collapsed" : "terminal-shell"}>
       <MobileAppHeader
+        guideLocale={dashboardLocale}
         isMenuOpen={isMobileNavigationOpen}
         menuButtonRef={menuButtonRef}
         onMenuToggle={() => setMobileNavOpen((open) => !open)}
@@ -142,7 +150,7 @@ export function TerminalAppShell({ children }: TerminalAppShellProps) {
       <main className="terminal-main">
         {children}
       </main>
-      <DashboardSidebarGuide onMobileNavigationOpenChange={setGuideMobileNavigationOpen} />
+      <DashboardSidebarGuide dashboardLocale={dashboardLocale} onMobileNavigationOpenChange={setGuideMobileNavigationOpen} />
       <GlobalCommandPalette />
     </div>
   );

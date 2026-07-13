@@ -1,5 +1,6 @@
 import type { InsightBlockModel } from "@/lib/insights/insight-types";
 
+/** Canonical English insight blocks; dashboard localizes by `id` in applyDashboardLocalization. */
 export type MarketInsightInput = {
   marketMood: "Bullish" | "Cautious" | "Bearish" | "Accumulation" | "Weak recovery" | "High volatility" | "Unknown";
   hasPartialData: boolean;
@@ -62,7 +63,10 @@ export function buildMarketInsights(input: MarketInsightInput): InsightBlockMode
   insights.push({
     id: "turnover-context",
     title: "Turnover context",
-    description: `Latest turnover is ${input.turnoverLabel}. Treat missing values as a data availability issue, not a zero-activity market.`,
+    description:
+      input.turnoverLabel === "N/A"
+        ? "Turnover data is unavailable. Do not treat this as zero market activity—it may be a data sync or availability issue."
+        : `Latest turnover is ${input.turnoverLabel}.`,
     tone: input.turnoverLabel === "N/A" ? "warning" : "neutral",
     category: input.turnoverLabel === "N/A" ? "quality" : "valuation",
     source: "DETERMINISTIC",

@@ -1,9 +1,11 @@
 "use client";
 
 import type { StockDecisionViewModel } from "@/features/stock-workspace/view-models/stock-decision-view-model";
+import type { StockWorkspaceLanguage } from "@/features/stock-workspace/stock-workspace-language";
 
 type OwnershipInsightsPanelProps = {
   decision: StockDecisionViewModel;
+  copy: StockWorkspaceLanguage["panels"];
 };
 
 type OwnershipSegment = {
@@ -13,27 +15,27 @@ type OwnershipSegment = {
   color: string;
 };
 
-function buildSegments(decision: StockDecisionViewModel): OwnershipSegment[] {
+function buildSegments(decision: StockDecisionViewModel, copy: StockWorkspaceLanguage["panels"]): OwnershipSegment[] {
   const ownership = decision.ownership;
   if (!ownership) {
     return [];
   }
   const entries = [
-    { key: "sponsor", label: "Sponsor", value: ownership.sponsor_percent ?? 0, color: "#7bb7ff" },
-    { key: "institution", label: "Institution", value: ownership.institution_percent ?? 0, color: "#9d8cff" },
-    { key: "foreign", label: "Foreign", value: ownership.foreign_percent ?? 0, color: "#4bd6a4" },
-    { key: "public", label: "Public", value: ownership.public_percent ?? 0, color: "#f0c36a" },
+    { key: "sponsor", label: copy.sponsor, value: ownership.sponsor_percent ?? 0, color: "#7bb7ff" },
+    { key: "institution", label: copy.institution, value: ownership.institution_percent ?? 0, color: "#9d8cff" },
+    { key: "foreign", label: copy.foreign, value: ownership.foreign_percent ?? 0, color: "#4bd6a4" },
+    { key: "public", label: copy.public, value: ownership.public_percent ?? 0, color: "#f0c36a" },
   ].filter((entry) => entry.value > 0);
   return entries;
 }
 
-export function OwnershipInsightsPanel({ decision }: OwnershipInsightsPanelProps) {
+export function OwnershipInsightsPanel({ decision, copy }: OwnershipInsightsPanelProps) {
   if (!decision.available || !decision.ownership) {
     return null;
   }
 
   const ownership = decision.ownership;
-  const segments = buildSegments(decision);
+  const segments = buildSegments(decision, copy);
   const total = segments.reduce((sum, segment) => sum + segment.value, 0) || 1;
   let cursor = 0;
   const gradientStops = segments
@@ -54,7 +56,7 @@ export function OwnershipInsightsPanel({ decision }: OwnershipInsightsPanelProps
           title={segments.map((segment) => `${segment.label} ${segment.value.toFixed(1)}%`).join(" · ")}
         >
           <div className="ownership-donut-center">
-            <span>Free Float</span>
+            <span>{copy.freeFloat}</span>
             <strong>{ownership.free_float_percent !== null ? `${ownership.free_float_percent.toFixed(1)}%` : "N/A"}</strong>
           </div>
         </div>
@@ -67,7 +69,7 @@ export function OwnershipInsightsPanel({ decision }: OwnershipInsightsPanelProps
           ))}
         </ul>
       </div>
-      <p className="ownership-interpretation">{ownership.interpretations[0] ?? "Ownership mix available from latest snapshot."}</p>
+      <p className="ownership-interpretation">{ownership.interpretations[0] ?? copy.ownershipFallback}</p>
     </div>
   );
 }

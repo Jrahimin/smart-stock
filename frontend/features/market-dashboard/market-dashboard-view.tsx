@@ -1,7 +1,9 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { useMemo } from "react";
 
+import { getDashboardLanguage } from "@/features/market-dashboard/dashboard-language";
 import { DashboardSsrHydrationGuard } from "@/features/market-dashboard/components/dashboard-ssr-hydration-guard";
 import { MarketBreadthPanel } from "@/features/market-dashboard/components/market-breadth-panel";
 import {
@@ -19,90 +21,160 @@ import { MarketTimeline } from "@/features/market-dashboard/components/market-ti
 import { SmartSignalFeed } from "@/features/market-dashboard/components/smart-signal-feed";
 import { useMarketDashboard } from "@/features/market-dashboard/hooks/use-market-dashboard";
 import type { DashboardCorePayload } from "@/lib/api/dashboard-server";
-
-const InstitutionalHeatmap = dynamic(
-  () =>
-    import("@/features/market-dashboard/components/institutional-heatmap").then((module) => ({
-      default: module.InstitutionalHeatmap,
-    })),
-  { loading: () => <InstitutionalHeatmapSkeleton /> },
-);
-
-const InsightSidebar = dynamic(
-  () =>
-    import("@/features/market-dashboard/components/insight-sidebar").then((module) => ({
-      default: module.InsightSidebar,
-    })),
-  { loading: () => <InsightSidebarSkeleton /> },
-);
+import type { AppLocale } from "@/lib/locale/app-locale";
+import { DEFAULT_LOCALE } from "@/lib/locale/app-locale";
 
 type MarketDashboardViewProps = {
   initialCore?: DashboardCorePayload | null;
+  locale?: AppLocale;
 };
 
-export function MarketDashboardView({ initialCore = null }: MarketDashboardViewProps) {
+export function MarketDashboardView({ initialCore = null, locale = DEFAULT_LOCALE }: MarketDashboardViewProps) {
+  const language = getDashboardLanguage(locale);
   const { model, isError, sectionLoading, signalsSectionError } = useMarketDashboard({
     initialCore,
+    locale,
   });
+
+  const InstitutionalHeatmap = useMemo(
+    () =>
+      dynamic(
+        () =>
+          import("@/features/market-dashboard/components/institutional-heatmap").then((module) => ({
+            default: module.InstitutionalHeatmap,
+          })),
+        {
+          loading: () => (
+            <InstitutionalHeatmapSkeleton eyebrow={language.heatmap.eyebrow} title={language.heatmap.title} />
+          ),
+        },
+      ),
+    [language.heatmap.eyebrow, language.heatmap.title],
+  );
+
+  const InsightSidebar = useMemo(
+    () =>
+      dynamic(
+        () =>
+          import("@/features/market-dashboard/components/insight-sidebar").then((module) => ({
+            default: module.InsightSidebar,
+          })),
+        {
+          loading: () => (
+            <InsightSidebarSkeleton eyebrow={language.insights.eyebrow} title={language.insights.title} />
+          ),
+        },
+      ),
+    [language.insights.eyebrow, language.insights.title],
+  );
+
+  const breadthCopy = {
+    eyebrow: language.breadthPanel.eyebrow,
+    title: language.breadthPanel.title,
+    advancing: language.breadthPanel.advancing(model.breadth.advancing),
+    declining: language.breadthPanel.declining(model.breadth.declining),
+    unchanged: language.breadthPanel.unchanged(model.breadth.unchanged),
+  };
 
   return (
     <div className="market-dashboard-view">
       {initialCore ? <DashboardSsrHydrationGuard initialCore={initialCore} /> : null}
-      <MarketDashboardHeader />
+      <MarketDashboardHeader locale={locale} />
       {sectionLoading.pulseCore ? (
-        <MarketPulseCoreSkeleton leadersLoading={sectionLoading.leaders} />
+        <MarketPulseCoreSkeleton copy={language.skeletons} leadersLoading={sectionLoading.leaders} />
       ) : (
-        <MarketPulsePanel leadersLoading={sectionLoading.leaders} model={model} />
+        <MarketPulsePanel
+          copy={language.pulse}
+          leadersLoading={sectionLoading.leaders}
+          model={model}
+        />
       )}
-      {isError ? (
-        <div className="data-warning">
-          Backend data is unavailable. Showing resilient workspace placeholders based on current contracts.
-        </div>
-      ) : null}
+      {isError ? <div className="data-warning">{language.states.backendError}</div> : null}
       <div className="dashboard-workspace-grid">
         <div className="dashboard-primary-column">
-          {sectionLoading.breadth ? <MarketBreadthPanelSkeleton /> : <MarketBreadthPanel breadth={model.breadth} />}
-          {sectionLoading.heatmap ? (
-            <InstitutionalHeatmapSkeleton />
+          {sectionLoading.breadth ? (
+            <MarketBreadthPanelSkeleton
+              eyebrow={language.breadthPanel.eyebrow}
+              title={language.breadthPanel.title}
+            />
           ) : (
-            <InstitutionalHeatmap tiles={model.heatmapTiles} />
+            <MarketBreadthPanel breadth={model.breadth} copy={breadthCopy} />
+          )}
+          {sectionLoading.heatmap ? (
+            <InstitutionalHeatmapSkeleton eyebrow={language.heatmap.eyebrow} title={language.heatmap.title} />
+          ) : (
+            <InstitutionalHeatmap copy={language.heatmap} tiles={model.heatmapTiles} />
           )}
           <div className="movers-grid" data-guide="market-discovery">
             {sectionLoading.movers ? (
               <>
-                <MarketMoversPanelSkeleton title="Top gainers" />
-                <MarketMoversPanelSkeleton delayMs={80} title="Top losers" />
+                <MarketMoversPanelSkeleton eyebrow={language.movers.eyebrow} title={language.movers.topGainers} />
+                <MarketMoversPanelSkeleton
+                  delayMs={80}
+                  eyebrow={language.movers.eyebrow}
+                  title={language.movers.topLosers}
+                />
               </>
             ) : (
               <>
-                <MarketMoversPanel movers={model.movers.gainers} title="Top gainers" />
-                <MarketMoversPanel movers={model.movers.losers} title="Top losers" />
+                <MarketMoversPanel
+                  emptyText={language.movers.empty}
+                  eyebrow={language.movers.eyebrow}
+                  movers={model.movers.gainers}
+                  title={language.movers.topGainers}
+                  turnoverSuffix={language.movers.turnoverSuffix}
+                />
+                <MarketMoversPanel
+                  emptyText={language.movers.empty}
+                  eyebrow={language.movers.eyebrow}
+                  movers={model.movers.losers}
+                  title={language.movers.topLosers}
+                  turnoverSuffix={language.movers.turnoverSuffix}
+                />
               </>
             )}
           </div>
-          {sectionLoading.timeline ? <MarketTimelineSkeleton /> : <MarketTimeline items={model.timeline} />}
+          {sectionLoading.timeline ? (
+            <MarketTimelineSkeleton eyebrow={language.timeline.eyebrow} title={language.timeline.title} />
+          ) : (
+            <MarketTimeline copy={language.timeline} items={model.timeline} />
+          )}
         </div>
         <div className="dashboard-secondary-column">
           {sectionLoading.signals ? (
-            <SmartSignalFeedSkeleton />
+            <SmartSignalFeedSkeleton eyebrow={language.signals.eyebrow} title={language.signals.title} />
           ) : signalsSectionError ? (
             <section className="workspace-card">
               <div className="section-heading">
-                <p className="eyebrow">Smart Signals</p>
-                <h2>Explanation-first feed</h2>
+                <p className="eyebrow">{language.signals.eyebrow}</p>
+                <h2>{language.signals.title}</h2>
               </div>
-              <div className="empty-state">Trader signals are warming up after startup. This section should populate shortly.</div>
+              <div className="empty-state">{language.signals.warmup}</div>
             </section>
           ) : (
-            <SmartSignalFeed signals={model.signals} />
+            <SmartSignalFeed copy={language.signals} signals={model.signals} />
           )}
         </div>
         <div className="dashboard-tertiary-column">
-          {sectionLoading.insights ? <InsightSidebarSkeleton /> : <InsightSidebar insights={model.insights} />}
-          {sectionLoading.movers ? (
-            <MarketMoversPanelSkeleton delayMs={120} eyebrow="Turnover Leaders" title="Liquidity watch" />
+          {sectionLoading.insights ? (
+            <InsightSidebarSkeleton eyebrow={language.insights.eyebrow} title={language.insights.title} />
           ) : (
-            <MarketMoversPanel movers={model.movers.turnoverLeaders} title="Liquidity watch" eyebrow="Turnover Leaders" />
+            <InsightSidebar copy={language.insights} insights={model.insights} />
+          )}
+          {sectionLoading.movers ? (
+            <MarketMoversPanelSkeleton
+              delayMs={120}
+              eyebrow={language.movers.turnoverLeaders}
+              title={language.movers.liquidityWatch}
+            />
+          ) : (
+            <MarketMoversPanel
+              emptyText={language.movers.empty}
+              eyebrow={language.movers.turnoverLeaders}
+              movers={model.movers.turnoverLeaders}
+              title={language.movers.liquidityWatch}
+              turnoverSuffix={language.movers.turnoverSuffix}
+            />
           )}
         </div>
       </div>

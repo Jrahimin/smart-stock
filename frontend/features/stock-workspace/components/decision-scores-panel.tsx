@@ -5,9 +5,11 @@ import { useState } from "react";
 import { CircularProgressRing } from "@/components/ui/circular-progress-ring";
 import { WorkspaceModal } from "@/components/ui/workspace-modal";
 import type { StockDecisionViewModel } from "@/features/stock-workspace/view-models/stock-decision-view-model";
+import type { StockWorkspaceLanguage } from "@/features/stock-workspace/stock-workspace-language";
 
 type DecisionScoresPanelProps = {
   decision: StockDecisionViewModel;
+  copy: StockWorkspaceLanguage["decision"];
 };
 
 function ScoreBreakdownModal({
@@ -38,7 +40,7 @@ function ScoreBreakdownModal({
   );
 }
 
-export function DecisionScoresPanel({ decision }: DecisionScoresPanelProps) {
+export function DecisionScoresPanel({ decision, copy }: DecisionScoresPanelProps) {
   const [openModal, setOpenModal] = useState<"opportunity" | "risk" | null>(null);
   if (!decision.available) {
     return null;
@@ -52,7 +54,7 @@ export function DecisionScoresPanel({ decision }: DecisionScoresPanelProps) {
       <div className="decision-score-rings">
         <CircularProgressRing
           icon="🎯"
-          label="Opportunity"
+          label={copy.opportunity}
           onClick={() => setOpenModal("opportunity")}
           score={decision.opportunityScore}
           title={opportunityTooltip}
@@ -60,7 +62,7 @@ export function DecisionScoresPanel({ decision }: DecisionScoresPanelProps) {
         />
         <CircularProgressRing
           icon="⚠"
-          label="Risk"
+          label={copy.risk}
           onClick={() => setOpenModal("risk")}
           score={decision.riskScore}
           title={riskTooltip}
@@ -71,13 +73,13 @@ export function DecisionScoresPanel({ decision }: DecisionScoresPanelProps) {
         components={decision.opportunityComponents}
         isOpen={openModal === "opportunity"}
         onClose={() => setOpenModal(null)}
-        title="Opportunity Score Breakdown"
+        title={copy.opportunityBreakdown}
       />
       <ScoreBreakdownModal
         components={decision.riskComponents}
         isOpen={openModal === "risk"}
         onClose={() => setOpenModal(null)}
-        title="Risk Score Breakdown"
+        title={copy.riskBreakdown}
       />
     </>
   );

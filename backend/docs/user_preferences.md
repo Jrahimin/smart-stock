@@ -24,7 +24,8 @@ states are stored independently.
 
 Implementation lives under `frontend/features/guide/`. The backend only stores
 **completion/dismissal** for signed-in users; guests and all session-scoped behavior are
-handled in the browser.
+handled in the browser. **Guide language** (Bangla/English mascot copy) is separate from
+preference state—see [frontend_localization.md](frontend_localization.md).
 
 ### Surfaces and versions
 

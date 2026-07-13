@@ -4,13 +4,16 @@ import Link from "next/link";
 import { Check, Eye } from "lucide-react";
 
 import type { FocusStockModel } from "@/features/market-pulse/types/market-pulse-types";
+import type { MarketPulseLanguage } from "@/features/market-pulse/market-pulse-language";
 import { MiniSparkline, PulseScoreHeaderCluster } from "@/features/market-pulse/components/pulse-score-badge";
 
 type FocusStockCardProps = {
   stock: FocusStockModel;
+  copy: MarketPulseLanguage["focus"];
+  scoreCopy: MarketPulseLanguage["score"];
 };
 
-export function FocusStockCard({ stock }: FocusStockCardProps) {
+export function FocusStockCard({ stock, copy, scoreCopy }: FocusStockCardProps) {
   return (
     <Link className="pulse-focus-card" href={stock.href}>
       <div className="pulse-focus-card-header">
@@ -21,13 +24,13 @@ export function FocusStockCard({ stock }: FocusStockCardProps) {
             <span title={stock.name}>{stock.name}</span>
           </div>
         </div>
-        <PulseScoreHeaderCluster breakdown={stock.scoreBreakdown} score={stock.pulseScore} />
+        <PulseScoreHeaderCluster breakdown={stock.scoreBreakdown} copy={scoreCopy} score={stock.pulseScore} />
       </div>
 
       <span className={`pulse-focus-label-badge pulse-focus-label-badge-${stock.labelTone}`}>{stock.focusLabel}</span>
 
       <div className="pulse-focus-why-block">
-        <span className="pulse-focus-why-label">Why selected?</span>
+        <span className="pulse-focus-why-label">{copy.whySelected}</span>
         <ul className="pulse-focus-reasons">
           {stock.whyHere.map((reason) => (
             <li key={reason}>
@@ -39,12 +42,12 @@ export function FocusStockCard({ stock }: FocusStockCardProps) {
       </div>
 
       <p className="pulse-focus-conviction">
-        <span className="pulse-focus-conviction-label">Conviction</span>
+        <span className="pulse-focus-conviction-label">{copy.conviction}</span>
         <strong>{stock.actionSummary}</strong>
       </p>
 
       <div className="pulse-focus-trigger-block">
-        <span>Next Trigger</span>
+        <span>{copy.nextTrigger}</span>
         <strong>{stock.trigger}</strong>
       </div>
 
@@ -64,6 +67,8 @@ type StocksInFocusSectionProps = {
   stockCount?: number;
   isLoading?: boolean;
   usingMonitorFallback?: boolean;
+  copy: MarketPulseLanguage["focus"];
+  scoreCopy: MarketPulseLanguage["score"];
 };
 
 export function StocksInFocusSection({
@@ -71,6 +76,8 @@ export function StocksInFocusSection({
   stockCount = stocks.length,
   isLoading = false,
   usingMonitorFallback = false,
+  copy,
+  scoreCopy,
 }: StocksInFocusSectionProps) {
   const skeletonCount = Math.max(stockCount, 3);
   const gridClass =
@@ -85,14 +92,14 @@ export function StocksInFocusSection({
           <div>
             <p className="pulse-section-eyebrow">
               <Eye aria-hidden="true" size={16} />
-              Stocks In Focus
+              {copy.eyebrow}
             </p>
             <h2 id="pulse-focus-heading">
-              {usingMonitorFallback ? "Stocks approaching attention threshold" : "Top opportunities worth attention"}
+              {usingMonitorFallback ? copy.titleMonitorFallback : copy.titleDefault}
             </h2>
           </div>
           <Link className="pulse-section-link" href="/scanner">
-            View all stocks →
+            {copy.viewAll}
           </Link>
         </div>
 
@@ -105,7 +112,7 @@ export function StocksInFocusSection({
         ) : (
           <div className={gridClass}>
             {stocks.map((stock) => (
-              <FocusStockCard key={stock.stockId} stock={stock} />
+              <FocusStockCard copy={copy} key={stock.stockId} scoreCopy={scoreCopy} stock={stock} />
             ))}
           </div>
         )}

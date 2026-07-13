@@ -4,6 +4,7 @@ import { CandlestickSeries, createChart, createSeriesMarkers, HistogramSeries, L
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { PatternDetailModal } from "@/features/stock-workspace/components/pattern-detail-modal";
+import type { StockWorkspaceLanguage } from "@/features/stock-workspace/stock-workspace-language";
 import type { PatternDetectionDto } from "@/lib/api/stock-decision-support-types";
 import type { ChartCandleModel, VolumeBarModel } from "@/lib/market/market-intelligence-types";
 import { formatCompactNumber } from "@/lib/formatters/financial-formatters";
@@ -21,6 +22,8 @@ type StockCandlestickChartProps = {
   support?: number | null;
   volumeBars: VolumeBarModel[];
   patterns?: PatternDetectionDto[];
+  patternCopy: StockWorkspaceLanguage["pattern"];
+  chartCopy: StockWorkspaceLanguage["chart"];
 };
 
 function patternStatusClass(status: string) {
@@ -37,6 +40,8 @@ export function StockCandlestickChart({
   sma20,
   support,
   volumeBars,
+  patternCopy,
+  chartCopy,
 }: StockCandlestickChartProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<ReturnType<typeof createChart> | null>(null);
@@ -235,7 +240,7 @@ export function StockCandlestickChart({
   }, [chartData.candles, chartData.volumeBars, ema20, eventMarkers, overlaysEnabled, resistance, smaLine, support, theme]);
 
   if (candles.length === 0) {
-    return <div className="empty-state chart-empty-state">No OHLCV rows are available for this stock yet.</div>;
+    return <div className="empty-state chart-empty-state">{chartCopy.empty}</div>;
   }
 
   const hoveredVolume = hoveredCandle ? chartData.volumeBars.find((bar) => bar.time === hoveredCandle.time)?.value : null;
@@ -259,7 +264,7 @@ export function StockCandlestickChart({
           <span>Vol {hoveredVolume !== null && hoveredVolume !== undefined ? formatCompactNumber(hoveredVolume) : "—"}</span>
         </div>
       </div>
-      <div className="chart-tool-strip chart-tool-strip-extended" aria-label="Chart workspace tools">
+      <div className="chart-tool-strip chart-tool-strip-extended" aria-label={chartCopy.toolsAria}>
         <span className={overlaysEnabled && smaLine.length ? "active" : undefined}>SMA20 {sma20?.toFixed(2) ?? "N/A"}</span>
         <span className={overlaysEnabled && ema20 !== null && ema20 !== undefined ? "active" : undefined}>EMA20 {ema20?.toFixed(2) ?? "N/A"}</span>
         <span className={overlaysEnabled && support !== null && support !== undefined ? "active" : undefined}>Support {support?.toFixed(2) ?? "N/A"}</span>
@@ -283,6 +288,7 @@ export function StockCandlestickChart({
         isOpen={selectedPattern !== null}
         onClose={() => setSelectedPatternIndex(null)}
         pattern={selectedPattern}
+        copy={patternCopy}
         riskLabel={riskLabel}
       />
     </div>

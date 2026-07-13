@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 
 import { JsonLdScript } from "@/components/seo/json-ld-script";
@@ -6,6 +7,7 @@ import { TerminalAppShell } from "@/components/layout/terminal-app-shell";
 import { WEALTH_COMPARISON_DEFAULTS } from "@/features/wealth/catalog/wealth-catalog";
 import { WealthComparisonWorkspace } from "@/features/wealth/components/wealth-comparison-workspace";
 import type { WealthComparisonSlug } from "@/features/wealth/types/wealth-types";
+import { LOCALE_COOKIE_NAME, parseAppLocale } from "@/lib/locale/app-locale";
 import {
   buildWealthComparisonBreadcrumbJsonLd,
   buildWealthComparisonMetadata,
@@ -36,11 +38,12 @@ export default async function WealthComparisonPage({ params }: WealthComparisonP
   if (!isWealthComparisonSlug(comparisonSlug)) {
     notFound();
   }
+  const locale = parseAppLocale((await cookies()).get(LOCALE_COOKIE_NAME)?.value);
 
   return (
-    <TerminalAppShell>
+    <TerminalAppShell dashboardLocale={locale}>
       <JsonLdScript data={buildWealthComparisonBreadcrumbJsonLd(comparisonSlug)} />
-      <WealthComparisonWorkspace comparisonSlug={comparisonSlug} />
+      <WealthComparisonWorkspace comparisonSlug={comparisonSlug} locale={locale} />
     </TerminalAppShell>
   );
 }

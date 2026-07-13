@@ -18,11 +18,13 @@ import {
   MarketBriefingSectionSkeleton,
 } from "@/features/market-pulse/components/pulse-briefing-skeleton";
 import type { MarketBriefingModel } from "@/features/market-pulse/types/market-pulse-types";
+import type { MarketPulseLanguage } from "@/features/market-pulse/market-pulse-language";
 
 export { MarketBriefingFooterSkeleton, MarketBriefingSectionSkeleton };
 
 type MarketBriefingSectionProps = {
   briefing: MarketBriefingModel;
+  copy: MarketPulseLanguage;
 };
 
 function StateIcon({ stateKey }: { stateKey: string }) {
@@ -44,12 +46,14 @@ function OpportunityGauge({
   previousSession,
   weeklyAverage,
   trendLabel,
+  copy,
 }: {
   score: number;
   history: number[];
   previousSession: number | null;
   weeklyAverage: number | null;
   trendLabel: string | null;
+  copy: MarketPulseLanguage["briefing"];
 }) {
   const radius = 62;
   const centerX = 80;
@@ -90,8 +94,8 @@ function OpportunityGauge({
         </div>
       </div>
       <div className="pulse-opportunity-history-wrap">
-        <span className="pulse-opportunity-history-label">Last 5 sessions</span>
-        <div className="pulse-opportunity-history" aria-label="Last 5 sessions">
+        <span className="pulse-opportunity-history-label">{copy.lastFiveSessions}</span>
+        <div className="pulse-opportunity-history" aria-label={copy.lastFiveSessions}>
           {Array.from({ length: 5 }, (_, slotIndex) => {
             const historyIndex = slotIndex - Math.max(0, 5 - history.length);
             const value = historyIndex >= 0 ? history[historyIndex] : undefined;
@@ -119,17 +123,17 @@ function OpportunityGauge({
       <div className="pulse-opportunity-context">
         {previousSession !== null ? (
           <span>
-            Yesterday: <strong>{previousSession}</strong>
+            {copy.yesterday(previousSession)}
           </span>
         ) : null}
         {weeklyAverage !== null ? (
           <span>
-            5-Day Avg: <strong>{weeklyAverage}</strong>
+            {copy.fiveDayAvg(weeklyAverage)}
           </span>
         ) : null}
         {trendLabel ? (
           <span>
-            Trend: <strong className={`pulse-opportunity-trend-${trendLabel.toLowerCase()}`}>{trendLabel}</strong>
+            {copy.trend(trendLabel)}
           </span>
         ) : null}
       </div>
@@ -137,14 +141,14 @@ function OpportunityGauge({
   );
 }
 
-export function MarketBriefingSection({ briefing }: MarketBriefingSectionProps) {
+export function MarketBriefingSection({ briefing, copy }: MarketBriefingSectionProps) {
   const { story, state, moneyFlow, opportunityScore } = briefing;
   const headlineLines = story.headline.split("\n");
   const briefingLines = story.explanation.split("\n").filter(Boolean);
 
   return (
     <>
-      <section className="pulse-briefing-top" aria-label="Market briefing overview">
+      <section className="pulse-briefing-top" aria-label={copy.briefing.overviewAria}>
         <article className={`pulse-story-card pulse-story-card-${story.tone}`}>
           <div aria-hidden="true" className="pulse-story-watermark" />
           <div className="pulse-story-main">
@@ -165,8 +169,8 @@ export function MarketBriefingSection({ briefing }: MarketBriefingSectionProps) 
             </div>
           </div>
           <div className="pulse-story-snapshot">
-            <span className="pulse-story-snapshot-label">Market Breadth Snapshot</span>
-            <div className="pulse-story-metrics" role="list" aria-label="Market breadth snapshot">
+            <span className="pulse-story-snapshot-label">{copy.briefing.breadthSnapshot}</span>
+            <div className="pulse-story-metrics" role="list" aria-label={copy.briefing.breadthSnapshotAria}>
             {story.metrics.map((metric) => (
               <div className={`pulse-story-metric pulse-story-metric-${metric.tone}`} key={metric.label} role="listitem">
                 <span className="pulse-story-metric-label">{metric.label}</span>
@@ -181,7 +185,7 @@ export function MarketBriefingSection({ briefing }: MarketBriefingSectionProps) 
         </article>
 
         <article className="pulse-state-card">
-          <p className="pulse-card-kicker">Market State</p>
+          <p className="pulse-card-kicker">{copy.briefing.marketState}</p>
           <ul className="pulse-state-list">
             {state.dimensions.map((dimension) => (
               <li className="pulse-state-row" key={dimension.key}>
@@ -194,16 +198,16 @@ export function MarketBriefingSection({ briefing }: MarketBriefingSectionProps) 
             ))}
           </ul>
           <footer className={`pulse-state-overall pulse-state-overall-${state.overallTone}`}>
-            Overall State: <strong>{state.overallLabel}</strong>
+            {copy.briefing.overallState} <strong>{state.overallLabel}</strong>
           </footer>
         </article>
 
         <article className="pulse-flow-card">
-          <p className="pulse-card-kicker">Money Flow</p>
+          <p className="pulse-card-kicker">{copy.briefing.moneyFlow}</p>
           <div className="pulse-flow-group">
             <p className="pulse-flow-heading pulse-flow-heading-in">
               <ArrowUpRight aria-hidden="true" size={14} />
-              Inflowing
+              {copy.briefing.inflowing}
             </p>
             <div className="pulse-flow-sectors">
               {moneyFlow.inflows.map((sector, index) => (
@@ -225,7 +229,7 @@ export function MarketBriefingSection({ briefing }: MarketBriefingSectionProps) 
           <div className="pulse-flow-group pulse-flow-group-out">
             <p className="pulse-flow-heading pulse-flow-heading-out">
               <ArrowDownRight aria-hidden="true" size={14} />
-              Outflowing
+              {copy.briefing.outflowing}
             </p>
             <div className="pulse-flow-sectors">
               {moneyFlow.outflows.map((sector) => (
@@ -244,8 +248,9 @@ export function MarketBriefingSection({ briefing }: MarketBriefingSectionProps) 
         </article>
 
         <article className="pulse-opportunity-card">
-          <p className="pulse-card-kicker">Opportunity Score</p>
+          <p className="pulse-card-kicker">{copy.briefing.opportunityScore}</p>
           <OpportunityGauge
+            copy={copy.briefing}
             history={opportunityScore.history}
             previousSession={opportunityScore.previousSession}
             score={opportunityScore.score}
@@ -262,9 +267,13 @@ export function MarketBriefingSection({ briefing }: MarketBriefingSectionProps) 
 type MarketBriefingFooterProps = {
   leadership: MarketBriefingModel["leadership"];
   summary: MarketBriefingModel["summary"];
+  copy: {
+    leadership: MarketPulseLanguage["leadership"];
+    summary: MarketPulseLanguage["summary"];
+  };
 };
 
-export function MarketBriefingFooter({ leadership, summary }: MarketBriefingFooterProps) {
+export function MarketBriefingFooter({ leadership, summary, copy }: MarketBriefingFooterProps) {
   const [sectorCard, stockCard, accumulationCard] = leadership.cards;
   const summaryLines = summary.text.split("\n").map((line) => line.trim()).filter(Boolean);
   const summaryHeadline = summaryLines[0] ?? null;
@@ -275,8 +284,8 @@ export function MarketBriefingFooter({ leadership, summary }: MarketBriefingFoot
       <article className="pulse-leadership-card">
         <div className="pulse-section-head pulse-section-head-compact">
           <div>
-            <p className="pulse-card-kicker">Market Leadership</p>
-            <p className="pulse-leadership-subtitle">Who&apos;s leading the market today.</p>
+            <p className="pulse-card-kicker">{copy.leadership.title}</p>
+            <p className="pulse-leadership-subtitle">{copy.leadership.subtitle}</p>
           </div>
         </div>
         {leadership.narrative ? <p className="pulse-leadership-narrative">{leadership.narrative}</p> : null}
@@ -290,10 +299,10 @@ export function MarketBriefingFooter({ leadership, summary }: MarketBriefingFoot
           ) : null}
           {leadership.freshBuySignals.length > 0 ? (
             <div className="pulse-leadership-widget-signals">
-              <span className="pulse-leadership-kind">Fresh Signals (Buy)</span>
+              <span className="pulse-leadership-kind">{copy.leadership.freshSignals}</span>
               <div className="pulse-leadership-signal-stats">
-                <span>New Today: {leadership.freshNewCount}</span>
-                <span>Upgraded Today: {leadership.freshUpgradedCount}</span>
+                <span>{copy.leadership.newToday(leadership.freshNewCount)}</span>
+                <span>{copy.leadership.upgradedToday(leadership.freshUpgradedCount)}</span>
               </div>
               <div className="pulse-leadership-signal-list">
                 {leadership.freshBuySignals.map((symbol) => (
@@ -311,7 +320,7 @@ export function MarketBriefingFooter({ leadership, summary }: MarketBriefingFoot
 
       <article className={`pulse-summary-card pulse-summary-card-${summary.tone}`}>
         <div className="pulse-summary-head">
-          <p className="pulse-card-kicker">Market State Summary</p>
+          <p className="pulse-card-kicker">{copy.summary.title}</p>
           <div className="pulse-summary-icon-watermark" aria-hidden="true">
             <Shield size={44} strokeWidth={1.1} />
           </div>
@@ -333,7 +342,7 @@ export function MarketBriefingFooter({ leadership, summary }: MarketBriefingFoot
                 <span className="pulse-summary-env-head-icon" aria-hidden="true">
                   <Zap size={13} strokeWidth={2.2} />
                 </span>
-                <span>Trading Environment</span>
+                <span>{copy.summary.tradingEnvironment}</span>
               </div>
               <ul className="pulse-summary-trading-env-list">
                 {summary.tradingEnvironment.signals.map((signal) => (
@@ -355,13 +364,13 @@ export function MarketBriefingFooter({ leadership, summary }: MarketBriefingFoot
             <div
               className={`pulse-summary-verdict pulse-summary-verdict-${summary.tradingEnvironment.overallTone}`}
             >
-              <span className="pulse-summary-verdict-label">Overall</span>
+              <span className="pulse-summary-verdict-label">{copy.summary.overall}</span>
               <strong className="pulse-summary-verdict-value">{summary.tradingEnvironment.overallLabel}</strong>
             </div>
           ) : null}
 
           <Link className="pulse-summary-link" href="/scanner">
-            Read full analysis →
+            {copy.summary.readFullAnalysis}
           </Link>
         </div>
       </article>

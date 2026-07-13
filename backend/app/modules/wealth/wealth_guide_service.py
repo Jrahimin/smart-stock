@@ -71,12 +71,30 @@ class WealthGuideService:
         return insights[:4]
 
     def get_seasonal_context(self) -> dict[str, str | None]:
+        # Active seasonal lens — swap `season_key` when the calendar changes.
         return {
-            "season_key": "ramadan",
-            "title": "A calm moment for Zakat and giving",
-            "description": "Use this season to understand eligible wealth, obligations, and what matters most to you.",
-            "featured_tool_slug": "zakat",
+            "season_key": "income_tax_season",
+            "title": "Income tax season — get your estimate in order",
+            "description": (
+                "See how salary, investments, and rebates may shape your return "
+                "before deadline pressure kicks in."
+            ),
+            "featured_tool_slug": "tax-planner",
             "featured_comparison_slug": "save-vs-spend",
-            "cta_label": "Calculate Zakat",
-            "cta_href": "/wealth/tools/zakat",
+            "cta_label": "Open Tax Planner",
+            "cta_href": "/wealth/tools/tax-planner",
         }
+
+        # Future: Ramadan / Zakat lens
+        # return {
+        #     "season_key": "ramadan",
+        #     "title": "A calm moment for Zakat and giving",
+        #     "description": (
+        #         "Use this season to understand eligible wealth, obligations, "
+        #         "and what matters most to you."
+        #     ),
+        #     "featured_tool_slug": "zakat",
+        #     "featured_comparison_slug": "save-vs-spend",
+        #     "cta_label": "Calculate Zakat",
+        #     "cta_href": "/wealth/tools/zakat",
+        # }

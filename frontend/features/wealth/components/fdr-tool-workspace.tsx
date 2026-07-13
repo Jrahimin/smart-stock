@@ -24,6 +24,8 @@ import type { WealthToolCalculateResponse } from "@/features/wealth/types/wealth
 import { buildToolResultViewModel, formatWealthCurrency } from "@/features/wealth/view-models/wealth-view-model";
 import { useAuth } from "@/features/auth/context/auth-context";
 import { saveWealthScenario } from "@/lib/api/wealth-api";
+import { getWealthToolsLanguage } from "@/features/wealth/wealth-tools-language";
+import type { AppLocale } from "@/lib/locale/app-locale";
 
 const FDR_CONFIG = WEALTH_TOOL_CONFIG.fdr;
 
@@ -34,7 +36,8 @@ const FDR_PAYOUT_OPTIONS = [
   { value: "maturity", label: "At maturity", hint: "Compound until unlock" },
 ] as const;
 
-export function FdrToolWorkspace() {
+export function FdrToolWorkspace({ locale }: { locale: AppLocale }) {
+  const copy = getWealthToolsLanguage(locale);
   const { isAuthenticated } = useAuth();
   const initialInputs = useMemo(
     () => Object.fromEntries(FDR_CONFIG.fields.map((field) => [field.key, field.defaultValue ?? ""])),
@@ -65,9 +68,18 @@ export function FdrToolWorkspace() {
   );
 
   const { result, isLoading, isError } = useWealthTool("fdr", requestInputs, assumptions);
-  const viewModel = result ? buildToolResultViewModel(result) : null;
   const tenureYears = resolveTenureYears(inputs.tenure_value ?? "3", inputs.tenure_unit ?? "years");
-  const tenureLabel = formatTenureLabel(tenureYears);
+  const tenureLabel = formatTenureLabel(tenureYears, copy.common.years);
+  const viewModel = result ? buildToolResultViewModel(result) : null;
+  const displayViewModel = localizeFdrViewModel(
+    viewModel,
+    locale,
+    result ?? null,
+    inputs,
+    sourceTaxPreset,
+    customSourceTax,
+    tenureLabel,
+  );
   const [durationYears, setDurationYears] = useState(() =>
     snapWealthTimelineYear(Math.round(tenureYears)),
   );
@@ -114,10 +126,10 @@ export function FdrToolWorkspace() {
   }, [result]);
 
   const supportingMetrics = useMemo(() => {
-    if (!viewModel) {
+    if (!displayViewModel) {
       return [];
     }
-    return viewModel.metrics.filter((metric) => {
+    return displayViewModel.metrics.filter((metric) => {
       const label = metric.label.toLowerCase();
       return (
         !label.includes("monthly income equivalent") &&
@@ -126,7 +138,7 @@ export function FdrToolWorkspace() {
         !label.includes("source tax")
       );
     });
-  }, [viewModel]);
+  }, [displayViewModel]);
 
   function handleTenureSliderChange(nextYears: number) {
     const clampedYears = snapWealthTimelineYear(nextYears);
@@ -152,7 +164,7 @@ export function FdrToolWorkspace() {
         output_json: result,
       });
     }
-    setSaveMessage("FDR scenario saved to your local history.");
+    setSaveMessage(copy.fdr.saveScenarioDone);
   }
 
   function handleSaveToSnapshot() {
@@ -182,25 +194,25 @@ export function FdrToolWorkspace() {
       liabilities: current.liabilities,
     });
     appendLocalScenarioTitle("FDR — lock money");
-    setSaveMessage("FDR added to your Money Snapshot draft.");
+    setSaveMessage(copy.fdr.saveSnapshotDone);
   }
 
   return (
     <section className="wealth-tool-workspace wealth-fdr-workspace">
-      <WealthSubNav />
+      <WealthSubNav locale={locale} />
 
       <header className="wealth-hero-card wealth-fdr-hero">
         <p className="eyebrow">FDR</p>
-        <h1>{FDR_CONFIG.title}</h1>
-        <p>{FDR_CONFIG.prompt}</p>
-        <p className="wealth-muted-copy">Understand commitment, preserve wealth, and evaluate certainty with a calm calculator.</p>
+        <h1>{copy.fdr.title}</h1>
+        <p>{copy.fdr.prompt}</p>
+        <p className="wealth-muted-copy">{copy.fdr.helper}</p>
       </header>
 
       <div className="wealth-tool-layout">
         <section className="wealth-panel wealth-tool-form-panel">
           <div className="wealth-form-grid">
             <label className="wealth-field">
-              <span>Deposit amount</span>
+              <span>{copy.fdr.deposit}</span>
               <input
                 inputMode="decimal"
                 onChange={(event) => setInputs((current) => ({ ...current, principal: event.target.value }))}
@@ -208,7 +220,7 @@ export function FdrToolWorkspace() {
               />
             </label>
             <label className="wealth-field">
-              <span>FDR interest rate (%)</span>
+              <span>{copy.fdr.rate}</span>
               <input
                 inputMode="decimal"
                 onChange={(event) => setInputs((current) => ({ ...current, annual_rate: event.target.value }))}
@@ -216,7 +228,7 @@ export function FdrToolWorkspace() {
               />
             </label>
             <label className="wealth-field wealth-tenure-field">
-              <span>Duration</span>
+              <span>{copy.fdr.duration}</span>
               <div className="wealth-tenure-inputs">
                 <input
                   inputMode="decimal"
@@ -227,25 +239,25 @@ export function FdrToolWorkspace() {
                   onChange={(event) => setInputs((current) => ({ ...current, tenure_unit: event.target.value }))}
                   value={inputs.tenure_unit ?? "years"}
                 >
-                  <option value="months">Months</option>
-                  <option value="quarters">Quarters</option>
-                  <option value="years">Years</option>
+                  <option value="months">{copy.fdr.months}</option>
+                  <option value="quarters">{copy.fdr.quarters}</option>
+                  <option value="years">{copy.fdr.years}</option>
                 </select>
               </div>
             </label>
           </div>
 
           <WealthYearsTimelineSlider
-            ariaLabel="FDR commitment length in years"
-            eyebrow="Commitment"
+            ariaLabel={copy.fdr.commitment}
+            eyebrow={copy.fdr.commitment}
             onYearsChange={handleTenureSliderChange}
             valueLabel={
               isLoading ? (
-                <span className="wealth-muted-copy">Updating…</span>
+                <span className="wealth-muted-copy">{copy.common.updating}</span>
               ) : maturityValue != null ? (
                 formatWealthCurrency(maturityValue)
               ) : (
-                <span className="wealth-muted-copy">Maturity at unlock</span>
+                <span className="wealth-muted-copy">{copy.fdr.maturity}</span>
               )
             }
             years={durationYears}
@@ -253,7 +265,7 @@ export function FdrToolWorkspace() {
 
           <WealthProjectionSection
             accountIdentifier={accountIdentifier}
-            accountIdentifierLabel={getCalculatorAccountIdentifierLabel("fdr")}
+            accountIdentifierLabel={getCalculatorAccountIdentifierLabel("fdr", locale)}
             compactTop
             customSourceTax={customSourceTax}
             inflationRate={inflationRate}
@@ -264,33 +276,35 @@ export function FdrToolWorkspace() {
             showInflation
             showSourceTax
             sourceTaxPreset={sourceTaxPreset}
-            title="Improve projection"
+            title={copy.common.detailsTitle}
+            locale={locale}
           />
         </section>
 
         <section className="wealth-panel wealth-result-panel wealth-fdr-result-panel">
-          {isLoading ? <p className="wealth-muted-copy">Updating your scenario…</p> : null}
-          {isError ? <p className="wealth-error-copy">Could not calculate this scenario right now.</p> : null}
-          {viewModel && result ? (
+          {isLoading ? <p className="wealth-muted-copy">{copy.common.updating}</p> : null}
+          {isError ? <p className="wealth-error-copy">{copy.common.calculationError}</p> : null}
+          {displayViewModel && result ? (
             <>
               <FdrPayoutSelector
+                copy={copy.fdr}
                 onChange={(value) => setInputs((current) => ({ ...current, profit_distribution_type: value }))}
                 value={inputs.profit_distribution_type ?? "maturity"}
               />
 
               <div className="wealth-result-hero">
-                <p className="eyebrow">{viewModel.headlineLabel}</p>
-                <h2>{viewModel.headline}</h2>
-                {viewModel.summary ? <p className="wealth-result-summary">{viewModel.summary}</p> : null}
+                <p className="eyebrow">{displayViewModel.headlineLabel}</p>
+                <h2>{displayViewModel.headline}</h2>
+                {displayViewModel.summary ? <p className="wealth-result-summary">{displayViewModel.summary}</p> : null}
               </div>
 
               {monthlyIncome != null && monthlyIncome > 0 && inputs.profit_distribution_type === "maturity" ? (
                 <article className="wealth-fdr-income-card">
-                  <p className="eyebrow">Monthly income equivalent</p>
+                  <p className="eyebrow">{copy.fdr.monthlyIncome}</p>
                   <h3>{formatWealthCurrency(monthlyIncome)}</h3>
                   <div className="wealth-fdr-income-breakdown">
-                    <span>≈ {formatWealthCurrency(monthlyIncome / 30)}/day</span>
-                    <span>≈ {formatWealthCurrency((monthlyIncome * 12) / 52)}/week</span>
+                    <span>≈ {formatWealthCurrency(monthlyIncome / 30)} {copy.fdr.perDay}</span>
+                    <span>≈ {formatWealthCurrency((monthlyIncome * 12) / 52)} {copy.fdr.perWeek}</span>
                   </div>
                 </article>
               ) : null}
@@ -298,19 +312,15 @@ export function FdrToolWorkspace() {
               {maturityValue != null && realValue != null && inputs.profit_distribution_type === "maturity" ? (
                 <article className="wealth-fdr-inflation-card">
                   <p>
-                    Your maturity value of <strong>{formatWealthCurrency(maturityValue)}</strong> may feel closer to
-                    approximately <strong>{formatWealthCurrency(realValue)}</strong> in today&apos;s purchasing power.
+                    {copy.fdr.buyingPower.replace("{real}", formatWealthCurrency(realValue))}
                   </p>
                 </article>
               ) : null}
 
               <article className="wealth-insight-card wealth-insight-neutral wealth-fdr-liquidity-card">
-                <p className="eyebrow">Liquidity trade-off</p>
-                <h3>Your money stays committed for approximately {tenureLabel}.</h3>
-                <p>
-                  FDR generally exchanges flexibility for a steadier and more predictable outcome. This is a calm trade,
-                  not an alarm — simply know what you are choosing.
-                </p>
+                <p className="eyebrow">{copy.fdr.liquidity}</p>
+                <h3>{copy.fdr.liquidityTitle.replace("{tenure}", tenureLabel)}</h3>
+                <p>{copy.fdr.liquidityBody}</p>
               </article>
 
               {supportingMetrics.length > 0 ? (
@@ -323,33 +333,41 @@ export function FdrToolWorkspace() {
 
               <WealthSaveSnapshotCard
                 onSave={handleSaveToSnapshot}
-                saveLabel="Save FDR"
+                saveLabel={copy.fdr.save}
                 saveMessage={saveMessage}
-                title="Track this deposit, maturity date, and projected returns in your snapshot."
+                title={copy.fdr.snapshotTitle}
+                locale={locale}
               />
 
-              <ExploreOtherPaths onSaveScenario={() => void handleSaveScenario()} />
+              <ExploreOtherPaths copy={copy.fdr} onSaveScenario={() => void handleSaveScenario()} />
             </>
           ) : null}
         </section>
       </div>
 
       <footer className="wealth-fdr-educational-footer">
-        Educational projection only. Actual FDR terms, taxes, early-break penalties, and bank rules may differ.
+        {copy.fdr.disclaimer}
       </footer>
     </section>
   );
 }
 
-function FdrPayoutSelector({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+function FdrPayoutSelector({ value, onChange, copy }: { value: string; onChange: (value: string) => void; copy: Record<string, string> }) {
   return (
     <div className="wealth-fdr-payout-selector">
       <div>
-        <p className="eyebrow">Profit payout style</p>
-        <h3>See how returns feel under different payout choices.</h3>
+        <p className="eyebrow">{copy.payout}</p>
+        <h3>{copy.payoutTitle}</h3>
       </div>
       <div className="wealth-fdr-payout-options">
-        {FDR_PAYOUT_OPTIONS.map((option) => (
+        {FDR_PAYOUT_OPTIONS.map((option) => {
+          const localized = {
+            monthly: { label: copy.payoutMonthly, hint: copy.payoutMonthlyHint },
+            quarterly: { label: copy.payoutQuarterly, hint: copy.payoutQuarterlyHint },
+            yearly: { label: copy.payoutYearly, hint: copy.payoutYearlyHint },
+            maturity: { label: copy.payoutMaturity, hint: copy.payoutMaturityHint },
+          }[option.value];
+          return (
           <button
             aria-pressed={value === option.value}
             className={value === option.value ? "wealth-fdr-payout-active" : ""}
@@ -357,36 +375,37 @@ function FdrPayoutSelector({ value, onChange }: { value: string; onChange: (valu
             onClick={() => onChange(option.value)}
             type="button"
           >
-            <strong>{option.label}</strong>
-            <small>{option.hint}</small>
+            <strong>{localized.label}</strong>
+            <small>{localized.hint}</small>
           </button>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
 }
 
-function ExploreOtherPaths({ onSaveScenario }: { onSaveScenario: () => void }) {
+function ExploreOtherPaths({ copy, onSaveScenario }: { copy: Record<string, string>; onSaveScenario: () => void }) {
   return (
     <section className="wealth-fdr-explore-paths">
       <div className="wealth-section-heading">
-        <p className="eyebrow">Explore other paths</p>
-        <h2>See how this fits into your bigger picture.</h2>
+        <p className="eyebrow">{copy.otherPaths}</p>
+        <h2>{copy.otherPathsTitle}</h2>
       </div>
       <div className="wealth-fdr-path-grid">
         <Link className="wealth-fdr-path-card" href="/wealth/tools/dps">
           <span>DPS</span>
-          <p>Build wealth gradually through monthly discipline.</p>
-          <strong>Compare →</strong>
+          <p>{copy.dpsPath}</p>
+          <strong>{copy.compare} →</strong>
         </Link>
         <Link className="wealth-fdr-path-card" href="/wealth/tools/sanchayapatra">
           <span>Sanchayapatra</span>
-          <p>Government-backed certificate options.</p>
-          <strong>Compare →</strong>
+          <p>{copy.sanchayapatraPath}</p>
+          <strong>{copy.compare} →</strong>
         </Link>
       </div>
       <button className="wealth-inline-link wealth-fdr-save-scenario" onClick={onSaveScenario} type="button">
-        Save this FDR scenario
+        {copy.saveScenario}
       </button>
     </section>
   );
@@ -411,12 +430,76 @@ function resolveTenureYears(value: string, unit: string) {
   return numericValue;
 }
 
-function formatTenureLabel(years: number) {
+function formatTenureLabel(years: number, formatYears: (value: number) => string) {
   if (years < 1) {
     return `${Math.round(years * 12)} months`;
   }
-  if (Number.isInteger(years)) {
-    return `${years} year${years === 1 ? "" : "s"}`;
+  return formatYears(Number.isInteger(years) ? years : Number(years.toFixed(1)));
+}
+
+const FDR_METRIC_LABELS: Record<string, string> = {
+  Principal: "metricPrincipal",
+  "Gross interest earned": "metricGrossInterest",
+  "Source tax deduction": "metricSourceTaxDeduction",
+  "Net interest earned": "metricNetInterest",
+  "Inflation-adjusted value": "metricInflationAdjusted",
+  "Monthly income equivalent": "metricMonthlyIncome",
+  "Maturity value": "metricMaturityValue",
+  "Monthly profit": "profitMonthly",
+  "Quarterly profit": "profitQuarterly",
+  "Yearly profit": "profitYearly",
+  "Net maturity value": "netMaturityValue",
+};
+
+function localizeFdrViewModel(
+  viewModel: ReturnType<typeof buildToolResultViewModel> | null,
+  locale: AppLocale,
+  result: WealthToolCalculateResponse | null,
+  inputs: Record<string, string>,
+  sourceTaxPreset: string,
+  customSourceTax: string,
+  tenureLabel: string,
+) {
+  if (!viewModel || locale !== "bn" || !result) {
+    return viewModel;
   }
-  return `${years.toFixed(1)} years`;
+
+  const copy = getWealthToolsLanguage(locale).fdr;
+  const taxRate = String(resolveSourceTaxRate(sourceTaxPreset, customSourceTax));
+  const principal = formatWealthCurrency(inputs.principal ?? "0");
+  const payoutMode = inputs.profit_distribution_type ?? "maturity";
+  const isMaturityPayout = payoutMode === "maturity";
+
+  const headlineLabel = isMaturityPayout
+    ? copy.netMaturityValue
+    : copy[FDR_METRIC_LABELS[result.headline_label] ?? ""] ?? result.headline_label;
+
+  const summary = isMaturityPayout
+    ? copy.summaryMaturity
+        .replace("{tax}", taxRate)
+        .replace("{principal}", principal)
+        .replace("{maturity}", viewModel.headline)
+        .replace("{tenure}", tenureLabel)
+    : copy.summaryPayout
+        .replace("{tax}", taxRate)
+        .replace("{principal}", principal)
+        .replace("{payout}", viewModel.headline)
+        .replace(
+          "{frequency}",
+          payoutMode === "monthly"
+            ? copy.payoutMonthly.toLowerCase()
+            : payoutMode === "quarterly"
+              ? copy.payoutQuarterly.toLowerCase()
+              : copy.payoutYearly.toLowerCase(),
+        );
+
+  return {
+    ...viewModel,
+    headlineLabel,
+    summary,
+    metrics: viewModel.metrics.map((metric) => ({
+      ...metric,
+      label: copy[FDR_METRIC_LABELS[metric.label] ?? ""] ?? metric.label,
+    })),
+  };
 }

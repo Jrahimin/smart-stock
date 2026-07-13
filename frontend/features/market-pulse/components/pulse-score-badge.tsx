@@ -2,6 +2,7 @@
 
 import { MiniSparkline } from "@/components/charts/mini-sparkline";
 import type { PulseScoreBreakdownModel } from "@/features/market-pulse/types/market-pulse-types";
+import type { MarketPulseLanguage } from "@/features/market-pulse/market-pulse-language";
 
 export { MiniSparkline };
 
@@ -21,45 +22,52 @@ function bandTone(band: PulseScoreBreakdownModel["band"]) {
   return "info";
 }
 
-function signalStrengthLabel(band: PulseScoreBreakdownModel["band"]) {
+function signalStrengthLabel(
+  band: PulseScoreBreakdownModel["band"],
+  labels: MarketPulseLanguage["score"]["bandLabels"],
+) {
   if (band === "High Attention") {
-    return "Strong";
+    return labels.strong;
   }
   if (band === "Monitor") {
-    return "Moderate";
+    return labels.moderate;
   }
-  return "Building";
+  return labels.building;
 }
 
-function volumeExpansionLabel(volume: number) {
+function volumeExpansionLabel(volume: number, labels: MarketPulseLanguage["score"]["bandLabels"]) {
   if (volume >= 16) {
-    return "High";
+    return labels.high;
   }
   if (volume >= 10) {
-    return "Moderate";
+    return labels.moderate;
   }
-  return "Light";
+  return labels.light;
 }
 
-function participationLabel(trend: number, momentum: number) {
+function participationLabel(
+  trend: number,
+  momentum: number,
+  labels: MarketPulseLanguage["score"]["bandLabels"],
+) {
   const combined = trend + momentum;
   if (combined >= 30) {
-    return "High";
+    return labels.high;
   }
   if (combined >= 20) {
-    return "Moderate";
+    return labels.moderate;
   }
-  return "Low";
+  return labels.low;
 }
 
-function riskLabel(penalty: number) {
+function riskLabel(penalty: number, labels: MarketPulseLanguage["score"]["bandLabels"]) {
   if (penalty >= 12) {
-    return "High";
+    return labels.high;
   }
   if (penalty >= 6) {
-    return "Moderate";
+    return labels.moderate;
   }
-  return "Low";
+  return labels.low;
 }
 
 function ScoreRing({ score, breakdown, compact }: PulseScoreBadgeProps) {
@@ -76,36 +84,40 @@ function ScoreRing({ score, breakdown, compact }: PulseScoreBadgeProps) {
   );
 }
 
-export function PulseScoreHeaderCluster({ score, breakdown }: PulseScoreBadgeProps) {
+type PulseScoreHeaderClusterProps = PulseScoreBadgeProps & {
+  copy: MarketPulseLanguage["score"];
+};
+
+export function PulseScoreHeaderCluster({ score, breakdown, copy }: PulseScoreHeaderClusterProps) {
   return (
     <div className="pulse-score-header-cluster">
       <ScoreRing breakdown={breakdown} compact score={score} />
       <div className="pulse-score-insight">
         <button
-          aria-label={`Why score is ${score}`}
+          aria-label={copy.whyScoreAria(score)}
           className="pulse-score-insight-trigger"
           type="button"
         >
           i
         </button>
         <div className="pulse-score-insight-panel" role="tooltip">
-          <strong>Why score is {score}</strong>
+          <strong>{copy.whyScoreTitle(score)}</strong>
           <dl>
             <div>
-              <dt>Signal Strength</dt>
-              <dd>{signalStrengthLabel(breakdown.band)}</dd>
+              <dt>{copy.signalStrength}</dt>
+              <dd>{signalStrengthLabel(breakdown.band, copy.bandLabels)}</dd>
             </div>
             <div>
-              <dt>Volume Expansion</dt>
-              <dd>{volumeExpansionLabel(breakdown.volume)}</dd>
+              <dt>{copy.volumeExpansion}</dt>
+              <dd>{volumeExpansionLabel(breakdown.volume, copy.bandLabels)}</dd>
             </div>
             <div>
-              <dt>Participation Score</dt>
-              <dd>{participationLabel(breakdown.trend, breakdown.momentum)}</dd>
+              <dt>{copy.participationScore}</dt>
+              <dd>{participationLabel(breakdown.trend, breakdown.momentum, copy.bandLabels)}</dd>
             </div>
             <div>
-              <dt>Risk Level</dt>
-              <dd>{riskLabel(breakdown.riskPenalty)}</dd>
+              <dt>{copy.riskLevel}</dt>
+              <dd>{riskLabel(breakdown.riskPenalty, copy.bandLabels)}</dd>
             </div>
           </dl>
         </div>

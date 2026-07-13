@@ -1,8 +1,12 @@
+import { getWealthToolsLanguage } from "@/features/wealth/wealth-tools-language";
+import type { AppLocale } from "@/lib/locale/app-locale";
+
 type WealthSourceTaxControlProps = {
   customRate: string;
   onCustomRateChange: (value: string) => void;
   onPresetChange: (value: string) => void;
   preset: string;
+  locale?: AppLocale;
 };
 
 export function WealthSourceTaxControl({
@@ -10,10 +14,12 @@ export function WealthSourceTaxControl({
   customRate,
   onPresetChange,
   onCustomRateChange,
+  locale,
 }: WealthSourceTaxControlProps) {
+  const { common } = getWealthToolsLanguage(locale);
   return (
     <div className="wealth-source-tax-control">
-      <span>Source tax on interest (%)</span>
+      <span>{common.sourceTax}</span>
       <div className="wealth-source-tax-options">
         {["10", "15"].map((option) => (
           <button
@@ -30,13 +36,13 @@ export function WealthSourceTaxControl({
           onClick={() => onPresetChange("custom")}
           type="button"
         >
-          Custom
+          {common.custom}
         </button>
       </div>
       {preset === "custom" ? (
         <input inputMode="decimal" onChange={(event) => onCustomRateChange(event.target.value)} value={customRate} />
       ) : null}
-      <small>Applied to earned interest only. Principal stays intact.</small>
+      <small>{common.sourceTaxHint}</small>
     </div>
   );
 }

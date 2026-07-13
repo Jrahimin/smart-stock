@@ -21,19 +21,22 @@ import {
 import { formatWealthCurrency } from "@/features/wealth/view-models/wealth-view-model";
 import { useAuth } from "@/features/auth/context/auth-context";
 import { saveWealthScenario } from "@/lib/api/wealth-api";
+import { getWealthToolsLanguage } from "@/features/wealth/wealth-tools-language";
+import type { AppLocale } from "@/lib/locale/app-locale";
 
 const FUTURE_PATH_YEARS = [3, 5, 10, 15, 20] as const;
 const GOAL_YEARS = [10, 15, 20] as const;
-const MILESTONES = [
-  { label: "First 10 Lakh", value: 1_000_000 },
-  { label: "First 50 Lakh", value: 5_000_000 },
-  { label: "First 1 Crore", value: 10_000_000 },
-  { label: "First 2 Crore", value: 20_000_000 },
+const MILESTONE_SPECS = [
+  { key: "milestone10Lakh" as const, value: 1_000_000 },
+  { key: "milestone50Lakh" as const, value: 5_000_000 },
+  { key: "milestone1Crore" as const, value: 10_000_000 },
+  { key: "milestone2Crore" as const, value: 20_000_000 },
 ] as const;
 
 type SimulatorMode = "build" | "goal";
 
-export function DpsSimulatorWorkspace() {
+export function DpsSimulatorWorkspace({ locale }: { locale: AppLocale }) {
+  const copy = getWealthToolsLanguage(locale);
   const { isAuthenticated } = useAuth();
   const [mode, setMode] = useState<SimulatorMode>("build");
   const [monthlySaving, setMonthlySaving] = useState("25000");
@@ -111,8 +114,9 @@ export function DpsSimulatorWorkspace() {
 
   const milestones = useMemo(
     () =>
-      MILESTONES.map((milestone) => ({
-        ...milestone,
+      MILESTONE_SPECS.map((milestone) => ({
+        label: copy.dps[milestone.key],
+        value: milestone.value,
         arrival: estimateMilestoneArrival(
           simulation.activeMonthlySaving,
           simulation.rate,
@@ -120,7 +124,7 @@ export function DpsSimulatorWorkspace() {
           simulation.sourceTaxRate,
         ),
       })),
-    [simulation.activeMonthlySaving, simulation.rate, simulation.sourceTaxRate],
+    [copy.dps, simulation.activeMonthlySaving, simulation.rate, simulation.sourceTaxRate],
   );
 
   const chartPaths = useMemo(
@@ -220,31 +224,28 @@ export function DpsSimulatorWorkspace() {
 
   return (
     <section className="wealth-tool-workspace wealth-dps-simulator">
-      <WealthSubNav />
+      <WealthSubNav locale={locale} />
 
       <header className="wealth-hero-card wealth-dps-hero">
         <div>
-          <p className="eyebrow">DPS wealth simulator</p>
-          <h1>Explore how a monthly habit can grow into future wealth.</h1>
-          <p>
-            DPS rewards discipline. Move the timeline, adjust the habit, and watch the gap between deposits and
-            wealth begin to open.
-          </p>
+          <p className="eyebrow">{copy.dps.eyebrow}</p>
+          <h1>{copy.dps.title}</h1>
+          <p>{copy.dps.description}</p>
         </div>
-        <div className="wealth-dps-mode-toggle" aria-label="DPS simulator mode">
+        <div className="wealth-dps-mode-toggle" aria-label={copy.dps.eyebrow}>
           <button
             className={mode === "build" ? "wealth-dps-mode-active" : ""}
             onClick={() => setMode("build")}
             type="button"
           >
-            Build Wealth
+            {copy.dps.build}
           </button>
           <button
             className={mode === "goal" ? "wealth-dps-mode-active" : ""}
             onClick={() => setMode("goal")}
             type="button"
           >
-            Reach Goal
+            {copy.dps.goal}
           </button>
         </div>
       </header>
@@ -254,7 +255,7 @@ export function DpsSimulatorWorkspace() {
           <div className="wealth-dps-primary-inputs">
             {mode === "build" ? (
               <label className="wealth-field wealth-dps-large-field">
-                <span>Monthly saving</span>
+                <span>{copy.dps.monthly}</span>
                 <input
                   inputMode="decimal"
                   onChange={(event) => setMonthlySaving(event.target.value)}
@@ -263,7 +264,7 @@ export function DpsSimulatorWorkspace() {
               </label>
             ) : (
               <label className="wealth-field wealth-dps-large-field">
-                <span>Target amount</span>
+                <span>{copy.dps.target}</span>
                 <input
                   inputMode="decimal"
                   onChange={(event) => setTargetAmount(event.target.value)}
@@ -272,14 +273,14 @@ export function DpsSimulatorWorkspace() {
               </label>
             )}
             <label className="wealth-field">
-              <span>DPS interest rate (%)</span>
+              <span>{copy.dps.rate}</span>
               <input inputMode="decimal" onChange={(event) => setAnnualRate(event.target.value)} value={annualRate} />
             </label>
           </div>
 
           <WealthYearsTimelineSlider
-            ariaLabel="DPS timeline in years"
-            eyebrow="Timeline"
+            ariaLabel={copy.dps.timeline}
+            eyebrow={copy.dps.timeline}
             onYearsChange={handleTimelineYearsChange}
             valueLabel={formatWealthCurrency(simulation.futureValue)}
             years={simulation.selectedYears}
@@ -287,7 +288,7 @@ export function DpsSimulatorWorkspace() {
 
           <WealthProjectionSection
             accountIdentifier={accountIdentifier}
-            accountIdentifierLabel={getCalculatorAccountIdentifierLabel("dps")}
+            accountIdentifierLabel={getCalculatorAccountIdentifierLabel("dps", locale)}
             compactTop
             customSourceTax={customSourceTax}
             inflationRate={inflationRate}
@@ -298,12 +299,15 @@ export function DpsSimulatorWorkspace() {
             showInflation
             showSourceTax
             sourceTaxPreset={sourceTaxPreset}
-            title="Improve projection"
+            title={copy.common.detailsTitle}
+            hint={copy.common.detailsHint}
+            locale={locale}
           />
 
           <GrowthVisualization
             activePoint={chartPaths.activePoint}
             clipWidth={chartPaths.clipWidth}
+            copy={copy.dps}
             depositedPath={chartPaths.depositedPath}
             milestonePoints={chartPaths.milestonePoints}
             wealthPath={chartPaths.wealthPath}
@@ -311,27 +315,31 @@ export function DpsSimulatorWorkspace() {
             futureValue={simulation.futureValue}
           />
 
-          <MoneyFlowVisualization totalDeposited={simulation.totalDeposited} years={simulation.selectedYears} />
+          <MoneyFlowVisualization
+            copy={copy.dps}
+            totalDeposited={simulation.totalDeposited}
+            years={simulation.selectedYears}
+          />
         </section>
 
         <section className="wealth-panel wealth-dps-result-panel">
           <div className="wealth-result-hero">
-            <p className="eyebrow">{mode === "goal" ? "Monthly discipline needed" : "Projected future value"}</p>
+            <p className="eyebrow">{mode === "goal" ? copy.dps.discipline : copy.dps.projected}</p>
             <h2>
               {mode === "goal"
                 ? `${formatWealthCurrency(simulation.activeMonthlySaving)} / month`
                 : formatWealthCurrency(simulation.futureValue)}
             </h2>
-            <p className="wealth-result-summary">{buildSummary(mode, simulation)}</p>
+            <p className="wealth-result-summary">{buildLocalizedDpsSummary(mode, simulation, locale)}</p>
           </div>
 
           {mode === "goal" ? (
             <div className="wealth-dps-goal-options">
               {goalOptions.map((option) => (
                 <article key={option.year}>
-                  <span>{option.year} years</span>
+                  <span>{copy.common.years(option.year)}</span>
                   <strong>{formatWealthCurrency(option.monthlySaving)}</strong>
-                  <small>per month</small>
+                  <small>{copy.dps.perMonth}</small>
                 </article>
               ))}
             </div>
@@ -340,34 +348,35 @@ export function DpsSimulatorWorkspace() {
           <div className="wealth-dps-ratio-card">
             <div className="wealth-dps-ratio-heading">
               <div>
-                <p className="eyebrow">Contribution vs growth</p>
-                <h3>Your deposits start it. Time does the quiet work.</h3>
+                <p className="eyebrow">{copy.dps.contribution}</p>
+                <h3>{copy.dps.contributionTitle}</h3>
               </div>
-              <span>{Math.round(growthShare)}% growth</span>
+              <span>{copy.dps.growthShare.replace("{pct}", String(Math.round(growthShare)))}</span>
             </div>
-            <div className="wealth-dps-ratio-bar" aria-label="Deposits and investment growth ratio">
+            <div className="wealth-dps-ratio-bar" aria-label={copy.dps.ratioAria}>
               <span className="wealth-dps-ratio-deposits" style={{ width: `${depositedShare}%` }} />
               <span className="wealth-dps-ratio-growth" style={{ width: `${growthShare}%` }} />
             </div>
             <div className="wealth-dps-ratio-values">
               <article className="wealth-dps-ratio-stat">
-                <span className="wealth-dps-ratio-stat-label">Deposited</span>
+                <span className="wealth-dps-ratio-stat-label">{copy.dps.deposited}</span>
                 <strong className="wealth-dps-ratio-stat-value">{formatWealthCurrency(simulation.totalDeposited)}</strong>
               </article>
               <article className="wealth-dps-ratio-stat wealth-dps-ratio-stat-growth">
-                <span className="wealth-dps-ratio-stat-label">Returns</span>
+                <span className="wealth-dps-ratio-stat-label">{copy.dps.returns}</span>
                 <strong className="wealth-dps-ratio-stat-value">{formatWealthCurrency(simulation.investmentGrowth)}</strong>
               </article>
             </div>
           </div>
 
           <div className="wealth-dps-inflation-card">
-            <span>Future value</span>
+            <span>{copy.dps.futureValue}</span>
             <strong>{formatWealthCurrency(simulation.futureValue)}</strong>
-            <p>May feel like approximately {formatWealthCurrency(simulation.realValue)} in today&apos;s purchasing power.</p>
+            <p>{copy.dps.buyingPower.replace("{real}", formatWealthCurrency(simulation.realValue))}</p>
           </div>
 
           <InsightPanel
+            copy={copy.dps}
             growthShare={growthShare}
             investmentGrowth={simulation.investmentGrowth}
             monthlySaving={simulation.activeMonthlySaving}
@@ -376,18 +385,20 @@ export function DpsSimulatorWorkspace() {
 
           <WealthSaveSnapshotCard
             onSave={handleAddToSnapshot}
-            saveLabel="Save to Snapshot"
+            saveLabel={copy.dps.save}
             saveMessage={saveMessage}
-            title="Track this monthly habit and projected DPS wealth in your snapshot."
+            title={copy.dps.snapshotTrackTitle}
+            description={copy.dps.snapshotEyebrow}
+            locale={locale}
           />
         </section>
       </div>
 
       <section className="wealth-panel wealth-dps-future-path">
         <div className="wealth-section-heading">
-          <p className="eyebrow">Your future path</p>
-          <h2>If you continue this habit...</h2>
-          <p>Each milestone uses the same monthly saving and rate, so the path remains easy to compare.</p>
+          <p className="eyebrow">{copy.dps.futurePath}</p>
+          <h2>{copy.dps.futurePathTitle}</h2>
+          <p>{copy.dps.futurePathBody}</p>
         </div>
         <div className="wealth-dps-path-grid">
           {futurePath.map((point, index) => (
@@ -397,7 +408,7 @@ export function DpsSimulatorWorkspace() {
               }`}
               key={point.year}
             >
-              <span>{point.year} Years</span>
+              <span>{copy.common.years(point.year)}</span>
               <strong>{formatWealthCurrency(point.value)}</strong>
               <div style={{ height: `${52 + index * 16}px` }} />
             </article>
@@ -408,15 +419,15 @@ export function DpsSimulatorWorkspace() {
       <div className="wealth-dps-lower-grid">
         <section className="wealth-panel wealth-dps-milestones">
           <div className="wealth-section-heading">
-            <p className="eyebrow">At your current pace</p>
-            <h2>Milestone engine</h2>
-            <p>Dates are approximate and assume the same monthly habit continues.</p>
+            <p className="eyebrow">{copy.dps.currentPace}</p>
+            <h2>{copy.dps.milestones}</h2>
+            <p>{copy.dps.milestoneBody}</p>
           </div>
           <div className="wealth-dps-milestone-list">
             {milestones.map((milestone) => (
               <article key={milestone.label}>
                 <span>{milestone.label}</span>
-                <strong>{milestone.arrival ?? "Beyond 50 years"}</strong>
+                <strong>{milestone.arrival ?? copy.dps.beyond}</strong>
               </article>
             ))}
           </div>
@@ -424,11 +435,11 @@ export function DpsSimulatorWorkspace() {
 
         <section className="wealth-panel wealth-dps-waiting-card">
           <div className="wealth-section-heading">
-            <p className="eyebrow">The Cost of Waiting</p>
-            <h2>Starting later quietly changes the ending.</h2>
+            <p className="eyebrow">{copy.dps.waiting}</p>
+            <h2>{copy.dps.waitingTitle}</h2>
           </div>
           <label className="wealth-field">
-            <span>Delay start by {simulation.delayYears} years</span>
+            <span>{copy.dps.delay.replace("{years}", String(simulation.delayYears))}</span>
             <input
               max="10"
               min="0"
@@ -440,52 +451,51 @@ export function DpsSimulatorWorkspace() {
           </label>
           <div className="wealth-dps-waiting-comparison">
             <article>
-              <span>Start today</span>
+              <span>{copy.dps.startToday}</span>
               <strong>{formatWealthCurrency(simulation.futureValue)}</strong>
             </article>
             <article>
-              <span>Start later</span>
+              <span>{copy.dps.startLater}</span>
               <strong>{formatWealthCurrency(simulation.laterFutureValue)}</strong>
             </article>
           </div>
           <p className="wealth-dps-cost-line">
-            Starting today could create approximately <strong>+{formatWealthCurrency(simulation.costOfWaiting)}</strong>{" "}
-            more future wealth.
+            {copy.dps.waitingBody.replace("{amount}", `+${formatWealthCurrency(simulation.costOfWaiting)}`)}
           </p>
         </section>
       </div>
 
       <section className="wealth-next-steps wealth-dps-next-steps">
         <div className="wealth-section-heading">
-          <p className="eyebrow">Keep exploring</p>
-          <h2>The result is the beginning of the journey.</h2>
-          <p className="wealth-muted-copy">Change the timeline, compare options, or carry this habit into your snapshot.</p>
+          <p className="eyebrow">{copy.dps.keepExploring}</p>
+          <h2>{copy.dps.keepExploringTitle}</h2>
+          <p className="wealth-muted-copy">{copy.dps.keepExploringBody}</p>
         </div>
         <div className="wealth-chip-row">
           <Link className="wealth-chip" href="/wealth/compare/dps-vs-fdr">
-            Compare with FDR
+            {copy.dps.compareFdr}
           </Link>
           <Link className="wealth-chip" href="/wealth/tools/compound-growth">
-            Compare with Investing
+            {copy.dps.compareInvesting}
           </Link>
           <button className="wealth-chip wealth-chip-button" onClick={() => void handleSaveScenario()} type="button">
-            Save Scenario
+            {copy.common.saveScenario}
           </button>
           <button
             className="wealth-chip wealth-chip-button"
             onClick={() => setMode(mode === "build" ? "goal" : "build")}
             type="button"
           >
-            Try {mode === "build" ? "Goal Mode" : "Build Wealth"}
+            {copy.dps.tryMode.replace("{mode}", mode === "build" ? copy.dps.goal : copy.dps.build)}
           </button>
           <button className="wealth-chip wealth-chip-button" onClick={() => setYears("20")} type="button">
-            See 20-Year Projection
+            {copy.dps.twentyYears}
           </button>
         </div>
       </section>
 
       <footer className="wealth-dps-educational-footer">
-        Educational projection only. Actual DPS terms, taxes, fees, and bank rules may differ.
+        {copy.dps.disclaimer}
       </footer>
     </section>
   );
@@ -494,6 +504,7 @@ export function DpsSimulatorWorkspace() {
 function GrowthVisualization({
   activePoint,
   clipWidth,
+  copy,
   depositedPath,
   milestonePoints,
   wealthPath,
@@ -502,6 +513,7 @@ function GrowthVisualization({
 }: {
   activePoint: { x: number; y: number };
   clipWidth: number;
+  copy: ReturnType<typeof getWealthToolsLanguage>["dps"];
   depositedPath: string;
   milestonePoints: Array<{ label: string; x: number; y: number }>;
   wealthPath: string;
@@ -512,12 +524,12 @@ function GrowthVisualization({
     <div className="wealth-dps-growth-card">
       <div className="wealth-dps-card-heading">
         <div>
-          <p className="eyebrow">Visual wealth growth</p>
-          <h3>Watch compound growth separate from deposits.</h3>
+          <p className="eyebrow">{copy.growthEyebrow}</p>
+          <h3>{copy.growthTitle}</h3>
         </div>
         <div className="wealth-dps-chart-legend">
-          <span className="wealth-dps-legend-deposited">Total Deposited</span>
-          <span className="wealth-dps-legend-wealth">Total Wealth</span>
+          <span className="wealth-dps-legend-deposited">{copy.legendDeposited}</span>
+          <span className="wealth-dps-legend-wealth">{copy.legendWealth}</span>
         </div>
       </div>
       <svg aria-hidden="true" className="wealth-dps-growth-chart" preserveAspectRatio="none" viewBox="0 0 320 180">
@@ -542,23 +554,31 @@ function GrowthVisualization({
         <circle className="wealth-dps-wealth-point" cx={activePoint.x} cy={activePoint.y} r="4" />
       </svg>
       <div className="wealth-dps-chart-values">
-        <span>Deposited {formatWealthCurrency(totalDeposited)}</span>
-        <span>Wealth {formatWealthCurrency(futureValue)}</span>
+        <span>{copy.chartDeposited.replace("{amount}", formatWealthCurrency(totalDeposited))}</span>
+        <span>{copy.chartWealth.replace("{amount}", formatWealthCurrency(futureValue))}</span>
       </div>
     </div>
   );
 }
 
-function MoneyFlowVisualization({ totalDeposited, years }: { totalDeposited: number; years: number }) {
+function MoneyFlowVisualization({
+  copy,
+  totalDeposited,
+  years,
+}: {
+  copy: ReturnType<typeof getWealthToolsLanguage>["dps"];
+  totalDeposited: number;
+  years: number;
+}) {
   return (
     <div className="wealth-dps-flow-card">
       <div>
-        <p className="eyebrow">Money flow</p>
-        <h3>Monthly deposits flowing into a growing asset pool.</h3>
+        <p className="eyebrow">{copy.flowEyebrow}</p>
+        <h3>{copy.flowTitle}</h3>
       </div>
       <div className="wealth-dps-flow-scene" aria-hidden="true">
         <div className="wealth-dps-flow-source">
-          <span>Monthly habit</span>
+          <span>{copy.flowHabit}</span>
         </div>
         <div className="wealth-dps-flow-stream">
           {Array.from({ length: 8 }).map((_, index) => (
@@ -567,49 +587,53 @@ function MoneyFlowVisualization({ totalDeposited, years }: { totalDeposited: num
         </div>
         <div className="wealth-dps-asset-pool">
           <span style={{ height: `${Math.min(34 + years * 3, 92)}%` }} />
-          <strong>Wealth pool</strong>
+          <strong>{copy.flowPool}</strong>
         </div>
       </div>
-      <p>{formatWealthCurrency(totalDeposited)} of habit has entered the pool so far.</p>
+      <p>{copy.flowEntered.replace("{amount}", formatWealthCurrency(totalDeposited))}</p>
     </div>
   );
 }
 
 function InsightPanel({
+  copy,
   growthShare,
   investmentGrowth,
   monthlySaving,
   years,
 }: {
+  copy: ReturnType<typeof getWealthToolsLanguage>["dps"];
   growthShare: number;
   investmentGrowth: number;
   monthlySaving: number;
   years: number;
 }) {
+  const monthly = formatWealthCurrency(monthlySaving);
+  const growth = formatWealthCurrency(investmentGrowth);
   const insight =
     years <= 3
       ? {
-          title: "Your habit matters more than your returns.",
-          body: `${formatWealthCurrency(monthlySaving)} saved every month is the main engine in these first years.`,
+          title: copy.insightEarlyTitle,
+          body: copy.insightEarlyBody.replace("{monthly}", monthly),
         }
       : years <= 10
         ? {
-            title: "Your earlier deposits are beginning to compound.",
-            body: `${formatWealthCurrency(investmentGrowth)} of the projection now comes from accumulated returns.`,
+            title: copy.insightMidTitle,
+            body: copy.insightMidBody.replace("{growth}", growth),
           }
         : years <= 15
           ? {
-              title: "Time is now contributing almost as much as you are.",
-              body: `Returns represent about ${Math.round(growthShare)}% of the projected wealth at this horizon.`,
+              title: copy.insightLongTitle,
+              body: copy.insightLongBody.replace("{pct}", String(Math.round(growthShare))),
             }
           : {
-              title: "A large part of your future wealth now comes from accumulated returns.",
-              body: `${formatWealthCurrency(investmentGrowth)} is projected growth created by consistency and time.`,
+              title: copy.insightLateTitle,
+              body: copy.insightLateBody.replace("{growth}", growth),
             };
 
   return (
     <article className="wealth-insight-card wealth-insight-positive wealth-dps-aware-insight">
-      <p className="eyebrow">Dynamic insight</p>
+      <p className="eyebrow">{copy.insightEyebrow}</p>
       <h3>{insight.title}</h3>
       <p>{insight.body}</p>
     </article>
@@ -630,6 +654,24 @@ function buildSummary(
     return `To aim for ${formatWealthCurrency(simulation.futureValue)} in ${simulation.selectedYears} years, you may need about ${formatWealthCurrency(simulation.activeMonthlySaving)} per month.`;
   }
   return `Saving ${formatWealthCurrency(simulation.activeMonthlySaving)} every month could become ${formatWealthCurrency(simulation.futureValue)} in ${simulation.selectedYears} years, from ${formatWealthCurrency(simulation.totalDeposited)} of your own deposits.`;
+}
+
+function buildLocalizedDpsSummary(
+  mode: SimulatorMode,
+  simulation: Parameters<typeof buildSummary>[1],
+  locale: AppLocale,
+) {
+  if (locale !== "bn") {
+    return buildSummary(mode, simulation);
+  }
+
+  return mode === "goal"
+    ? `${formatWealthCurrency(simulation.futureValue)} পেতে প্রায় ${formatWealthCurrency(simulation.activeMonthlySaving)} মাসে রাখার হিসাব।`
+    : `${copyDpsMonthly(simulation.activeMonthlySaving)} করে ${simulation.selectedYears} বছর রাখলে এই estimate দেখা যাচ্ছে।`;
+}
+
+function copyDpsMonthly(amount: number) {
+  return `${formatWealthCurrency(amount)} মাসে`;
 }
 
 function applyNetWealth(monthlySaving: number, annualRate: number, years: number, sourceTaxRate: number) {
@@ -693,7 +735,7 @@ function buildGrowthChartPaths(
     x: activeX,
     y: valueToY(activeValue, maxValue, height, topPadding),
   };
-  const milestonePoints = MILESTONES.flatMap((milestone) => {
+  const milestonePoints = MILESTONE_SPECS.flatMap((milestone) => {
     const arrivalYears = estimateMilestoneArrivalYears(
       monthlySaving,
       annualRate,
@@ -705,7 +747,7 @@ function buildGrowthChartPaths(
       return [];
     }
     return [{
-      label: milestone.label,
+      label: String(milestone.value),
       x: (width * arrivalYears) / maxYears,
       y: valueToY(milestone.value, maxValue, height, topPadding),
     }];

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 
 import { JsonLdScript } from "@/components/seo/json-ld-script";
@@ -11,6 +12,7 @@ import { TaxPlannerWorkspace } from "@/features/wealth/components/tax-planner-wo
 import { WealthFutureJourneyWorkspace } from "@/features/wealth/components/wealth-future-journey-workspace";
 import { WealthToolWorkspace } from "@/features/wealth/components/wealth-tool-workspace";
 import type { WealthToolSlug } from "@/features/wealth/types/wealth-types";
+import { LOCALE_COOKIE_NAME, parseAppLocale } from "@/lib/locale/app-locale";
 import {
   buildWealthToolBreadcrumbJsonLd,
   buildWealthToolMetadata,
@@ -41,24 +43,25 @@ export default async function WealthToolPage({ params }: WealthToolPageProps) {
   if (!isWealthToolSlug(toolSlug)) {
     notFound();
   }
+  const locale = parseAppLocale((await cookies()).get(LOCALE_COOKIE_NAME)?.value);
 
   const workspace =
     toolSlug === "dps" ? (
-      <DpsSimulatorWorkspace />
+      <DpsSimulatorWorkspace locale={locale} />
     ) : toolSlug === "tax-planner" ? (
-      <TaxPlannerWorkspace />
+      <TaxPlannerWorkspace locale={locale} />
     ) : toolSlug === "fdr" ? (
-      <FdrToolWorkspace />
+      <FdrToolWorkspace locale={locale} />
     ) : toolSlug === "sanchayapatra" ? (
-      <SanchayapatraToolWorkspace />
+      <SanchayapatraToolWorkspace locale={locale} />
     ) : toolSlug === "compound-growth" || toolSlug === "savings-goal" ? (
       <WealthFutureJourneyWorkspace toolSlug={toolSlug} />
     ) : (
-      <WealthToolWorkspace toolSlug={toolSlug} />
+      <WealthToolWorkspace locale={locale} toolSlug={toolSlug} />
     );
 
   return (
-    <TerminalAppShell>
+    <TerminalAppShell dashboardLocale={locale}>
       <JsonLdScript data={buildWealthToolBreadcrumbJsonLd(toolSlug)} />
       {workspace}
     </TerminalAppShell>

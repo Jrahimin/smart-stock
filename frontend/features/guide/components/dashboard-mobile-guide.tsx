@@ -2,23 +2,29 @@
 
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { createPortal } from "react-dom";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { GuideMobileSheet } from "@/features/guide/components/guide-mobile-sheet";
 import { GuideTourNudge } from "@/features/guide/components/guide-tour-nudge";
-import { dashboardMobileGuideSteps } from "@/features/guide/config/mobile-intro-guide";
-import { mobileIntroDialogs } from "@/features/guide/dialogs/mobile-intro.bn";
+import { getDashboardMobileGuideSteps } from "@/features/guide/config/mobile-intro-guide";
+import { getGuideControls, getGuideNudgeCopy } from "@/features/guide/dialogs/dashboard-dialogs";
 import { useDashboardMobileGuideController } from "@/features/guide/hooks/use-dashboard-sidebar-guide-controller";
 import { useGuideTargetLayout } from "@/features/guide/hooks/use-guide-target-layout";
+import type { AppLocale } from "@/lib/locale/app-locale";
+import { DEFAULT_LOCALE } from "@/lib/locale/app-locale";
 
 const DRAWER_OPEN_DELAY_MS = 150;
 const guideMotionEase = [0.22, 1, 0.36, 1] as const;
 
 type DashboardMobileGuideProps = {
+  locale?: AppLocale;
   onMobileNavigationOpenChange: (isOpen: boolean) => void;
 };
 
-export function DashboardMobileGuide({ onMobileNavigationOpenChange }: DashboardMobileGuideProps) {
+export function DashboardMobileGuide({
+  locale = DEFAULT_LOCALE,
+  onMobileNavigationOpenChange,
+}: DashboardMobileGuideProps) {
   const reduceMotion = useReducedMotion();
   const drawerTransitionTimeoutRef = useRef<number | null>(null);
   const [isDrawerTransitioning, setIsDrawerTransitioning] = useState(false);
@@ -40,6 +46,10 @@ export function DashboardMobileGuide({ onMobileNavigationOpenChange }: Dashboard
     stepIndex,
     suppressContextualPrompts,
   } = useDashboardMobileGuideController();
+
+  const guideControls = useMemo(() => getGuideControls(locale), [locale]);
+  const guideNudgeCopy = useMemo(() => getGuideNudgeCopy(locale), [locale]);
+  const dashboardMobileGuideSteps = useMemo(() => getDashboardMobileGuideSteps(locale), [locale]);
 
   const currentStep = dashboardMobileGuideSteps[stepIndex];
   const isLastStep = stepIndex === dashboardMobileGuideSteps.length - 1;
@@ -141,12 +151,11 @@ export function DashboardMobileGuide({ onMobileNavigationOpenChange }: Dashboard
     nudgeOpen && typeof document !== "undefined"
       ? createPortal(
           <GuideTourNudge
-            eyebrow={mobileIntroDialogs.nudge.eyebrow}
-            message={mobileIntroDialogs.nudge.message}
+            {...guideNudgeCopy}
+            locale={locale}
             onAccept={acceptGuideNudge}
             onDismiss={dismissGuideNudge}
             onSnooze={snoozeGuideNudge}
-            title={mobileIntroDialogs.nudge.title}
           />,
           document.body,
         )
@@ -191,11 +200,13 @@ export function DashboardMobileGuide({ onMobileNavigationOpenChange }: Dashboard
             <GuideMobileSheet
               characterPose={currentStep.characterPose}
               compact={isNavigationStep}
+              controls={guideControls}
               dialog={currentStep.dialog}
               isDrawerTransitioning={isDrawerTransitioning}
               isLastStep={isLastStep}
               isSkipConfirmationOpen={skipConfirmationOpen}
               isWelcomeStep={stepIndex === 0}
+              locale={locale}
               onCancelSkip={() => setSkipConfirmationOpen(false)}
               onClose={() => setSkipConfirmationOpen(true)}
               onConfirmSkip={handleSkip}

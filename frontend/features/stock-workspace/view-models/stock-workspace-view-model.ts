@@ -21,7 +21,7 @@ export type StockWorkspaceModel = {
     chartContextSignal: string;
     chartContextConfidence: string;
   };
-  technicalSummary: Array<{ label: string; value: string; helper: string }>;
+  technicalSummary: Array<{ key: string; label: string; value: string; helper: string }>;
   insights: Array<{
     title: string;
     description: string;
@@ -137,31 +137,37 @@ export function buildStockWorkspaceModel(
     },
     technicalSummary: [
       {
+        key: "trend",
         label: "Trend",
         value: decisionSupport?.trend ?? intelligence?.trend ?? "UNKNOWN",
         helper: "Canonical trend from the decision engine when available.",
       },
       {
+        key: "rsi",
         label: "RSI",
         value: formatNumber(intelligence?.rsi),
         helper: "14-session momentum estimate from available closes.",
       },
       {
+        key: "volatility",
         label: "Volatility",
         value: formatPercent(intelligence?.volatility),
         helper: "Recent standard deviation of daily percentage changes.",
       },
       {
+        key: "avg-volume",
         label: "Avg Volume",
         value: formatCompactNumber(intelligence?.averageVolume),
         helper: "20-session average volume.",
       },
       {
+        key: "support",
         label: "Support",
         value: formatNumber(support),
         helper: "Canonical support from the decision engine when available.",
       },
       {
+        key: "resistance",
         label: "Resistance",
         value: formatNumber(resistance),
         helper: "Canonical resistance from the decision engine when available.",

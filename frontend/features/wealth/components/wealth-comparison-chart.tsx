@@ -7,6 +7,7 @@ import type {
   ComparisonHorizonSnapshot,
 } from "@/features/wealth/view-models/wealth-comparison-view-model";
 import { formatWealthCurrency } from "@/features/wealth/view-models/wealth-view-model";
+import type { AppLocale } from "@/lib/locale/app-locale";
 
 type WealthComparisonChartProps = {
   activeStopId: string;
@@ -14,6 +15,7 @@ type WealthComparisonChartProps = {
   horizonSnapshot: ComparisonHorizonSnapshot;
   leftLabel: string;
   rightLabel: string;
+  locale: AppLocale;
 };
 
 export function WealthComparisonChart({
@@ -22,6 +24,7 @@ export function WealthComparisonChart({
   horizonSnapshot,
   leftLabel,
   rightLabel,
+  locale,
 }: WealthComparisonChartProps) {
   const gradientId = useId().replace(/:/g, "");
   const leftFillId = `${gradientId}-left-fill`;
@@ -37,9 +40,9 @@ export function WealthComparisonChart({
       Math.abs(horizonSnapshot.horizonYears - chart.turningPointYear) < 1.2);
 
   return (
-    <section aria-label="Future paths comparison chart" className="wealth-comparison-chart-stage">
+    <section aria-label={locale === "bn" ? "ভবিষ্যতের দুই পথের chart" : "Future paths comparison chart"} className="wealth-comparison-chart-stage">
       <div className="wealth-comparison-chart-head">
-        <h2>Two futures diverging</h2>
+        <h2>{locale === "bn" ? "দুই পথের হিসাব আলাদা হচ্ছে" : "Two futures diverging"}</h2>
         <div className="wealth-comparison-chart-legend-inline">
           <span className="wealth-comparison-legend-left">{leftLabel}</span>
           <span className="wealth-comparison-legend-right">{rightLabel}</span>
@@ -137,18 +140,18 @@ export function WealthComparisonChart({
             .filter((_, index) => index % 4 === 0 || index === chart.points.length - 1)
             .map((point) => (
               <text className="wealth-comparison-chart-axis" key={point.year} textAnchor="middle" x={point.x} y={chart.height - 12}>
-                {point.year === 0 ? "Today" : `Y${Math.round(point.year)}`}
+            {point.year === 0 ? (locale === "bn" ? "আজ" : "Today") : `Y${Math.round(point.year)}`}
               </text>
             ))}
         </svg>
 
         {showTurningCallout && chart.turningPointYear != null ? (
           <div className="wealth-comparison-chart-callout wealth-comparison-chart-callout-turning">
-            <span>⚡ Crossover point</span>
+            <span>⚡ {locale === "bn" ? "Crossover point" : "Crossover point"}</span>
             <strong>
               {leftLabel} catches up around {formatTurningPoint(chart.turningPointYear)}
             </strong>
-            <em>Monthly discipline finally wins</em>
+            <em>{locale === "bn" ? "মাসে মাসে রাখা শেষে এগিয়ে যায়" : "Monthly discipline finally wins"}</em>
           </div>
         ) : null}
       </div>
