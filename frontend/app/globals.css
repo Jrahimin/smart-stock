@@ -17107,8 +17107,9 @@ button {
 
 .wealth-tax-slider-block--compact {
   display: grid;
-  gap: 3px;
+  gap: 6px;
   margin: 0;
+  overflow: visible;
   width: 100%;
 }
 
@@ -17161,13 +17162,15 @@ button {
 }
 
 .wealth-tax-slider-wrap {
+  --wealth-tax-slider-thumb-label-space: 22px;
   --wealth-tax-slider-thumb-size: 18px;
   display: grid;
   gap: 6px;
   max-width: 100%;
   min-width: 0;
-  overflow: hidden;
+  overflow: visible;
   padding-bottom: 18px;
+  padding-top: var(--wealth-tax-slider-thumb-label-space);
   position: relative;
 }
 
