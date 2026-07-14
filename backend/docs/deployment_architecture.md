@@ -36,6 +36,7 @@ flowchart TB
 
         subgraph docker [Docker app-network]
             FE[frontend :3000]
+            MIG[backend-migrate]
             API[backend-api :8000]
             SCH[backend-scheduler]
             PG[(postgres :5432)]
@@ -48,6 +49,7 @@ flowchart TB
     Nginx --> FE
     Nginx --> API
     API --> PG
+    MIG --> PG
     API -.->|optional cache| RD
     SCH --> PG
     SCH -.->|invalidate on sync| RD
@@ -59,6 +61,7 @@ flowchart TB
 | **Cloudflare** | Public edge — DNS, TLS to visitors, DDoS protection | Managed service |
 | **Nginx** | Origin TLS, reverse proxy, real client IP from `CF-Connecting-IP` | `nginx:1.27-alpine` |
 | **frontend** | Next.js App Router (standalone build) | `node server.js` |
+| **backend-migrate** | One-shot database migration job | `alembic upgrade head` |
 | **backend-api** | REST API | Gunicorn + Uvicorn workers |
 | **backend-scheduler** | Background jobs only — no HTTP | `python -m app.jobs.scheduler` |
 | **postgres** | Primary database | `postgres:17-alpine` |
@@ -209,18 +212,30 @@ Browser ──TLS──► Cloudflare ──TLS──► Nginx ──HTTP──�
 
 ---
 
-## Database and migrations (MVP)
+## Database and migrations
 
 - PostgreSQL 17 Alpine with a named volume `postgres_data`.
-- **Migrations are manual** after first `docker compose up -d`:
+- `backend-migrate` is a one-shot Compose service. `backend-api` and
+  `backend-scheduler` do not start until it exits successfully.
+
+- A normal full deploy runs migrations automatically:
 
   ```bash
-  docker compose exec backend-api alembic upgrade head
+  docker compose up -d --build
   ```
+
+- For recovery or a migration-only rollout, run the job explicitly:
+
+  ```bash
+  docker compose run --rm backend-migrate
+  ```
+
+- Never run migrations in the Dockerfile build or in the API entrypoint. This
+  keeps image builds database-independent and prevents concurrent API workers
+  from racing on DDL.
 
 - Readiness: `GET /api/v1/health/ready` runs `SELECT 1` — used by the `backend-api` Docker healthcheck.
 
-A one-shot `backend-migrate` compose service may be added later for automated deploys.
 
 ---
 
@@ -292,6 +307,5 @@ frontend/Dockerfile
 
 ## Deferred (not in MVP)
 
-- `backend-migrate` one-shot compose service
 - CI/CD pipelines and image registries
 - Automated backups and monitoring stacks

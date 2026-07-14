@@ -87,6 +87,26 @@ services:
       retries: 5
       start_period: 5s
 
+  backend-migrate:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      args:
+        APP_VERSION: ${APP_VERSION:-dev}
+        GIT_SHA: ${GIT_SHA:-unknown}
+        BUILD_TIME: ${BUILD_TIME:-unknown}
+    image: smart-stock-backend:latest
+    restart: "no"
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      <<: *backend-environment
+      RUN_SCHEDULER: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app-network
+
   backend-api:
     build:
       context: .
@@ -104,8 +124,8 @@ services:
       WEB_CONCURRENCY: ${WEB_CONCURRENCY:-2}
       FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-127.0.0.1,172.28.0.0/16}
     depends_on:
-      postgres:
-        condition: service_healthy
+      backend-migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
     networks:
@@ -130,8 +150,8 @@ services:
       <<: *backend-environment
       RUN_SCHEDULER: "true"
     depends_on:
-      postgres:
-        condition: service_healthy
+      backend-migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
     networks:

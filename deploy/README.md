@@ -101,10 +101,17 @@ docker compose build
 docker compose up -d
 ```
 
-Wait for services to become healthy, then run migrations manually:
+The `backend-migrate` one-shot service runs migrations before the API and
+scheduler are allowed to start:
 
 ```bash
-docker compose exec backend-api alembic upgrade head
+docker compose ps -a backend-migrate
+```
+
+For migration-only recovery, run:
+
+```bash
+docker compose run --rm backend-migrate
 ```
 
 First-time data bootstrap:
@@ -169,9 +176,7 @@ Manual equivalent (not recommended — skips version verification and Cloudflare
 
 ```bash
 git pull
-docker compose build
-docker compose up -d
-docker compose exec backend-api alembic upgrade head
+docker compose up -d --build
 ```
 
 ### Identify the running version
@@ -201,11 +206,11 @@ Set `CF_API_TOKEN` and `CF_ZONE_ID` in `.env` to purge Cloudflare automatically 
 
 Run all commands from the **repo root** (where `docker-compose.yml` lives), e.g. `/opt/smart-stock`.
 
-**Compose services:** `postgres`, `redis`, `backend-api` (HTTP only), `backend-scheduler` (background jobs), `frontend`, `nginx`.
+**Compose services:** `postgres`, `redis`, `backend-migrate` (one-shot schema job), `backend-api` (HTTP only), `backend-scheduler` (background jobs), `frontend`, `nginx`.
 
 **Frontend runtime env (dashboard SSR):** `SERVER_API_BASE_URL` must point at the internal API from the frontend container (default in Compose: `http://backend-api:8000/api/v1`). This is separate from build-time `NEXT_PUBLIC_API_BASE_URL`, which the browser uses. Stock detail SSR still uses the public/build-time API URL with Next.js ISR; dashboard core SSR uses the internal URL with `cache: no-store` so Redis remains the only server-side market cache.
 
-> **Note:** `docker compose down` affects the **entire stack**, not a single service. There is no `docker compose down frontend`. To replace one service, use `up` with a service name and `--no-deps`.
+> **Note:** `docker compose down` affects the **entire stack**, not a single service. There is no `docker compose down frontend`. Frontend/nginx-only replacements can use `--no-deps`; backend replacements should retain the migration dependency.
 
 ### Stack lifecycle
 
@@ -247,9 +252,9 @@ HTTP API only. **`RUN_SCHEDULER=false`** — no market sync or scheduled jobs in
 
 | Command | Purpose | Key flags / params | Outcome |
 |---------|---------|-------------------|---------|
-| `docker compose up -d --build --no-deps backend-api` | Rebuild and restart API | `--no-deps` | New API processes (Gunicorn workers); scheduler **unchanged** |
+| `docker compose up -d --build backend-api` | Rebuild and restart API | Starts migration dependency first | New API processes (Gunicorn workers); scheduler **unchanged** |
 | `docker compose restart backend-api` | Quick restart after `.env` change | | Same image; `get_settings()` cache cleared on new process |
-| `docker compose exec backend-api alembic upgrade head` | Run DB migrations | | Schema updated; run after backend deploys with migrations |
+| `docker compose run --rm backend-migrate` | Run DB migrations manually | | Recovery/migration-only path |
 | `docker compose exec backend-api python -m app.scripts.seed_stocks` | Bootstrap stock universe | First-time / recovery | Data seed only |
 | `docker compose logs -f backend-api` | Follow API logs | | Request errors, DB connection issues |
 
@@ -259,12 +264,12 @@ Production needs **both** `backend-api` and `backend-scheduler`. The scheduler r
 
 | Command | Purpose | Key flags / params | Outcome |
 |---------|---------|-------------------|---------|
-| `bash deploy/scripts/deploy.sh` | **Recommended** full deploy | Build all → recreate all → `alembic upgrade head` → `/system` + market API smoke checks | API + scheduler + frontend + nginx all updated |
+| `bash deploy/scripts/deploy.sh` | **Recommended** full deploy | Build all → recreate all → migration service → `/system` + market API smoke checks | API + scheduler + frontend + nginx all updated |
 | `docker compose build backend-api backend-scheduler` | Rebuild shared backend image | Single image used by both services | New `smart-stock-backend:latest` |
-| `docker compose up -d --force-recreate --no-deps backend-api backend-scheduler` | Redeploy API + scheduler | `--no-deps` | Both use new image; frontend/nginx keep running |
+| `docker compose up -d --build backend-api backend-scheduler` | Redeploy API + scheduler | Starts migration dependency first | Both use new image; frontend/nginx keep running |
 | `docker compose restart backend-scheduler` | Restart jobs process | | Scheduler re-reads env; jobs restart; **no HTTP** on this container |
 | `docker compose logs -f backend-scheduler` | Verify scheduler health | | Expect `RUN_SCHEDULER=true`, job start lines, no crash loop |
-| `docker compose exec backend-api alembic upgrade head` | Migrations after backend deploy | Always run after schema changes | Required for API; scheduler depends on same DB schema |
+| `docker compose run --rm backend-migrate` | Migrations after backend deploy | Recovery path | API and scheduler are gated on migration success |
 
 ### Data layer & edge
 
@@ -332,7 +337,7 @@ Create a **PostgreSQL** connection:
 
 ### 3. Copying local data to production
 
-1. On production: `docker compose exec backend-api alembic upgrade head`
+1. On production: `docker compose run --rm backend-migrate`
 2. From DBeaver: export local database or use **Tools → Restore** / `pg_dump` on data tables
 3. Import into the tunneled production connection
 
@@ -354,18 +359,10 @@ Local and production should be on the same Alembic migration head before a data-
 
 ---
 
-## 11. Future: automated migrations
+## 11. Migration safety
 
-When ready to automate deploys, add a one-shot compose service:
-
-```yaml
-backend-migrate:
-  image: smart-stock-backend:latest
-  command: alembic upgrade head
-  restart: "no"
-  depends_on:
-    postgres:
-      condition: service_healthy
-```
-
-Not included in the MVP compose file.
+The one-shot migration service is intentionally separate from the API image
+entrypoint. Failed migrations leave the API and scheduler stopped, making the
+deployment failure visible instead of serving application code against an old
+schema. Do not use `alembic stamp head` to bypass a failed migration; repair the
+database or migration first.
