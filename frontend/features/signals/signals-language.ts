@@ -87,8 +87,8 @@ function buildSignalsLanguage(locale: AppLocale): SignalsLanguage {
         decisionEngine: "Decision engine",
       },
       row: {
-        confidenceAria: (value) => `${value}% confidence`,
-        confidence: (value) => `${value}% confidence`,
+        confidenceAria: (value) => `${value} of 100 heuristic evidence`,
+        confidence: (value) => `${value}/100 evidence`,
         risk: (label) => `${label} risk`,
         riskShort: (label) => `Risk ${label}`,
         momentum: (recommendation) =>
@@ -115,7 +115,7 @@ function buildSignalsLanguage(locale: AppLocale): SignalsLanguage {
   return {
     hero: {
       eyebrow: "Signal Center",
-      title: "Explanation-first trader decisions",
+      title: "ব্যাখ্যাসহ ট্রেডার সিদ্ধান্ত",
       loadingSubtitle:
         "বাজারের তথ্য দেখে সিদ্ধান্ত নেওয়ার মতো শেয়ার খোঁজা হচ্ছে",
       readySubtitle: (count) =>
@@ -124,7 +124,7 @@ function buildSignalsLanguage(locale: AppLocale): SignalsLanguage {
     },
 
     filters: {
-      allActions: "সব Action",
+      allActions: "সব action",
       allRisk: "সব Risk",
       lowRisk: "কম Risk",
       mediumRisk: "মাঝারি Risk",
@@ -148,8 +148,8 @@ function buildSignalsLanguage(locale: AppLocale): SignalsLanguage {
     },
 
     row: {
-      confidenceAria: (value) => `${value}% confidence`,
-      confidence: (value) => `${value}% confidence`,
+      confidenceAria: (value) => `${value} of 100 heuristic evidence`,
+      confidence: (value) => `${value}/100 evidence`,
       risk: (label) => `${label} Risk`,
       riskShort: (label) => `Risk ${label}`,
       momentum: (recommendation) =>

@@ -28,9 +28,14 @@ class BreakoutAnalysisResult:
     explanation: str
     direction: BreakoutScenario
 
+    @property
+    def evidence_score(self) -> int:
+        """Honest name for the legacy ``probability`` compatibility value."""
+        return self.probability
+
 
 def _active_patterns(patterns: list[PatternDetection]) -> list[PatternDetection]:
-    return [pattern for pattern in patterns if pattern.status.value in {"Active", "Confirmed"}]
+    return [pattern for pattern in patterns if pattern.status.value == "Confirmed"]
 
 
 def _infer_scenario(pattern: PatternDetection | None, snapshot: TechnicalSnapshot) -> BreakoutScenario:
@@ -137,7 +142,7 @@ def analyze_breakout(snapshot: TechnicalSnapshot, patterns: list[PatternDetectio
 
     pattern_aligned = active_pattern is not None and (
         (bullish and active_pattern.direction == "bullish")
-        or (not bullish and active_pattern.direction in {"bearish", "neutral"})
+        or (not bullish and active_pattern.direction == "bearish")
     )
     factors.append(
         BreakoutFactor(
@@ -164,21 +169,40 @@ def analyze_breakout(snapshot: TechnicalSnapshot, patterns: list[PatternDetectio
             if active_pattern and active_pattern.direction == "bullish"
             else (snapshot.resistance * 1.05 if snapshot.resistance is not None else None)
         )
-        explanation = "Breakout probability combines volume, trend, resistance proximity, and active pattern context."
+        explanation = (
+            "Breakout evidence score combines volume, trend, resistance proximity, "
+            "and confirmed pattern context."
+        )
     else:
         trigger_level = (
             active_pattern.breakout_level
-            if active_pattern and active_pattern.direction in {"bearish", "neutral"}
+            if active_pattern and active_pattern.direction == "bearish"
             else snapshot.support
         )
         projected_target = (
             active_pattern.target_estimate
-            if active_pattern and active_pattern.direction in {"bearish", "neutral"}
+            if active_pattern and active_pattern.direction == "bearish"
             else (snapshot.support * 0.95 if snapshot.support is not None else None)
         )
-        explanation = "Breakdown probability combines volume, trend, support proximity, and active pattern context."
+        explanation = (
+            "Breakdown evidence score combines volume, trend, support proximity, "
+            "and confirmed pattern context."
+        )
 
-    confirmation_level = trigger_level * (1.01 if bullish else 0.99) if trigger_level is not None else None
+    latest_price = snapshot.latest_price
+    if projected_target is not None:
+        if projected_target <= 0:
+            projected_target = None
+        elif bullish and latest_price is not None and projected_target <= latest_price:
+            projected_target = None
+        elif not bullish and latest_price is not None and projected_target >= latest_price:
+            projected_target = None
+
+    confirmation_level = (
+        trigger_level * (1.01 if bullish else 0.99)
+        if trigger_level is not None
+        else None
+    )
 
     return BreakoutAnalysisResult(
         probability=probability,

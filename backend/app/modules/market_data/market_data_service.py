@@ -9,7 +9,7 @@ from fastapi import Depends
 
 from app.api.dependencies.auth_dependencies import get_current_user_context
 from app.core.core_config import get_settings
-from app.core.enums import DataQualityFlag, ExchangeCode
+from app.core.enums import DataQualityFlag, ExchangeCode, TurnoverProvenance
 from app.jobs.market_cache_spawn import spawn_rebuild_market_read_cache
 from app.jobs.ingestion.amarstock_daily_enrichment import (
     PostDailyAmarstockStats,
@@ -617,7 +617,19 @@ class MarketDataService:
             previous_close_price = previous_price.close_price if previous_price is not None else None
 
         day_range = price_data.high_price - price_data.low_price
-        turnover = price_data.turnover or price_data.close_price * Decimal(price_data.volume)
+        turnover_is_reported = price_data.turnover is not None
+        turnover = (
+            price_data.turnover
+            if turnover_is_reported
+            else price_data.close_price * Decimal(price_data.volume)
+        )
+        turnover_provenance = price_data.turnover_provenance
+        if turnover_provenance == TurnoverProvenance.UNKNOWN:
+            turnover_provenance = (
+                TurnoverProvenance.REPORTED
+                if turnover_is_reported
+                else TurnoverProvenance.ESTIMATED
+            )
         data_quality_flag = price_data.data_quality_flag
         if previous_close_price is None and data_quality_flag == DataQualityFlag.OK:
             data_quality_flag = DataQualityFlag.PARTIAL
@@ -634,6 +646,7 @@ class MarketDataService:
                 "day_range": day_range,
                 "day_range_percent": self._calculate_ratio_percent(day_range, price_data.low_price),
                 "turnover": turnover,
+                "turnover_provenance": turnover_provenance,
                 "vwap": self._calculate_vwap(turnover, price_data.volume),
                 "data_quality_flag": data_quality_flag,
             }
@@ -653,6 +666,11 @@ class MarketDataService:
             volume=price.volume,
             trade_count=price.trade_count,
             turnover=price.turnover,
+            turnover_provenance=(
+                TurnoverProvenance.REPORTED
+                if price.turnover is not None
+                else TurnoverProvenance.ESTIMATED
+            ),
             source=price.source,
             data_quality_flag=price.data_quality_flag,
         )

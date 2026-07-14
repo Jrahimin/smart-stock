@@ -107,7 +107,7 @@ describe("market pulse language", () => {
         scoreBreakdown: { trend: 20, momentum: 20, volume: 30, signalBoost: 6, riskPenalty: 0, total: 95, contributors: [], band: "High Attention" },
         focusLabel: "New BUY Setup",
         labelTone: "positive",
-        whyHere: ["BUY setup at 77% confidence", "Volume 4.2x normal"],
+        whyHere: ["BUY setup with 77/100 evidence strength", "Volume 4.2x normal"],
         trigger: "Break above 198.90",
         actionSummary: "Volume expanding faster than price",
         latestPrice: "197.30",
@@ -144,7 +144,7 @@ describe("market pulse language", () => {
     const localized = applyMarketPulseLocalization(model, "bn");
     expect(localized.hero.attentionSubline).toContain("বাজারে কী চলছে");
     expect(localized.briefing?.story.explanation).toContain("অংশগ্রহণ কম");
-    expect(localized.focusStocks[0]?.whyHere[0]).toBe("BUY setup-এর confidence 77%");
+    expect(localized.focusStocks[0]?.whyHere[0]).toBe("BUY setup-এর heuristic evidence 77/100");
     expect(localized.focusStocks[0]?.actionSummary).toBe("দামের চেয়ে Volume দ্রুত বাড়ছে");
     expect(localized.alerts[0]?.eventExplanation).toContain("Volume স্বাভাবিকের চেয়ে 10.0x");
     expect(localized.briefing?.summary.text).toContain("বাজার এখন");

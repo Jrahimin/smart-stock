@@ -9,9 +9,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.base_repository import BaseRepository
 from app.core.constants.trading_constants import DECISION_OHLCV_WINDOW
 from app.core.database_session import get_db_session
-from app.core.enums import ExchangeCode, IndicatorType, MarketEventType, ReportPeriodType, StockDetailsSyncJobStatus
-from app.modules.stock_details.decision.fundamentals_snapshot import LatestFinancialMetricRow
-from app.modules.stock_details.decision.financial_trends import FinancialMetricHistoryRow
+from app.core.enums import (
+    ExchangeCode,
+    IndicatorType,
+    ReportPeriodType,
+    StockDetailsSyncJobStatus,
+)
 from app.models import (
     CorporateAction,
     DailyMarketSummary,
@@ -28,6 +31,8 @@ from app.models import (
     TradingSignal,
     ValuationSnapshot,
 )
+from app.modules.stock_details.decision.financial_trends import FinancialMetricHistoryRow
+from app.modules.stock_details.decision.fundamentals_snapshot import LatestFinancialMetricRow
 
 
 class StockDetailsRepository(BaseRepository[StockDetailsSyncJob]):
@@ -120,6 +125,22 @@ class StockDetailsRepository(BaseRepository[StockDetailsSyncJob]):
         result = await self.session.scalars(statement)
         return list(result.all())
 
+    async def list_recent_exchange_session_dates(
+        self,
+        *,
+        exchange: ExchangeCode,
+        limit: int,
+    ) -> list[date]:
+        statement = (
+            select(DailyPrice.trade_date)
+            .join(Stock, Stock.id == DailyPrice.stock_id)
+            .where(Stock.exchange == exchange, Stock.is_active.is_(True))
+            .distinct()
+            .order_by(DailyPrice.trade_date.desc())
+            .limit(limit)
+        )
+        return list(reversed((await self.session.scalars(statement)).all()))
+
     async def list_dividend_events(self, *, stock_id: UUID, limit: int = 10) -> list[DividendEvent]:
         statement = (
             select(DividendEvent)
@@ -137,6 +158,21 @@ class StockDetailsRepository(BaseRepository[StockDetailsSyncJob]):
             .limit(limit)
         )
         return list((await self.session.scalars(statement)).all())
+
+    async def list_decision_corporate_action_dates(self, *, stock_id: UUID) -> set[date]:
+        """Return the complete event-date set used by the canonical decision input."""
+        dates: set[date] = set()
+        dividend_statement = select(DividendEvent.ex_dividend_date).where(
+            DividendEvent.stock_id == stock_id,
+            DividendEvent.ex_dividend_date.is_not(None),
+        )
+        dates.update((await self.session.scalars(dividend_statement)).all())
+
+        action_statement = select(CorporateAction.effective_date).where(
+            CorporateAction.stock_id == stock_id
+        )
+        dates.update((await self.session.scalars(action_statement)).all())
+        return dates
 
     async def list_latest_metric_values(
         self,

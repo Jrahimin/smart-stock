@@ -276,10 +276,10 @@ export function StockCandlestickChart({
             className={`pattern-chip ${patternDirectionClass(pattern.direction)} ${index === 0 ? "pattern-chip-primary" : "pattern-chip-secondary"} ${patternStatusClass(pattern.status)}`}
             key={`${pattern.name}-${pattern.status}`}
             onClick={() => setSelectedPatternIndex(index)}
-            title={`${pattern.status} · Breakout ${pattern.breakout_level ?? "N/A"} · Confidence ${pattern.confidence}%`}
+            title={`${pattern.status} · Breakout ${pattern.breakout_level ?? "N/A"} · Pattern match ${pattern.pattern_match_score ?? pattern.confidence}/100`}
             type="button"
           >
-            {index === 0 ? "🟢" : "🟡"} {pattern.name} ({pattern.confidence}%)
+            {index === 0 ? "🟢" : "🟡"} {pattern.name} ({pattern.pattern_match_score ?? pattern.confidence}/100)
           </button>
         ))}
       </div>

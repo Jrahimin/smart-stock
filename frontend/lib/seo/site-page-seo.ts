@@ -124,7 +124,7 @@ export function buildSignalsMetadata(): Metadata {
   return buildSitePageMetadata({
     title: "Smart Signals",
     description:
-      "Explanation-first buy, sell, and hold signals with confidence and risk context for Bangladesh stocks.",
+      "Explanation-first buy, sell, and hold signals with heuristic evidence and risk context for Bangladesh stocks.",
     path: "/signals",
   });
 }

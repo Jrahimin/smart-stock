@@ -2,12 +2,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import Decimal
+from statistics import median
 
 from app.core.constants.trading_constants import (
+    ANALYTICAL_ADJUSTED_SERIES_ENABLED,
     ATR_PERIOD,
     DEFAULT_LONG_MOVING_AVERAGE_PERIOD,
     DEFAULT_RSI_PERIOD,
     DEFAULT_SHORT_MOVING_AVERAGE_PERIOD,
+    ELIGIBILITY_ROBUST_BASELINE_WINDOW,
     GAP_RISK_THRESHOLD_PERCENT,
     RETURN_MEDIUM_LOOKBACK,
     RETURN_SHORT_LOOKBACK,
@@ -20,7 +23,7 @@ from app.core.constants.trading_constants import (
     TREND_SLOPE_LOOKBACK,
     VOLUME_EXPANSION_RATIO,
 )
-from app.core.enums import DataQualityFlag, TrendDirection
+from app.core.enums import DataQualityFlag, TrendDirection, TurnoverProvenance
 from app.models import DailyPrice
 
 # Swing-point detection lives here so support/resistance and the pattern engine
@@ -91,7 +94,7 @@ def calculate_atr(
     closes: list[float],
     period: int = ATR_PERIOD,
 ) -> float | None:
-    """Average True Range using true-range values (captures gaps, unlike close std-dev)."""
+    """Wilder ATR seeded by the first ``period`` true ranges."""
     count = min(len(highs), len(lows), len(closes))
     if count < 2:
         return None
@@ -104,10 +107,78 @@ def calculate_atr(
             abs(lows[index] - prev_close),
         )
         true_ranges.append(true_range)
-    if not true_ranges:
+    if len(true_ranges) < period:
         return None
-    window = true_ranges[-period:] if len(true_ranges) >= period else true_ranges
-    return average(window)
+    atr = average(true_ranges[:period])
+    if atr is None:
+        return None
+    for true_range in true_ranges[period:]:
+        atr = (atr * (period - 1) + true_range) / period
+    return atr
+
+
+def is_valid_ohlc_row(price: DailyPrice) -> bool:
+    """Validate one complete OHLC row so indicator arrays cannot desynchronize."""
+    open_price = _to_float(price.open_price)
+    high = _to_float(price.high_price)
+    low = _to_float(price.low_price)
+    close = _to_float(price.close_price)
+    if None in {open_price, high, low, close}:
+        return False
+    assert open_price is not None and high is not None and low is not None and close is not None
+    if min(open_price, high, low, close) < 0 or close <= 0:
+        return False
+    return high >= max(open_price, low, close) and low <= min(open_price, high, close)
+
+
+def select_valid_ohlc_rows(prices: list[DailyPrice]) -> list[DailyPrice]:
+    return [
+        price
+        for price in sorted(prices, key=lambda row: row.trade_date)
+        if is_valid_ohlc_row(price)
+    ]
+
+
+def _adjusted_close_coverage(prices: list[DailyPrice]) -> float:
+    if not prices:
+        return 0.0
+    adjusted = sum(1 for price in prices if (_to_float(price.adjusted_close_price) or 0) > 0)
+    return adjusted / len(prices)
+
+
+def _analytical_ohlc(
+    price: DailyPrice,
+    *,
+    use_adjusted_close: bool,
+) -> tuple[float, float, float, float]:
+    open_price = float(price.open_price)
+    high = float(price.high_price)
+    low = float(price.low_price)
+    close = float(price.close_price)
+    if not use_adjusted_close:
+        return open_price, high, low, close
+    adjusted_close = _to_float(price.adjusted_close_price)
+    if adjusted_close is None or close <= 0:
+        return open_price, high, low, close
+    factor = adjusted_close / close
+    return open_price * factor, high * factor, low * factor, adjusted_close
+
+
+def _turnover_provenance(prices: list[DailyPrice]) -> TurnoverProvenance:
+    observed: set[TurnoverProvenance] = set()
+    for price in prices:
+        raw = getattr(price, "turnover_provenance", None)
+        try:
+            provenance = TurnoverProvenance(raw) if raw is not None else TurnoverProvenance.UNKNOWN
+        except ValueError:
+            provenance = TurnoverProvenance.UNKNOWN
+        observed.add(provenance)
+    observed.discard(TurnoverProvenance.UNKNOWN)
+    if not observed:
+        return TurnoverProvenance.UNKNOWN
+    if len(observed) == 1:
+        return next(iter(observed))
+    return TurnoverProvenance.MIXED
 
 
 def standard_deviation(values: list[float]) -> float | None:
@@ -172,7 +243,9 @@ class SwingPoint:
     kind: str
 
 
-def detect_swing_points(prices: list[DailyPrice], lookback: int = SWING_POINT_LOOKBACK) -> list[SwingPoint]:
+def detect_swing_points(
+    prices: list[DailyPrice], lookback: int = SWING_POINT_LOOKBACK
+) -> list[SwingPoint]:
     sorted_prices = sorted(prices, key=lambda price: price.trade_date)
     highs = [_to_float(price.high_price) for price in sorted_prices]
     lows = [_to_float(price.low_price) for price in sorted_prices]
@@ -183,9 +256,13 @@ def detect_swing_points(prices: list[DailyPrice], lookback: int = SWING_POINT_LO
         if high is None or low is None:
             continue
         left_highs = [value for value in highs[index - lookback : index] if value is not None]
-        right_highs = [value for value in highs[index + 1 : index + lookback + 1] if value is not None]
+        right_highs = [
+            value for value in highs[index + 1 : index + lookback + 1] if value is not None
+        ]
         left_lows = [value for value in lows[index - lookback : index] if value is not None]
-        right_lows = [value for value in lows[index + 1 : index + lookback + 1] if value is not None]
+        right_lows = [
+            value for value in lows[index + 1 : index + lookback + 1] if value is not None
+        ]
         if left_highs and right_highs and high >= max(left_highs) and high >= max(right_highs):
             swings.append(
                 SwingPoint(
@@ -216,8 +293,12 @@ class LevelResult:
 
 def _donchian(prices: list[DailyPrice], lookback: int) -> tuple[float | None, float | None]:
     window = prices[-lookback:] if len(prices) >= lookback else prices
-    lows = [value for value in (_to_float(price.low_price) for price in window) if value is not None]
-    highs = [value for value in (_to_float(price.high_price) for price in window) if value is not None]
+    lows = [
+        value for value in (_to_float(price.low_price) for price in window) if value is not None
+    ]
+    highs = [
+        value for value in (_to_float(price.high_price) for price in window) if value is not None
+    ]
     if not lows or not highs:
         return None, None
     return min(lows), max(highs)
@@ -241,14 +322,24 @@ def resolve_levels(
 
     swings = detect_swing_points(sorted_prices)
     confirm_before_index = len(sorted_prices) - 1 - SUPPORT_RESISTANCE_SWING_CONFIRM_BARS
-    confirmed_highs = [point.price for point in swings if point.kind == "high" and point.index <= confirm_before_index]
-    confirmed_lows = [point.price for point in swings if point.kind == "low" and point.index <= confirm_before_index]
+    confirmed_highs = [
+        point.price
+        for point in swings
+        if point.kind == "high" and point.index <= confirm_before_index
+    ]
+    confirmed_lows = [
+        point.price
+        for point in swings
+        if point.kind == "low" and point.index <= confirm_before_index
+    ]
 
     prior_swing_high = max(confirmed_highs) if confirmed_highs else None
 
     resistance = donchian_resistance
     if confirmed_highs:
-        overhead = [price for price in confirmed_highs if latest_price is None or price >= latest_price]
+        overhead = [
+            price for price in confirmed_highs if latest_price is None or price >= latest_price
+        ]
         resistance = min(overhead) if overhead else max(confirmed_highs)
 
     support = donchian_support
@@ -315,6 +406,17 @@ class TechnicalSnapshot:
     is_breakout: bool = False
     structure: str = STRUCTURE_NEUTRAL
     gap_frequency_percent: float | None = None
+    invalid_ohlcv_row_count: int = 0
+    latest_row_valid: bool = True
+    traded_session_count: int = 0
+    zero_volume_session_count: int = 0
+    traded_session_ratio: float = 0.0
+    volume_observation_count: int = 0
+    median_turnover: float | None = None
+    turnover_observation_count: int = 0
+    turnover_provenance: TurnoverProvenance = TurnoverProvenance.UNKNOWN
+    analytical_price_basis: str = "RAW_UNADJUSTED"
+    adjusted_close_coverage_ratio: float = 0.0
 
 
 def build_technical_snapshot(prices: list[DailyPrice]) -> TechnicalSnapshot | None:
@@ -322,46 +424,74 @@ def build_technical_snapshot(prices: list[DailyPrice]) -> TechnicalSnapshot | No
         return None
 
     sorted_prices = sorted(prices, key=lambda price: price.trade_date)
-    latest = sorted_prices[-1]
-    closes = [_to_float(price.close_price) for price in sorted_prices]
-    closes = [value for value in closes if value is not None]
-    if not closes:
+    valid_prices = select_valid_ohlc_rows(sorted_prices)
+    if not valid_prices:
         return None
 
-    highs = [value for value in (_to_float(price.high_price) for price in sorted_prices) if value is not None]
-    lows = [value for value in (_to_float(price.low_price) for price in sorted_prices) if value is not None]
+    latest = valid_prices[-1]
+    adjusted_coverage = _adjusted_close_coverage(valid_prices)
+    use_adjusted_close = ANALYTICAL_ADJUSTED_SERIES_ENABLED and adjusted_coverage == 1.0
+    analytical_rows = [
+        _analytical_ohlc(price, use_adjusted_close=use_adjusted_close) for price in valid_prices
+    ]
+    highs = [row[1] for row in analytical_rows]
+    lows = [row[2] for row in analytical_rows]
+    closes = [row[3] for row in analytical_rows]
 
     latest_price = _to_float(latest.close_price)
-    previous_close = _to_float(latest.previous_close_price) or (closes[-2] if len(closes) >= 2 else None)
+    previous_close = _to_float(latest.previous_close_price) or (
+        closes[-2] if len(closes) >= 2 else None
+    )
     price_change = _to_float(latest.price_change)
     if price_change is None and latest_price is not None and previous_close is not None:
         price_change = latest_price - previous_close
     price_change_percent = _to_float(latest.price_change_percent)
-    if price_change_percent is None and price_change is not None and previous_close not in (None, 0):
+    if (
+        price_change_percent is None
+        and price_change is not None
+        and previous_close is not None
+        and previous_close != 0
+    ):
         price_change_percent = (price_change / previous_close) * 100
 
     # Average volume/turnover exclude the latest session so the current bar is
     # measured against its own baseline rather than being diluted into it.
-    baseline_prices = sorted_prices[-(SUPPORT_RESISTANCE_LOOKBACK + 1) : -1]
+    baseline_prices = valid_prices[-(ELIGIBILITY_ROBUST_BASELINE_WINDOW + 1) : -1]
     if not baseline_prices:
-        baseline_prices = sorted_prices[:-1] or sorted_prices
-    average_volume = average([float(price.volume) for price in baseline_prices])
-    turnover_window = [value for value in (_to_float(price.turnover) for price in baseline_prices) if value is not None]
-    average_turnover = average(turnover_window)
-
-    daily_changes = [
-        _to_float(price.price_change_percent)
-        for price in sorted_prices[-SUPPORT_RESISTANCE_LOOKBACK:]
+        baseline_prices = valid_prices[:-1] or valid_prices
+    traded_baseline_prices = [price for price in baseline_prices if price.volume > 0]
+    volume_window = [float(price.volume) for price in traded_baseline_prices]
+    average_volume = median(volume_window) if volume_window else None
+    turnover_window = [
+        value
+        for value in (_to_float(price.turnover) for price in traded_baseline_prices)
+        if value is not None and value > 0
     ]
-    daily_changes = [value for value in daily_changes if value is not None]
+    average_turnover = average(turnover_window)
+    median_turnover = median(turnover_window) if turnover_window else None
+
+    volatility_closes = closes[-(SUPPORT_RESISTANCE_LOOKBACK + 1) :]
+    daily_changes = [
+        (current / previous - 1) * 100
+        for previous, current in zip(
+            volatility_closes,
+            volatility_closes[1:],
+            strict=False,
+        )
+        if previous > 0
+    ]
     volatility = standard_deviation(daily_changes)
 
     # Gap frequency: share of sessions opening more than the threshold away from
     # the prior close — a proxy for jumpy, gap-prone (harder to stop) names.
-    gap_window = sorted_prices[-SUPPORT_RESISTANCE_LOOKBACK:]
+    gap_window = valid_prices[-SUPPORT_RESISTANCE_LOOKBACK:]
     gap_count = 0
     gap_total = 0
-    for previous_price, current_price in zip(gap_window, gap_window[1:]):
+    for previous_price, current_price in zip(
+        gap_window,
+        gap_window[1:],
+        strict=False,
+    ):
         open_value = _to_float(current_price.open_price)
         prev_close = _to_float(previous_price.close_price)
         if open_value is None or prev_close is None or prev_close <= 0:
@@ -379,16 +509,18 @@ def build_technical_snapshot(prices: list[DailyPrice]) -> TechnicalSnapshot | No
 
     sma20_slope: float | None = None
     if len(closes) > DEFAULT_SHORT_MOVING_AVERAGE_PERIOD + TREND_SLOPE_LOOKBACK:
-        sma20_prev = calculate_sma(closes[:-TREND_SLOPE_LOOKBACK], DEFAULT_SHORT_MOVING_AVERAGE_PERIOD)
+        sma20_prev = calculate_sma(
+            closes[:-TREND_SLOPE_LOOKBACK], DEFAULT_SHORT_MOVING_AVERAGE_PERIOD
+        )
         if sma20 is not None and sma20_prev is not None:
             sma20_slope = sma20 - sma20_prev
 
     return_5d = _return_percent(closes, RETURN_SHORT_LOOKBACK)
     return_20d = _return_percent(closes, RETURN_MEDIUM_LOOKBACK)
 
-    levels = resolve_levels(sorted_prices, latest_price)
+    levels = resolve_levels(valid_prices, latest_price)
     support, resistance = levels.support, levels.resistance
-    structure = classify_structure(detect_swing_points(sorted_prices))
+    structure = classify_structure(detect_swing_points(valid_prices))
 
     is_breakout = False
     if (
@@ -420,7 +552,7 @@ def build_technical_snapshot(prices: list[DailyPrice]) -> TechnicalSnapshot | No
         trend=trend,
         data_quality=latest.data_quality_flag,
         latest_trade_date=latest.trade_date.isoformat(),
-        ohlcv_row_count=len(sorted_prices),
+        ohlcv_row_count=len(valid_prices),
         sparkline_closes=tuple(closes[-SPARKLINE_CLOSE_LIMIT:]),
         sma50=sma50,
         atr14=atr14,
@@ -430,4 +562,19 @@ def build_technical_snapshot(prices: list[DailyPrice]) -> TechnicalSnapshot | No
         is_breakout=is_breakout,
         structure=structure,
         gap_frequency_percent=gap_frequency_percent,
+        invalid_ohlcv_row_count=len(sorted_prices) - len(valid_prices),
+        latest_row_valid=is_valid_ohlc_row(sorted_prices[-1]),
+        traded_session_count=sum(1 for price in valid_prices if price.volume > 0),
+        zero_volume_session_count=sum(1 for price in valid_prices if price.volume == 0),
+        traded_session_ratio=(
+            sum(1 for price in valid_prices if price.volume > 0) / len(valid_prices)
+        ),
+        volume_observation_count=len(volume_window),
+        median_turnover=median_turnover,
+        turnover_observation_count=len(turnover_window),
+        turnover_provenance=_turnover_provenance(traded_baseline_prices),
+        analytical_price_basis=(
+            "SOURCE_ADJUSTED_CLOSE" if use_adjusted_close else "RAW_UNADJUSTED"
+        ),
+        adjusted_close_coverage_ratio=adjusted_coverage,
     )

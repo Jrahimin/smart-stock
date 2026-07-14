@@ -37,6 +37,8 @@ class UserWatchlistRead(BaseModel):
     current_price: Decimal | None = None
     trader_decision: TraderDecisionSummaryRead | None = None
     technical_snapshot: TechnicalSnapshotRead | None = None
+    decision_source: str = "UNAVAILABLE"
+    contextual_action: str = "WAIT"
 
 
 class UserWatchlistSummaryRead(BaseModel):

@@ -1,8 +1,9 @@
 import type { BackendDailyPriceDto, BackendStockDto } from "@/lib/api/backend-api-types";
 import type { DisplayMetricsDto, StockDecisionSupportDto } from "@/lib/api/stock-decision-support-types";
 import { formatCompactNumber, formatNumber, formatPercent } from "@/lib/formatters/financial-formatters";
-import { buildStockIntelligence } from "@/lib/market/market-intelligence";
+import { buildChartStockIntelligence } from "@/lib/market/market-intelligence";
 import type { StockIntelligenceModel } from "@/lib/market/market-intelligence-types";
+import { normalizeTrendDirection } from "@/lib/market/trend-display";
 import { resolveDisplayedMarketCap } from "@/features/stock-workspace/view-models/market-cap-view-model";
 
 export type StockWorkspaceModel = {
@@ -79,6 +80,80 @@ function buildInsights(intelligence: StockIntelligenceModel | null): StockWorksp
   return insights;
 }
 
+function applyCanonicalDecisionSupport(
+  chartIntelligence: StockIntelligenceModel | null,
+  decisionSupport: StockDecisionSupportDto | null | undefined,
+): StockIntelligenceModel | null {
+  if (!chartIntelligence || !decisionSupport?.decision) {
+    return chartIntelligence;
+  }
+
+  const snapshot = decisionSupport.technical_snapshot;
+  const decision = decisionSupport.decision;
+  const compatibilitySignal =
+    decision.recommendation === "BUY" || decision.recommendation === "SELL"
+      ? decision.recommendation
+      : "HOLD";
+
+  return {
+    ...chartIntelligence,
+    averageVolume: snapshot?.average_volume ?? decisionSupport.liquidity.average_volume,
+    rsi: snapshot?.rsi ?? null,
+    sma20: snapshot?.sma20 ?? null,
+    ema20: snapshot?.ema20 ?? null,
+    volatility: snapshot?.volatility ?? null,
+    support: snapshot?.support ?? decisionSupport.support,
+    resistance: snapshot?.resistance ?? decisionSupport.resistance,
+    trend: normalizeTrendDirection(snapshot?.trend ?? decisionSupport.trend),
+    averageTurnover: snapshot?.average_turnover ?? decisionSupport.liquidity.average_turnover,
+    isBreakout: snapshot?.is_breakout ?? false,
+    returnFiveDayPercent: snapshot?.return_5d_percent ?? null,
+    returnTwentyDayPercent: snapshot?.return_20d_percent ?? null,
+    structure: snapshot?.structure ?? null,
+    signal: {
+      ...chartIntelligence.signal,
+      signal: compatibilitySignal,
+      confidence: decision.evidence_strength ?? decision.confidence,
+      risk:
+        decisionSupport.risk.label === "LOW" ||
+        decisionSupport.risk.label === "MEDIUM" ||
+        decisionSupport.risk.label === "HIGH"
+          ? decisionSupport.risk.label
+          : "HIGH",
+      reason: decision.primary_reason ?? decision.reasoning[0] ?? "Canonical decision available.",
+      supportingContext: [],
+      generatedAt:
+        decisionSupport.canonical_decision?.as_of_date ??
+        decisionSupport.data_freshness.latest_trade_date ??
+        chartIntelligence.signal.generatedAt,
+      asOfTradeDate:
+        decisionSupport.canonical_decision?.as_of_date ??
+        decisionSupport.data_freshness.latest_trade_date ??
+        undefined,
+      source: "backend",
+    },
+    traderDecision: {
+      recommendation: decision.recommendation,
+      confidence: decision.confidence,
+      reason: decision.primary_reason ?? decision.reasoning[0] ?? "Canonical decision available.",
+      opportunity_score: decisionSupport.opportunity.score,
+      risk_label: decisionSupport.risk.label,
+      confidence_semantics: decision.confidence_semantics,
+      evidence_strength: decision.evidence_strength,
+      evidence_strength_semantics: decision.evidence_strength_semantics,
+      primary_reason: decision.primary_reason,
+      primary_reason_code: decision.primary_reason_code,
+      stance: decision.stance,
+      non_holder_action: decision.non_holder_action,
+      holder_action: decision.holder_action,
+      data_reliability: decisionSupport.data_reliability,
+      trading_risk: decisionSupport.trading_risk,
+      constraints: decision.constraints,
+      canonical: decisionSupport.canonical_decision ?? decision.canonical,
+    },
+  };
+}
+
 export function buildEmptyStockWorkspaceModel(options: {
   symbol: string;
   exchange: string;
@@ -109,9 +184,10 @@ export function buildStockWorkspaceModel(
   prices: BackendDailyPriceDto[],
   options: BuildStockWorkspaceModelOptions = {},
 ): StockWorkspaceModel {
-  // Chart candles / volume bars only — not the page decision-support action (Rule #1).
-  const intelligence = stock ? buildStockIntelligence(stock, prices) : null;
   const decisionSupport = options.decisionSupport;
+  const canonicalDecision = decisionSupport?.decision;
+  const chartIntelligence = stock ? buildChartStockIntelligence(stock, prices) : null;
+  const intelligence = applyCanonicalDecisionSupport(chartIntelligence, decisionSupport);
   const displayMetrics = options.displayMetrics;
   const support = decisionSupport?.support ?? intelligence?.support ?? null;
   const resistance = decisionSupport?.resistance ?? intelligence?.resistance ?? null;
@@ -132,8 +208,10 @@ export function buildStockWorkspaceModel(
       latestPrice,
       changePercent: formatPercent(intelligence?.priceChangePercent),
       marketCap: resolveDisplayedMarketCap(stock, intelligence, decisionSupport, displayMetrics),
-      chartContextSignal: intelligence?.signal.signal ?? "—",
-      chartContextConfidence: intelligence ? `${intelligence.signal.confidence}%` : "—",
+      chartContextSignal: canonicalDecision?.recommendation ?? "—",
+      chartContextConfidence: canonicalDecision
+        ? `${canonicalDecision.evidence_strength ?? canonicalDecision.confidence}/100 evidence`
+        : "—",
     },
     technicalSummary: [
       {

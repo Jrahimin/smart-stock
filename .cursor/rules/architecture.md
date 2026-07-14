@@ -130,7 +130,7 @@ Feature-specific query params, such as `exchange`, `indicator_type`, or date ran
 | File | Responsibility |
 |------|----------------|
 | `market_universe_router.py` | HTTP only; cold cache miss → HTTP 503 |
-| `market_universe_service.py` | Redis `universe:scored:{exchange}`; stale `universe:scored:prev:{exchange}` on miss; background rebuild only (no inline compute on request) |
+| `market_universe_service.py` | Redis `universe:scored:{exchange}:{strategy_version}`; same-version stale key on miss; envelope/rows must match current session and threshold version; background rebuild only (no inline compute on request) |
 | `market_universe_compute.py` | `build_scored_universe_rows` — only place OHLCV is held in memory for exchange-wide scored reads |
 | `market_universe_schemas.py` | `ScoredUniverseRow` contract |
 
@@ -295,7 +295,7 @@ List views (Explorer, Scanner, Signals, Watchlist) must not derive action, RSI, 
 | Decisions | `frontend/lib/market/trader-decision.ts` | `resolveTraderDecision()`, session-change helpers — **only** source for action badges |
 | Trend labels | `frontend/lib/market/trend-display.ts` | Shared Bullish/Bearish/Sideways copy and filter keys |
 
-Watchlist fallback when a symbol is missing from the universe payload: use watchlist item `technical_snapshot` + `trader_decision` (same backend compute path). Stock detail workspace uses `GET /stock-details/.../workspace` (page aggregate including `decision_support` + `display_metrics`) for the full decision rail; list-level badges stay on the universe contract above. Do not use client `buildStockIntelligence` as the displayed action when decision support is available.
+Watchlist enrichment projects `technical_snapshot`, canonical `trader_decision`, and holder/non-holder contextual action from the universe payload. If a row/cache is unavailable, return an unavailable `WAIT`; never run a watchlist-local fallback calculation. Stock detail workspace uses `GET /stock-details/.../workspace` (page aggregate including `decision_support` + `display_metrics`) for the full decision rail; list-level badges stay on the universe contract above. Client chart intelligence must not own displayed actions, risk, RSI, or levels.
 
 ### Market Session And Cache Policy
 

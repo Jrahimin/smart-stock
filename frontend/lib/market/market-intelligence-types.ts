@@ -5,6 +5,7 @@ import type {
   DataQualityFlag,
   ExchangeCode,
   SignalType,
+  TraderRecommendation,
 } from "@/lib/api/backend-api-types";
 
 export type TrendDirection = "UPTREND" | "DOWNTREND" | "SIDEWAYS" | "UNKNOWN";
@@ -73,6 +74,12 @@ export type PersistedSignalContext = {
   signal: SignalType;
   source: "backend";
   strategyName: string;
+  strategyVersion: string | null;
+  thresholdVersion: string | null;
+  actionTaxonomy: string | null;
+  canonicalRecommendation: TraderRecommendation | null;
+  signalAsOf: string | null;
+  sharedDecisionId: string | null;
 };
 
 export type StockIntelligenceModel = {

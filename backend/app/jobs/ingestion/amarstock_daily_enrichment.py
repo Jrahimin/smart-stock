@@ -10,7 +10,7 @@ from decimal import Decimal
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.core_config import Settings
-from app.core.enums import DataQualityFlag, ExchangeCode
+from app.core.enums import DataQualityFlag, ExchangeCode, TurnoverProvenance
 from app.jobs.ingestion.amarstock_latest_price_api_source import (
     AmarStockLatestPriceApiSource,
     latest_price_snapshot_date,
@@ -277,6 +277,9 @@ async def _patch_trade_stats_from_latest_price(
             trade_date=trade_date,
             trade_count=trade_count,
             turnover=turnover,
+            turnover_provenance=(
+                TurnoverProvenance.REPORTED if turnover is not None else None
+            ),
             data_quality_flag=dq_update,
         )
         patched += rows_affected

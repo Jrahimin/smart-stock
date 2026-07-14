@@ -39,6 +39,7 @@ export type TradePlanVisual = {
   stopLoss: number | null;
   target: number | null;
   riskReward: number | null;
+  status: "VALID_ENTRY_PLAN" | "WATCH_ONLY" | "UNAVAILABLE";
 };
 
 export type StockDecisionViewModel = {
@@ -154,7 +155,15 @@ export function buildStockDecisionViewModel(
         riskLabel: "N/A",
         riskComponents: [],
         pricePositionVisual: { support: null, current: null, resistance: null, percentTowardResistance: null },
-        tradePlanVisual: { entryLow: null, entryHigh: null, current: null, stopLoss: null, target: null, riskReward: null },
+        tradePlanVisual: {
+          entryLow: null,
+          entryHigh: null,
+          current: null,
+          stopLoss: null,
+          target: null,
+          riskReward: null,
+          status: "UNAVAILABLE",
+        },
         liquidity: { label: "N/A", explanation: "", volumeRatio: "N/A" },
         warnings: [],
         topWarnings: [],
@@ -186,7 +195,7 @@ export function buildStockDecisionViewModel(
       available: true,
       recommendation: decision.decision.recommendation,
       confidence: decision.decision.confidence,
-      confidenceLabel: `${decision.decision.confidence}%`,
+      confidenceLabel: `${decision.decision.confidence}/100`,
       recommendationTone: recommendationToneMap[decision.decision.recommendation] ?? "neutral",
       decisionSignals: buildDecisionSignals(decision),
       opportunityScore: decision.opportunity.score,
@@ -221,6 +230,7 @@ export function buildStockDecisionViewModel(
         stopLoss: decision.trade_plan.stop_loss,
         target: decision.trade_plan.target_high,
         riskReward: decision.trade_plan.risk_reward_ratio,
+        status: decision.trade_plan.status ?? "UNAVAILABLE",
       },
       liquidity: {
         label: decision.liquidity.label,

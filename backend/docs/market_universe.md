@@ -10,7 +10,11 @@
 |----------|---------|
 | `GET /api/v1/market/universe-rows` | `ScoredUniverseRow[]` + `listed_stock_count` meta |
 
-Serves from Redis `universe:scored:{exchange}` on cache hit. On miss, serves stale `universe:scored:prev:{exchange}` if present and spawns background rebuild. Cold miss returns HTTP 503 — **no inline compute on the HTTP request path**.
+Serves from Redis `universe:scored:{exchange}:{strategy_version}` on cache hit.
+On miss, serves the equivalently versioned `universe:scored:prev:{exchange}:{strategy_version}`
+if present and spawns background rebuild. Cold miss returns HTTP 503 — **no
+inline compute on the HTTP request path**. Legacy unversioned keys are invalidated
+but never accepted as current canonical results.
 
 ## `ScoredUniverseRow` contract
 
@@ -22,7 +26,8 @@ Canonical row type in `market_universe_schemas.py`. Frontend mirror: `BackendSco
 |-------------|----------|
 | `stock` | `StockRead` summary (no embedded relations) |
 | `technical_snapshot` | Scalar indicators — RSI, SMA20, trend, support/resistance, change%, volatility |
-| `decision` | `TraderDecisionSummaryRead` — recommendation, confidence, opportunity_score, risk_label |
+| `decision` | `TraderDecisionSummaryRead` — compatibility fields plus the versioned canonical result, evidence strength, stance, holder/non-holder actions, primary reason, data reliability, trading risk, and constraints |
+| `eligibility` | Shared status/reasons, exchange-session identity, traded coverage, quality counts, robust turnover and corporate-action state |
 | `session` | Latest bar metadata — trade date, close, volume, turnover, change%, data quality |
 
 ### Forbidden in `universe:scored` Redis payload
@@ -37,6 +42,12 @@ Never cache or serialize:
 
 Contract tests in `test_market_universe_contract.py` enforce this denylist.
 
+Cached rows are accepted only when the envelope and every row match the current
+exchange session, strategy version and threshold version, and every row carries
+eligibility context. A stock may lag that session, but its row is then explicitly
+review-only/ineligible. Old or mixed-identity caches are rebuilt. Market Pulse
+ranks only `ELIGIBLE` rows.
+
 ## Pulse score ownership
 
 | Scenario | Owner |
@@ -49,8 +60,8 @@ Frontend-only pulse display does **not** trigger promotion.
 ## Cache hierarchy
 
 ```text
-universe:scored:{exchange}          # foundation — lightweight ScoredUniverseRow list
-universe:scored:prev:{exchange}     # stale fallback during rebuild
+universe:scored:{exchange}:{strategy_version}       # current canonical rows
+universe:scored:prev:{exchange}:{strategy_version}  # same-version stale fallback
 dashboard:{section}:{exchange}      # presentation — lightweight snapshot (no universe)
 pulse:{section}:{exchange}          # presentation — still uses scored rows + briefing
 ```
@@ -67,7 +78,9 @@ To extend historical context:
 2. Widen the universe query window or add a new lightweight foundation field in `market_universe`.
 3. Do not add parallel price-window loops in consumer services.
 
-Per-stock chart OHLCV (`GET /stock-details/{exchange}/{symbol}/workspace`) is out of scope — it uses versioned `stock-workspace:*` keys.
+Per-stock chart OHLCV (`GET /stock-details/{exchange}/{symbol}/workspace`) is out
+of scope. Its `stock-workspace:*` keys also include strategy version so a strategy
+release cannot reuse an older decision projection.
 
 ## Module files
 
@@ -85,4 +98,5 @@ Per-stock chart OHLCV (`GET /stock-details/{exchange}/{symbol}/workspace`) is ou
 |--------|-------------|
 | `market_pulse_service` | `get_scored_universe()` + pulse score + briefing presentation |
 | `trader_decisions_service` | Delegates to universe service |
+| `watchlists_service` | Projects technicals, canonical decision and holder/non-holder action from universe rows; never recomputes |
 | Frontend `useMarketUniverse` | `GET /market/universe-rows` |

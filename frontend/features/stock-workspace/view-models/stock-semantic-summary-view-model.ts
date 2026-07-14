@@ -50,7 +50,7 @@ export function buildStockSemanticSummary(model: StockWorkspaceModel, decision: 
   if (action) {
     if (confidence !== null && confidence > 0) {
       parts.push(
-        `Decision support currently shows ${action} with ${confidence}% model confidence (not investment advice).`,
+        `Decision support currently shows ${action} with ${confidence}/100 heuristic evidence (not investment advice).`,
       );
     } else {
       parts.push(`Decision support currently shows ${action} (not investment advice).`);

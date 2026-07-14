@@ -46,7 +46,9 @@ class WatchlistsRepository(BaseRepository[UserWatchlist]):
         return list(result.all())
 
     async def count_for_user(self, *, user_id: UUID) -> tuple[int, int]:
-        total_statement = select(func.count()).select_from(UserWatchlist).where(UserWatchlist.user_id == user_id)
+        total_statement = (
+            select(func.count()).select_from(UserWatchlist).where(UserWatchlist.user_id == user_id)
+        )
         holdings_statement = (
             select(func.count())
             .select_from(UserWatchlist)
@@ -76,56 +78,20 @@ class WatchlistsRepository(BaseRepository[UserWatchlist]):
             .group_by(DailyPrice.stock_id)
             .subquery()
         )
-        statement = (
-            select(DailyPrice)
-            .join(
-                latest_price_dates,
-                (DailyPrice.stock_id == latest_price_dates.c.stock_id)
-                & (DailyPrice.trade_date == latest_price_dates.c.latest_trade_date),
-            )
+        statement = select(DailyPrice).join(
+            latest_price_dates,
+            (DailyPrice.stock_id == latest_price_dates.c.stock_id)
+            & (DailyPrice.trade_date == latest_price_dates.c.latest_trade_date),
         )
         result = await self.session.scalars(statement)
         prices = list(result.all())
         return {price.stock_id: price for price in prices}
 
-    async def list_price_windows_for_stocks(
-        self,
-        stock_ids: list[UUID],
-        *,
-        price_window_limit: int,
-    ) -> dict[UUID, list[DailyPrice]]:
-        if not stock_ids:
-            return {}
-
-        ranked_prices = (
-            select(
-                DailyPrice.id.label("price_id"),
-                DailyPrice.stock_id.label("stock_id"),
-                func.row_number()
-                .over(
-                    partition_by=DailyPrice.stock_id,
-                    order_by=(DailyPrice.trade_date.desc(), DailyPrice.id.desc()),
-                )
-                .label("row_number"),
-            )
-            .where(DailyPrice.stock_id.in_(stock_ids))
-            .subquery()
-        )
-        statement = (
-            select(DailyPrice)
-            .join(ranked_prices, DailyPrice.id == ranked_prices.c.price_id)
-            .where(ranked_prices.c.row_number <= price_window_limit)
-            .order_by(DailyPrice.stock_id, DailyPrice.trade_date.desc(), DailyPrice.id.desc())
-        )
-        result = await self.session.scalars(statement)
-        windows: dict[UUID, list[DailyPrice]] = {stock_id: [] for stock_id in stock_ids}
-        for price in result.all():
-            windows.setdefault(price.stock_id, []).append(price)
-        return windows
-
     async def get_stock(self, stock_id: UUID) -> Stock | None:
         return await self.session.get(Stock, stock_id)
 
 
-def get_watchlists_repository(session: AsyncSession = Depends(get_db_session)) -> WatchlistsRepository:
+def get_watchlists_repository(
+    session: AsyncSession = Depends(get_db_session),
+) -> WatchlistsRepository:
     return WatchlistsRepository(session)

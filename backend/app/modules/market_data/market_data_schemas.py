@@ -5,7 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.core.enums import DataQualityFlag, ExchangeCode, MarketSessionStatus
+from app.core.enums import DataQualityFlag, ExchangeCode, MarketSessionStatus, TurnoverProvenance
 from app.modules.stock_details.stock_details_schemas import TraderDecisionSummaryRead
 from app.modules.stocks.stocks_schemas import StockRead
 
@@ -27,6 +27,7 @@ class DailyPriceBase(BaseModel):
     volume: int = Field(ge=0)
     trade_count: int | None = Field(default=None, ge=0)
     turnover: Decimal | None = Field(default=None, ge=0)
+    turnover_provenance: TurnoverProvenance = TurnoverProvenance.UNKNOWN
     source: str = Field(min_length=1, max_length=80)
     data_quality_flag: DataQualityFlag = DataQualityFlag.OK
 

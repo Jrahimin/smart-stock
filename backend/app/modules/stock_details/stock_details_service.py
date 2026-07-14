@@ -19,6 +19,7 @@ from app.core.enums import (
     StockDetailsSyncJobStatus,
     StockDetailsSyncScope,
     StockDetailsSyncTriggerType,
+    TurnoverProvenance,
 )
 from app.core.exception_handlers import NotFoundError
 from app.core.security_config import UserContext
@@ -598,6 +599,7 @@ class StockDetailsService:
                     "volume": price.volume,
                     "trade_count": price.trade_count,
                     "turnover": turnover,
+                    "turnover_provenance": TurnoverProvenance.ESTIMATED,
                     "source": payload.source,
                     "data_quality_flag": price.data_quality_flag,
                 }

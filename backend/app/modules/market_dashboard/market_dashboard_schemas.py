@@ -73,6 +73,8 @@ class DashboardSignalRead(BaseModel):
     exchange: ExchangeCode
     signal: TraderRecommendation
     confidence: int
+    confidence_semantics: str = "HEURISTIC_EVIDENCE"
+    confidence_semantics: str = "HEURISTIC_EVIDENCE"
     reason: str
     risk: str
     priority: str

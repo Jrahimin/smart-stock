@@ -48,6 +48,7 @@ from app.core.enums import (
     SignalType,
     StockDetailsSyncJobStatus,
     StockDetailsSyncTriggerType,
+    TurnoverProvenance,
     SystemJobExecutionStatus,
     SystemJobTriggerSource,
     SystemJobType,
@@ -316,6 +317,11 @@ class DailyPrice(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     volume: Mapped[int] = mapped_column(BigInteger, nullable=False)
     trade_count: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     turnover: Mapped[Decimal | None] = mapped_column(Numeric(20, 4), nullable=True)
+    turnover_provenance: Mapped[TurnoverProvenance] = mapped_column(
+        Enum(TurnoverProvenance),
+        default=TurnoverProvenance.UNKNOWN,
+        nullable=False,
+    )
     source: Mapped[str] = mapped_column(String(80), nullable=False)
     data_quality_flag: Mapped[DataQualityFlag] = mapped_column(
         Enum(DataQualityFlag),
@@ -783,6 +789,7 @@ class TradingSignal(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         CheckConstraint("confidence >= 0 AND confidence <= 1", name="confidence_between_zero_and_one"),
         Index("ix_trading_signals_stock_trade_date", "stock_id", "trade_date"),
         Index("ix_trading_signals_type_trade_date", "signal_type", "trade_date"),
+        Index("ix_trading_signals_strategy_identity", "strategy_version", "signal_as_of"),
     )
 
     stock_id: Mapped[UUID] = mapped_column(
@@ -799,6 +806,13 @@ class TradingSignal(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     risk_score: Mapped[Decimal | None] = mapped_column(Numeric(5, 4), nullable=True)
     reason: Mapped[str] = mapped_column(Text, nullable=False)
     strategy_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    strategy_version: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    threshold_version: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    action_taxonomy: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    canonical_recommendation: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    signal_as_of: Mapped[date | None] = mapped_column(Date, nullable=True)
+    calculated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    shared_decision_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     components: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
     metadata_json: Mapped[dict[str, Any]] = mapped_column("metadata", JSONB, default=dict, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)

@@ -16,7 +16,7 @@ function positionPercent(value: number | null, min: number, max: number) {
 
 export function TradePlanPanel({ decision, copy }: TradePlanPanelProps) {
   const plan = decision.tradePlanVisual;
-  if (!decision.available || plan.current === null) {
+  if (!decision.available || plan.current === null || plan.status === "UNAVAILABLE") {
     return null;
   }
 
@@ -30,7 +30,10 @@ export function TradePlanPanel({ decision, copy }: TradePlanPanelProps) {
   return (
     <section className="trader-workspace-strip trade-plan-strip">
       <div className="strip-heading">
-        <span>{copy.tradePlan}</span>
+        <span>
+          {copy.tradePlan}
+          {plan.status === "WATCH_ONLY" ? ` · ${copy.watchOnly}` : ""}
+        </span>
         <strong className={plan.riskReward !== null && plan.riskReward >= 1 ? "trade-plan-rr-good" : "trade-plan-rr-weak"}>
           R/R {plan.riskReward !== null ? plan.riskReward.toFixed(2) : "N/A"}
         </strong>

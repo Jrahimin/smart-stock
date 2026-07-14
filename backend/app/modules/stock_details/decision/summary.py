@@ -1,32 +1,72 @@
 from __future__ import annotations
 
-from app.models import DailyPrice, Stock
-from app.modules.stock_details.decision.engine import TraderDecisionBundle, compute_trader_decision_from_prices
-from app.modules.stock_details.decision.technical import TechnicalSnapshot
-from app.modules.stock_details.stock_details_schemas import TraderDecisionSummaryRead
+from app.modules.stock_details.decision.engine import TraderDecisionBundle
+from app.modules.stock_details.stock_details_schemas import (
+    DataReliabilityRead,
+    DecisionConstraintRead,
+    ScoreComponentRead,
+    TraderDecisionSummaryRead,
+    TradingRiskRead,
+    canonical_decision_to_read,
+)
 
 
 def build_trader_decision_summary(bundle: TraderDecisionBundle) -> TraderDecisionSummaryRead:
+    data_reliability = bundle.data_reliability
+    trading_risk = bundle.trading_risk
     return TraderDecisionSummaryRead(
         recommendation=bundle.decision.recommendation,
         confidence=bundle.decision.confidence,
-        reason=bundle.decision.reasoning[-1],
+        reason=bundle.decision.primary_reason,
         opportunity_score=bundle.opportunity.score,
         risk_label=bundle.risk.label,
+        evidence_strength=bundle.decision.evidence_strength,
+        primary_reason=bundle.decision.primary_reason,
+        primary_reason_code=bundle.decision.primary_reason_code,
+        stance=bundle.decision.stance,
+        non_holder_action=bundle.decision.non_holder_action,
+        holder_action=bundle.decision.holder_action,
+        data_reliability=(
+            DataReliabilityRead(
+                score=data_reliability.score,
+                label=data_reliability.label,
+                reason_codes=list(data_reliability.reason_codes),
+                explanation=data_reliability.explanation,
+            )
+            if data_reliability is not None
+            else None
+        ),
+        trading_risk=(
+            TradingRiskRead(
+                score=trading_risk.score,
+                label=trading_risk.label,
+                components=[
+                    ScoreComponentRead(
+                        key=component.key,
+                        label=component.label,
+                        score=component.score,
+                        weight=component.weight,
+                        explanation=component.explanation,
+                    )
+                    for component in trading_risk.components
+                ],
+            )
+            if trading_risk is not None
+            else None
+        ),
+        constraints=[
+            DecisionConstraintRead(
+                code=constraint.code,
+                title=constraint.title,
+                kind=constraint.kind,
+                reason=constraint.reason,
+                is_critical=constraint.is_critical,
+            )
+            for constraint in bundle.decision.constraints
+        ],
+        canonical=(
+            canonical_decision_to_read(bundle.canonical_result)
+            if bundle.canonical_result is not None
+            else None
+        ),
     )
-
-
-def compute_trader_decision_summary_for_stock(
-    stock: Stock,
-    prices: list[DailyPrice],
-    *,
-    snapshot: TechnicalSnapshot | None = None,
-) -> TraderDecisionSummaryRead | None:
-    bundle = compute_trader_decision_from_prices(
-        prices,
-        category=stock.category,
-        snapshot=snapshot,
-    )
-    if bundle is None:
-        return None
-    return build_trader_decision_summary(bundle)

@@ -13,6 +13,7 @@ import {
 import {
   getPreviousSessionRecommendation,
   isTraderDecisionChangedThisSession,
+  resolveWatchlistAction,
   resolveTraderDecision,
 } from "@/lib/market/trader-decision";
 
@@ -39,7 +40,11 @@ export function buildWatchlistRowViewModel(
   intelligence: StockIntelligenceModel | null,
 ): WatchlistRowViewModel {
   const decision = intelligence ? resolveTraderDecision(intelligence) : null;
-  const actionLabel = decision?.recommendation ?? item.trader_decision?.recommendation ?? "WAIT";
+  const actionLabel = resolveWatchlistAction(
+    intelligence,
+    item.is_holding,
+    item.contextual_action,
+  );
   const previousActionLabel = intelligence ? getPreviousSessionRecommendation(intelligence) : null;
   const trendDirection = intelligence?.trend ?? "UNKNOWN";
   const buyPriceLabel =

@@ -200,7 +200,7 @@ export function StockExplorerView() {
       }),
       columnHelper.accessor((row) => decisionByStockId.get(row.stock.id)?.confidence ?? 0, {
         id: "confidence",
-        header: "Conf.",
+        header: "Evidence",
         cell: (info) => (
           <div className="confidence-cell">
             <span>{info.getValue()}%</span>

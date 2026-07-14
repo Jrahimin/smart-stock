@@ -28,7 +28,10 @@ __all__ = ["PatternDetection", "SwingPoint", "detect_patterns", "detect_swing_po
 _PRIOR_TREND_WINDOW = 20
 
 
-def _evidence_confidence(evidence: list[tuple[bool, int]], base: int = PATTERN_BASE_CONFIDENCE) -> int:
+def _pattern_match_score(
+    evidence: list[tuple[bool, int]],
+    base: int = PATTERN_BASE_CONFIDENCE,
+) -> int:
     score = float(base)
     for matched, weight in evidence:
         if matched:
@@ -73,6 +76,11 @@ class PatternDetection:
     target_calculation: str
     direction: str
 
+    @property
+    def pattern_match_score(self) -> int:
+        """Honest name for the legacy ``confidence`` compatibility value."""
+        return self.confidence
+
 
 def _sorted_prices(prices: list[DailyPrice]) -> list[DailyPrice]:
     return sorted(prices, key=lambda price: price.trade_date)
@@ -103,12 +111,28 @@ def _make_pattern(
     target_calculation: str,
     direction: str,
 ) -> PatternDetection:
+    valid_target = target_estimate
+    if valid_target is not None:
+        if valid_target <= 0:
+            valid_target = None
+        elif (
+            breakout_level is not None
+            and direction == "bullish"
+            and valid_target <= breakout_level
+        ):
+            valid_target = None
+        elif (
+            breakout_level is not None
+            and direction == "bearish"
+            and valid_target >= breakout_level
+        ):
+            valid_target = None
     return PatternDetection(
         name=name,
         confidence=max(0, min(100, confidence)),
         status=status,
         breakout_level=breakout_level,
-        target_estimate=target_estimate,
+        target_estimate=valid_target,
         invalidation_level=invalidation_level,
         swing_points=swing_points,
         matched_reasons=matched_reasons,
@@ -143,7 +167,7 @@ def _detect_double_top(
     target = neckline - height
     confirmed = snapshot.latest_price is not None and snapshot.latest_price < neckline
     status = PatternStatus.CONFIRMED if confirmed else PatternStatus.FORMING
-    confidence = _evidence_confidence(
+    confidence = _pattern_match_score(
         [
             (abs(first.price - second.price) <= tolerance / 2, PATTERN_EVIDENCE_TIGHT),
             (_volume_confirmed(snapshot), PATTERN_EVIDENCE_VOLUME),
@@ -193,7 +217,7 @@ def _detect_double_bottom(
     target = neckline + height
     confirmed = snapshot.latest_price is not None and snapshot.latest_price > neckline
     status = PatternStatus.CONFIRMED if confirmed else PatternStatus.FORMING
-    confidence = _evidence_confidence(
+    confidence = _pattern_match_score(
         [
             (abs(first.price - second.price) <= tolerance / 2, PATTERN_EVIDENCE_TIGHT),
             (_volume_confirmed(snapshot), PATTERN_EVIDENCE_VOLUME),
@@ -228,7 +252,8 @@ def _detect_flag(snapshot: TechnicalSnapshot, prices: list[DailyPrice], bullish:
         return None
     pole_start = closes[-20]
     pole_end = closes[-12]
-    flag_closes = closes[-12:]
+    flag_closes = closes[-12:-1]
+    latest_close = closes[-1]
     if bullish and pole_end <= pole_start * 1.04:
         return None
     if not bullish and pole_end >= pole_start * 0.96:
@@ -240,14 +265,16 @@ def _detect_flag(snapshot: TechnicalSnapshot, prices: list[DailyPrice], bullish:
     pole_height = abs(pole_end - pole_start)
     target = breakout + pole_height if bullish else breakout - pole_height
     volume_ok = _volume_confirmed(snapshot)
-    status = PatternStatus.ACTIVE if volume_ok else PatternStatus.FORMING
+    price_triggered = latest_close > breakout if bullish else latest_close < breakout
+    confirmed = volume_ok and price_triggered
+    status = PatternStatus.CONFIRMED if confirmed else PatternStatus.FORMING
     tight_flag = flag_range / (snapshot.latest_price or 1) <= 0.04
-    confidence = _evidence_confidence(
+    confidence = _pattern_match_score(
         [
             (True, PATTERN_EVIDENCE_PRIOR_TREND),  # a qualifying pole is required to reach here
             (volume_ok, PATTERN_EVIDENCE_VOLUME),
             (tight_flag, PATTERN_EVIDENCE_TIGHT),
-            (status == PatternStatus.ACTIVE, PATTERN_EVIDENCE_LEVEL),
+            (confirmed, PATTERN_EVIDENCE_LEVEL),
         ]
     )
     return _make_pattern(
@@ -258,7 +285,12 @@ def _detect_flag(snapshot: TechnicalSnapshot, prices: list[DailyPrice], bullish:
         target_estimate=round(target, 4),
         invalidation_level=round(min(flag_closes) * 0.98 if bullish else max(flag_closes) * 1.02, 4),
         swing_points=[],
-        matched_reasons=["Prior impulse move followed by tight consolidation.", "Flag slope aligns with continuation bias."],
+        matched_reasons=[
+            "Prior impulse move followed by tight consolidation.",
+            "Price crossed the pre-trigger flag boundary."
+            if confirmed
+            else "Price has not crossed the pre-trigger flag boundary.",
+        ],
         target_calculation="Measured move: breakout plus prior pole height.",
         direction="bullish" if bullish else "bearish",
     )
@@ -279,31 +311,73 @@ def _detect_triangle(snapshot: TechnicalSnapshot, swings: list[SwingPoint], kind
         return None
     if kind == "symmetrical" and not (high_slope < 0 and low_slope > 0):
         return None
-    breakout = snapshot.resistance if kind == "ascending" else snapshot.support
-    if breakout is None:
-        breakout = highs[-1].price if kind != "descending" else lows[-1].price
+    upper_trigger = highs[-1].price
+    lower_trigger = lows[-1].price
     height = highs[-1].price - lows[-1].price
     if height <= 0:
         return None
-    direction = "bullish" if kind == "ascending" else "bearish" if kind == "descending" else "neutral"
-    target = breakout + height if direction == "bullish" else breakout - height
+    volume_ok = _volume_confirmed(snapshot)
+    bullish_triggered = volume_ok and snapshot.latest_price > upper_trigger
+    bearish_triggered = volume_ok and snapshot.latest_price < lower_trigger
+    if kind == "ascending":
+        direction = "bullish"
+        confirmed = bullish_triggered
+    elif kind == "descending":
+        direction = "bearish"
+        confirmed = bearish_triggered
+    elif bullish_triggered:
+        direction = "bullish"
+        confirmed = True
+    elif bearish_triggered:
+        direction = "bearish"
+        confirmed = True
+    else:
+        direction = "neutral"
+        confirmed = False
+
+    breakout = (
+        upper_trigger
+        if direction == "bullish"
+        else lower_trigger
+        if direction == "bearish"
+        else None
+    )
+    target = (
+        breakout + height
+        if breakout is not None and direction == "bullish"
+        else breakout - height
+        if breakout is not None and direction == "bearish"
+        else None
+    )
     near_apex = height / snapshot.latest_price <= 0.06
-    confidence = _evidence_confidence(
+    confidence = _pattern_match_score(
         [
             (len(highs) >= 3 and len(lows) >= 3, PATTERN_EVIDENCE_TIGHT),
-            (_volume_confirmed(snapshot), PATTERN_EVIDENCE_VOLUME),
+            (volume_ok, PATTERN_EVIDENCE_VOLUME),
             (near_apex, PATTERN_EVIDENCE_LEVEL),
+            (confirmed, PATTERN_EVIDENCE_COMPLETION),
         ]
     )
     return _make_pattern(
         name={"ascending": "Ascending Triangle", "descending": "Descending Triangle", "symmetrical": "Symmetrical Triangle"}[kind],
         confidence=confidence,
-        status=PatternStatus.ACTIVE,
-        breakout_level=round(breakout, 4),
-        target_estimate=round(target, 4),
-        invalidation_level=round(lows[-1].price * 0.98 if direction == "bullish" else highs[-1].price * 1.02, 4),
+        status=PatternStatus.CONFIRMED if confirmed else PatternStatus.FORMING,
+        breakout_level=round(breakout, 4) if breakout is not None else None,
+        target_estimate=round(target, 4) if target is not None and target > 0 else None,
+        invalidation_level=(
+            round(lows[-1].price * 0.98, 4)
+            if direction == "bullish"
+            else round(highs[-1].price * 1.02, 4)
+            if direction == "bearish"
+            else None
+        ),
         swing_points=highs[-2:] + lows[-2:],
-        matched_reasons=[f"{kind.title()} triangle structure detected from converging swings."],
+        matched_reasons=[
+            f"{kind.title()} triangle structure detected from converging swings.",
+            "Price crossed a pre-trigger triangle boundary."
+            if confirmed
+            else "Price remains inside the pre-trigger triangle boundaries.",
+        ],
         target_calculation="Measured move: breakout plus triangle height.",
         direction=direction,
     )
@@ -343,7 +417,7 @@ def _detect_head_shoulders(
             return None
         target = neckline - (head.price - neckline)
         direction = "bearish"
-    confidence = _evidence_confidence(
+    confidence = _pattern_match_score(
         [
             (abs(left.price - right.price) <= tolerance, PATTERN_EVIDENCE_TIGHT),
             (_volume_confirmed(snapshot), PATTERN_EVIDENCE_VOLUME),
@@ -385,7 +459,7 @@ def _detect_cup_and_handle(snapshot: TechnicalSnapshot, prices: list[DailyPrice]
     depth = breakout - bottom
     target = breakout + depth
     shallow_handle = handle >= bottom + depth * 0.5
-    confidence = _evidence_confidence(
+    confidence = _pattern_match_score(
         [
             (True, PATTERN_EVIDENCE_PRIOR_TREND),  # a rounded base is required to reach here
             (_volume_confirmed(snapshot), PATTERN_EVIDENCE_VOLUME),

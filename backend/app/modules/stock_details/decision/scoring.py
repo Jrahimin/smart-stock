@@ -1,35 +1,24 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from app.core.constants.trading_constants import (
     CATEGORY_RISK_SCORES,
-    CONFIDENCE_CAP_ILLIQUID,
-    CONFIDENCE_CAP_STALE_OR_SPARSE,
-    CONFIDENCE_CAP_THIN,
-    CONFIDENCE_CONFLICT_BEARISH_MIN,
-    CONFIDENCE_CONFLICT_BULLISH_MAX,
-    CONFIDENCE_CONFLICT_PENALTY,
     CONFIDENCE_HOLD_WAIT_MAX,
-    CONFIDENCE_WEIGHT_DATA,
-    CONFIDENCE_WEIGHT_MOMENTUM,
-    CONFIDENCE_WEIGHT_PRICE_POSITION,
-    CONFIDENCE_WEIGHT_RISK,
-    CONFIDENCE_WEIGHT_TREND,
-    CONFIDENCE_WEIGHT_VOLUME,
     ELEVATED_VOLATILITY_THRESHOLD,
     GAP_RISK_VOLATILITY_BONUS,
     HIGH_VOLATILITY_THRESHOLD,
     MARKET_REGIME_BEARISH,
+    MIN_RISK_REWARD_RATIO,
     NEAR_LEVEL_PERCENT_THRESHOLD,
-    OVEREXTENSION_ABOVE_SMA20_PERCENT,
-    OVEREXTENSION_RETURN_20D_PERCENT,
     OPPORTUNITY_WEIGHT_MOMENTUM,
     OPPORTUNITY_WEIGHT_PRICE_POSITION,
     OPPORTUNITY_WEIGHT_RISK_PENALTY,
     OPPORTUNITY_WEIGHT_TREND,
     OPPORTUNITY_WEIGHT_VOLUME,
-    MIN_RISK_REWARD_RATIO,
+    OVEREXTENSION_ABOVE_SMA20_PERCENT,
+    OVEREXTENSION_RETURN_20D_PERCENT,
     RECOMMENDATION_BREAKOUT_VOLUME_RATIO,
     RECOMMENDATION_BUY_HIGH_RISK_OPPORTUNITY_MIN,
     RECOMMENDATION_BUY_OPPORTUNITY_MIN,
@@ -50,8 +39,29 @@ from app.core.constants.trading_constants import (
     VOLUME_EXPANSION_RATIO,
     VOLUME_THIN_RATIO,
 )
-from app.core.enums import LiquidityLabel, RiskLevelLabel, TraderRecommendation, TrendDirection
+from app.core.enums import (
+    EligibilityStatus,
+    HolderAction,
+    LiquidityLabel,
+    NonHolderAction,
+    RiskLevelLabel,
+    TradePlanStatus,
+    TraderRecommendation,
+    TraderStance,
+    TrendDirection,
+)
 from app.modules.stock_details.decision.technical import TechnicalSnapshot
+
+if TYPE_CHECKING:
+    from app.modules.stock_details.decision.constraints import (
+        ConstraintResult,
+        DecisionConstraint,
+    )
+    from app.modules.stock_details.decision.evidence import (
+        DataReliabilityResult,
+        DirectionalEvidenceResult,
+    )
+    from app.modules.stock_details.decision.risk import TradingRiskResult
 
 
 def _clamp(value: float, minimum: float = 0.0, maximum: float = 100.0) -> int:
@@ -98,7 +108,10 @@ def _breakout_confirmed(snapshot: TechnicalSnapshot) -> bool:
 
 
 def _constructive_uptrend(snapshot: TechnicalSnapshot, opportunity_score: int) -> bool:
-    return snapshot.trend == TrendDirection.UPTREND and opportunity_score >= RECOMMENDATION_HOLD_OPPORTUNITY_MIN
+    return (
+        snapshot.trend == TrendDirection.UPTREND
+        and opportunity_score >= RECOMMENDATION_HOLD_OPPORTUNITY_MIN
+    )
 
 
 @dataclass(frozen=True)
@@ -128,6 +141,13 @@ class DecisionResult:
     recommendation: TraderRecommendation
     confidence: int
     reasoning: list[str]
+    evidence_strength: int = 0
+    primary_reason: str = ""
+    primary_reason_code: str = "no_directional_edge"
+    stance: TraderStance = TraderStance.NEUTRAL
+    non_holder_action: NonHolderAction = NonHolderAction.WAIT
+    holder_action: HolderAction = HolderAction.REVIEW
+    constraints: tuple[DecisionConstraint, ...] = ()
 
 
 def _score_trend(snapshot: TechnicalSnapshot) -> ScoreComponent:
@@ -185,10 +205,14 @@ def _score_momentum(snapshot: TechnicalSnapshot) -> ScoreComponent:
     if return_5d is not None:
         if return_5d > 3:
             score = min(100, score + 10)
-            explanations.append(f"{RETURN_SHORT_LOOKBACK}-day momentum is positive ({return_5d:.1f}%).")
+            explanations.append(
+                f"{RETURN_SHORT_LOOKBACK}-day momentum is positive ({return_5d:.1f}%)."
+            )
         elif return_5d < -3:
             score = max(0, score - 10)
-            explanations.append(f"{RETURN_SHORT_LOOKBACK}-day momentum is negative ({return_5d:.1f}%).")
+            explanations.append(
+                f"{RETURN_SHORT_LOOKBACK}-day momentum is negative ({return_5d:.1f}%)."
+            )
     elif snapshot.price_change_percent is not None:
         if snapshot.price_change_percent > 1.5:
             score = min(100, score + 10)
@@ -199,10 +223,14 @@ def _score_momentum(snapshot: TechnicalSnapshot) -> ScoreComponent:
     if return_20d is not None:
         if return_20d > 8:
             score = min(100, score + 6)
-            explanations.append(f"{RETURN_MEDIUM_LOOKBACK}-day trend momentum is strong ({return_20d:.1f}%).")
+            explanations.append(
+                f"{RETURN_MEDIUM_LOOKBACK}-day trend momentum is strong ({return_20d:.1f}%)."
+            )
         elif return_20d < -8:
             score = max(0, score - 6)
-            explanations.append(f"{RETURN_MEDIUM_LOOKBACK}-day trend momentum is weak ({return_20d:.1f}%).")
+            explanations.append(
+                f"{RETURN_MEDIUM_LOOKBACK}-day trend momentum is weak ({return_20d:.1f}%)."
+            )
     return ScoreComponent(
         key="momentum",
         label="Momentum",
@@ -251,12 +279,12 @@ def _score_price_position(snapshot: TechnicalSnapshot) -> ScoreComponent:
         )
     support_distance = _percent_distance(snapshot.support, snapshot.latest_price)
     if support_distance is not None:
-        if support_distance <= NEAR_LEVEL_PERCENT_THRESHOLD:
-            score += 12
-            explanations.append("Price is near support, offering a favorable risk zone.")
-        elif support_distance < 0:
+        if support_distance < 0:
             score -= 20
             explanations.append("Price is below support; structure is weakened.")
+        elif support_distance <= NEAR_LEVEL_PERCENT_THRESHOLD:
+            score += 12
+            explanations.append("Price is near support, offering a favorable risk zone.")
 
     if _breakout_confirmed(snapshot):
         score += 12
@@ -291,7 +319,9 @@ def _score_risk_penalty(risk_score: int) -> ScoreComponent:
     )
 
 
-def compute_opportunity_score(snapshot: TechnicalSnapshot, risk_score: int, liquidity_label: LiquidityLabel) -> OpportunityScoreResult:
+def compute_opportunity_score(
+    snapshot: TechnicalSnapshot, risk_score: int, liquidity_label: LiquidityLabel
+) -> OpportunityScoreResult:
     components = [
         _score_trend(snapshot),
         _score_momentum(snapshot),
@@ -332,7 +362,9 @@ def compute_risk_score(
         volatility_score += GAP_RISK_VOLATILITY_BONUS * (snapshot.gap_frequency_percent / 100)
         vol_expl += f" Opens gap >3% in {snapshot.gap_frequency_percent:.0f}% of sessions."
     components.append(
-        ScoreComponent("volatility", "Volatility", _clamp(volatility_score), RISK_WEIGHT_VOLATILITY, vol_expl)
+        ScoreComponent(
+            "volatility", "Volatility", _clamp(volatility_score), RISK_WEIGHT_VOLATILITY, vol_expl
+        )
     )
 
     category_key = (category or "").upper()
@@ -379,17 +411,27 @@ def compute_risk_score(
     )
 
     stale_score = 80 if is_stale else (60 if is_sparse else 15)
-    stale_expl = "Data is stale." if is_stale else ("OHLCV history is sparse." if is_sparse else "Data freshness is acceptable.")
+    stale_expl = (
+        "Data is stale."
+        if is_stale
+        else ("OHLCV history is sparse." if is_sparse else "Data freshness is acceptable.")
+    )
     components.append(
-        ScoreComponent("stale_data", "Data Freshness", stale_score, RISK_WEIGHT_STALE_DATA, stale_expl)
+        ScoreComponent(
+            "stale_data", "Data Freshness", stale_score, RISK_WEIGHT_STALE_DATA, stale_expl
+        )
     )
 
     # Overextension: a stock far above its mean after a big run is prone to sharp
     # mean-reversion (a proxy for operator-driven pumps on DSE).
     above_sma20 = _percent_distance(snapshot.sma20, snapshot.latest_price)
     return_20d = snapshot.return_20d_percent
-    overextended_by_return = return_20d is not None and return_20d > OVEREXTENSION_RETURN_20D_PERCENT
-    overextended_by_sma = above_sma20 is not None and above_sma20 > OVEREXTENSION_ABOVE_SMA20_PERCENT
+    overextended_by_return = (
+        return_20d is not None and return_20d > OVEREXTENSION_RETURN_20D_PERCENT
+    )
+    overextended_by_sma = (
+        above_sma20 is not None and above_sma20 > OVEREXTENSION_ABOVE_SMA20_PERCENT
+    )
     if overextended_by_return or overextended_by_sma:
         overextension_score = 80.0
         detail = []
@@ -397,7 +439,9 @@ def compute_risk_score(
             detail.append(f"+{return_20d:.0f}% over {RETURN_MEDIUM_LOOKBACK} sessions")
         if overextended_by_sma:
             detail.append(f"{above_sma20:.0f}% above SMA20")
-        overext_expl = "Price is overextended (" + ", ".join(detail) + "); mean-reversion risk is elevated."
+        overext_expl = (
+            "Price is overextended (" + ", ".join(detail) + "); mean-reversion risk is elevated."
+        )
     else:
         overextension_score = 25.0
         overext_expl = "Price is not overextended versus its recent mean."
@@ -435,64 +479,21 @@ def compute_decision_confidence(
     recommendation: TraderRecommendation | None = None,
     reasoning: list[str] | None = None,
 ) -> int:
-    """Confidence as reliability, not restated bullishness.
-
-    Starts from weighted evidence, then (a) subtracts for pillars that conflict
-    with the recommendation direction and (b) caps the result when the context is
-    hard to trade (illiquid/thin) or the data is unreliable (stale/sparse).
-    """
-    trend_alignment = opportunity.components[0].score
-    momentum_alignment = opportunity.components[1].score
-    volume_alignment = opportunity.components[2].score
-    price_alignment = opportunity.components[3].score
-    risk_alignment = 100 - risk.score
-    data_alignment = 35 if is_stale or is_sparse else 85
-
-    confidence = (
-        trend_alignment * CONFIDENCE_WEIGHT_TREND
-        + momentum_alignment * CONFIDENCE_WEIGHT_MOMENTUM
-        + volume_alignment * CONFIDENCE_WEIGHT_VOLUME
-        + risk_alignment * CONFIDENCE_WEIGHT_RISK
-        + price_alignment * CONFIDENCE_WEIGHT_PRICE_POSITION
-        + data_alignment * CONFIDENCE_WEIGHT_DATA
+    """Return the direction-aware evidence value through the legacy function name."""
+    from app.modules.stock_details.decision.evidence import (
+        compute_directional_evidence,
+        compute_evidence_strength,
     )
-    if snapshot.trend == TrendDirection.UNKNOWN:
-        confidence -= 12
 
-    # Conflict penalty: evidence pointing against the recommendation lowers trust.
-    pillars = (trend_alignment, momentum_alignment, volume_alignment)
-    conflicts = 0
-    if recommendation in {TraderRecommendation.BUY, TraderRecommendation.HOLD}:
-        conflicts = sum(1 for score in pillars if score < CONFIDENCE_CONFLICT_BULLISH_MAX)
-    elif recommendation == TraderRecommendation.SELL:
-        conflicts = sum(1 for score in pillars if score > CONFIDENCE_CONFLICT_BEARISH_MIN)
-    if conflicts:
-        confidence -= conflicts * CONFIDENCE_CONFLICT_PENALTY
-        if reasoning is not None:
-            reasoning.append(
-                f"Confidence reduced by {conflicts} conflicting signal(s) versus the recommendation."
-            )
-
-    # Reliability caps.
-    cap = 100
-    cap_reason: str | None = None
-    if liquidity_label == LiquidityLabel.ILLIQUID:
-        cap, cap_reason = CONFIDENCE_CAP_ILLIQUID, "illiquid name"
-    elif liquidity_label == LiquidityLabel.THIN:
-        cap, cap_reason = CONFIDENCE_CAP_THIN, "thin liquidity"
-    if is_stale or is_sparse:
-        if CONFIDENCE_CAP_STALE_OR_SPARSE < cap:
-            cap, cap_reason = CONFIDENCE_CAP_STALE_OR_SPARSE, "stale/sparse data"
-
-    clamped = _clamp(confidence)
-    if clamped > cap:
-        clamped = cap
-        if reasoning is not None and cap_reason is not None:
-            reasoning.append(f"Confidence capped at {cap} due to {cap_reason}.")
-    return clamped
+    selected_action = recommendation or TraderRecommendation.WAIT
+    result = compute_evidence_strength(
+        compute_directional_evidence(snapshot),
+        selected_action,
+    )
+    return result.score
 
 
-def compute_recommendation(
+def _legacy_compute_recommendation(
     snapshot: TechnicalSnapshot,
     opportunity: OpportunityScoreResult,
     risk: RiskScoreResult,
@@ -505,6 +506,9 @@ def compute_recommendation(
     liquidity_label: LiquidityLabel | None = None,
     suspected_adjustment: bool = False,
     market_regime: str | None = None,
+    trade_plan_status: TradePlanStatus | None = None,
+    eligibility_status: EligibilityStatus | None = None,
+    eligibility_reasons: tuple[str, ...] = (),
 ) -> DecisionResult:
     reasoning: list[str] = []
     opportunity_score = opportunity.score
@@ -519,14 +523,22 @@ def compute_recommendation(
     if snapshot.rsi is not None:
         reasoning.append(f"Momentum: RSI {snapshot.rsi:.1f}.")
     if snapshot.average_volume and snapshot.average_volume > 0:
-        reasoning.append(f"Volume: {snapshot.volume / snapshot.average_volume:.1f}x 20-day average.")
+        reasoning.append(
+            f"Volume: {snapshot.volume / snapshot.average_volume:.1f}x 20-day average."
+        )
     if breakout_confirmed:
         reasoning.append("Confirmed breakout above prior resistance on expanding volume.")
     reasoning.append(f"Opportunity score: {opportunity_score}/100.")
     reasoning.append(f"Risk level: {risk.label.value} ({risk_score}/100).")
 
     recommendation = TraderRecommendation.WAIT
-    if is_stale or is_sparse:
+    if eligibility_status is not None and eligibility_status != EligibilityStatus.ELIGIBLE:
+        joined_reasons = ", ".join(eligibility_reasons) or "eligibility policy"
+        reasoning.append(
+            f"Data eligibility is {eligibility_status.value}; wait pending: {joined_reasons}."
+        )
+        recommendation = TraderRecommendation.WAIT
+    elif is_stale or is_sparse:
         reasoning.append("Data is stale or sparse; wait for fresher confirmation.")
         recommendation = TraderRecommendation.WAIT
     elif below_support and suspected_adjustment:
@@ -543,38 +555,69 @@ def compute_recommendation(
         and not _momentum_blocks_buy(snapshot)
         and not _blocks_buy_on_risk_reward(risk_reward, near_resistance=effective_near_resistance)
     ):
-        if _risk_allows_new_buy(risk) and (not effective_near_resistance or _volume_supports_breakout(snapshot)):
+        if _risk_allows_new_buy(risk) and (
+            not effective_near_resistance or _volume_supports_breakout(snapshot)
+        ):
             reasoning.append(
                 "Uptrend with favorable opportunity"
-                + (" and resistance test participation." if effective_near_resistance else " and acceptable reward potential.")
+                + (
+                    " and resistance test participation."
+                    if effective_near_resistance
+                    else " and acceptable reward potential."
+                )
             )
             recommendation = TraderRecommendation.BUY
         elif _risk_allows_new_buy(risk):
-            reasoning.append("Uptrend is constructive near resistance; wait for stronger volume confirmation.")
+            reasoning.append(
+                "Uptrend is constructive near resistance; wait for stronger volume confirmation."
+            )
             recommendation = TraderRecommendation.HOLD
-        elif opportunity_score >= RECOMMENDATION_BUY_HIGH_RISK_OPPORTUNITY_MIN and _volume_supports_breakout(snapshot):
-            reasoning.append("High-risk name with strong trend and participation; treat as a selective setup.")
+        elif (
+            opportunity_score >= RECOMMENDATION_BUY_HIGH_RISK_OPPORTUNITY_MIN
+            and _volume_supports_breakout(snapshot)
+        ):
+            reasoning.append(
+                "High-risk name with strong trend and participation; treat as a selective setup."
+            )
             recommendation = TraderRecommendation.HOLD
     elif (
         opportunity_score <= RECOMMENDATION_SELL_OPPORTUNITY_MAX
         and snapshot.trend == TrendDirection.DOWNTREND
-    ) or (snapshot.trend == TrendDirection.DOWNTREND and _high_risk_context(risk) and opportunity_score < 45):
+    ) or (
+        snapshot.trend == TrendDirection.DOWNTREND
+        and _high_risk_context(risk)
+        and opportunity_score < 45
+    ):
         reasoning.append("Bearish structure dominates the setup.")
         recommendation = TraderRecommendation.SELL
     elif _high_risk_context(risk) and not _constructive_uptrend(snapshot, opportunity_score):
-        reasoning.append(f"Risk level is {risk.label.value}; wait for cleaner confirmation rather than forcing a trade.")
+        reasoning.append(
+            f"Risk level is {risk.label.value}; wait for cleaner confirmation rather than forcing a trade."
+        )
         recommendation = TraderRecommendation.WAIT
-    elif _momentum_extended(snapshot) and effective_near_resistance and not _volume_supports_breakout(snapshot):
+    elif (
+        _momentum_extended(snapshot)
+        and effective_near_resistance
+        and not _volume_supports_breakout(snapshot)
+    ):
         reasoning.append("Momentum is extended near resistance; wait for a better entry.")
         recommendation = TraderRecommendation.WAIT
-    elif _momentum_extended(snapshot) and effective_near_resistance and _constructive_uptrend(snapshot, opportunity_score):
-        reasoning.append("Momentum is elevated but the uptrend remains intact; hold rather than chase.")
+    elif (
+        _momentum_extended(snapshot)
+        and effective_near_resistance
+        and _constructive_uptrend(snapshot, opportunity_score)
+    ):
+        reasoning.append(
+            "Momentum is elevated but the uptrend remains intact; hold rather than chase."
+        )
         recommendation = TraderRecommendation.HOLD
     elif effective_near_resistance and snapshot.trend != TrendDirection.UPTREND:
         reasoning.append("Price is near resistance without an uptrend; wait for confirmation.")
         recommendation = TraderRecommendation.WAIT
     elif _constructive_uptrend(snapshot, opportunity_score) and _risk_allows_new_buy(risk):
-        reasoning.append("Structure remains constructive; hold existing positions or wait for cleaner entry.")
+        reasoning.append(
+            "Structure remains constructive; hold existing positions or wait for cleaner entry."
+        )
         recommendation = TraderRecommendation.HOLD
     elif (
         snapshot.trend == TrendDirection.SIDEWAYS
@@ -582,23 +625,27 @@ def compute_recommendation(
         and _risk_allows_new_buy(risk)
         and not effective_near_resistance
     ):
-        reasoning.append("Sideways base with constructive opportunity; monitor for directional confirmation.")
+        reasoning.append(
+            "Sideways base with constructive opportunity; monitor for directional confirmation."
+        )
         recommendation = TraderRecommendation.HOLD
     else:
         reasoning.append("No strong directional edge; patience is preferred.")
         recommendation = TraderRecommendation.WAIT
 
-    # Global risk/reward gate: never issue a fresh BUY when reward does not justify
-    # risk, unless it is a confirmed volume breakout.
+    # A fresh BUY always requires a complete, ordered, policy-valid plan. A
+    # breakout is evidence, not permission to bypass entry feasibility.
     if (
         recommendation == TraderRecommendation.BUY
-        and not breakout_confirmed
-        and risk_reward is not None
-        and risk_reward < MIN_RISK_REWARD_RATIO
+        and trade_plan_status != TradePlanStatus.VALID_ENTRY_PLAN
     ):
-        reasoning.append(
-            f"Reward/risk {risk_reward:.2f} is below the {MIN_RISK_REWARD_RATIO:.1f} minimum; hold rather than buy at this price."
-        )
+        if trade_plan_status == TradePlanStatus.WATCH_ONLY and risk_reward is not None:
+            reasoning.append(
+                f"Conservative reward/risk {risk_reward:.2f} or structural risk does not "
+                "pass entry-plan policy; hold rather than buy."
+            )
+        else:
+            reasoning.append("A valid entry plan is unavailable; hold rather than buy.")
         recommendation = TraderRecommendation.HOLD
 
     # Structure coherence: a lower-high/lower-low structure contradicts a fresh
@@ -608,7 +655,9 @@ def compute_recommendation(
         and snapshot.structure == STRUCTURE_LOWER
         and not breakout_confirmed
     ):
-        reasoning.append("Market structure shows lower highs and lower lows; hold rather than buy into weakness.")
+        reasoning.append(
+            "Market structure shows lower highs and lower lows; hold rather than buy into weakness."
+        )
         recommendation = TraderRecommendation.HOLD
 
     # Market regime gate: in a broad bearish market, avoid fresh longs.
@@ -629,7 +678,58 @@ def compute_recommendation(
     )
     if regime_bearish and confidence > REGIME_BEARISH_CONFIDENCE_CAP:
         confidence = REGIME_BEARISH_CONFIDENCE_CAP
-        reasoning.append(f"Confidence capped at {REGIME_BEARISH_CONFIDENCE_CAP} in a bearish market regime.")
+        reasoning.append(
+            f"Evidence strength capped at {REGIME_BEARISH_CONFIDENCE_CAP} "
+            "in a bearish market regime."
+        )
     if recommendation in {TraderRecommendation.WAIT, TraderRecommendation.HOLD}:
         confidence = min(confidence, CONFIDENCE_HOLD_WAIT_MAX)
     return DecisionResult(recommendation=recommendation, confidence=confidence, reasoning=reasoning)
+
+
+def compute_recommendation(
+    snapshot: TechnicalSnapshot,
+    opportunity: OpportunityScoreResult,
+    risk: RiskScoreResult,
+    *,
+    near_resistance: bool,
+    below_support: bool,
+    risk_reward: float | None,
+    is_stale: bool,
+    is_sparse: bool,
+    liquidity_label: LiquidityLabel | None = None,
+    suspected_adjustment: bool = False,
+    market_regime: str | None = None,
+    trade_plan_status: TradePlanStatus | None = None,
+    eligibility_status: EligibilityStatus | None = None,
+    eligibility_reasons: tuple[str, ...] = (),
+    directional_evidence: DirectionalEvidenceResult | None = None,
+    data_reliability: DataReliabilityResult | None = None,
+    trading_risk: TradingRiskResult | None = None,
+    constraints: ConstraintResult | None = None,
+) -> DecisionResult:
+    """Compatibility entry point for the explicit Phase 3 action matrix."""
+    from app.modules.stock_details.decision.recommendation import (
+        compute_recommendation as compute_contextual_recommendation,
+    )
+
+    return compute_contextual_recommendation(
+        snapshot,
+        opportunity,
+        risk,
+        near_resistance=near_resistance,
+        below_support=below_support,
+        risk_reward=risk_reward,
+        is_stale=is_stale,
+        is_sparse=is_sparse,
+        liquidity_label=liquidity_label,
+        suspected_adjustment=suspected_adjustment,
+        market_regime=market_regime,
+        trade_plan_status=trade_plan_status,
+        eligibility_status=eligibility_status,
+        eligibility_reasons=eligibility_reasons,
+        directional_evidence=directional_evidence,
+        data_reliability=data_reliability,
+        trading_risk=trading_risk,
+        constraints=constraints,
+    )
