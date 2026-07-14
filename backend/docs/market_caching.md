@@ -202,7 +202,7 @@ The `/market-pulse` route server-prefetches a **narrow core slice** before hydra
 | Server URL | `SERVER_API_BASE_URL` (required in production), e.g. `http://backend-api:8000/api/v1` |
 | Fetch mode | `cache: "no-store"` — **no** Next.js Data Cache / ISR for market JSON |
 | Timeout | `PULSE_CORE_LOADER_TIMEOUT_MS`, default **5000ms** (aligned with dashboard core SSR) |
-| Redis | Anonymous summary uses `pulse:summary:{exchange}`; personalized requests bypass shared Redis reads and writes |
+| Redis | Anonymous summary uses `pulse:summary:{exchange}:{strategy_version}:{threshold_version}`; personalized requests bypass shared Redis reads and writes |
 | TanStack seed | `HydrationBoundary` + `PULSE_ANONYMOUS_SUMMARY_QUERY_KEY` + `PULSE_ANONYMOUS_BRIEFING_QUERY_KEY` + freshness |
 | Generation guard | Seed summary only when `summary.last_synced_at === freshness.last_synced_at`; seed briefing only when reconciled summary is present |
 | Identity guard | On hydrate, if SSR `last_synced_at` ≠ client freshness → clear market IndexedDB + `syncMarketClientCachesOnBackendUpdate` |

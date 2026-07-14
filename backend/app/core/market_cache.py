@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 
+from app.core.constants.trading_constants import TRADING_STRATEGY_VERSION, TRADING_THRESHOLD_VERSION
 from app.core.core_config import Settings, get_settings
 from app.core.enums import ExchangeCode
 from app.core.redis_client import OptionalRedisClient, build_redis_client
@@ -39,7 +40,10 @@ def dashboard_cache_key(section: str, exchange: ExchangeCode) -> str:
 
 
 def pulse_cache_key(section: str, exchange: ExchangeCode) -> str:
-    return f"pulse:{section}:{exchange.value}"
+    return (
+        f"pulse:{section}:{exchange.value}:"
+        f"{TRADING_STRATEGY_VERSION}:{TRADING_THRESHOLD_VERSION}"
+    )
 
 
 def market_rebuild_lock_key(exchange: ExchangeCode) -> str:

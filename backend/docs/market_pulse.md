@@ -68,8 +68,8 @@ The compatibility `money_flow.inflows` / `money_flow.outflows` arrays contain on
 
 | Key | Contents |
 |-----|----------|
-| `pulse:response:{exchange}` | Full `MarketPulseRead` |
-| `pulse:summary:{exchange}` | `MarketPulseSummaryRead` (includes `last_synced_at` generation identity) |
+| `pulse:response:{exchange}:{strategy_version}:{threshold_version}` | Full `MarketPulseRead` |
+| `pulse:summary:{exchange}:{strategy_version}:{threshold_version}` | `MarketPulseSummaryRead` (includes `last_synced_at` generation identity) |
 
 Both are invalidated with exchange-wide keys on sync via `invalidate_market_caches()`.
 
@@ -152,7 +152,7 @@ The `/market-pulse` route server-prefetches before hydration:
 | TanStack seed | `PULSE_ANONYMOUS_SUMMARY_QUERY_KEY` + `PULSE_ANONYMOUS_BRIEFING_QUERY_KEY` + freshness via `HydrationBoundary` |
 | Generation guard | Hydrate summary only when `summary.last_synced_at === freshness.last_synced_at`; hydrate briefing only when reconciled summary is present |
 | Client-only | Personalized briefing (`display_name`), `display_name` greeting, `previous_snapshot` since-last-visit personalization |
-| Shared Redis | Anonymous requests only (`pulse:summary:{exchange}`); personalized requests bypass shared cache reads and writes |
+| Shared Redis | Anonymous requests only (`pulse:summary:{exchange}:{strategy_version}:{threshold_version}`); personalized requests bypass shared cache reads and writes |
 | Snapshot writes | Protected — write only when resolved summary generation matches freshness; personalized failures preserve `localStorage` |
 
 Component layers:

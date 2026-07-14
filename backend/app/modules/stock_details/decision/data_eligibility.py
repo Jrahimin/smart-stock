@@ -9,11 +9,13 @@ from app.core.constants.trading_constants import (
     ELIGIBILITY_ABSOLUTE_MIN_TRADED_SESSION_RATIO,
     ELIGIBILITY_ABSOLUTE_MIN_VALID_ROWS,
     ELIGIBILITY_INELIGIBLE_MISSED_SESSIONS,
+    ELIGIBILITY_MAX_RECENT_PARTIAL_QUALITY_RATIO,
     ELIGIBILITY_MAX_MISSED_SESSIONS,
     ELIGIBILITY_MAX_PARTIAL_QUALITY_RATIO,
     ELIGIBILITY_MIN_TRADED_SESSION_RATIO,
     ELIGIBILITY_MIN_TURNOVER_OBSERVATIONS,
     ELIGIBILITY_MIN_VALID_ROWS,
+    ELIGIBILITY_RECENT_QUALITY_RECOVERY_WINDOW,
     LIQUIDITY_TURNOVER_THIN,
 )
 from app.core.enums import (
@@ -131,6 +133,10 @@ def evaluate_data_eligibility(
     suspicious_count = sum(
         1 for price in quality_window if price.data_quality_flag == DataQualityFlag.SUSPICIOUS
     )
+    recent_quality_window = quality_window[-ELIGIBILITY_RECENT_QUALITY_RECOVERY_WINDOW:]
+    recent_partial_count = sum(
+        1 for price in recent_quality_window if price.data_quality_flag == DataQualityFlag.PARTIAL
+    )
     latest_trade_date = (
         date.fromisoformat(snapshot.latest_trade_date) if snapshot.latest_trade_date else None
     )
@@ -198,10 +204,17 @@ def evaluate_data_eligibility(
         add_reason("suspicious_price_quality", EligibilityStatus.REVIEW_ONLY)
     elif latest_quality == DataQualityFlag.PARTIAL:
         add_reason("partial_latest_price_quality", EligibilityStatus.LIMITED)
-    if (
-        quality_window
-        and partial_count / len(quality_window) > ELIGIBILITY_MAX_PARTIAL_QUALITY_RATIO
-    ):
+    full_partial_ratio = partial_count / len(quality_window) if quality_window else 0.0
+    recent_partial_ratio = (
+        recent_partial_count / len(recent_quality_window) if recent_quality_window else 0.0
+    )
+    # Generic PARTIAL source flags in older sessions do not override a healthy
+    # recent series. Current-row and suspicious-quality safeguards remain above.
+    has_excessive_partial_history = (
+        full_partial_ratio > ELIGIBILITY_MAX_PARTIAL_QUALITY_RATIO
+        and recent_partial_ratio > ELIGIBILITY_MAX_RECENT_PARTIAL_QUALITY_RATIO
+    )
+    if has_excessive_partial_history:
         add_reason("excessive_partial_history", EligibilityStatus.LIMITED)
 
     if snapshot.median_turnover is None:

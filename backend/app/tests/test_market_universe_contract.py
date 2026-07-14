@@ -6,7 +6,7 @@ from uuid import uuid4
 
 import pytest
 
-from app.core.constants.trading_constants import TRADING_STRATEGY_VERSION
+from app.core.constants.trading_constants import TRADING_STRATEGY_VERSION, TRADING_THRESHOLD_VERSION
 from app.core.core_config import Settings
 from app.core.enums import (
     DataQualityFlag,
@@ -133,7 +133,9 @@ def test_invalidation_key_lists_cover_presentation_and_foundation() -> None:
     assert universe_cache_key("scored", ExchangeCode.DSE, "future-v2") != universe_cache_key(
         "scored", ExchangeCode.DSE
     )
-    assert pulse_cache_key("response", ExchangeCode.DSE) == "pulse:response:DSE"
+    assert pulse_cache_key("response", ExchangeCode.DSE) == (
+        f"pulse:response:DSE:{TRADING_STRATEGY_VERSION}:{TRADING_THRESHOLD_VERSION}"
+    )
     assert "overview" in DASHBOARD_CACHE_KEY_NAMES
     assert "response" in PULSE_CACHE_KEY_NAMES
     assert "scored" in UNIVERSE_CACHE_KEY_NAMES

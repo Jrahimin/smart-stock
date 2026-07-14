@@ -667,7 +667,7 @@ Return the curated Market Pulse briefing: hero attention summary, focus stocks, 
 
 **Related tiered endpoints**
 
-* `GET /api/v1/market/pulse/summary` — hero, focus stocks, alerts (cached in `pulse:summary:{exchange}`)
+* `GET /api/v1/market/pulse/summary` — hero, focus stocks, alerts (cached in `pulse:summary:{exchange}:{strategy_version}:{threshold_version}`)
 * `GET /api/v1/market/pulse/briefing` — narrative briefing blocks only
 
 **Query Params**

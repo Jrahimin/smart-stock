@@ -206,6 +206,46 @@ def test_low_estimated_turnover_is_limited_with_explicit_provenance() -> None:
     assert "turnover_not_reported" in result.reason_codes
 
 
+def test_recent_healthy_quality_recovers_from_older_partial_history() -> None:
+    prices = _prices()
+    # The last 50 rows contain 21 PARTIAL rows, matching the live deployment
+    # pattern, while the most recent 20 sessions are healthy.
+    for price in prices[10:31]:
+        price.data_quality_flag = DataQualityFlag.PARTIAL
+
+    result = _eligibility(prices)
+
+    assert result.status == EligibilityStatus.ELIGIBLE
+    assert result.quality_partial_count == 21
+    assert "excessive_partial_history" not in result.reason_codes
+
+
+def test_recent_partial_history_remains_limited() -> None:
+    prices = _prices()
+    # Keep the latest row healthy so this exercises the recovery-window rule,
+    # rather than the separate latest-row PARTIAL safeguard.
+    for price in prices[40:51]:
+        price.data_quality_flag = DataQualityFlag.PARTIAL
+
+    result = _eligibility(prices)
+
+    assert result.status == EligibilityStatus.LIMITED
+    assert "excessive_partial_history" in result.reason_codes
+
+
+def test_recent_quality_recovery_does_not_waive_suspicious_history() -> None:
+    prices = _prices()
+    for price in prices[10:31]:
+        price.data_quality_flag = DataQualityFlag.PARTIAL
+    prices[31].data_quality_flag = DataQualityFlag.SUSPICIOUS
+
+    result = _eligibility(prices)
+
+    assert result.status == EligibilityStatus.REVIEW_ONLY
+    assert "excessive_partial_history" not in result.reason_codes
+    assert "suspicious_price_quality" in result.reason_codes
+
+
 def test_known_and_unresolved_corporate_actions_review_but_genuine_crash_does_not() -> None:
     known_prices = _prices()
     known = _eligibility(

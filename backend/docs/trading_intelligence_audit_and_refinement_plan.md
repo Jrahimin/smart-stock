@@ -958,6 +958,8 @@ The minimum test gate is risk-based. Exact regression, boundary, invariant, chro
 - **Stable completion criteria:** fresh BUY/focus candidates use sufficient valid traded history and current-session data; volatility no longer disappears solely because ingestion left change percentages null; list/detail share the same ex-date eligibility; unresolved corporate actions cannot create directional decisions.
 - **Expected complexity:** L.
 
+**Interim generic-PARTIAL recovery policy (implemented 2026-07-15):** retain the 50-session quality window, but do not apply the `excessive_partial_history` LIMITED status when the most recent 20 sessions contain no more than 10% `PARTIAL` rows. This prevents older source-completeness gaps from suppressing a fresh, valid analytical series. It does not waive invalid/latest OHLC, stale-session, zero-volume, suspicious-quality, turnover, category, or corporate-action safeguards. The permanent Phase 2 outcome remains separate analytical-OHLCV validity from generic source-field partiality.
+
 ### Phase 3 — Decision logic, risk, evidence and trade-plan coherence
 
 > Refine the model only after inputs and immediate correctness are stable.  

@@ -5,7 +5,7 @@ DEFAULT_LONG_MOVING_AVERAGE_PERIOD = 50
 # Canonical live decision identity. Threshold-only changes must increment the
 # threshold version even when the API shape and strategy family stay stable.
 TRADING_STRATEGY_VERSION = "trading-intelligence-v1"
-TRADING_THRESHOLD_VERSION = "trading-thresholds-v1"
+TRADING_THRESHOLD_VERSION = "trading-thresholds-v2"
 TRADING_ACTION_TAXONOMY = "TRADER_RECOMMENDATION_V1"
 
 RSI_OVERSOLD_THRESHOLD = 30
@@ -41,6 +41,11 @@ ELIGIBILITY_INELIGIBLE_MISSED_SESSIONS = 3
 ELIGIBILITY_ROBUST_BASELINE_WINDOW = 20
 ELIGIBILITY_MIN_TURNOVER_OBSERVATIONS = 10
 ELIGIBILITY_MAX_PARTIAL_QUALITY_RATIO = 0.20
+# A recently healthy source can recover from older generic PARTIAL flags. This
+# is an interim safeguard while source-level completeness is split from
+# analytical OHLCV validity.
+ELIGIBILITY_RECENT_QUALITY_RECOVERY_WINDOW = 20
+ELIGIBILITY_MAX_RECENT_PARTIAL_QUALITY_RATIO = 0.10
 ELIGIBILITY_SESSION_LOOKBACK = 10
 # No current ingestion source supplies verified adjustment-factor provenance.
 ANALYTICAL_ADJUSTED_SERIES_ENABLED = False
