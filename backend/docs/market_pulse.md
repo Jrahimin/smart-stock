@@ -60,7 +60,9 @@ market_pulse_router
 - Rebuild technical snapshots
 - Call `list_market_price_windows`
 
-Opportunity history sparklines use session-level aggregates from `daily_market_summaries`, not per-stock multi-date engine runs.
+Opportunity history is intentionally empty until comparable point-in-time Pulse snapshots exist. Historical points must use the same formula, candidate population, and strategy version before the API can publish a trend.
+
+The compatibility `money_flow.inflows` / `money_flow.outflows` arrays contain only observed positive/negative **average sector price changes** and declare `semantics=SECTOR_PRICE_CHANGE`. They are rendered as sector price leaders/laggards. Missing positive or negative sides remain empty; the backend never fabricates fallback signs.
 
 ### Redis caches
 

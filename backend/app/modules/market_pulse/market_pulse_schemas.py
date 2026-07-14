@@ -147,6 +147,7 @@ class MoneyFlowSectorRead(BaseModel):
 class MoneyFlowRead(BaseModel):
     inflows: list[MoneyFlowSectorRead]
     outflows: list[MoneyFlowSectorRead]
+    semantics: str = "SECTOR_PRICE_CHANGE"
 
 
 class OpportunityScoreRead(BaseModel):

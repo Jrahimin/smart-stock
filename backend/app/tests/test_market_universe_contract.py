@@ -6,27 +6,45 @@ from uuid import uuid4
 
 import pytest
 
+from app.core.constants.trading_constants import TRADING_STRATEGY_VERSION
 from app.core.core_config import Settings
-from app.core.enums import DataQualityFlag, ExchangeCode, RiskLevelLabel, TraderRecommendation, TrendDirection
-from app.core.market_cache import DASHBOARD_CACHE_KEY_NAMES, dashboard_cache_key
-from app.modules.market_universe.market_universe_cache import UNIVERSE_CACHE_KEY_NAMES, universe_cache_key
-from app.core.market_cache import PULSE_CACHE_KEY_NAMES, pulse_cache_key, invalidate_market_caches
-from app.modules.market_universe.market_universe_cache import universe_prev_cache_key
+from app.core.enums import (
+    DataQualityFlag,
+    ExchangeCode,
+    RiskLevelLabel,
+    TraderRecommendation,
+    TrendDirection,
+)
+from app.core.market_cache import (
+    DASHBOARD_CACHE_KEY_NAMES,
+    PULSE_CACHE_KEY_NAMES,
+    dashboard_cache_key,
+    invalidate_market_caches,
+    pulse_cache_key,
+)
 from app.models import DailyPrice, Stock
 from app.modules.market_dashboard.market_dashboard_compute import (
     build_market_insights,
     build_signal_feed,
     derive_market_mood,
 )
+from app.modules.market_universe.market_universe_cache import (
+    UNIVERSE_CACHE_KEY_NAMES,
+    universe_cache_key,
+    universe_prev_cache_key,
+)
 from app.modules.market_universe.market_universe_compute import (
     build_scored_universe_rows,
     group_price_window_rows,
     technical_snapshot_to_read,
 )
+from app.modules.market_universe.market_universe_schemas import (
+    ScoredUniverseRow,
+    UniverseSessionRead,
+)
 from app.modules.market_universe.market_universe_service import MarketUniverseService
-from app.modules.market_universe.market_universe_schemas import ScoredUniverseRow, UniverseSessionRead
 from app.modules.stock_details.decision.summary import TraderDecisionSummaryRead
-from app.modules.stock_details.decision.technical import TechnicalSnapshot, build_technical_snapshot
+from app.modules.stock_details.decision.technical import TechnicalSnapshot
 from app.modules.stocks.stocks_schemas import StockRead
 from app.tests.market_universe_test_helpers import assert_no_forbidden_universe_fields
 
@@ -109,7 +127,12 @@ def _decision(recommendation: TraderRecommendation, confidence: int = 72) -> Tra
 
 
 def test_invalidation_key_lists_cover_presentation_and_foundation() -> None:
-    assert universe_cache_key("scored", ExchangeCode.DSE) == "universe:scored:DSE"
+    assert universe_cache_key("scored", ExchangeCode.DSE) == (
+        f"universe:scored:DSE:{TRADING_STRATEGY_VERSION}"
+    )
+    assert universe_cache_key("scored", ExchangeCode.DSE, "future-v2") != universe_cache_key(
+        "scored", ExchangeCode.DSE
+    )
     assert pulse_cache_key("response", ExchangeCode.DSE) == "pulse:response:DSE"
     assert "overview" in DASHBOARD_CACHE_KEY_NAMES
     assert "response" in PULSE_CACHE_KEY_NAMES
@@ -148,7 +171,13 @@ async def test_invalidate_market_caches_deletes_all_registered_keys() -> None:
 def test_scored_universe_row_serialization_has_only_allowed_keys() -> None:
     row = _universe_row(_snapshot(trade_date="2026-06-17"), decision=_decision(TraderRecommendation.BUY))
     payload = row.model_dump(mode="json")
-    assert set(payload.keys()) == {"stock", "technical_snapshot", "decision", "session"}
+    assert set(payload.keys()) == {
+        "stock",
+        "technical_snapshot",
+        "decision",
+        "eligibility",
+        "session",
+    }
     assert_no_forbidden_universe_fields(payload)
 
 
@@ -196,6 +225,12 @@ async def test_scored_universe_redis_cache_payload_is_lightweight() -> None:
 
         async def get_market_price_freshness(self, **kwargs):
             return prices[-1].trade_date, datetime.now()
+
+        async def list_recent_exchange_session_dates(self, **kwargs):
+            return [price.trade_date for price in prices[-10:]]
+
+        async def list_corporate_action_dates_by_stock(self, **kwargs):
+            return {}
 
     class FakeStocksRepository:
         async def count_stocks(self, **kwargs):

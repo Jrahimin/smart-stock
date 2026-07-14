@@ -619,7 +619,21 @@ Return market mood, deterministic insight blocks, signal count, and turnover con
 ### GET /api/v1/market/universe-rows
 
 **Description**
-Return the shared `ScoredUniverseRow` list for Explorer, Scanner, Signals, and Watchlist. Serves from Redis `universe:scored:{exchange}` on cache hit. This is the preferred list endpoint — do not use `GET /market/price-windows` on trader UI paths.
+Return the shared `ScoredUniverseRow` list for Explorer, Scanner, Signals, and
+Watchlist. Serves from Redis
+`universe:scored:{exchange}:{strategy_version}` on cache hit. This is the
+preferred list endpoint — do not use `GET /market/price-windows` on trader UI
+paths.
+
+Each row has an additive `eligibility` object: status/reason codes, exchange
+session identity, valid/traded coverage, quality counts, robust-turnover
+provenance, and corporate-action resolution. Existing row fields remain
+readable. The compact decision keeps its legacy fields and adds directional
+evidence strength, data reliability, trading risk, contextual holder/non-holder
+actions, authoritative constraints, and an explicit primary reason. Pulse focus
+ranking uses only `ELIGIBLE` rows. Each decision also carries an additive
+`canonical` object with strategy/threshold/taxonomy, session dates,
+`shared_decision_id`, result semantics and the canonical primary reason.
 
 **Query Params**
 
@@ -635,7 +649,9 @@ Return the shared `ScoredUniverseRow` list for Explorer, Scanner, Signals, and W
     "meta": {
       "exchange": "DSE",
       "listed_stock_count": 392,
-      "session_trade_date": "2026-06-17"
+      "session_trade_date": "2026-06-17",
+      "strategy_version": "trading-intelligence-v1",
+      "threshold_version": "trading-thresholds-v1"
     },
     "rows": []
   }
@@ -699,6 +715,8 @@ Return the curated Market Pulse briefing: hero attention summary, focus stocks, 
 **Notes**
 
 * Focus labels: `New BUY Setup`, `Momentum Building`, `Volume Breakout`, `Watch Closely`, `Signal Upgrade`.
+* `briefing.opportunity_score.history`, `previous_session`, `weekly_average`, and `trend_label` remain empty/null until comparable point-in-time Pulse snapshots exist.
+* `briefing.money_flow` retains its compatibility field names, declares `semantics: "SECTOR_PRICE_CHANGE"`, and contains observed sector price leaders/laggards only. A missing positive or negative side is returned as an empty array.
 * See `backend/docs/market_pulse.md` for Pulse Score methodology and module architecture.
 
 ---
@@ -840,6 +858,7 @@ Return each active stock with a recent daily OHLCV window, optionally filtered b
       "trader_decision": {
         "recommendation": "BUY",
         "confidence": 71,
+        "confidence_semantics": "HEURISTIC_EVIDENCE",
         "reason": "Uptrend with favorable opportunity and acceptable reward potential.",
         "opportunity_score": 68,
         "risk_label": "LOW"
@@ -945,6 +964,7 @@ None
   "volume": 125000,
   "trade_count": 745,
   "turnover": "36187500.0000",
+  "turnover_provenance": "REPORTED",
   "source": "DSE",
   "data_quality_flag": "OK"
 }
@@ -973,6 +993,7 @@ None
     "volume": 125000,
     "trade_count": 745,
     "turnover": "36187500.0000",
+    "turnover_provenance": "REPORTED",
     "source": "DSE",
     "data_quality_flag": "OK",
     "id": "30e7d280-0b42-44c2-8f42-a8c9b0ff5c91",
@@ -1276,6 +1297,11 @@ Return deterministic trader decision-support for one stock symbol. The response 
 
 No AI/LLM is used. All scores, recommendations, warnings, pattern detections, and trade-plan levels are formula-based.
 
+The response adds `canonical_decision` and `technical_snapshot`. The canonical
+object contains the same identity and core action fields exposed by universe
+rows for the same stock/session/version; existing `decision`, `opportunity`,
+`risk`, and trade-plan fields remain compatible.
+
 **Path Params**
 
 * exchange: `DSE` or `CSE`
@@ -1294,10 +1320,35 @@ No AI/LLM is used. All scores, recommendations, warnings, pattern detections, an
     "decision": {
       "recommendation": "WAIT",
       "confidence": 68,
+      "confidence_semantics": "HEURISTIC_EVIDENCE",
+      "evidence_strength": 68,
+      "evidence_strength_semantics": "HEURISTIC_DIRECTIONAL_EVIDENCE",
+      "stance": "CONSTRUCTIVE",
+      "non_holder_action": "WAIT",
+      "holder_action": "HOLD",
+      "primary_reason_code": "near_resistance",
+      "primary_reason": "The setup is constructive near resistance; wait for a confirmed price break.",
+      "canonical": {
+        "strategy_version": "trading-intelligence-v1",
+        "threshold_version": "trading-thresholds-v1",
+        "action_taxonomy": "TRADER_RECOMMENDATION_V1",
+        "as_of_date": "2026-06-17",
+        "previous_session_date": "2026-06-16",
+        "shared_decision_id": "d6b5cf4f-37f7-5740-9918-a47ca49176fb"
+      },
+      "constraints": [
+        {
+          "code": "near_resistance",
+          "title": "Near resistance",
+          "kind": "DOWNGRADE",
+          "reason": "Price is near resistance without a current break event.",
+          "is_critical": false
+        }
+      ],
       "reasoning": [
         "Trend context: uptrend.",
-        "Opportunity score: 58/100.",
-        "Risk level: LOW (25/100)."
+        "Directional evidence: bullish (bullish 74, bearish 26).",
+        "The setup is constructive near resistance; wait for a confirmed price break."
       ]
     },
     "opportunity": {
@@ -1315,7 +1366,29 @@ No AI/LLM is used. All scores, recommendations, warnings, pattern detections, an
     "risk": {
       "score": 25,
       "label": "LOW",
+      "score_semantics": "LEGACY_COMPOSITE_RISK",
       "components": []
+    },
+    "directional_evidence": {
+      "direction": "BULLISH",
+      "bullish_score": 74,
+      "bearish_score": 26,
+      "coverage_percent": 100,
+      "score_semantics": "HEURISTIC_DIRECTIONAL_EVIDENCE",
+      "components": []
+    },
+    "data_reliability": {
+      "score": 85,
+      "label": "HIGH",
+      "reason_codes": ["raw_unadjusted_analytical_series"],
+      "explanation": "Deterministic input reliability reflects freshness, history coverage, source quality, row validity, and corporate-action resolution.",
+      "score_semantics": "DETERMINISTIC_INPUT_RELIABILITY"
+    },
+    "trading_risk": {
+      "score": 27,
+      "label": "LOW",
+      "components": [],
+      "score_semantics": "HEURISTIC_TRADING_RISK"
     },
     "price_position": {
       "current_price": 26.1,
@@ -1327,11 +1400,13 @@ No AI/LLM is used. All scores, recommendations, warnings, pattern detections, an
     "trade_plan": {
       "entry_zone_low": 25.84,
       "entry_zone_high": 26.23,
-      "stop_loss": 22.41,
-      "target_low": 25.71,
-      "target_high": 26.5,
-      "risk_reward_ratio": 1.15,
-      "explanation": "Entry near current/support context with stop below support and target at resistance."
+      "stop_loss": 24.5,
+      "target_low": 29.0,
+      "target_high": 30.0,
+      "risk_reward_ratio": 1.42,
+      "explanation": "Entry, structural stop, and target references form a valid conditional scenario.",
+      "status": "VALID_ENTRY_PLAN",
+      "reasons": []
     },
     "liquidity": {
       "label": "STRONG",
@@ -1339,7 +1414,31 @@ No AI/LLM is used. All scores, recommendations, warnings, pattern detections, an
       "latest_volume_ratio": 1.8,
       "volume_consistency_score": 85,
       "average_turnover": 120000000,
-      "explanation": "Volume and turnover support active participation."
+      "median_turnover": 118000000,
+      "turnover_observation_count": 20,
+      "turnover_provenance": "REPORTED",
+      "traded_session_ratio": 0.96,
+      "explanation": "Median traded-session turnover is deep for the observed window."
+    },
+    "eligibility": {
+      "status": "ELIGIBLE",
+      "reason_codes": [],
+      "exchange_session_date": "2026-06-02",
+      "latest_trade_date": "2026-06-02",
+      "missed_session_count": 0,
+      "valid_ohlcv_row_count": 90,
+      "invalid_ohlcv_row_count": 0,
+      "traded_session_count": 88,
+      "zero_volume_session_count": 2,
+      "traded_session_ratio": 0.9778,
+      "quality_ok_count": 50,
+      "quality_partial_count": 0,
+      "quality_suspicious_count": 0,
+      "median_turnover": 118000000,
+      "turnover_observation_count": 20,
+      "turnover_provenance": "REPORTED",
+      "analytical_price_basis": "RAW_UNADJUSTED",
+      "corporate_action_status": "NONE"
     },
     "warnings": [
       {
@@ -1365,11 +1464,13 @@ No AI/LLM is used. All scores, recommendations, warnings, pattern detections, an
     "primary_pattern": null,
     "breakout": {
       "probability": 43,
+      "evidence_score": 43,
+      "score_semantics": "HEURISTIC_BREAKOUT_EVIDENCE",
       "factors": [],
       "breakout_level": 26.5,
       "confirmation_level": 26.77,
       "projected_target": 27.83,
-      "explanation": "Breakout probability combines volume, trend, resistance proximity, and active pattern context."
+      "explanation": "Breakout evidence score combines volume, trend, resistance proximity, and confirmed pattern context."
     },
     "ownership": null,
     "valuation": null,
@@ -1381,6 +1482,12 @@ No AI/LLM is used. All scores, recommendations, warnings, pattern detections, an
 **Notes**
 
 * Returns `404` when the stock is not found or when no OHLCV rows exist for deterministic evaluation.
+* `confidence`, pattern `confidence`, and breakout `probability` remain readable compatibility fields. Current consumers use the additive semantics fields plus `pattern_match_score` / `evidence_score`; none of these point scores is a calibrated probability.
+* `confidence` is now the compatibility alias of `evidence_strength`. Data reliability, liquidity/tradability, and trading risk are separate fields and do not share that score.
+* `stance`, `non_holder_action`, and `holder_action` remove the former HOLD/WAIT/SELL ambiguity without removing `recommendation`.
+* `constraints` are computed before the action. `primary_reason` is stored separately and is the source of compact-list `reason`.
+* A fresh `BUY` requires `trade_plan.status=VALID_ENTRY_PLAN`. `WATCH_ONLY` and `UNAVAILABLE` plans cannot be bypassed by a breakout flag.
+* Missing/invalid overhead resistance produces a target-less `WATCH_ONLY` plan rather than a fabricated target.
 * Frontend consumers should treat this endpoint as optional enrichment. If it fails, the existing chart, technical summary, fundamentals, and insight sidebar should continue to render from stock lookup and daily prices.
 * Formula weights and thresholds are documented in `backend/docs/stock_decision_support.md`.
 
@@ -1424,9 +1531,30 @@ Return the latest shared trader decision per active stock. This is the preferred
       "decision": {
         "recommendation": "BUY",
         "confidence": 71,
-        "reason": "Uptrend with favorable opportunity and acceptable reward potential.",
+        "confidence_semantics": "HEURISTIC_EVIDENCE",
+        "evidence_strength": 71,
+        "stance": "BULLISH",
+        "non_holder_action": "BUY",
+        "holder_action": "HOLD",
+        "primary_reason_code": "bullish_setup_valid_entry",
+        "primary_reason": "Uptrend and directional evidence align with a valid entry plan.",
+        "reason": "Uptrend and directional evidence align with a valid entry plan.",
         "opportunity_score": 68,
-        "risk_label": "LOW"
+        "risk_label": "LOW",
+        "data_reliability": {
+          "score": 85,
+          "label": "HIGH",
+          "reason_codes": ["raw_unadjusted_price_series"],
+          "explanation": "The series is usable, with raw-price limitations disclosed.",
+          "score_semantics": "DETERMINISTIC_INPUT_RELIABILITY"
+        },
+        "trading_risk": {
+          "score": 27,
+          "label": "LOW",
+          "components": [],
+          "score_semantics": "HEURISTIC_TRADING_RISK"
+        },
+        "constraints": []
       },
       "latest_trade_date": "2026-05-10"
     }
@@ -1437,7 +1565,7 @@ Return the latest shared trader decision per active stock. This is the preferred
 **Notes**
 
 * Recommendations use `BUY`, `HOLD`, `WAIT`, or `SELL`.
-* Confidence is returned on a `0..100` integer scale.
+* Compatibility confidence/evidence strength is returned on a `0..100` integer scale and is not calibrated probability.
 * See `backend/docs/signals.md` and `backend/docs/stock_decision_support.md`.
 
 ---
@@ -1445,7 +1573,11 @@ Return the latest shared trader decision per active stock. This is the preferred
 ### GET /api/v1/signals/latest
 
 **Description**
-Return the latest active **legacy persisted** trading signal per stock from the `trading_signals` table. Terminal UI no longer uses this endpoint for action badges; prefer `GET /signals/decisions/latest` or `trader_decision` on price windows.
+Return the latest active persisted trading signal per stock from the
+`trading_signals` table. Terminal UI does not use this endpoint for action
+badges; prefer `GET /signals/decisions/latest` or `trader_decision` on universe
+rows. Legacy records remain readable, and canonical identity fields are
+additive/nullable.
 
 **Query Params**
 
@@ -1470,6 +1602,13 @@ Return the latest active **legacy persisted** trading signal per stock from the 
       "risk_score": "0.2500",
       "reason": "Volume confirms positive trend continuation.",
       "strategy_name": "deterministic-v1",
+      "strategy_version": "trading-intelligence-v1",
+      "threshold_version": "trading-thresholds-v1",
+      "action_taxonomy": "TRADER_RECOMMENDATION_V1",
+      "canonical_recommendation": "BUY",
+      "signal_as_of": "2026-05-10",
+      "calculated_at": "2026-05-10T15:00:00Z",
+      "shared_decision_id": "d6b5cf4f-37f7-5740-9918-a47ca49176fb",
       "components": {},
       "metadata": {},
       "is_active": true,
@@ -1486,7 +1625,10 @@ Return the latest active **legacy persisted** trading signal per stock from the 
 * Only active signal rows are considered.
 * At most one signal is returned per stock.
 * Ordering is stable by newest trade date, stock id, strategy name, and signal id.
-* Frontend consumers must treat persisted rows as legacy strategy history, not as the primary action source.
+* Persisted rows never override the canonical action.
+* A prior row is comparable only when all identity fields are present, versions
+  and action taxonomy match, and `signal_as_of` is the canonical
+  `previous_session_date`; unversioned legacy rows are not comparable.
 
 ---
 
@@ -1529,9 +1671,12 @@ List the authenticated user's watchlist rows with optional market enrichment.
       "watching_days": 47,
       "watching_label": "Watching for 47 days",
       "current_price": "262.0000",
+      "decision_source": "CANONICAL_UNIVERSE",
+      "contextual_action": "SELL",
       "trader_decision": {
         "recommendation": "BUY",
         "confidence": 72,
+        "confidence_semantics": "HEURISTIC_EVIDENCE",
         "reason": "Momentum and trend align with acceptable risk.",
         "opportunity_score": 68,
         "risk_label": "MEDIUM"
@@ -1545,6 +1690,11 @@ List the authenticated user's watchlist rows with optional market enrichment.
 
 * Ordering: `is_holding DESC`, then `created_at DESC`.
 * `unrealized_gain_percent` is computed server-side from latest close and `buy_price`.
+* Market enrichment is projected from the canonical universe row. Holding rows
+  receive `holder_action`; non-holding rows receive `non_holder_action`.
+* If the universe cache is unavailable, decision/technical fields are omitted,
+  `decision_source` is `UNAVAILABLE`, and `contextual_action` fails closed to
+  `WAIT`; the watchlist does not recompute a parallel result.
 
 ### GET /api/v1/watchlist/summary
 

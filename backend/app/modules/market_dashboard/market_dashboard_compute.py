@@ -441,7 +441,7 @@ def build_market_insights(
             {
                 "id": "signal-coverage",
                 "title": "Signal layer ready",
-                "description": f"{signal_count} highlighted signals can be explained with structured confidence and risk metadata.",
+                "description": f"{signal_count} highlighted signals include heuristic evidence and risk metadata.",
                 "tone": "info",
                 "category": "opportunity",
                 "source": "DETERMINISTIC",

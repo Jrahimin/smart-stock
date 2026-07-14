@@ -53,6 +53,7 @@ export type StockWorkspaceLanguage = {
   };
   panels: {
     tradePlan: string;
+    watchOnly: string;
     entryZone: string;
     stopLoss: string;
     target: string;
@@ -256,7 +257,7 @@ const stockWorkspaceLanguage = {
       label: "Decision",
       loading:
         "Loading decision support…",
-      confidence: "Confidence",
+      confidence: "Evidence Strength",
       opportunity: "Opportunity",
       risk: "Risk",
       opportunityBreakdown:
@@ -266,6 +267,7 @@ const stockWorkspaceLanguage = {
     },
     panels: {
       tradePlan: "Trade Plan",
+      watchOnly: "Watch only",
       entryZone: "Entry Zone",
       stopLoss: "Stop Loss",
       target: "Target",
@@ -297,9 +299,9 @@ const stockWorkspaceLanguage = {
       projectedTarget:
         "Projected target",
       breakoutProbability:
-        "🚀 Breakout Probability",
+        "🚀 Breakout Evidence",
       breakdownProbability:
-        "📉 Breakdown Probability",
+        "📉 Breakdown Evidence",
       stockColumn: "Stock",
       sectorColumn: "Sector",
       marketColumn: "Market",
@@ -434,7 +436,7 @@ const stockWorkspaceLanguage = {
     },
     pattern: {
       confidence: (value) =>
-        `Confidence ${value}%`,
+        `Pattern match ${value}/100`,
       status: "Status",
       whyMatched: "Why it matched",
       tradingInterpretation:
@@ -499,7 +501,7 @@ const stockWorkspaceLanguage = {
       decisionSupport:
         "Decision support",
       modelConfidence: (value) =>
-        `${value}% model confidence`,
+        `${value}/100 heuristic evidence`,
       data: "Data",
       asOf: (date) =>
         ` · as of ${date}`,
@@ -598,7 +600,7 @@ const stockWorkspaceLanguage = {
       loading:
         "Decision support লোড হচ্ছে…",
       confidence:
-        "Confidence",
+        "Evidence Strength",
       opportunity:
         "Opportunity",
       risk: "Risk",
@@ -610,6 +612,7 @@ const stockWorkspaceLanguage = {
 
     panels: {
       tradePlan: "Trade Plan",
+      watchOnly: "শুধু নজরে রাখুন",
       entryZone: "Entry Zone",
       stopLoss: "Stop Loss",
       target: "Target",
@@ -646,9 +649,9 @@ const stockWorkspaceLanguage = {
       projectedTarget:
         "সম্ভাব্য Target",
       breakoutProbability:
-        "🚀 Breakout-এর সম্ভাবনা",
+        "🚀 Breakout Evidence",
       breakdownProbability:
-        "📉 Breakdown-এর সম্ভাবনা",
+        "📉 Breakdown Evidence",
       stockColumn: "Stock",
       sectorColumn: "Sector",
       marketColumn: "Market",
@@ -793,7 +796,7 @@ const stockWorkspaceLanguage = {
 
     pattern: {
       confidence: (value) =>
-        `Confidence ${value}%`,
+        `Pattern match ${value}/100`,
       status: "অবস্থা",
       whyMatched:
         "কেন এই Pattern মিলেছে",
@@ -866,7 +869,7 @@ const stockWorkspaceLanguage = {
       decisionSupport:
         "Decision support",
       modelConfidence: (value) =>
-        `Model confidence ${value}%`,
+        `Heuristic evidence ${value}/100`,
       data: "Data",
       asOf: (date) =>
         ` · ${date} পর্যন্ত`,

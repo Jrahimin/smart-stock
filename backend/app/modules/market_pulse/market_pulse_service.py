@@ -4,7 +4,6 @@ import json
 from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Annotated
-from uuid import UUID
 from zoneinfo import ZoneInfo
 
 from fastapi import Depends
@@ -17,10 +16,18 @@ from app.core.constants.trading_constants import (
     VOLUME_EXPANSION_RATIO,
 )
 from app.core.core_config import Settings, get_settings
-from app.jobs.market_session_schedule import current_cache_ttl_seconds
-from app.core.enums import DataQualityFlag, ExchangeCode, MarketAlertType, PulseFocusLabel, TraderRecommendation, TrendDirection
+from app.core.enums import (
+    DataQualityFlag,
+    EligibilityStatus,
+    ExchangeCode,
+    MarketAlertType,
+    PulseFocusLabel,
+    TraderRecommendation,
+    TrendDirection,
+)
 from app.core.market_cache import pulse_cache_key
 from app.core.redis_client import OptionalRedisClient, get_redis_client
+from app.jobs.market_session_schedule import current_cache_ttl_seconds
 from app.modules.market_data.market_data_service import MarketDataService, get_market_data_service
 from app.modules.market_data.market_mover_rules import is_eligible_session_mover
 from app.modules.market_pulse.market_pulse_briefing import PulseBriefingRow, build_market_briefing
@@ -49,10 +56,13 @@ from app.modules.market_pulse.pulse_score import (
     meets_focus_threshold,
 )
 from app.modules.market_universe.market_universe_compute import technical_snapshot_from_read
-from app.modules.market_universe.market_universe_service import MarketUniverseService, get_market_universe_service
+from app.modules.market_universe.market_universe_schemas import ScoredUniverseRow
+from app.modules.market_universe.market_universe_service import (
+    MarketUniverseService,
+    get_market_universe_service,
+)
 from app.modules.stock_details.decision.technical import TechnicalSnapshot
 from app.modules.stock_details.stock_details_schemas import TraderDecisionSummaryRead
-
 
 DHAKA = ZoneInfo("Asia/Dhaka")
 
@@ -64,6 +74,14 @@ class PulsePresentationRow:
     decision: TraderDecisionSummaryRead
     score: object
     label: PulseFocusLabel
+
+
+def is_eligible_pulse_candidate(row: ScoredUniverseRow) -> bool:
+    return (
+        row.decision is not None
+        and row.eligibility is not None
+        and row.eligibility.status == EligibilityStatus.ELIGIBLE
+    )
 
 
 def _label_tone(label: PulseFocusLabel) -> str:
@@ -437,7 +455,7 @@ class MarketPulseService:
         previous_recommendations = previous.recommendations if previous else {}
 
         for universe_row in universe_rows:
-            if universe_row.decision is None:
+            if not is_eligible_pulse_candidate(universe_row):
                 continue
             snapshot = technical_snapshot_from_read(universe_row.technical_snapshot)
             decision = universe_row.decision

@@ -90,6 +90,7 @@ describe("stock decision localization", () => {
     expect(model.liquidity.label).toBe("কম");
     expect(model.liquidity.volumeRatio).toBe("গড়ের 0.6x");
     expect(model.freshness.label).toBe("তাজা");
+    expect(model.confidenceLabel).toBe("72/100");
   });
 
   it("localizes rsi overheated warning with parsed value", () => {

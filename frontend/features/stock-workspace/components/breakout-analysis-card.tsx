@@ -52,7 +52,7 @@ export function BreakoutAnalysisCard({ decision, copy }: BreakoutAnalysisCardPro
           <CircularProgressRing
             icon={isBreakdown ? "📉" : "🚀"}
             label=""
-            score={breakout.probability}
+            score={breakout.evidence_score ?? breakout.probability}
             size={64}
             tone={isBreakdown ? "risk" : "breakout"}
           />

@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from typing import TypeGuard
 
 from app.core.constants.trading_constants import (
-    DEFAULT_RISK_REWARD_TARGET,
     LIQUIDITY_TURNOVER_NORMAL,
     LIQUIDITY_TURNOVER_STRONG,
     LIQUIDITY_TURNOVER_THIN,
@@ -17,7 +17,13 @@ from app.core.constants.trading_constants import (
     VOLUME_EXPANSION_RATIO,
     VOLUME_THIN_RATIO,
 )
-from app.core.enums import LiquidityLabel, TrendDirection
+from app.core.enums import (
+    LiquidityLabel,
+    TradePlanStatus,
+    TraderRecommendation,
+    TrendDirection,
+    TurnoverProvenance,
+)
 from app.modules.stock_details.decision.technical import TechnicalSnapshot
 
 
@@ -27,7 +33,7 @@ def _percent_distance(from_price: float, to_price: float) -> float:
     return ((to_price - from_price) / from_price) * 100
 
 
-def _is_positive(value: float | None) -> bool:
+def _is_positive(value: float | None) -> TypeGuard[float]:
     return value is not None and value > 0
 
 
@@ -49,6 +55,8 @@ class TradePlanResult:
     target_high: float | None
     risk_reward_ratio: float | None
     explanation: str
+    status: TradePlanStatus
+    reasons: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -58,23 +66,31 @@ class LiquidityAnalysisResult:
     latest_volume_ratio: float | None
     volume_consistency_score: int
     average_turnover: float | None
+    median_turnover: float | None
+    turnover_observation_count: int
+    turnover_provenance: TurnoverProvenance
+    traded_session_ratio: float
     explanation: str
 
 
 def compute_price_position(snapshot: TechnicalSnapshot) -> PricePositionResult:
     price = snapshot.latest_price
+    support = snapshot.support
+    resistance = snapshot.resistance
+    sma20 = snapshot.sma20
+    ema20 = snapshot.ema20
     support_distance = None
     resistance_distance = None
     above_sma20 = None
     above_ema20 = None
-    if price is not None and _is_positive(snapshot.support):
-        support_distance = _percent_distance(snapshot.support, price)
-    if price is not None and _is_positive(snapshot.resistance):
-        resistance_distance = _percent_distance(price, snapshot.resistance)
-    if price is not None and _is_positive(snapshot.sma20):
-        above_sma20 = _percent_distance(snapshot.sma20, price)
-    if price is not None and _is_positive(snapshot.ema20):
-        above_ema20 = _percent_distance(snapshot.ema20, price)
+    if price is not None and _is_positive(support):
+        support_distance = _percent_distance(support, price)
+    if price is not None and _is_positive(resistance):
+        resistance_distance = _percent_distance(price, resistance)
+    if price is not None and _is_positive(sma20):
+        above_sma20 = _percent_distance(sma20, price)
+    if price is not None and _is_positive(ema20):
+        above_ema20 = _percent_distance(ema20, price)
     return PricePositionResult(
         current_price=price,
         distance_to_support_percent=support_distance,
@@ -85,28 +101,43 @@ def compute_price_position(snapshot: TechnicalSnapshot) -> PricePositionResult:
 
 
 def is_near_resistance(snapshot: TechnicalSnapshot) -> bool:
-    if not _is_positive(snapshot.latest_price) or not _is_positive(snapshot.resistance):
+    price = snapshot.latest_price
+    resistance = snapshot.resistance
+    if not _is_positive(price) or not _is_positive(resistance):
         return False
-    distance = _percent_distance(snapshot.latest_price, snapshot.resistance)
+    distance = _percent_distance(price, resistance)
     return 0 <= distance <= RECOMMENDATION_WAIT_NEAR_RESISTANCE_PERCENT
 
 
 def is_below_support(snapshot: TechnicalSnapshot) -> bool:
-    if snapshot.latest_price is None or not _is_positive(snapshot.support):
+    price = snapshot.latest_price
+    support = snapshot.support
+    if price is None or not _is_positive(support):
         return False
-    return snapshot.latest_price < snapshot.support * (1 - NEAR_LEVEL_PERCENT_THRESHOLD / 200)
+    return price < support * (1 - NEAR_LEVEL_PERCENT_THRESHOLD / 200)
 
 
-def _liquidity_from_volume(average_volume: float | None, ratio: float | None) -> tuple[LiquidityLabel, str]:
+def _liquidity_from_volume(
+    average_volume: float | None, ratio: float | None
+) -> tuple[LiquidityLabel, str]:
     """Fallback classification when BDT turnover history is unavailable."""
     if average_volume is None or average_volume <= 0:
-        return LiquidityLabel.ILLIQUID, "Average volume baseline unavailable; treat liquidity as uncertain."
+        return (
+            LiquidityLabel.ILLIQUID,
+            "Average volume baseline unavailable; treat liquidity as uncertain.",
+        )
     if average_volume >= 1_000_000 and (ratio or 0) >= 0.8:
-        return LiquidityLabel.STRONG, "Volume supports active participation (turnover baseline unavailable)."
+        return (
+            LiquidityLabel.STRONG,
+            "Volume supports active participation (turnover baseline unavailable).",
+        )
     if average_volume >= 250_000:
         return LiquidityLabel.NORMAL, "Liquidity is adequate for standard position sizing."
     if average_volume >= 50_000:
-        return LiquidityLabel.THIN, "Average volume is thin; use smaller size and wider confirmation."
+        return (
+            LiquidityLabel.THIN,
+            "Average volume is thin; use smaller size and wider confirmation.",
+        )
     return LiquidityLabel.ILLIQUID, "Very low average volume increases slippage and gap risk."
 
 
@@ -125,19 +156,20 @@ def compute_liquidity(snapshot: TechnicalSnapshot) -> LiquidityAnalysisResult:
             consistency = 20
 
     average_turnover = snapshot.average_turnover
-    if average_turnover is not None and average_turnover > 0:
-        if average_turnover >= LIQUIDITY_TURNOVER_STRONG:
+    robust_turnover = snapshot.median_turnover
+    if robust_turnover is not None and robust_turnover > 0:
+        if robust_turnover >= LIQUIDITY_TURNOVER_STRONG:
             label = LiquidityLabel.STRONG
-            explanation = "Daily turnover is deep; large positions can trade with low slippage."
-        elif average_turnover >= LIQUIDITY_TURNOVER_NORMAL:
+            explanation = "Median traded-session turnover is deep for the observed window."
+        elif robust_turnover >= LIQUIDITY_TURNOVER_NORMAL:
             label = LiquidityLabel.NORMAL
-            explanation = "Turnover is adequate for standard position sizing."
-        elif average_turnover >= LIQUIDITY_TURNOVER_THIN:
+            explanation = "Median traded-session turnover is adequate for standard sizing."
+        elif robust_turnover >= LIQUIDITY_TURNOVER_THIN:
             label = LiquidityLabel.THIN
-            explanation = "Turnover is thin; use smaller size and expect wider spreads."
+            explanation = "Median traded-session turnover is thin; use smaller size."
         else:
             label = LiquidityLabel.ILLIQUID
-            explanation = "Very low turnover increases slippage, gap, and manipulation risk."
+            explanation = "Very low median turnover increases slippage and non-fill risk."
     else:
         label, explanation = _liquidity_from_volume(snapshot.average_volume, ratio)
 
@@ -147,6 +179,10 @@ def compute_liquidity(snapshot: TechnicalSnapshot) -> LiquidityAnalysisResult:
         latest_volume_ratio=ratio,
         volume_consistency_score=consistency,
         average_turnover=average_turnover,
+        median_turnover=robust_turnover,
+        turnover_observation_count=snapshot.turnover_observation_count,
+        turnover_provenance=snapshot.turnover_provenance,
+        traded_session_ratio=snapshot.traded_session_ratio,
         explanation=explanation,
     )
 
@@ -155,8 +191,20 @@ def compute_trade_plan(snapshot: TechnicalSnapshot) -> TradePlanResult:
     price = snapshot.latest_price
     support = snapshot.support
     resistance = snapshot.resistance
-    if price is None:
-        return TradePlanResult(None, None, None, None, None, None, "Trade plan unavailable without latest price.")
+    sma20 = snapshot.sma20
+    atr14 = snapshot.atr14
+    if price is None or price <= 0:
+        return TradePlanResult(
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            "Trade plan unavailable without a positive latest price.",
+            TradePlanStatus.UNAVAILABLE,
+            ("positive_latest_price_required",),
+        )
 
     volatility_buffer = (snapshot.volatility or 1.5) * STOP_LOSS_VOLATILITY_BUFFER_MULTIPLIER / 100
     entry_low = price * (1 - 0.01)
@@ -164,36 +212,97 @@ def compute_trade_plan(snapshot: TechnicalSnapshot) -> TradePlanResult:
     if _is_positive(support) and price <= support * 1.03:
         entry_low = support * 0.995
         entry_high = support * 1.015
-    elif snapshot.trend == TrendDirection.UPTREND and _is_positive(snapshot.sma20):
-        entry_low = min(entry_low, snapshot.sma20 * 0.995)
+    elif snapshot.trend == TrendDirection.UPTREND and _is_positive(sma20):
+        sma_entry = sma20 * 0.995
+        if not _is_positive(support) or sma_entry > support:
+            entry_low = min(entry_low, sma_entry)
         entry_high = max(entry_high, price)
 
-    entry_mid = (entry_low + entry_high) / 2
+    conservative_entry = entry_high
 
-    # Structural stop below support (or a fixed % floor when support is unknown).
-    structural_stop = support * (1 - volatility_buffer) if _is_positive(support) else price * (1 - 0.04 - volatility_buffer)
-    stop = structural_stop
-    # When support sits far below, an ATR-based stop pulls risk back to a tradeable
-    # distance (take the closer of the two).
-    if _is_positive(snapshot.atr14):
-        atr_stop = entry_mid - TRADE_PLAN_ATR_STOP_MULTIPLIER * snapshot.atr14
-        stop = max(structural_stop, atr_stop)
-    # Hard cap: never risk more than TRADE_PLAN_MAX_RISK_PERCENT from entry.
-    max_risk_stop = entry_mid * (1 - TRADE_PLAN_MAX_RISK_PERCENT / 100)
-    stop = max(stop, max_risk_stop)
-    # Keep the stop strictly below entry and positive.
-    stop = min(stop, entry_mid * 0.999)
-    stop = max(stop, 0.0)
+    # A support-based stop is the structural invalidation. A policy risk cap may
+    # reject the setup, but it must not move the stop above that invalidation.
+    if _is_positive(support):
+        stop = support * (1 - volatility_buffer)
+    elif _is_positive(atr14):
+        stop = conservative_entry - TRADE_PLAN_ATR_STOP_MULTIPLIER * atr14
+    else:
+        stop = price * (1 - 0.04 - volatility_buffer)
 
-    target_high = resistance if _is_positive(resistance) and resistance > price else price * (1 + DEFAULT_RISK_REWARD_TARGET * 0.03)
+    if not _is_positive(resistance) or resistance <= conservative_entry:
+        if not (0 < stop < entry_low <= entry_high):
+            return TradePlanResult(
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                "Trade plan unavailable because structural stop and entry ordering is invalid.",
+                TradePlanStatus.UNAVAILABLE,
+                ("invalid_stop_entry_ordering",),
+            )
+        return TradePlanResult(
+            entry_zone_low=round(entry_low, 4),
+            entry_zone_high=round(entry_high, 4),
+            stop_loss=round(stop, 4),
+            target_low=None,
+            target_high=None,
+            risk_reward_ratio=None,
+            explanation=(
+                "Entry and structural invalidation are available, but no overhead "
+                "resistance objective supports a fresh entry plan."
+            ),
+            status=TradePlanStatus.WATCH_ONLY,
+            reasons=("resistance_target_unavailable",),
+        )
+
+    target_high = resistance
     target_low = target_high * 0.97 if target_high else None
-    risk = entry_mid - stop
-    reward = (target_high - entry_mid) if target_high is not None else None
+    risk = conservative_entry - stop
+    reward = (target_low - conservative_entry) if target_low is not None else None
     risk_reward = (reward / risk) if reward is not None and risk > 0 else None
 
-    explanation = "Entry near current/support context with stop capped by ATR/support and target at resistance."
+    geometry_valid = (
+        0 < entry_low <= entry_high
+        and 0 < stop < entry_low
+        and target_low is not None
+        and target_high is not None
+        and entry_high < target_low <= target_high
+        and risk_reward is not None
+        and risk_reward > 0
+    )
+    if not geometry_valid:
+        return TradePlanResult(
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            "Trade plan unavailable because stop, entry, and target ordering is invalid.",
+            TradePlanStatus.UNAVAILABLE,
+            ("invalid_price_ordering",),
+        )
+
+    risk_percent = risk / conservative_entry * 100
+    reasons: list[str] = []
+    if risk_percent > TRADE_PLAN_MAX_RISK_PERCENT:
+        reasons.append("structural_risk_exceeds_policy_limit")
     if risk_reward is not None and risk_reward < MIN_RISK_REWARD_RATIO:
-        explanation = "Risk/reward is below preferred threshold; treat as a watchlist setup."
+        reasons.append("conservative_risk_reward_below_minimum")
+
+    if reasons:
+        status = TradePlanStatus.WATCH_ONLY
+        explanation = (
+            "Scenario levels are ordered, but current entry feasibility does not pass "
+            "policy guards."
+        )
+    else:
+        status = TradePlanStatus.VALID_ENTRY_PLAN
+        explanation = (
+            "Entry, structural stop, and target references form a valid conditional scenario."
+        )
 
     return TradePlanResult(
         entry_zone_low=round(entry_low, 4),
@@ -203,4 +312,43 @@ def compute_trade_plan(snapshot: TechnicalSnapshot) -> TradePlanResult:
         target_high=round(target_high, 4) if target_high is not None else None,
         risk_reward_ratio=round(risk_reward, 2) if risk_reward is not None else None,
         explanation=explanation,
+        status=status,
+        reasons=tuple(reasons),
     )
+
+
+def align_trade_plan_with_decision(
+    plan: TradePlanResult,
+    recommendation: TraderRecommendation,
+    *,
+    is_stale: bool,
+    is_sparse: bool,
+) -> TradePlanResult:
+    """Prevent a long-entry plan from contradicting the final action or data state."""
+    if is_stale or is_sparse or recommendation == TraderRecommendation.SELL:
+        reason = (
+            "unreliable_data_for_entry_plan"
+            if is_stale or is_sparse
+            else "sell_action_has_no_entry_plan"
+        )
+        return TradePlanResult(
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            "A fresh long-entry plan is unavailable for this decision.",
+            TradePlanStatus.UNAVAILABLE,
+            (reason,),
+        )
+    if recommendation in {TraderRecommendation.HOLD, TraderRecommendation.WAIT}:
+        if plan.status == TradePlanStatus.UNAVAILABLE:
+            return plan
+        return replace(
+            plan,
+            status=TradePlanStatus.WATCH_ONLY,
+            reasons=(*plan.reasons, "current_action_does_not_support_fresh_entry"),
+            explanation="Scenario levels are watch-only for the current decision.",
+        )
+    return plan

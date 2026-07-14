@@ -1,7 +1,17 @@
 import type {
   BackendDailyPriceDto,
+  BackendCanonicalDecisionResultDto,
+  BackendDataReliabilityDto,
+  BackendDecisionConstraintDto,
+  BackendEligibilityResultDto,
   BackendStockDto,
+  BackendTechnicalSnapshotDto,
+  BackendTradingRiskDto,
+  EvidenceDirection,
   ExchangeCode,
+  HolderAction,
+  NonHolderAction,
+  TraderStance,
   TraderRecommendation,
   WarningSeverity,
 } from "@/lib/api/backend-api-types";
@@ -22,16 +32,47 @@ export type StockDecisionSupportDto = {
     recommendation: TraderRecommendation;
     confidence: number;
     reasoning: string[];
+    confidence_semantics?: "HEURISTIC_EVIDENCE";
+    evidence_strength?: number | null;
+    evidence_strength_semantics?: "HEURISTIC_DIRECTIONAL_EVIDENCE";
+    primary_reason?: string | null;
+    primary_reason_code?: string | null;
+    stance?: TraderStance | null;
+    non_holder_action?: NonHolderAction | null;
+    holder_action?: HolderAction | null;
+    constraints?: BackendDecisionConstraintDto[];
+    canonical?: BackendCanonicalDecisionResultDto | null;
   };
+  canonical_decision?: BackendCanonicalDecisionResultDto | null;
+  technical_snapshot?: BackendTechnicalSnapshotDto | null;
   opportunity: {
     score: number;
     components: ScoreComponentDto[];
+    score_semantics?: "HEURISTIC_LONG_SETUP_INDEX";
   };
   risk: {
     score: number;
     label: "LOW" | "MEDIUM" | "HIGH" | "SPECULATIVE";
     components: ScoreComponentDto[];
+    score_semantics?: "LEGACY_COMPOSITE_RISK";
   };
+  directional_evidence?: {
+    direction: EvidenceDirection;
+    bullish_score: number;
+    bearish_score: number;
+    coverage_percent: number;
+    components: Array<{
+      key: string;
+      label: string;
+      direction: EvidenceDirection;
+      strength: number;
+      weight: number;
+      explanation: string;
+    }>;
+    score_semantics?: "HEURISTIC_DIRECTIONAL_EVIDENCE";
+  } | null;
+  data_reliability?: BackendDataReliabilityDto | null;
+  trading_risk?: BackendTradingRiskDto | null;
   price_position: {
     current_price: number | null;
     distance_to_support_percent: number | null;
@@ -47,6 +88,8 @@ export type StockDecisionSupportDto = {
     target_high: number | null;
     risk_reward_ratio: number | null;
     explanation: string;
+    status?: "VALID_ENTRY_PLAN" | "WATCH_ONLY" | "UNAVAILABLE";
+    reasons?: string[];
   };
   liquidity: {
     label: "STRONG" | "NORMAL" | "THIN" | "ILLIQUID";
@@ -54,8 +97,13 @@ export type StockDecisionSupportDto = {
     latest_volume_ratio: number | null;
     volume_consistency_score: number;
     average_turnover: number | null;
+    median_turnover?: number | null;
+    turnover_observation_count?: number;
+    turnover_provenance?: "REPORTED" | "ESTIMATED" | "MIXED" | "UNKNOWN";
+    traded_session_ratio?: number;
     explanation: string;
   };
+  eligibility?: BackendEligibilityResultDto;
   warnings: Array<{
     code: string;
     title: string;
@@ -93,6 +141,8 @@ export type PatternDetectionDto = {
   matched_reasons: string[];
   target_calculation: string;
   direction: string;
+  pattern_match_score?: number | null;
+  score_semantics?: "HEURISTIC_PATTERN_MATCH";
 };
 
 export type BreakoutAnalysisDto = {
@@ -103,6 +153,8 @@ export type BreakoutAnalysisDto = {
   projected_target: number | null;
   explanation: string;
   direction?: "breakout" | "breakdown";
+  evidence_score?: number | null;
+  score_semantics?: "HEURISTIC_BREAKOUT_EVIDENCE";
 };
 
 export type OwnershipTrendPointDto = {

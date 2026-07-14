@@ -296,7 +296,7 @@ def build_why_here(
     volume_ratio = get_volume_ratio(snapshot)
 
     if label == PulseFocusLabel.NEW_BUY_SETUP:
-        reasons.append(f"BUY setup at {decision.confidence}% confidence")
+        reasons.append(f"BUY setup with {decision.confidence}/100 evidence strength")
     elif label == PulseFocusLabel.SIGNAL_UPGRADE:
         reasons.append("Trader signal upgraded to BUY")
     elif label == PulseFocusLabel.VOLUME_BREAKOUT:

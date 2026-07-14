@@ -78,6 +78,11 @@ Factory: `market_data_source_factory.build_primary_market_data_source()`.
 
 Skip rows where `close <= 0`. `Value` turnover: unsuffixed = millions BDT; `K`/`M` suffixes supported.
 
+`daily_prices.turnover_provenance` records `REPORTED`, `ESTIMATED`, `MIXED`, or
+`UNKNOWN`. Snapshot/archive values supplied by the source are reported; the
+per-stock historical fallback `close × volume` is estimated. Migration backfill
+uses only known source contracts and leaves other rows unknown.
+
 ## Schedulers
 
 **Production (Docker):** Market snapshot and daily sync jobs run in the dedicated `backend-scheduler` container (`python -m app.jobs.scheduler`, `RUN_SCHEDULER=true`). The API container (`backend-api`) sets `RUN_SCHEDULER=false` and does not start schedulers.
@@ -118,7 +123,9 @@ Session helpers live in `market_session_schedule.py` (shared with `GET /market/f
 * **Session gate:** before snapshot or daily sync writes, `validate_market_session()` calls the AmarStock index API and requires `DateEpoch` trade date to equal today (Asia/Dhaka). Mismatch (public holiday, stale feed, API lag) skips all writes for that run. `MarketStatus` is logged only. Override: `skip_session_validation=True` on sync functions or `--skip-session-validation` on the CLI.
 * Unknown symbols skipped — run `seed_stocks` on a fresh DB
 * Official breadth from index API only; do not aggregate LatestPrice `ChangePer` as exchange breadth
-* Derived on write: `price_change`, `price_change_percent`, `day_range`, `vwap`, etc.
+* Snapshot ingestion derives `price_change`, `price_change_percent`, `day_range`,
+  and `vwap` on write. Per-stock historical fallback rows may retain null stored
+  changes; analytical returns and volatility are derived from validated closes.
 
 ## Enrichment
 

@@ -85,7 +85,7 @@ const dashboardGuideDialogsEn = {
   signals: {
     eyebrow: "🎯 Smart Signals",
     message:
-      "Signals point to possibilities, not guarantees. Check the reason, confidence, and risk before making a decision.",
+      "Signals point to possibilities, not guarantees. Check the reason, heuristic evidence, and risk before making a decision.",
   },
   discovery: {
     eyebrow: "🔍 Who deserves attention today?",

@@ -31,6 +31,41 @@ class DataQualityFlag(StrEnum):
     SUSPICIOUS = "SUSPICIOUS"
 
 
+class TurnoverProvenance(StrEnum):
+    REPORTED = "REPORTED"
+    ESTIMATED = "ESTIMATED"
+    MIXED = "MIXED"
+    UNKNOWN = "UNKNOWN"
+
+
+class EligibilityStatus(StrEnum):
+    ELIGIBLE = "ELIGIBLE"
+    LIMITED = "LIMITED"
+    REVIEW_ONLY = "REVIEW_ONLY"
+    INELIGIBLE = "INELIGIBLE"
+
+
+class DataReliabilityLabel(StrEnum):
+    HIGH = "HIGH"
+    MEDIUM = "MEDIUM"
+    LOW = "LOW"
+    UNRELIABLE = "UNRELIABLE"
+
+
+class EvidenceDirection(StrEnum):
+    BULLISH = "BULLISH"
+    BEARISH = "BEARISH"
+    NEUTRAL = "NEUTRAL"
+    UNKNOWN = "UNKNOWN"
+
+
+class DecisionConstraintKind(StrEnum):
+    BLOCK = "BLOCK"
+    DOWNGRADE = "DOWNGRADE"
+    EXIT_AVOID = "EXIT_AVOID"
+    INFORMATIONAL = "INFORMATIONAL"
+
+
 class StockDetailsSyncJobStatus(StrEnum):
     PENDING = "PENDING"
     RUNNING = "RUNNING"
@@ -136,6 +171,27 @@ class TraderRecommendation(StrEnum):
     SELL = "SELL"
 
 
+class TraderStance(StrEnum):
+    BULLISH = "BULLISH"
+    CONSTRUCTIVE = "CONSTRUCTIVE"
+    NEUTRAL = "NEUTRAL"
+    BEARISH = "BEARISH"
+    UNAVAILABLE = "UNAVAILABLE"
+
+
+class NonHolderAction(StrEnum):
+    BUY = "BUY"
+    WAIT = "WAIT"
+    AVOID = "AVOID"
+
+
+class HolderAction(StrEnum):
+    HOLD = "HOLD"
+    REVIEW = "REVIEW"
+    SELL = "SELL"
+    REDUCE = "REDUCE"
+
+
 class PulseFocusLabel(StrEnum):
     NEW_BUY_SETUP = "New BUY Setup"
     MOMENTUM_BUILDING = "Momentum Building"
@@ -170,6 +226,12 @@ class LiquidityLabel(StrEnum):
     NORMAL = "NORMAL"
     THIN = "THIN"
     ILLIQUID = "ILLIQUID"
+
+
+class TradePlanStatus(StrEnum):
+    VALID_ENTRY_PLAN = "VALID_ENTRY_PLAN"
+    WATCH_ONLY = "WATCH_ONLY"
+    UNAVAILABLE = "UNAVAILABLE"
 
 
 class WarningSeverity(StrEnum):
@@ -367,4 +429,3 @@ class AdminConfigCategory(StrEnum):
     MARKET = "MARKET"
     EMAIL = "EMAIL"
     SCRAPER = "SCRAPER"
-

@@ -307,6 +307,39 @@
 
 ---
 
+## 🧭 Trading Intelligence Refinement
+
+Source: `backend/docs/trading_intelligence_audit_and_refinement_plan.md`.
+
+* [x] Phase 1 — correctness fixes and honest result semantics
+* [x] Phase 2 — data correctness and DSE/CSE safeguards
+* [x] Phase 3 — decision logic, risk, evidence, and trade-plan coherence
+* [x] Phase 4 — authoritative decision ownership and cross-surface consistency
+
+Phase 1 keeps existing response fields readable while adding explicit score semantics and trade-plan feasibility status. No Phase 2 eligibility, adjusted-series, session-staleness, or liquidity-policy work is included.
+
+Phase 2 adds atomic OHLC construction, close-derived volatility, Wilder ATR14,
+official-session staleness, robust traded-session liquidity/provenance, and one
+shared eligibility context for detail/universe/Pulse. A verified adjustment
+factor feed is unavailable, so known/unresolved corporate-action breaks fail
+closed as REVIEW_ONLY rather than using invented factors.
+
+Phase 3 adds separate directional evidence, data reliability, liquidity, and
+trading-risk meanings; one authoritative constraint set and contextual
+holder/non-holder action matrix; explicit primary-reason ownership; and
+target-less watch-only handling when a defensible resistance objective is
+missing. Existing API fields and UI composition remain compatible.
+
+Phase 4 adds a versioned `CanonicalDecisionResult` and one shared strategy-input
+factory for universe and stock detail. Universe rows are the reusable compact
+source for list surfaces and watchlists; watchlists no longer recompute technicals
+or actions. Redis identity includes exchange session and strategy version,
+persisted signals are comparable only when version/date/taxonomy match, and
+frontend chart calculations cannot override backend action badges. Existing
+recommendation fields remain compatibility projections.
+
+---
+
 # 🧠 EXECUTION STRATEGY
 
 ### Phase 1 (Minimum usable system)

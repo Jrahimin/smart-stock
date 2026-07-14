@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import date
-from decimal import Decimal
 
 from app.models import DailyPrice, Stock
 from app.modules.market_universe.market_universe_schemas import (
@@ -9,9 +8,11 @@ from app.modules.market_universe.market_universe_schemas import (
     TechnicalSnapshotRead,
     UniverseSessionRead,
 )
-from app.modules.stock_details.decision.engine import compute_trader_decision_from_prices
+from app.modules.stock_details.decision.canonical import build_strategy_input
+from app.modules.stock_details.decision.engine import compute_trader_decision
 from app.modules.stock_details.decision.summary import build_trader_decision_summary
 from app.modules.stock_details.decision.technical import TechnicalSnapshot, build_technical_snapshot
+from app.modules.stock_details.stock_details_schemas import EligibilityResultRead
 from app.modules.stocks.stocks_schemas import StockRead
 
 
@@ -55,6 +56,17 @@ def technical_snapshot_to_read(snapshot: TechnicalSnapshot) -> TechnicalSnapshot
         is_breakout=snapshot.is_breakout,
         structure=snapshot.structure,
         gap_frequency_percent=snapshot.gap_frequency_percent,
+        invalid_ohlcv_row_count=snapshot.invalid_ohlcv_row_count,
+        latest_row_valid=snapshot.latest_row_valid,
+        traded_session_count=snapshot.traded_session_count,
+        zero_volume_session_count=snapshot.zero_volume_session_count,
+        traded_session_ratio=snapshot.traded_session_ratio,
+        volume_observation_count=snapshot.volume_observation_count,
+        median_turnover=snapshot.median_turnover,
+        turnover_observation_count=snapshot.turnover_observation_count,
+        turnover_provenance=snapshot.turnover_provenance,
+        analytical_price_basis=snapshot.analytical_price_basis,
+        adjusted_close_coverage_ratio=snapshot.adjusted_close_coverage_ratio,
     )
 
 
@@ -86,6 +98,17 @@ def technical_snapshot_from_read(read: TechnicalSnapshotRead) -> TechnicalSnapsh
         is_breakout=read.is_breakout,
         structure=read.structure,
         gap_frequency_percent=read.gap_frequency_percent,
+        invalid_ohlcv_row_count=read.invalid_ohlcv_row_count,
+        latest_row_valid=read.latest_row_valid,
+        traded_session_count=read.traded_session_count,
+        zero_volume_session_count=read.zero_volume_session_count,
+        traded_session_ratio=read.traded_session_ratio,
+        volume_observation_count=read.volume_observation_count,
+        median_turnover=read.median_turnover,
+        turnover_observation_count=read.turnover_observation_count,
+        turnover_provenance=read.turnover_provenance,
+        analytical_price_basis=read.analytical_price_basis,
+        adjusted_close_coverage_ratio=read.adjusted_close_coverage_ratio,
     )
 
 
@@ -106,6 +129,8 @@ def build_scored_universe_rows(
     grouped: dict[str, dict[str, object]],
     *,
     market_regime: str | None = None,
+    exchange_session_dates: list[date] | tuple[date, ...] | None = None,
+    corporate_action_dates_by_stock: dict[object, set[date]] | None = None,
 ) -> list[ScoredUniverseRow]:
     scored: list[ScoredUniverseRow] = []
     for entry in grouped.values():
@@ -119,12 +144,14 @@ def build_scored_universe_rows(
         if snapshot is None:
             continue
 
-        bundle = compute_trader_decision_from_prices(
+        strategy_input = build_strategy_input(
+            stock,
             sorted_prices,
-            category=stock.category,
-            snapshot=snapshot,
             market_regime=market_regime,
+            exchange_session_dates=exchange_session_dates,
+            known_corporate_action_dates=(corporate_action_dates_by_stock or {}).get(stock.id),
         )
+        bundle = compute_trader_decision(strategy_input, snapshot=snapshot)
         decision = build_trader_decision_summary(bundle) if bundle is not None else None
         latest_price = sorted_prices[-1]
 
@@ -133,6 +160,30 @@ def build_scored_universe_rows(
                 stock=StockRead.model_validate(stock),
                 technical_snapshot=technical_snapshot_to_read(snapshot),
                 decision=decision,
+                eligibility=(
+                    EligibilityResultRead(
+                        status=bundle.eligibility.status,
+                        reason_codes=list(bundle.eligibility.reason_codes),
+                        exchange_session_date=bundle.eligibility.exchange_session_date,
+                        latest_trade_date=bundle.eligibility.latest_trade_date,
+                        missed_session_count=bundle.eligibility.missed_session_count,
+                        valid_ohlcv_row_count=bundle.eligibility.valid_ohlcv_row_count,
+                        invalid_ohlcv_row_count=bundle.eligibility.invalid_ohlcv_row_count,
+                        traded_session_count=bundle.eligibility.traded_session_count,
+                        zero_volume_session_count=bundle.eligibility.zero_volume_session_count,
+                        traded_session_ratio=bundle.eligibility.traded_session_ratio,
+                        quality_ok_count=bundle.eligibility.quality_ok_count,
+                        quality_partial_count=bundle.eligibility.quality_partial_count,
+                        quality_suspicious_count=bundle.eligibility.quality_suspicious_count,
+                        median_turnover=bundle.eligibility.median_turnover,
+                        turnover_observation_count=bundle.eligibility.turnover_observation_count,
+                        turnover_provenance=bundle.eligibility.turnover_provenance,
+                        analytical_price_basis=bundle.eligibility.analytical_price_basis,
+                        corporate_action_status=bundle.eligibility.corporate_action_status,
+                    )
+                    if bundle is not None and bundle.eligibility is not None
+                    else None
+                ),
                 session=session_from_latest_price(latest_price),
             )
         )

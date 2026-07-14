@@ -1,15 +1,41 @@
 import asyncio
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
 
+from app.core.enums import (
+    DataQualityFlag,
+    EligibilityStatus,
+    ExchangeCode,
+    HolderAction,
+    NonHolderAction,
+    RiskLevelLabel,
+    TradePlanStatus,
+    TraderRecommendation,
+    TraderStance,
+    TrendDirection,
+)
 from app.core.exception_handlers import NotFoundError
 from app.core.security_config import UserContext
+from app.modules.market_universe.market_universe_schemas import (
+    ScoredUniverseRow,
+    UniverseSessionRead,
+)
+from app.modules.stock_details.stock_details_schemas import (
+    CanonicalDecisionResultRead,
+    TechnicalSnapshotRead,
+    TraderDecisionSummaryRead,
+)
+from app.modules.stocks.stocks_schemas import StockRead
 from app.modules.watchlists.watchlists_schemas import UserWatchlistCreate, UserWatchlistUpdate
-from app.modules.watchlists.watchlists_service import WatchlistsService, _build_watching_label, _compute_unrealized_gain_percent
+from app.modules.watchlists.watchlists_service import (
+    WatchlistsService,
+    _build_watching_label,
+    _compute_unrealized_gain_percent,
+)
 
 
 class FakeWatchlistsRepository:
@@ -66,14 +92,16 @@ class FakeWatchlistsRepository:
     async def list_latest_prices_for_stocks(self, stock_ids):
         return {}
 
-    async def list_price_windows_for_stocks(self, stock_ids, *, price_window_limit):
-        return {stock_id: [] for stock_id in stock_ids}
-
 
 def _service(user_id) -> WatchlistsService:
     repository = FakeWatchlistsRepository()
     stock_id = uuid4()
-    repository.stocks[stock_id] = SimpleNamespace(id=stock_id, symbol="GP", category="A")
+    repository.stocks[stock_id] = SimpleNamespace(
+        id=stock_id,
+        symbol="GP",
+        category="A",
+        exchange=ExchangeCode.DSE,
+    )
     user_context = UserContext(
         user_id=str(user_id),
         display_name="Trader",
@@ -81,6 +109,82 @@ def _service(user_id) -> WatchlistsService:
         is_authenticated=True,
     )
     return WatchlistsService(repository, user_context), stock_id, repository
+
+
+def _canonical_universe_row(stock_id, *, stale: bool = False) -> ScoredUniverseRow:
+    now = datetime(2026, 7, 14, tzinfo=UTC)
+    recommendation = TraderRecommendation.WAIT if stale else TraderRecommendation.BUY
+    non_holder_action = NonHolderAction.WAIT if stale else NonHolderAction.BUY
+    holder_action = HolderAction.REVIEW if stale else HolderAction.SELL
+    eligibility_status = EligibilityStatus.REVIEW_ONLY if stale else EligibilityStatus.ELIGIBLE
+    canonical = CanonicalDecisionResultRead(
+        stock_id=stock_id,
+        exchange=ExchangeCode.DSE,
+        strategy_version="trading-intelligence-v1",
+        threshold_version="trading-thresholds-v1",
+        action_taxonomy="TRADER_RECOMMENDATION_V1",
+        as_of_date=date(2026, 7, 14),
+        previous_session_date=date(2026, 7, 13),
+        calculated_at=now,
+        shared_decision_id="watchlist-stale-id" if stale else "watchlist-normal-id",
+        result_semantics={"recommendation": "CANONICAL_CONTEXTUAL_ACTION"},
+        recommendation=recommendation,
+        evidence_strength=72,
+        opportunity_score=66,
+        risk_label=RiskLevelLabel.LOW,
+        trade_plan_status=TradePlanStatus.WATCH_ONLY,
+        eligibility_status=eligibility_status,
+        primary_reason="Canonical reason",
+        primary_reason_code="canonical_test",
+        stance=TraderStance.NEUTRAL if stale else TraderStance.CONSTRUCTIVE,
+        non_holder_action=non_holder_action,
+        holder_action=holder_action,
+    )
+    return ScoredUniverseRow(
+        stock=StockRead(
+            id=stock_id,
+            symbol="GP",
+            name="Grameenphone",
+            exchange="DSE",
+            sector="Telecommunication",
+            category="A",
+            created_at=now,
+            updated_at=now,
+        ),
+        technical_snapshot=TechnicalSnapshotRead(
+            latest_price=300,
+            previous_close=298,
+            price_change=2,
+            price_change_percent=0.67,
+            volume=100_000,
+            average_volume=80_000,
+            turnover=30_000_000,
+            rsi=58,
+            trend=TrendDirection.UPTREND,
+            data_quality=DataQualityFlag.OK,
+            latest_trade_date="2026-07-14",
+            ohlcv_row_count=90,
+        ),
+        decision=TraderDecisionSummaryRead(
+            recommendation=recommendation,
+            confidence=72,
+            reason="Canonical reason",
+            opportunity_score=66,
+            risk_label=RiskLevelLabel.LOW,
+            non_holder_action=non_holder_action,
+            holder_action=holder_action,
+            canonical=canonical,
+        ),
+        session=UniverseSessionRead(
+            latest_trade_date=date(2026, 7, 14),
+            close_price=Decimal("300"),
+            volume=100_000,
+            turnover=Decimal("30000000"),
+            change_percent=Decimal("0.67"),
+            data_quality_flag=DataQualityFlag.OK,
+            updated_at=now,
+        ),
+    )
 
 
 def test_compute_unrealized_gain_percent():
@@ -129,11 +233,15 @@ def test_holding_only_filter_and_has_note():
     async def run():
         entry, _ = await service.add_item(UserWatchlistCreate(stock_id=stock_id))
         other_stock_id = uuid4()
-        repository.stocks[other_stock_id] = SimpleNamespace(id=other_stock_id, symbol="BRAC", category="A")
+        repository.stocks[other_stock_id] = SimpleNamespace(
+            id=other_stock_id, symbol="BRAC", category="A"
+        )
         other, _ = await service.add_item(UserWatchlistCreate(stock_id=other_stock_id))
         await service.update_item(
             stock_id,
-            UserWatchlistUpdate(is_holding=True, buy_price=Decimal("250"), note="  Waiting for breakout.  "),
+            UserWatchlistUpdate(
+                is_holding=True, buy_price=Decimal("250"), note="  Waiting for breakout.  "
+            ),
         )
         entry.is_holding = True
         other.is_holding = False
@@ -174,3 +282,67 @@ def test_missing_stock_raises_not_found():
             await service.add_item(UserWatchlistCreate(stock_id=uuid4()))
 
     asyncio.run(run())
+
+
+def test_watchlist_projects_canonical_universe_decision_and_holding_context() -> None:
+    user_id = uuid4()
+    service, stock_id, _repository = _service(user_id)
+
+    class FakeUniverseService:
+        async def get_scored_universe(self, *, exchange):
+            assert str(exchange) == "DSE"
+            return [_canonical_universe_row(stock_id)]
+
+    service.universe_service = FakeUniverseService()
+
+    async def run():
+        await service.add_item(UserWatchlistCreate(stock_id=stock_id))
+        non_holder = (await service.list_items(holding_only=False, limit=10, offset=0))[0]
+        assert non_holder.decision_source == "CANONICAL_UNIVERSE"
+        assert non_holder.contextual_action == "BUY"
+        assert non_holder.trader_decision is not None
+        assert non_holder.trader_decision.reason == "Canonical reason"
+        assert non_holder.trader_decision.canonical is not None
+        assert non_holder.trader_decision.canonical.shared_decision_id == "watchlist-normal-id"
+        assert non_holder.technical_snapshot is not None
+        assert non_holder.technical_snapshot.rsi == 58
+
+        await service.update_item(stock_id, UserWatchlistUpdate(is_holding=True))
+        holder = (await service.list_items(holding_only=False, limit=10, offset=0))[0]
+        assert holder.contextual_action == "SELL"
+        assert holder.trader_decision == non_holder.trader_decision
+
+    asyncio.run(run())
+
+
+def test_watchlist_preserves_stale_review_only_canonical_identity() -> None:
+    user_id = uuid4()
+    service, stock_id, _repository = _service(user_id)
+
+    class FakeUniverseService:
+        async def get_scored_universe(self, *, exchange):
+            assert exchange == ExchangeCode.DSE
+            return [_canonical_universe_row(stock_id, stale=True)]
+
+    service.universe_service = FakeUniverseService()
+
+    async def run():
+        await service.add_item(UserWatchlistCreate(stock_id=stock_id))
+        item = (await service.list_items(holding_only=False, limit=10, offset=0))[0]
+        assert item.contextual_action == "WAIT"
+        assert item.trader_decision is not None
+        assert item.trader_decision.recommendation == TraderRecommendation.WAIT
+        assert item.trader_decision.canonical is not None
+        assert item.trader_decision.canonical.shared_decision_id == "watchlist-stale-id"
+        assert item.trader_decision.canonical.eligibility_status == EligibilityStatus.REVIEW_ONLY
+
+    asyncio.run(run())
+
+
+def test_watchlist_service_has_no_parallel_decision_computation() -> None:
+    import app.modules.watchlists.watchlists_service as module
+
+    source = open(module.__file__, encoding="utf-8").read()
+    assert "compute_trader_decision" not in source
+    assert "build_technical_snapshot" not in source
+    assert "list_price_windows_for_stocks" not in source

@@ -7,17 +7,26 @@ from typing import Annotated
 from fastapi import Depends
 
 from app.core.constants.trading_constants import (
+    ELIGIBILITY_SESSION_LOOKBACK,
     PULSE_PRICE_WINDOW_LIMIT,
     PULSE_UNIVERSE_LIMIT,
     REGIME_SUMMARY_FETCH_LIMIT,
+    TRADING_STRATEGY_VERSION,
+    TRADING_THRESHOLD_VERSION,
 )
 from app.core.core_config import Settings, get_settings
 from app.core.enums import ExchangeCode
 from app.core.perf_timing import PerfReport, async_perf_stage
 from app.core.redis_client import OptionalRedisClient, get_redis_client
 from app.jobs.market_session_schedule import current_cache_ttl_seconds
-from app.modules.market_data.market_data_repository import MarketDataRepository, get_market_data_repository
-from app.modules.market_universe.market_universe_cache import universe_cache_key, universe_prev_cache_key
+from app.modules.market_data.market_data_repository import (
+    MarketDataRepository,
+    get_market_data_repository,
+)
+from app.modules.market_universe.market_universe_cache import (
+    universe_cache_key,
+    universe_prev_cache_key,
+)
 from app.modules.market_universe.market_universe_compute import (
     build_scored_universe_rows,
     group_price_window_rows,
@@ -70,9 +79,11 @@ class MarketUniverseService:
             cache_key = universe_cache_key("scored", exchange)
             cached = await self._cache_get(cache_key)
             if cached is not None:
-                rows = ScoredUniverseCacheRead.model_validate(cached).rows
-                if self._rows_match_session(rows, session_trade_date):
-                    return rows
+                cached_payload = self._parse_cache_payload(cached)
+                if cached_payload is not None and self._cache_matches_identity(
+                    cached_payload, session_trade_date
+                ):
+                    return cached_payload.rows
                 logger.info(
                     "Ignoring stale universe:scored for %s (session %s)",
                     exchange.value,
@@ -82,13 +93,15 @@ class MarketUniverseService:
             prev_key = universe_prev_cache_key(exchange)
             stale = await self._cache_get(prev_key)
             if stale is not None:
-                rows = ScoredUniverseCacheRead.model_validate(stale).rows
-                if self._rows_match_session(rows, session_trade_date):
+                stale_payload = self._parse_cache_payload(stale)
+                if stale_payload is not None and self._cache_matches_identity(
+                    stale_payload, session_trade_date
+                ):
                     logger.info("Serving universe:scored:prev for %s while rebuild runs", exchange.value)
                     from app.jobs.market_cache_spawn import spawn_rebuild_universe_read_cache
 
                     spawn_rebuild_universe_read_cache(exchange, settings=self.settings)
-                    return rows
+                    return stale_payload.rows
                 logger.info(
                     "Ignoring stale universe:scored:prev for %s (session %s)",
                     exchange.value,
@@ -101,10 +114,34 @@ class MarketUniverseService:
         return rows
 
     @staticmethod
-    def _rows_match_session(rows: list[ScoredUniverseRow], session_trade_date: date | None) -> bool:
-        if session_trade_date is None or not rows:
+    def _parse_cache_payload(payload: dict) -> ScoredUniverseCacheRead | None:
+        try:
+            return ScoredUniverseCacheRead.model_validate(payload)
+        except ValueError:
+            return None
+
+    @staticmethod
+    def _cache_matches_identity(
+        payload: ScoredUniverseCacheRead,
+        session_trade_date: date | None,
+    ) -> bool:
+        if (
+            session_trade_date is None
+            or not payload.rows
+            or payload.session_trade_date != session_trade_date
+            or payload.strategy_version != TRADING_STRATEGY_VERSION
+            or payload.threshold_version != TRADING_THRESHOLD_VERSION
+        ):
             return False
-        return rows[0].session.latest_trade_date == session_trade_date
+        return all(
+            row.eligibility is not None
+            and row.eligibility.exchange_session_date == session_trade_date
+            and row.decision is not None
+            and row.decision.canonical is not None
+            and row.decision.canonical.strategy_version == TRADING_STRATEGY_VERSION
+            and row.decision.canonical.threshold_version == TRADING_THRESHOLD_VERSION
+            for row in payload.rows
+        )
 
     async def recompute_scored_universe(self, exchange: ExchangeCode) -> list[ScoredUniverseRow]:
         perf = PerfReport("universe.rebuild")
@@ -122,16 +159,46 @@ class MarketUniverseService:
                 offset=0,
             )
             market_regime = resolve_regime_from_summaries(summaries)
+        grouped = group_price_window_rows(window_rows)
+        stock_ids = {
+            entry["stock"].id
+            for entry in grouped.values()
+            if hasattr(entry.get("stock"), "id")
+        }
+        async with async_perf_stage(perf, "db.eligibility_context"):
+            exchange_session_dates = await self.market_repository.list_recent_exchange_session_dates(
+                exchange=exchange,
+                limit=ELIGIBILITY_SESSION_LOOKBACK,
+            )
+            corporate_action_dates = (
+                await self.market_repository.list_corporate_action_dates_by_stock(
+                    stock_ids=stock_ids,
+                )
+            )
         async with async_perf_stage(perf, "compute.scored_rows"):
-            grouped = group_price_window_rows(window_rows)
-            rows = build_scored_universe_rows(grouped, market_regime=market_regime)
+            rows = build_scored_universe_rows(
+                grouped,
+                market_regime=market_regime,
+                exchange_session_dates=exchange_session_dates,
+                corporate_action_dates_by_stock=corporate_action_dates,
+            )
         perf.log_summary()
         self._last_compute_ms = perf.total_ms
         return rows
 
     async def cache_scored_universe(self, exchange: ExchangeCode, rows: list[ScoredUniverseRow]) -> None:
         cache_key = universe_cache_key("scored", exchange)
-        payload = ScoredUniverseCacheRead(rows=rows).model_dump(mode="json")
+        session_dates = [
+            row.eligibility.exchange_session_date
+            for row in rows
+            if row.eligibility is not None and row.eligibility.exchange_session_date is not None
+        ]
+        payload = ScoredUniverseCacheRead(
+            strategy_version=TRADING_STRATEGY_VERSION,
+            threshold_version=TRADING_THRESHOLD_VERSION,
+            session_trade_date=max(session_dates) if session_dates else None,
+            rows=rows,
+        ).model_dump(mode="json")
 
         current = await self._cache_get(cache_key)
         if current is not None:

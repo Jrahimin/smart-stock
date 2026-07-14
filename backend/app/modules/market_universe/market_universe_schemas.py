@@ -3,40 +3,19 @@ from __future__ import annotations
 from datetime import date, datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 
-from app.core.enums import DataQualityFlag, ExchangeCode, TrendDirection
-from app.modules.stock_details.stock_details_schemas import TraderDecisionSummaryRead
+from app.core.constants.trading_constants import (
+    TRADING_STRATEGY_VERSION,
+    TRADING_THRESHOLD_VERSION,
+)
+from app.core.enums import DataQualityFlag, ExchangeCode
+from app.modules.stock_details.stock_details_schemas import (
+    EligibilityResultRead,
+    TechnicalSnapshotRead,
+    TraderDecisionSummaryRead,
+)
 from app.modules.stocks.stocks_schemas import StockRead
-
-
-class TechnicalSnapshotRead(BaseModel):
-    latest_price: float | None = None
-    previous_close: float | None = None
-    price_change: float | None = None
-    price_change_percent: float | None = None
-    volume: int = 0
-    average_volume: float | None = None
-    turnover: float | None = None
-    rsi: float | None = None
-    sma20: float | None = None
-    ema20: float | None = None
-    volatility: float | None = None
-    support: float | None = None
-    resistance: float | None = None
-    trend: TrendDirection = TrendDirection.UNKNOWN
-    data_quality: DataQualityFlag = DataQualityFlag.OK
-    latest_trade_date: str | None = None
-    ohlcv_row_count: int = 0
-    sparkline_closes: list[float] = Field(default_factory=list, max_length=12)
-    sma50: float | None = None
-    atr14: float | None = None
-    average_turnover: float | None = None
-    return_5d_percent: float | None = None
-    return_20d_percent: float | None = None
-    is_breakout: bool = False
-    structure: str = "neutral"
-    gap_frequency_percent: float | None = None
 
 
 class UniverseSessionRead(BaseModel):
@@ -56,6 +35,7 @@ class ScoredUniverseRow(BaseModel):
     stock: StockRead
     technical_snapshot: TechnicalSnapshotRead
     decision: TraderDecisionSummaryRead | None = None
+    eligibility: EligibilityResultRead | None = None
     session: UniverseSessionRead
 
 
@@ -63,6 +43,8 @@ class UniverseRowsMetaRead(BaseModel):
     exchange: ExchangeCode
     listed_stock_count: int
     session_trade_date: date | None = None
+    strategy_version: str = TRADING_STRATEGY_VERSION
+    threshold_version: str = TRADING_THRESHOLD_VERSION
 
 
 class UniverseRowsRead(BaseModel):
@@ -71,4 +53,7 @@ class UniverseRowsRead(BaseModel):
 
 
 class ScoredUniverseCacheRead(BaseModel):
+    strategy_version: str
+    threshold_version: str
+    session_trade_date: date | None
     rows: list[ScoredUniverseRow] = Field(default_factory=list)

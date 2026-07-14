@@ -1,3 +1,4 @@
+import asyncio
 from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID
@@ -5,15 +6,19 @@ from uuid import UUID
 from fastapi import Depends
 
 from app.api.dependencies.auth_dependencies import get_current_user
-from app.core.constants.trading_constants import PULSE_PRICE_WINDOW_LIMIT
 from app.core.exception_handlers import NotFoundError
 from app.core.security_config import UserContext
 from app.models import UserWatchlist
-from app.modules.market_universe.market_universe_compute import technical_snapshot_to_read
-from app.modules.market_universe.market_universe_schemas import TechnicalSnapshotRead
-from app.modules.stock_details.decision.summary import compute_trader_decision_summary_for_stock
-from app.modules.stock_details.decision.technical import build_technical_snapshot
-from app.modules.watchlists.watchlists_repository import WatchlistsRepository, get_watchlists_repository
+from app.modules.market_universe.market_universe_schemas import ScoredUniverseRow
+from app.modules.market_universe.market_universe_service import (
+    MarketUniverseService,
+    UniverseCacheUnavailableError,
+    get_market_universe_service,
+)
+from app.modules.watchlists.watchlists_repository import (
+    WatchlistsRepository,
+    get_watchlists_repository,
+)
 from app.modules.watchlists.watchlists_schemas import (
     UserWatchlistCreate,
     UserWatchlistRead,
@@ -21,8 +26,6 @@ from app.modules.watchlists.watchlists_schemas import (
     UserWatchlistToggleResult,
     UserWatchlistUpdate,
 )
-
-PRICE_WINDOW_LIMIT = PULSE_PRICE_WINDOW_LIMIT
 
 
 def _build_watching_label(watching_days: int) -> str:
@@ -45,9 +48,15 @@ def _compute_unrealized_gain_percent(
 
 
 class WatchlistsService:
-    def __init__(self, repository: WatchlistsRepository, user_context: UserContext) -> None:
+    def __init__(
+        self,
+        repository: WatchlistsRepository,
+        user_context: UserContext,
+        universe_service: MarketUniverseService | None = None,
+    ) -> None:
         self.repository = repository
         self.user_context = user_context
+        self.universe_service = universe_service
 
     def _user_id(self) -> UUID:
         return UUID(self.user_context.user_id)
@@ -155,36 +164,58 @@ class WatchlistsService:
 
         stock_ids = [entry.stock_id for entry in entries]
         latest_prices = await self.repository.list_latest_prices_for_stocks(stock_ids)
-        price_windows = await self.repository.list_price_windows_for_stocks(
-            stock_ids,
-            price_window_limit=PRICE_WINDOW_LIMIT,
-        )
         stocks = {
             entry.stock_id: await self.repository.get_stock(entry.stock_id)
             for entry in entries
         }
+        canonical_rows: dict[str, ScoredUniverseRow] = {}
+        if self.universe_service is not None:
+            exchanges = sorted(
+                {stock.exchange for stock in stocks.values() if stock is not None},
+                key=lambda exchange: exchange.value,
+            )
+            try:
+                universe_results = await asyncio.gather(
+                    *(
+                        self.universe_service.get_scored_universe(exchange=exchange)
+                        for exchange in exchanges
+                    )
+                )
+            except UniverseCacheUnavailableError:
+                universe_results = []
+            canonical_rows = {
+                str(row.stock.id): row
+                for rows in universe_results
+                for row in rows
+            }
         today = datetime.now(UTC).date()
         reads: list[UserWatchlistRead] = []
 
         for entry in entries:
             latest_price = latest_prices.get(entry.stock_id)
             current_price = latest_price.close_price if latest_price is not None else None
-            stock = stocks.get(entry.stock_id)
-            windows = price_windows.get(entry.stock_id, [])
-            technical_snapshot: TechnicalSnapshotRead | None = None
-            trader_decision = None
-            if stock is not None and windows:
-                sorted_windows = sorted(windows, key=lambda row: row.trade_date)
-                snapshot = build_technical_snapshot(sorted_windows)
-                if snapshot is not None:
-                    technical_snapshot = technical_snapshot_to_read(snapshot)
-                    trader_decision = compute_trader_decision_summary_for_stock(
-                        stock,
-                        sorted_windows,
-                        snapshot=snapshot,
-                    )
+            canonical_row = canonical_rows.get(str(entry.stock_id))
+            technical_snapshot = (
+                canonical_row.technical_snapshot if canonical_row is not None else None
+            )
+            trader_decision = canonical_row.decision if canonical_row is not None else None
+            if canonical_row is not None:
+                current_price = canonical_row.session.close_price
+            contextual_action = "WAIT"
+            if trader_decision is not None:
+                selected_action = (
+                    trader_decision.holder_action
+                    if entry.is_holding
+                    else trader_decision.non_holder_action
+                )
+                if selected_action is not None:
+                    contextual_action = selected_action.value
 
-            created_date = entry.created_at.date() if entry.created_at.tzinfo else entry.created_at.replace(tzinfo=UTC).date()
+            created_date = (
+                entry.created_at.date()
+                if entry.created_at.tzinfo
+                else entry.created_at.replace(tzinfo=UTC).date()
+            )
             watching_days = max(0, (today - created_date).days)
             note_text = entry.note.strip() if entry.note else ""
 
@@ -209,6 +240,10 @@ class WatchlistsService:
                     current_price=current_price,
                     trader_decision=trader_decision,
                     technical_snapshot=technical_snapshot,
+                    decision_source=(
+                        "CANONICAL_UNIVERSE" if canonical_row is not None else "UNAVAILABLE"
+                    ),
+                    contextual_action=contextual_action,
                 )
             )
 
@@ -221,5 +256,6 @@ class WatchlistsService:
 def get_watchlists_service(
     repository: WatchlistsRepository = Depends(get_watchlists_repository),
     user_context: UserContext = Depends(get_current_user),
+    universe_service: MarketUniverseService = Depends(get_market_universe_service),
 ) -> WatchlistsService:
-    return WatchlistsService(repository, user_context)
+    return WatchlistsService(repository, user_context, universe_service)

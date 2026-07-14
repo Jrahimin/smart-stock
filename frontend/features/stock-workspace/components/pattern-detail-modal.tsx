@@ -80,7 +80,7 @@ export function PatternDetailModal({ pattern, isOpen, onClose, riskLabel = "Medi
             <h2>{pattern.name}</h2>
           </div>
           <div className="pattern-detail-meta">
-            <span>{copy.confidence(pattern.confidence)}</span>
+            <span>{copy.confidence(pattern.pattern_match_score ?? pattern.confidence)}</span>
             <span>{copy.status}: {pattern.status}</span>
           </div>
         </header>

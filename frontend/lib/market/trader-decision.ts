@@ -1,4 +1,4 @@
-import type { SignalType, TraderRecommendation } from "@/lib/api/backend-api-types";
+import type { TraderRecommendation } from "@/lib/api/backend-api-types";
 import type { StockIntelligenceModel } from "@/lib/market/market-intelligence-types";
 
 export type ResolvedTraderDecision = {
@@ -12,44 +12,45 @@ export type ResolvedTraderDecision = {
 
 export function resolveWatchlistAction(
   intelligence: StockIntelligenceModel | null,
-  backendRecommendation?: TraderRecommendation | null,
+  isHolding: boolean,
+  backendContextualAction?: string | null,
 ): TraderRecommendation {
-  if (intelligence) {
-    return resolveTraderDecision(intelligence).recommendation;
+  const decision = intelligence?.traderDecision;
+  const contextualAction = decision
+    ? isHolding
+      ? decision.holder_action
+      : decision.non_holder_action
+    : backendContextualAction;
+
+  if (contextualAction === "BUY") {
+    return "BUY";
+  }
+  if (contextualAction === "SELL" || contextualAction === "REDUCE") {
+    return "SELL";
+  }
+  if (contextualAction === "HOLD") {
+    return "HOLD";
   }
 
-  return backendRecommendation ?? "WAIT";
-}
-
-function getPriorTradeDate(stock: StockIntelligenceModel): string | null {
-  if (!stock.latestTradeDate) {
-    return null;
-  }
-
-  const priorDates = stock.prices
-    .map((price) => price.trade_date)
-    .filter((tradeDate) => tradeDate < stock.latestTradeDate!)
-    .sort();
-
-  return priorDates.at(-1) ?? null;
+  return "WAIT";
 }
 
 export function getPreviousSessionRecommendation(stock: StockIntelligenceModel): TraderRecommendation | null {
   const persisted = stock.persistedSignal;
-  if (!persisted || !stock.latestTradeDate) {
+  const canonical = stock.traderDecision?.canonical;
+  if (
+    !persisted ||
+    !canonical ||
+    !canonical.previous_session_date ||
+    persisted.strategyVersion !== canonical.strategy_version ||
+    persisted.thresholdVersion !== canonical.threshold_version ||
+    persisted.actionTaxonomy !== canonical.action_taxonomy ||
+    persisted.signalAsOf !== canonical.previous_session_date ||
+    !persisted.canonicalRecommendation
+  ) {
     return null;
   }
-
-  if (persisted.asOfTradeDate === stock.latestTradeDate) {
-    return mapPersistedSignalToRecommendation(persisted.signal);
-  }
-
-  const priorTradeDate = getPriorTradeDate(stock);
-  if (priorTradeDate && persisted.asOfTradeDate === priorTradeDate) {
-    return mapPersistedSignalToRecommendation(persisted.signal);
-  }
-
-  return null;
+  return persisted.canonicalRecommendation;
 }
 
 export function isTraderDecisionChangedThisSession(stock: StockIntelligenceModel): boolean {
@@ -61,16 +62,6 @@ export function isTraderDecisionChangedThisSession(stock: StockIntelligenceModel
   }
 
   return previous !== current;
-}
-
-export function mapPersistedSignalToRecommendation(signal: SignalType): TraderRecommendation {
-  if (signal === "BUY") {
-    return "BUY";
-  }
-  if (signal === "SELL") {
-    return "SELL";
-  }
-  return "HOLD";
 }
 
 export function resolveTraderDecision(stock: StockIntelligenceModel): ResolvedTraderDecision {

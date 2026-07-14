@@ -12,10 +12,21 @@ from app.core.constants.trading_constants import (
     VOLUME_EXPANSION_RATIO,
     VOLUME_THIN_RATIO,
 )
-from app.core.enums import LiquidityLabel, RiskLevelLabel, TrendDirection, WarningSeverity
+from app.core.enums import (
+    DecisionConstraintKind,
+    LiquidityLabel,
+    RiskLevelLabel,
+    TrendDirection,
+    WarningSeverity,
+)
+from app.modules.stock_details.decision.constraints import DecisionConstraint
 from app.modules.stock_details.decision.scoring import OpportunityScoreResult, RiskScoreResult
 from app.modules.stock_details.decision.technical import TechnicalSnapshot
-from app.modules.stock_details.decision.trade_plan import LiquidityAnalysisResult, is_below_support, is_near_resistance
+from app.modules.stock_details.decision.trade_plan import (
+    LiquidityAnalysisResult,
+    is_below_support,
+    is_near_resistance,
+)
 
 
 @dataclass(frozen=True)
@@ -39,10 +50,28 @@ def generate_warnings(
     pattern_bearish: bool = False,
     pattern_confirmed: bool = False,
     suspected_adjustment: bool = False,
+    constraints: tuple[DecisionConstraint, ...] = (),
 ) -> list[SmartWarning]:
-    warnings: list[SmartWarning] = []
+    warnings: list[SmartWarning] = [
+        SmartWarning(
+            code=constraint.code,
+            title=constraint.title,
+            message=constraint.reason,
+            severity=(
+                WarningSeverity.CRITICAL
+                if constraint.is_critical
+                else (
+                    WarningSeverity.INFO
+                    if constraint.kind == DecisionConstraintKind.INFORMATIONAL
+                    else WarningSeverity.WARNING
+                )
+            ),
+        )
+        for constraint in constraints
+    ]
+    constraint_codes = {constraint.code for constraint in constraints}
 
-    if is_near_resistance(snapshot):
+    if is_near_resistance(snapshot) and "near_resistance" not in constraint_codes:
         warnings.append(
             SmartWarning(
                 code="near_resistance",
@@ -51,7 +80,7 @@ def generate_warnings(
                 severity=WarningSeverity.WARNING,
             )
         )
-    if suspected_adjustment:
+    if suspected_adjustment and "corporate_action_review" not in constraint_codes:
         warnings.append(
             SmartWarning(
                 code="possible_corporate_action",
@@ -60,7 +89,7 @@ def generate_warnings(
                 severity=WarningSeverity.INFO,
             )
         )
-    elif is_below_support(snapshot):
+    elif is_below_support(snapshot) and "below_support" not in constraint_codes:
         warnings.append(
             SmartWarning(
                 code="below_support",
@@ -69,7 +98,11 @@ def generate_warnings(
                 severity=WarningSeverity.CRITICAL,
             )
         )
-    if snapshot.rsi is not None and snapshot.rsi > RSI_OVERBOUGHT_THRESHOLD:
+    if (
+        snapshot.rsi is not None
+        and snapshot.rsi > RSI_OVERBOUGHT_THRESHOLD
+        and "extended_momentum" not in constraint_codes
+    ):
         warnings.append(
             SmartWarning(
                 code="rsi_overheated",
@@ -78,7 +111,11 @@ def generate_warnings(
                 severity=WarningSeverity.WARNING,
             )
         )
-    if snapshot.rsi is not None and snapshot.rsi < RSI_OVERSOLD_THRESHOLD and snapshot.trend == TrendDirection.DOWNTREND:
+    if (
+        snapshot.rsi is not None
+        and snapshot.rsi < RSI_OVERSOLD_THRESHOLD
+        and snapshot.trend == TrendDirection.DOWNTREND
+    ):
         warnings.append(
             SmartWarning(
                 code="weak_momentum",
@@ -96,7 +133,11 @@ def generate_warnings(
                 severity=WarningSeverity.WARNING,
             )
         )
-    elif snapshot.average_volume and snapshot.volume / snapshot.average_volume < VOLUME_EXPANSION_RATIO and opportunity.score >= 60:
+    elif (
+        snapshot.average_volume
+        and snapshot.volume / snapshot.average_volume < VOLUME_EXPANSION_RATIO
+        and opportunity.score >= 60
+    ):
         warnings.append(
             SmartWarning(
                 code="volume_not_confirming",
@@ -106,12 +147,15 @@ def generate_warnings(
             )
         )
     overextended_by_return = (
-        snapshot.return_20d_percent is not None and snapshot.return_20d_percent > OVEREXTENSION_RETURN_20D_PERCENT
+        snapshot.return_20d_percent is not None
+        and snapshot.return_20d_percent > OVEREXTENSION_RETURN_20D_PERCENT
     )
     above_sma20 = None
     if snapshot.sma20 and snapshot.sma20 > 0 and snapshot.latest_price is not None:
         above_sma20 = (snapshot.latest_price - snapshot.sma20) / snapshot.sma20 * 100
-    overextended_by_sma = above_sma20 is not None and above_sma20 > OVEREXTENSION_ABOVE_SMA20_PERCENT
+    overextended_by_sma = (
+        above_sma20 is not None and above_sma20 > OVEREXTENSION_ABOVE_SMA20_PERCENT
+    )
     if overextended_by_return or overextended_by_sma:
         warnings.append(
             SmartWarning(
@@ -130,7 +174,10 @@ def generate_warnings(
                 severity=WarningSeverity.WARNING,
             )
         )
-    if liquidity.label in {LiquidityLabel.THIN, LiquidityLabel.ILLIQUID}:
+    if liquidity.label in {
+        LiquidityLabel.THIN,
+        LiquidityLabel.ILLIQUID,
+    } and not constraint_codes.intersection({"thin_liquidity", "illiquid"}):
         warnings.append(
             SmartWarning(
                 code="thin_liquidity",
@@ -158,7 +205,7 @@ def generate_warnings(
                 severity=WarningSeverity.INFO,
             )
         )
-    if is_stale:
+    if is_stale and "data_eligibility" not in constraint_codes:
         warnings.append(
             SmartWarning(
                 code="stale_data",
@@ -167,16 +214,19 @@ def generate_warnings(
                 severity=WarningSeverity.WARNING,
             )
         )
-    if is_sparse:
+    if is_sparse and "data_eligibility" not in constraint_codes:
         warnings.append(
             SmartWarning(
                 code="sparse_data",
                 title="Sparse OHLCV history",
-                message="Insufficient price history reduces confidence in technical conclusions.",
+                message="Insufficient price history reduces the strength of technical evidence.",
                 severity=WarningSeverity.WARNING,
             )
         )
-    if risk.label in {RiskLevelLabel.HIGH, RiskLevelLabel.SPECULATIVE}:
+    if (
+        risk.label in {RiskLevelLabel.HIGH, RiskLevelLabel.SPECULATIVE}
+        and "elevated_trading_risk" not in constraint_codes
+    ):
         warnings.append(
             SmartWarning(
                 code="elevated_risk",
@@ -189,13 +239,17 @@ def generate_warnings(
         warnings.append(
             SmartWarning(
                 code="bearish_pattern",
-                title="Bearish pattern confirmed" if pattern_confirmed else "Bearish pattern forming",
+                title="Bearish pattern confirmed"
+                if pattern_confirmed
+                else "Bearish pattern forming",
                 message=(
                     f"{pattern_name} has confirmed; downside risk is elevated until invalidated."
                     if pattern_confirmed
                     else f"{pattern_name} suggests downside risk until invalidated."
                 ),
-                severity=WarningSeverity.CRITICAL if pattern_confirmed else WarningSeverity.WARNING,
+                # Pattern detectors remain secondary until empirical validation;
+                # they cannot create a critical post-decision contradiction.
+                severity=WarningSeverity.WARNING,
             )
         )
     if snapshot.support is not None and snapshot.support > 0 and snapshot.latest_price is not None:

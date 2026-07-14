@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { mapUniverseRowsToSignalFeed } from "@/features/market-dashboard/view-models/dashboard-sections-mapper";
 import type { BackendScoredUniverseRowDto } from "@/lib/api/backend-api-types";
+import { resolveTraderDecision } from "@/lib/market/trader-decision";
+import { mapUniverseRowToListRow } from "@/lib/market/universe-row-mapper";
 
 function buildRow(symbol: string, rsi: number, opportunity: number): BackendScoredUniverseRowDto {
   return {
@@ -73,5 +75,14 @@ describe("mapUniverseRowsToSignalFeed", () => {
     expect(feed[0]?.reason).toContain("RSI");
     expect(feed[0]?.supportingContext[0]).toContain("RSI 61.2");
     expect(feed[1]?.supportingContext[0]).toContain("RSI 54.4");
+  });
+
+  it("keeps dashboard and list action mapping on the same backend decision", () => {
+    const row = buildRow("IDENTITY", 58, 70);
+    const feed = mapUniverseRowsToSignalFeed([row]);
+    const listDecision = resolveTraderDecision(mapUniverseRowToListRow(row));
+
+    expect(feed[0]?.signal).toBe(listDecision.recommendation);
+    expect(feed[0]?.reason).toContain("RSI 58.0");
   });
 });

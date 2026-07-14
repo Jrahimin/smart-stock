@@ -203,11 +203,11 @@ const marketPulseLanguage = {
       breadthSnapshotAria: "Market breadth snapshot",
       marketState: "Market State",
       overallState: "Overall State:",
-      moneyFlow: "Money Flow",
-      inflowing: "Inflowing",
-      outflowing: "Outflowing",
-      opportunityScore: "Opportunity Score",
-      lastFiveSessions: "Last 5 sessions",
+      moneyFlow: "Sector Price Change",
+      inflowing: "Leading",
+      outflowing: "Lagging",
+      opportunityScore: "Current Attention Score",
+      lastFiveSessions: "Comparable history pending",
       yesterday: (value) => `Yesterday: ${value}`,
       fiveDayAvg: (value) => `5-Day Avg: ${value}`,
       trend: (label) => `Trend: ${label}`,
@@ -222,7 +222,7 @@ const marketPulseLanguage = {
             ? "Participation remains weak while turnover stays below normal levels."
             : "Participation remains mixed while turnover stays near normal levels.",
         inflowSector
-          ? `Capital continues rotating into ${inflowSector}.`
+          ? `Sector price leadership is concentrated in ${inflowSector}.`
           : outflowSector
             ? `Selling pressure is visible across ${outflowSector}.`
             : "Leadership remains concentrated in a narrow set of names.",
@@ -381,11 +381,11 @@ const marketPulseLanguage = {
         "বাজারের ভেতরের চিত্র",
       marketState: "বাজারের অবস্থা",
       overallState: "সামগ্রিক অবস্থা:",
-      moneyFlow: "টাকার প্রবাহ",
-      inflowing: "টাকা ঢুকছে",
-      outflowing: "টাকা বেরোচ্ছে",
-      opportunityScore: "Opportunity Score",
-      lastFiveSessions: "গত 5 session",
+      moneyFlow: "Sector Price Change",
+      inflowing: "দামে এগিয়ে",
+      outflowing: "দামে পিছিয়ে",
+      opportunityScore: "Current Attention Score",
+      lastFiveSessions: "Comparable history এখনো নেই",
       yesterday: (value) => `গতকাল: ${value}`,
       fiveDayAvg: (value) => `5 দিনের গড়: ${value}`,
       trend: (label) => `Trend: ${label}`,
@@ -400,7 +400,7 @@ const marketPulseLanguage = {
             ? "বাজারে অংশগ্রহণ কম, লেনদেনও স্বাভাবিকের নিচে।"
             : "বাজারে অংশগ্রহণ মিশ্র, লেনদেন মোটামুটি স্বাভাবিক।",
         inflowSector
-          ? `${inflowSector}-এ টাকার প্রবাহ বাড়ছে।`
+          ? `${inflowSector} sector দামের দিক থেকে এগিয়ে।`
           : outflowSector
             ? `${outflowSector}-এ sell pressure দেখা যাচ্ছে।`
             : "বাজারের গতি এখনো কয়েকটি শেয়ারের ওপর বেশি নির্ভর করছে।",
@@ -592,16 +592,16 @@ const marketPulseLanguage = {
       conviction: "Signal Strength",
       nextTrigger: "পরের Trigger",
       reason: (reason, focusLabel) => {
-        const confidence =
+        const evidence =
           reason.match(
-            /(\d+(?:\.\d+)?)%\s*confidence/i,
+            /(\d+(?:\.\d+)?)(?:%\s*confidence|\/100\s*evidence strength)/i,
           )?.[1];
 
         if (
           focusLabel === "New BUY Setup" &&
-          confidence
+          evidence
         ) {
-          return `BUY setup-এর confidence ${confidence}%`;
+          return `BUY setup-এর heuristic evidence ${evidence}/100`;
         }
 
         const volume =

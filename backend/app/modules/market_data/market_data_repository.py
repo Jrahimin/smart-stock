@@ -9,8 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.base_repository import BaseRepository
 from app.core.database_session import get_db_session
-from app.core.enums import DataQualityFlag, ExchangeCode
-from app.models import DailyMarketSummary, DailyPrice, Stock
+from app.core.enums import DataQualityFlag, ExchangeCode, TurnoverProvenance
+from app.models import CorporateAction, DailyMarketSummary, DailyPrice, DividendEvent, Stock
 
 
 class MarketDataRepository(BaseRepository[DailyPrice]):
@@ -145,6 +145,49 @@ class MarketDataRepository(BaseRepository[DailyPrice]):
         result = await self.session.execute(statement)
         return [(stock, price) for stock, price in result.all()]
 
+    async def list_recent_exchange_session_dates(
+        self,
+        *,
+        exchange: ExchangeCode,
+        limit: int,
+    ) -> list[date]:
+        statement = (
+            select(DailyPrice.trade_date)
+            .join(Stock, Stock.id == DailyPrice.stock_id)
+            .where(Stock.exchange == exchange, Stock.is_active.is_(True))
+            .distinct()
+            .order_by(DailyPrice.trade_date.desc())
+            .limit(limit)
+        )
+        return list(reversed((await self.session.scalars(statement)).all()))
+
+    async def list_corporate_action_dates_by_stock(
+        self,
+        *,
+        stock_ids: set[UUID],
+    ) -> dict[UUID, set[date]]:
+        if not stock_ids:
+            return {}
+        dates_by_stock: dict[UUID, set[date]] = {}
+        dividend_statement = select(
+            DividendEvent.stock_id,
+            DividendEvent.ex_dividend_date,
+        ).where(
+            DividendEvent.stock_id.in_(stock_ids),
+            DividendEvent.ex_dividend_date.is_not(None),
+        )
+        for stock_id, event_date in (await self.session.execute(dividend_statement)).all():
+            if event_date is not None:
+                dates_by_stock.setdefault(stock_id, set()).add(event_date)
+
+        action_statement = select(
+            CorporateAction.stock_id,
+            CorporateAction.effective_date,
+        ).where(CorporateAction.stock_id.in_(stock_ids))
+        for stock_id, event_date in (await self.session.execute(action_statement)).all():
+            dates_by_stock.setdefault(stock_id, set()).add(event_date)
+        return dates_by_stock
+
     async def get_daily_price_by_stock_date(
         self,
         *,
@@ -215,6 +258,7 @@ class MarketDataRepository(BaseRepository[DailyPrice]):
         trade_date: date,
         trade_count: int | None = None,
         turnover: Decimal | None = None,
+        turnover_provenance: TurnoverProvenance | None = None,
         data_quality_flag: DataQualityFlag | None = None,
     ) -> int:
         """Update only turnover/trade_count/optional flag; leaves OHLCV and source unchanged."""
@@ -223,6 +267,8 @@ class MarketDataRepository(BaseRepository[DailyPrice]):
             values["trade_count"] = trade_count
         if turnover is not None:
             values["turnover"] = turnover
+        if turnover_provenance is not None:
+            values["turnover_provenance"] = turnover_provenance
         if data_quality_flag is not None:
             values["data_quality_flag"] = data_quality_flag
         if not values:

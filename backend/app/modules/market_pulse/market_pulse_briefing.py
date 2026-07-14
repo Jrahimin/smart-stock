@@ -118,29 +118,7 @@ def _rotation_line(top_inflow_names: list[str]) -> str:
     if not top_inflow_names:
         return "Leadership remains concentrated in a narrow set of names."
     names = " & ".join(top_inflow_names[:2])
-    return f"Capital continues rotating into {names}."
-
-
-def _opportunity_history_from_summaries(
-    summaries: list[DailyMarketSummary],
-    *,
-    last_n: int = 5,
-) -> list[int]:
-    filtered = [
-        summary
-        for summary in summaries
-        if summary.index_name != "SOURCE_VALIDATION" and summary.index_change_percent is not None
-    ]
-    if not filtered:
-        return []
-
-    sorted_summaries = sorted(filtered, key=lambda item: item.trade_date)[-last_n:]
-    history: list[int] = []
-    for summary in sorted_summaries:
-        change = float(summary.index_change_percent or 0)
-        score = int(round(50 + change * 8))
-        history.append(max(0, min(100, score)))
-    return history
+    return f"Sector price leadership is concentrated in {names}."
 
 
 def _index_close_sparkline(
@@ -319,29 +297,11 @@ def build_market_briefing(
         inflows=[to_flow_sector(name, change, True) for name, change in inflow_sectors[:3] if change > 0],
         outflows=[to_flow_sector(name, change, False) for name, change in reversed(outflow_sectors[:3]) if change < 0],
     )
-    if not money_flow.inflows and inflow_sectors:
-        name, change = inflow_sectors[0]
-        money_flow.inflows = [to_flow_sector(name, max(change, 0.1), True)]
-    if not money_flow.outflows and outflow_sectors:
-        name, change = outflow_sectors[0]
-        money_flow.outflows = [to_flow_sector(name, min(change, -0.1), False)]
 
     focus_scores = [stock.pulse_score for stock in focus_reads]
     monitor_scores = [stock.pulse_score for stock in monitor_reads]
     pool_scores = focus_scores or monitor_scores or [row.score.total for row in rows[:20]]
     opportunity = int(round(sum(pool_scores) / len(pool_scores))) if pool_scores else 50
-    prior_history = _opportunity_history_from_summaries(summaries, last_n=4)
-    history = (prior_history + [opportunity])[-5:]
-    previous_session = history[-2] if len(history) >= 2 else None
-    weekly_average = int(round(sum(history) / len(history))) if history else None
-    trend_label: str | None = None
-    if previous_session is not None:
-        if opportunity > previous_session + 2:
-            trend_label = "Improving"
-        elif opportunity < previous_session - 2:
-            trend_label = "Softening"
-        else:
-            trend_label = "Stable"
 
     opportunity_score = OpportunityScoreRead(
         score=opportunity,
@@ -352,10 +312,12 @@ def build_market_briefing(
             if opportunity >= 55
             else "Limited Opportunity Environment"
         ),
-        history=history,
-        previous_session=previous_session,
-        weekly_average=weekly_average,
-        trend_label=trend_label,
+        # Comparable history is intentionally absent until point-in-time Pulse
+        # snapshots with the same formula, population, and version are stored.
+        history=[],
+        previous_session=None,
+        weekly_average=None,
+        trend_label=None,
     )
 
     aggressive_count = sum(

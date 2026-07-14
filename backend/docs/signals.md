@@ -18,16 +18,16 @@ All user-facing **Action** badges (`BUY`, `HOLD`, `WAIT`, `SELL`) come from one 
 
 **Lookback:** `DECISION_RECOMMENDATION_LOOKBACK` (90 sessions by default) in `trading_constants.py`. Universe rebuild and stock workspace both run the same engine on this window.
 
-**Cached foundation:** `MarketUniverseService.get_scored_universe()` loads price windows, resolves regime once, runs `build_scored_universe_rows()` (decision per stock), and stores Redis key `universe:scored:{exchange}`. Rebuild order after sync: dashboard overview → sectors → movers → **universe** (`market_cache_rebuild.py`).
+**Cached foundation:** `MarketUniverseService.get_scored_universe()` loads price windows, resolves regime once, runs `build_scored_universe_rows()` (decision per stock), and stores Redis key `universe:scored:{exchange}:{strategy_version}`. Rebuild order after sync: dashboard overview → sectors → movers → **universe** (`market_cache_rebuild.py`).
 
 ```
 daily_prices + daily_market_summaries
         ↓
-compute_trader_decision_from_prices()   ← per stock
+build_strategy_input() + compute_trader_decision()  ← per stock
         ↓
 build_trader_decision_summary()         ← list DTO (compact)
         ↓
-Redis universe:scored:{exchange}
+Redis universe:scored:{exchange}:{strategy_version}
         ↓
 GET /market/universe-rows  (canonical list payload)
 ```
@@ -45,11 +45,24 @@ List endpoints expose `TraderDecisionSummaryRead` (`recommendation`, `confidence
 
 ## Legacy Persisted Signals
 
-`GET /api/v1/signals/latest` returns rows from the `trading_signals` table. These are **legacy strategy records** (`BUY` / `HOLD` / `SELL` only, confidence `0..1`).
+`GET /api/v1/signals/latest` returns rows from the `trading_signals` table.
+Existing rows remain readable as **legacy strategy records** (`BUY` / `HOLD` /
+`SELL`, confidence `0..1`). New canonical persistence may add
+`strategy_version`, `threshold_version`, `action_taxonomy`,
+`canonical_recommendation`, `signal_as_of`, `calculated_at`, and
+`shared_decision_id`.
 
-Terminal pages do **not** override the shared decision engine with persisted rows for action badges. `useEnrichedUniverseIntelligence` may attach persisted rows for **NEW** highlight logic on watchlists only.
+Terminal pages do **not** override the shared decision engine with persisted rows
+for action badges. A prior row may support a **NEW** highlight only when all
+identity fields are present, its strategy/threshold/taxonomy exactly match the
+current canonical result, and `signal_as_of` equals that result's
+`previous_session_date`. Mismatched or unversioned legacy rows are explicitly
+not comparable and produce no transition claim.
 
-The batch job hook lives at `backend/app/jobs/signals/generate_daily_signals.py` and is reserved for future persistence under strategy name `deterministic_trader_v1`.
+The batch job hook lives at `backend/app/jobs/signals/generate_daily_signals.py`
+and reports the current canonical strategy/threshold/taxonomy identity. The new
+database columns are nullable so the migration does not invent identity for old
+rows; when any identity field is supplied, the API contract requires the full set.
 
 ## Frontend Consumption
 
@@ -64,7 +77,8 @@ Shared client module: `frontend/lib/market/trader-decision.ts`.
 
 Row mapping: `frontend/lib/market/universe-row-mapper.ts` (`mapUniverseRowToListRow`).
 
-Client-side `generateSignal()` in `market-intelligence.ts` is legacy metadata only; it must not drive action badges.
+`market-intelligence.ts` now builds chart/price context only. It does not
+calculate action, RSI, risk or price levels; canonical backend fields drive badges.
 
 ## Surfaces Using The Shared Engine
 
@@ -76,14 +90,19 @@ Client-side `generateSignal()` in `market-intelligence.ts` is legacy metadata on
 
 Scanner category rules are independent **filters** on the same universe; badges still use `trader_decision`.
 
-## List `reason` Field (Presentation Caveat)
+## List `reason` Field
 
-`build_trader_decision_summary()` sets `reason = decision.reasoning[-1]` — the **last** reasoning line only. Many `BUY` names that pass the same rule branch therefore share identical summary text (e.g. *"Uptrend with favorable opportunity and acceptable reward potential."*) even though earlier reasoning lines differ (trend, RSI, volume).
-
-Full explanation lives in workspace `decision-support`. List UIs should use `technical_snapshot` + `buildDecisionSupportingContext()` for per-stock differentiation, or the summary builder should be extended to expose a richer compact reason.
+`build_trader_decision_summary()` sets `reason` from the engine's explicit
+`primary_reason`, never from the last appended reasoning/constraint sentence.
+The compact result also exposes `primary_reason_code`, stance, holder/non-holder
+actions, evidence strength, data reliability, trading risk, and constraints.
+Full ordered explanation remains available in workspace `decision-support`.
 
 ## Missing Data
 
-When OHLCV is insufficient, `trader_decision` is `null` and the frontend falls back to `WAIT` with an explicit unavailable reason.
+Empty OHLCV produces no decision. Non-empty but limited, review-only, or
+ineligible history produces a readable compatibility `WAIT` with explicit
+eligibility/reliability reasons. The frontend uses unavailable `WAIT` only when
+the backend result itself is absent.
 
 See also: `backend/docs/stock_decision_support.md`, `backend/docs/frontend_localization.md`.

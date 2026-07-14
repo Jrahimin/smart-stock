@@ -71,7 +71,7 @@ function buildEnglishDecisionReasons(): DecisionReasonCopy {
     bearish_regime_hold:
       "Broad market regime is bearish; hold rather than open new long exposure.",
     confidence_capped_bearish_regime: ({ confidenceCap = 0 }) =>
-      `Confidence capped at ${confidenceCap} in a bearish market regime.`,
+      `Evidence strength capped at ${confidenceCap} in a bearish market regime.`,
     decision_engine_unavailable:
       "Decision engine unavailable for this row; defaulting to wait.",
     unknown: "Awaiting a clearer decision summary.",
@@ -112,7 +112,7 @@ function buildBanglaDecisionReasons(): DecisionReasonCopy {
     bearish_regime_hold:
       "বাজারের সামগ্রিক trend bearish; নতুন long position না খুলে hold করুন।",
     confidence_capped_bearish_regime: ({ confidenceCap = 0 }) =>
-      `বাজার bearish হওয়ায় confidence ${confidenceCap}-এ সীমিত রাখা হয়েছে।`,
+      `বাজার bearish হওয়ায় evidence strength ${confidenceCap}-এ সীমিত রাখা হয়েছে।`,
     decision_engine_unavailable:
       "এই শেয়ারের decision engine পাওয়া যায়নি; আপাতত অপেক্ষা করুন।",
     unknown: "আরও পরিষ্কার সিদ্ধান্তের সারাংশ আসছে।",
@@ -385,7 +385,7 @@ const dashboardLanguage = {
         "No actionable deterministic signals yet for the loaded market universe.",
       warmup:
         "Trader signals are warming up after startup. This section should populate shortly.",
-      confidence: (value) => `${value} confidence`,
+      confidence: (value) => `${value}/100 evidence`,
       risk: (value) => `${value} risk`,
       awaitingContext: "Awaiting stronger context",
       contextJoiner: " · ",
@@ -439,7 +439,7 @@ const dashboardLanguage = {
         signalCoverage: {
           title: "Signal layer ready",
           description: (signalCount) =>
-            `${signalCount} highlighted signals can be explained with structured confidence and risk metadata.`,
+            `${signalCount} highlighted signals include heuristic evidence and risk metadata.`,
         },
         turnoverContext: {
           title: "Turnover context",
@@ -607,7 +607,7 @@ const dashboardLanguage = {
       title: "বাজারের signal বিশ্লেষণ",
       empty: "এখনো সিদ্ধান্ত নেওয়ার মতো signal নেই",
       warmup: "Signals তৈরি হচ্ছে—একটু পর দেখুন",
-      confidence: (value) => `${value} confidence`,
+      confidence: (value) => `${value}/100 evidence`,
       risk: (value) => `${value} risk`,
       awaitingContext: "আরও পরিষ্কার context দরকার",
       contextJoiner: " · ",
@@ -662,7 +662,7 @@ const dashboardLanguage = {
         signalCoverage: {
           title: "Signal layer তৈরি",
           description: (signalCount) =>
-            `এই ${signalCount}টি signal-এর confidence ও risk দেখে কেন এমন signal এসেছে, তা বোঝা যাবে।`,
+            `এই ${signalCount}টি signal-এর heuristic evidence ও risk দেখে কারণ বোঝা যাবে।`,
         },
         turnoverContext: {
           title: "Turnover-এর ছবি",
