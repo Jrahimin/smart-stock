@@ -29,5 +29,7 @@ describe("stock workspace language", () => {
   it("defaults to bn workspace states", () => {
     const language = getStockWorkspaceLanguage(DEFAULT_LOCALE);
     expect(language.states.loading).toContain("লোড");
+    expect(language.decision.label).toBe("সিদ্ধান্ত");
+    expect(language.decision.confidence).toBe("প্রমাণের শক্তি");
   });
 });

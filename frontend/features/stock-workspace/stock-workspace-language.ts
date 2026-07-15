@@ -600,7 +600,7 @@ const stockWorkspaceLanguage = {
       loading:
         "Decision support লোড হচ্ছে…",
       confidence:
-        "Evidence Strength",
+        "Evidence এর প্রাবল্য",
       opportunity:
         "Opportunity",
       risk: "Risk",

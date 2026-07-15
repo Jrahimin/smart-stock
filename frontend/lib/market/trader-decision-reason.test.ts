@@ -10,6 +10,10 @@ import {
 describe("resolveTraderDecisionReason", () => {
   it.each([
   [
+    "Data is not sufficient to take a decision; wait for review.",
+    "data_not_eligible",
+  ],
+  [
     "Uptrend with favorable opportunity and acceptable reward potential.",
     "buy_uptrend_reward",
   ],
@@ -83,6 +87,21 @@ describe("buildLocalizedSignalReason", () => {
     expect(reason).toContain("Volume স্বাভাবিকের তুলনায় 1.9 গুণ");
     expect(reason).toContain("Uptrend-এ ভালো সুযোগ আছে");
     expect(reason).not.toContain("acceptable reward potential");
+  });
+
+  it("localizes data eligibility blocks in bangla", () => {
+    const language = getDashboardLanguage("bn");
+    const reason = buildLocalizedSignalReason(
+      { rsi: 55.3, volumeRatio: 1.4 },
+      resolveTraderDecisionReason(
+        "Data is not eligible for a fresh directional decision; wait for review or refresh.",
+      ),
+      language.signals,
+    );
+
+    expect(reason).toContain("RSI 55.3");
+    expect(reason).toContain("নতুন দিকনির্দেশনামূলক সিদ্ধান্তের জন্য ডেটা পর্যাপ্ত নয়");
+    expect(reason).not.toContain("Data is not eligible");
   });
 
   it("keeps unknown backend prose in english inside bangla cards", () => {

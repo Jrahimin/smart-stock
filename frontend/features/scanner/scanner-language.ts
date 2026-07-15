@@ -38,6 +38,10 @@ export type ScannerLanguage = {
     sectionEyebrow: string;
     momentumAria: string;
   };
+  metrics: {
+    rsi: string;
+    vol: string;
+  };
   categories: Record<ScannerCategoryId, ScannerCategoryCopy>;
   localeSwitcherAria: string;
 };
@@ -67,6 +71,10 @@ const scannerLanguage = {
         "No eligible current-session stock matches this versioned condition.",
       sectionEyebrow: "Scanner",
       momentumAria: "Momentum strength",
+    },
+    metrics: {
+      rsi: "RSI",
+      vol: "Vol",
     },
     categories: {
       volume_breakouts: {
@@ -130,7 +138,11 @@ const scannerLanguage = {
       emptyDescription:
         "বর্তমান session-এ eligible কোনো শেয়ার এই versioned শর্তে মেলেনি।",
       sectionEyebrow: "Scanner",
-      momentumAria: "Momentum কতটা শক্ত",
+      momentumAria: "Momentum strength",
+    },
+    metrics: {
+      rsi: "RSI",
+      vol: "Volume",
     },
 
     categories: {

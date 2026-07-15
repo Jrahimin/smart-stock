@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { StockDecisionSupportDto } from "@/lib/api/stock-decision-support-types";
 import { buildStockDecisionViewModel } from "@/features/stock-workspace/view-models/stock-decision-view-model";
-import { localizeSmartWarning } from "@/features/stock-workspace/stock-decision-language";
+import { localizeEntryCondition, localizeSmartWarning } from "@/features/stock-workspace/stock-decision-language";
 
 function buildDecisionFixture(overrides: Partial<StockDecisionSupportDto> = {}): StockDecisionSupportDto {
   return {
@@ -112,5 +112,33 @@ describe("stock decision localization", () => {
     const model = buildStockDecisionViewModel(buildDecisionFixture(), "en");
     expect(model.decisionSignals[0]?.text).toBe("Uptrend intact");
     expect(model.warnings[0]?.title).toBe("Near resistance");
+  });
+
+  it("localizes entry condition prose in bn", () => {
+    const model = buildStockDecisionViewModel(
+      buildDecisionFixture({
+        decision: {
+          recommendation: "BUY",
+          confidence: 83,
+          reasoning: [],
+          display_action: "POTENTIAL_BUY",
+          entry_condition:
+            "Enter only while the completed breakout holds above the preferred zone; reassess if participation fades or the invalidation is breached.",
+        },
+      }),
+      "bn",
+    );
+
+    expect(model.entryCondition).toContain("Breakout সম্পন্ন");
+    expect(model.entryCondition).not.toContain("Enter only while");
+  });
+
+  it("localizes priced entry condition in bn", () => {
+    const localized = localizeEntryCondition(
+      "Enter only after a completed close above 126.50 with confirming volume.",
+      "bn",
+    );
+
+    expect(localized).toBe("126.50-এর উপরে completed close ও confirming volume হলে entry নিন।");
   });
 });

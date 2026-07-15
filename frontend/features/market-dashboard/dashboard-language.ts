@@ -43,6 +43,8 @@ function buildEnglishDecisionReasons(): DecisionReasonCopy {
     corporate_action_adjustment:
       "Sharp single-session drop looks like a corporate-action/ex-date adjustment rather than a breakdown; wait for confirmation.",
     failed_support: "Price has failed recent support.",
+    data_not_eligible:
+      "Data is not sufficient to take a decision; wait for review.",
     buy_uptrend_reward: "Uptrend with favorable opportunity and acceptable reward potential.",
     buy_uptrend_resistance_test:
       "Uptrend with favorable opportunity and resistance test participation.",
@@ -84,6 +86,8 @@ function buildBanglaDecisionReasons(): DecisionReasonCopy {
     corporate_action_adjustment:
       "এক দিনের তীব্র পতনটি corporate action বা ex-date adjustment-এর কারণে হতে পারে; breakdown নিশ্চিত না হওয়া পর্যন্ত অপেক্ষা করুন।",
     failed_support: "দাম সাম্প্রতিক support-এর নিচে নেমে গেছে।",
+    data_not_eligible:
+      "সিদ্ধান্ত নেয়ার মতো পর্যাপ্ত তথ্য নেই; পর্যালোচনা বা আপডেটের জন্য অপেক্ষা করুন।",
     buy_uptrend_reward: "Uptrend-এ ভালো সুযোগ আছে; লাভের সম্ভাবনাও ভালো।",
     buy_uptrend_resistance_test:
       "Uptrend-এ ভালো সুযোগ আছে; resistance-এর কাছে শেয়ারের আচরণও নজরে রাখার মতো।",
@@ -210,6 +214,18 @@ export type DashboardLanguage = {
     eyebrow: string;
     title: string;
     empty: string;
+    templates: {
+      dataQualityTime: string;
+      latestTime: string;
+      snapshotReadyTitle: string;
+      snapshotReadyDescription: (count: number) => string;
+      scanCompleteTitle: string;
+      scanCompleteDescription: (count: number) => string;
+      suspiciousTitle: string;
+      suspiciousDescription: (count: string) => string;
+      topMoverDescription: (name: string) => string;
+      decisionTitle: (symbol: string, actionLabel: string) => string;
+    };
   };
   insights: {
     eyebrow: string;
@@ -400,6 +416,21 @@ const dashboardLanguage = {
       eyebrow: "Market Timeline",
       title: "Events and operating context",
       empty: "Timeline events will appear after the next market scan.",
+      templates: {
+        dataQualityTime: "Data quality",
+        latestTime: "Latest",
+        snapshotReadyTitle: "Market snapshot ready",
+        snapshotReadyDescription: (count) =>
+          `${count} active instruments in the latest price snapshot.`,
+        scanCompleteTitle: "Market scan complete",
+        scanCompleteDescription: (count) =>
+          `${count} active instruments were evaluated with the shared trader decision engine.`,
+        suspiciousTitle: "Suspicious activity flagged",
+        suspiciousDescription: (count) =>
+          `${count} instruments need source validation before acting on signals.`,
+        topMoverDescription: (name) => `Top session mover in the latest snapshot (${name}).`,
+        decisionTitle: (symbol, actionLabel) => `${symbol} ${actionLabel}`,
+      },
     },
     insights: {
       eyebrow: "Insights",
@@ -621,9 +652,25 @@ const dashboardLanguage = {
       decisionReasons: buildBanglaDecisionReasons(),
     },
     timeline: {
-      eyebrow: "Market Timeline",
+      eyebrow: "বাজার টাইমলাইন",
       title: "আজ বাজারে কী ঘটছে",
       empty: "নতুন event এলে এখানে দেখা যাবে",
+      templates: {
+        dataQualityTime: "তথ্যের মান",
+        latestTime: "সর্বশেষ",
+        snapshotReadyTitle: "বাজারের স্ন্যাপশট প্রস্তুত",
+        snapshotReadyDescription: (count) =>
+          `সর্বশেষ price snapshot-এ ${count}টি সক্রিয় শেয়ার আছে।`,
+        scanCompleteTitle: "বাজার স্ক্যান সম্পন্ন",
+        scanCompleteDescription: (count) =>
+          `সাধারণ trader decision engine দিয়ে ${count}টি সক্রিয় শেয়ার বিশ্লেষণ করা হয়েছে।`,
+        suspiciousTitle: "সন্দেহজনক লেনদেন চিহ্নিত",
+        suspiciousDescription: (count) =>
+          `${count}টি শেয়ারের উৎস যাচাই করা দরকার; signal অনুযায়ী সিদ্ধান্ত নেওয়ার আগে নিশ্চিত হোন।`,
+        topMoverDescription: (name) =>
+          `সর্বশেষ snapshot-এ আজকের সবচেয়ে বড় mover (${name})।`,
+        decisionTitle: (symbol, actionLabel) => `${symbol} ${actionLabel}`,
+      },
     },
     insights: {
       eyebrow: "Insights",

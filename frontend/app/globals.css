@@ -4201,7 +4201,9 @@ button {
 
 .scanner-result-card,
 .signal-center-item {
+  min-width: 0;
   position: relative;
+  width: 100%;
 }
 
 .signal-center-item-buy,
@@ -4239,7 +4241,16 @@ button {
   border-color: rgb(8 127 91 / 18%);
 }
 
-.scanner-entry-condition,
+.scanner-entry-condition {
+  color: var(--muted);
+  display: block;
+  font-size: 0.85rem;
+  line-height: 1.35;
+  margin-top: 5px;
+  max-width: none;
+  width: 100%;
+}
+
 .watchlist-entry-condition,
 .signal-action-with-condition small {
   color: var(--muted);
@@ -4273,6 +4284,11 @@ button {
   display: flex;
   gap: 8px;
   justify-content: space-between;
+  width: 100%;
+}
+
+.scanner-card-topline strong {
+  min-width: 0;
 }
 
 .scanner-context-row {
@@ -4346,6 +4362,8 @@ button {
 }
 
 .stock-workspace-header > div:first-child {
+  flex: 0 1 auto;
+  max-width: 36%;
   min-width: 0;
 }
 
@@ -4376,7 +4394,52 @@ button {
 
 .stock-workspace-header {
   flex: 1 1 auto;
+  gap: 10px;
   min-width: 0;
+}
+
+.stock-workspace-header > div:first-child > span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stock-workspace-header .stock-header-metrics {
+  flex: 1 1 0;
+  gap: 10px;
+  max-width: 64%;
+  min-width: 0;
+}
+
+.stock-workspace-header .stock-header-metrics > .stock-header-metric {
+  min-height: 66px;
+  padding: 7px 10px;
+}
+
+.stock-workspace-header .stock-header-metric-price strong {
+  font-size: 0.95rem;
+}
+
+.stock-workspace-header .stock-header-metrics strong {
+  font-size: 0.86rem;
+}
+
+.stock-workspace-header .stock-header-metric-cap strong {
+  font-size: 0.9rem;
+}
+
+.stock-workspace-header .stock-header-metrics span {
+  font-size: 0.62rem;
+}
+
+.stock-workspace-header .stock-header-metrics small {
+  font-size: 0.62rem;
+}
+
+.stock-workspace-header .stock-header-metric-action .signal-badge {
+  font-size: 0.65rem;
+  padding: 4px 8px;
 }
 
 .explorer-header h1,
@@ -4890,7 +4953,7 @@ button {
 
 .stock-explorer-table {
   --stock-explorer-columns:
-    36px minmax(176px, 1.35fr) 78px 108px 102px 112px 76px 90px 118px minmax(72px, 0.75fr) 42px;
+    36px minmax(176px, 1.35fr) 78px 108px 102px 112px 76px 96px 118px minmax(72px, 0.75fr) 42px;
 
   min-width: 1000px;
   width: 100%;
@@ -4905,7 +4968,13 @@ button {
 .stock-explorer-table tr {
   display: grid;
   grid-template-columns: var(--stock-explorer-columns);
+  isolation: isolate;
   width: 100%;
+}
+
+.stock-explorer-row {
+  contain: layout style;
+  overflow: hidden;
 }
 
 .stock-explorer-table th {
@@ -4929,6 +4998,7 @@ button {
 
 .stock-explorer-table td {
   min-height: 52px;
+  overflow: hidden;
 }
 
 .stock-explorer-table tbody tr:nth-child(even) td {
@@ -4951,13 +5021,17 @@ button {
   justify-content: center;
   max-width: 36px;
   min-width: 36px;
+  overflow: visible;
   padding-inline: 4px;
+  position: relative;
   width: 36px;
+  z-index: 1;
 }
 
 .stock-watchlist-cell .watchlist-star-toggle {
   flex-shrink: 0;
   padding: 2px;
+  position: relative;
 }
 
 .stock-symbol-cell,
@@ -5008,7 +5082,29 @@ button {
 }
 
 .stock-signal-cell {
+  align-items: center;
+  display: flex;
+  justify-content: center;
   text-align: center;
+}
+
+.stock-explorer-action-badge {
+  display: inline-flex;
+  justify-content: center;
+  max-width: 100%;
+  width: 100%;
+}
+
+.stock-explorer-action-badge .signal-badge {
+  max-width: 100%;
+  white-space: nowrap;
+}
+
+.signal-badge-compact {
+  font-size: 0.58rem;
+  gap: 4px;
+  letter-spacing: 0.04em;
+  padding: 3px 8px;
 }
 
 .stock-category-cell,
@@ -5377,6 +5473,16 @@ button {
     padding: 10px 12px;
   }
 
+  .stock-workspace-header > div:first-child {
+    max-width: none;
+  }
+
+  .stock-workspace-header .stock-header-metrics {
+    gap: 8px;
+    max-width: none;
+    width: 100%;
+  }
+
   .stock-workspace-header h1,
   .stock-workspace-header .stock-header-symbol {
     font-size: 1.45rem;
@@ -5735,7 +5841,9 @@ button {
   display: grid;
   grid-template-columns: minmax(0, 1fr) min(420px, 40%);
   grid-template-rows: auto auto;
+  position: relative;
   row-gap: 0;
+  z-index: 20;
 }
 
 .stock-workspace-topbar .stock-workspace-header {
@@ -5766,9 +5874,15 @@ button {
   max-width: 420px;
   min-width: 280px;
   opacity: 0.94;
+  position: relative;
   transform: scale(0.98);
   transform-origin: right center;
   width: 100%;
+  z-index: 40;
+}
+
+.stock-workspace-topbar-search .explorer-command-menu {
+  z-index: 50;
 }
 
 .trader-workspace-topbar-rail {
@@ -6626,6 +6740,7 @@ button {
   gap: 12px;
   position: sticky;
   top: 12px;
+  z-index: 10;
 }
 
 .chart-hero-card {

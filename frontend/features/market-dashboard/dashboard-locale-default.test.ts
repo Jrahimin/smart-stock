@@ -71,4 +71,20 @@ describe("useMarketDashboard locale alignment", () => {
     expect(model.signals[0]?.reason).toContain("Uptrend-এ ভালো সুযোগ আছে");
     expect(model.signals[0]?.reason).not.toContain("acceptable reward potential");
   });
+
+  it("localizes timeline cards when locale defaults to bn", () => {
+    const model = buildMarketDashboardModel([], null, null, {
+      locale: DEFAULT_LOCALE,
+      timeline: [
+        {
+          time: "2026-07-15",
+          title: "Market snapshot ready",
+          description: "410 active instruments in the latest price snapshot.",
+        },
+      ],
+    });
+
+    expect(model.timeline[0]?.title).toBe("বাজারের স্ন্যাপশট প্রস্তুত");
+    expect(model.timeline[0]?.description).toContain("সক্রিয় শেয়ার");
+  });
 });

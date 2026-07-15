@@ -14,6 +14,7 @@ import {
 import { useVirtualizer } from "@tanstack/react-virtual";
 
 import { MarketActivityLoader } from "@/components/ui/market-activity-loader";
+import { SignalBadge } from "@/components/ui/signal-badge";
 import { WorkspacePageHero } from "@/components/layout/workspace-page-hero";
 import { WatchlistStarToggle } from "@/features/watchlist/components/watchlist-star-toggle";
 import { useUserWatchlist } from "@/features/watchlist/hooks/use-user-watchlist";
@@ -191,15 +192,9 @@ export function StockExplorerView() {
         cell: (info) => {
           const decision = decisionByStockId.get(info.row.original.stock.id)!;
           return (
-            <div className="signal-action-with-condition">
-              <span className={`signal-chip signal-chip-${decision.recommendation.toLowerCase()}`} title={decision.reason}>
-                <span className={`signal-dot signal-dot-${decision.recommendation.toLowerCase()}`} />
-                {decision.recommendation.replace("_", " ")}
-              </span>
-              {decision.recommendation === "POTENTIAL_BUY" && decision.entryCondition ? (
-                <small>{decision.entryCondition}</small>
-              ) : null}
-            </div>
+            <span className="stock-explorer-action-badge" title={decision.reason || undefined}>
+              <SignalBadge density="compact" signal={decision.recommendation} />
+            </span>
           );
         },
       }),
@@ -240,8 +235,9 @@ export function StockExplorerView() {
   const rows = table.getRowModel().rows;
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
-    estimateSize: () => 58,
+    estimateSize: () => 54,
     getScrollElement: () => tableContainerRef.current,
+    measureElement: (element) => element.getBoundingClientRect().height,
     overscan: 8,
   });
 
@@ -324,7 +320,9 @@ export function StockExplorerView() {
               return (
                 <tr
                   className="stock-explorer-row"
+                  data-index={virtualRow.index}
                   key={row.id}
+                  ref={rowVirtualizer.measureElement}
                   style={{
                     position: "absolute",
                     transform: `translateY(${virtualRow.start}px)`,

@@ -27,8 +27,22 @@ export type SmartWarningCode =
 
 type WarningTemplate = string | ((params: Record<string, string | number | boolean>) => string);
 
+export type EntryConditionKey =
+  | "breakout_continuation"
+  | "breakout_trigger_session"
+  | "pullback_zone"
+  | "ready_near_range"
+  | "available_near_range_short"
+  | "close_above_price"
+  | "close_above_trigger";
+
+type EntryConditionTemplate =
+  | string
+  | ((params: Record<string, string | number>) => string);
+
 export type StockDecisionLanguage = {
   signals: Record<Exclude<DecisionSignalKey, "warning_ref">, string>;
+  entryConditions: Record<EntryConditionKey, EntryConditionTemplate>;
   warnings: Record<SmartWarningCode, { title: WarningTemplate; message: WarningTemplate }>;
   scoreLabels: Record<string, string>;
   riskLabels: Record<string, string>;
@@ -53,6 +67,20 @@ const stockDecisionLanguage = {
       momentum_fading: "Momentum fading",
       volume_above_average: "Volume above average",
       weak_volume_confirmation: "Weak volume confirmation",
+    },
+    entryConditions: {
+      breakout_continuation:
+        "Enter only while the completed breakout holds above the preferred zone; reassess if participation fades or the invalidation is breached.",
+      breakout_trigger_session:
+        "Enter only after a completed-session close confirms the trigger with acceptable participation.",
+      pullback_zone:
+        "Enter only if price revisits and holds the preferred support or moving-average zone.",
+      ready_near_range: "Entry setup is currently available near the shown range.",
+      available_near_range_short: "Entry setup is available near the shown range.",
+      close_above_price: ({ price }) =>
+        `Enter only after a completed close above ${price} with confirming volume.`,
+      close_above_trigger:
+        "Enter only after a completed close above the trigger with confirming volume.",
     },
     warnings: {
       near_resistance: {
@@ -171,6 +199,28 @@ const stockDecisionLanguage = {
       volume_above_average: "Volume গড়ের চেয়ে বেশি",
       weak_volume_confirmation: "Volume এখনো নিশ্চিত করছে না",
     },
+    entryConditions: {
+      breakout_continuation:
+      "দাম উপরের range ভেঙে উঠে সেখানে টিকে থাকলে entry ভাবতে পারেন। তবে কেনাবেচা দুর্বল হলে বা দাম আবার নিচে নেমে গেলে একটু অপেক্ষা করুন।",
+      
+      breakout_trigger_session:
+      "দাম trigger-এর উপরে দিন শেষ করলে এবং কেনার চাপ ভালো থাকলে entry ভাবতে পারেন।",
+      
+      pullback_zone:
+      "দাম support-এর কাছে ফিরে এসে আবার ঘুরে দাঁড়ালে entry ভাবতে পারেন।",
+      
+      ready_near_range:
+      "দাম এখন entry range-এর কাছাকাছি। নজরে রাখার সময়।",
+      
+      available_near_range_short:
+      "দাম entry range-এর কাছে। নজরে রাখুন।",
+      
+      close_above_price: ({ price }) =>
+      `${price}-এর উপরে দিন শেষ হলে এবং কেনার চাপ ভালো থাকলে entry ভাবতে পারেন।`,
+      
+      close_above_trigger:
+      "Trigger-এর উপরে দিন শেষ হলে এবং কেনার চাপ ভালো থাকলে entry ভাবতে পারেন।",
+      },      
     warnings: {
       near_resistance: {
         title: "Resistance-এর কাছে",
@@ -286,6 +336,85 @@ export function getStockDecisionLanguage(locale: AppLocale): StockDecisionLangua
   return stockDecisionLanguage[locale] ?? stockDecisionLanguage[DEFAULT_LOCALE];
 }
 
+const ENTRY_CONDITION_PATTERNS: Array<{
+  key: EntryConditionKey;
+  test: RegExp;
+  params?: (match: RegExpMatchArray) => Record<string, string | number>;
+}> = [
+  {
+    key: "breakout_continuation",
+    test:
+      /^Enter only while the completed breakout holds above the preferred zone; reassess if participation fades or the invalidation is breached\.?$/i,
+  },
+  {
+    key: "breakout_trigger_session",
+    test:
+      /^Enter only after a completed-session close confirms the trigger with acceptable participation\.?$/i,
+  },
+  {
+    key: "pullback_zone",
+    test:
+      /^Enter only if price revisits and holds the preferred support or moving-average zone\.?$/i,
+  },
+  {
+    key: "ready_near_range",
+    test: /^Entry setup is currently available near the shown range\.?$/i,
+  },
+  {
+    key: "available_near_range_short",
+    test: /^Entry setup is available near the shown range\.?$/i,
+  },
+  {
+    key: "close_above_price",
+    test: /^Enter only after a completed close above ([\d.]+) with confirming volume\.?$/i,
+    params: (match) => ({ price: match[1] ?? "" }),
+  },
+  {
+    key: "close_above_trigger",
+    test: /^Enter only after a completed close above the trigger with confirming volume\.?$/i,
+  },
+];
+
+function resolveEntryConditionKey(entryCondition: string): {
+  key: EntryConditionKey;
+  params?: Record<string, string | number>;
+} | null {
+  const normalized = entryCondition.trim().replace(/\s+/g, " ");
+  const candidates = [normalized, normalized.endsWith(".") ? normalized.slice(0, -1) : `${normalized}.`];
+
+  for (const candidate of candidates) {
+    for (const pattern of ENTRY_CONDITION_PATTERNS) {
+      const match = candidate.match(pattern.test);
+      if (match) {
+        return {
+          key: pattern.key,
+          params: pattern.params?.(match),
+        };
+      }
+    }
+  }
+
+  return null;
+}
+
+export function localizeEntryCondition(
+  entryCondition: string | null,
+  locale: AppLocale,
+): string | null {
+  if (!entryCondition || locale === "en") {
+    return entryCondition;
+  }
+
+  const resolved = resolveEntryConditionKey(entryCondition);
+  if (!resolved) {
+    return entryCondition;
+  }
+
+  const language = getStockDecisionLanguage(locale);
+  const template = language.entryConditions[resolved.key];
+  return resolveTemplate(template, resolved.params ?? {});
+}
+
 function resolveTemplate(
   template: WarningTemplate,
   params: Record<string, string | number | boolean>,
@@ -362,6 +491,7 @@ export function applyStockDecisionLocalization(
 
   return {
     ...model,
+    entryCondition: localizeEntryCondition(model.entryCondition, locale),
     decisionSignals: model.decisionSignals.map((signal) => ({
       ...signal,
       text:

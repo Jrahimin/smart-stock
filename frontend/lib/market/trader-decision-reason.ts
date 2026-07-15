@@ -5,6 +5,7 @@ export type TraderDecisionReasonKey =
   | "stale_sparse_data"
   | "corporate_action_adjustment"
   | "failed_support"
+  | "data_not_eligible"
   | "buy_uptrend_reward"
   | "buy_uptrend_resistance_test"
   | "uptrend_near_resistance_wait_volume"
@@ -76,6 +77,11 @@ const REASON_PATTERNS: ReasonPattern[] = [
       /^Sharp single-session drop looks like a corporate-action\/ex-date adjustment rather than a breakdown; wait for confirmation\.?$/i,
   },
   { key: "failed_support", test: /^Price has failed recent support\.?$/i },
+  {
+    key: "data_not_eligible",
+    test:
+      /^Data is not eligible for a fresh directional decision; wait for review or refresh\.?$/i,
+  },
   {
     key: "buy_uptrend_reward",
     test: /^Uptrend with favorable opportunity and acceptable reward potential\.?$/i,

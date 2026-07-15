@@ -115,7 +115,7 @@ function buildSignalsLanguage(locale: AppLocale): SignalsLanguage {
   return {
     hero: {
       eyebrow: "Signal Center",
-      title: "ব্যাখ্যাসহ ট্রেডার সিদ্ধান্ত",
+      title: "বিশ্লেষণ সহ ট্রেডের সিদ্ধান্ত",
       loadingSubtitle:
         "বাজারের তথ্য দেখে সিদ্ধান্ত নেওয়ার মতো শেয়ার খোঁজা হচ্ছে",
       readySubtitle: (count) =>

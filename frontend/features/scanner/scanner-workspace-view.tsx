@@ -16,6 +16,7 @@ import {
   type ScannerCategoryId,
 } from "@/features/scanner/scanner-language";
 import { buildScannerCategoryItems } from "@/features/scanner/scanner-results";
+import { localizeEntryCondition } from "@/features/stock-workspace/stock-decision-language";
 import { formatCompactNumber, formatNumber, formatPercent } from "@/lib/formatters/financial-formatters";
 import { frontendConfig } from "@/lib/frontend-config";
 import type { AppLocale } from "@/lib/locale/app-locale";
@@ -158,7 +159,7 @@ export function ScannerWorkspaceView({ locale = DEFAULT_LOCALE }: ScannerWorkspa
                             <strong>{stock.stock.symbol}</strong>
                             <div className="scanner-card-actions">
                               <WatchlistStarToggle stockId={stock.stock.id} stopPropagation />
-                              <SignalBadge signal={decision.recommendation} />
+                              <SignalBadge locale={locale} signal={decision.recommendation} />
                             </div>
                           </div>
                           <span>
@@ -166,15 +167,19 @@ export function ScannerWorkspaceView({ locale = DEFAULT_LOCALE }: ScannerWorkspa
                           </span>
                           {decision.recommendation === "POTENTIAL_BUY" && decision.entryCondition ? (
                             <small className="scanner-entry-condition">
-                              {decision.entryCondition}
+                              {localizeEntryCondition(decision.entryCondition, locale)}
                             </small>
                           ) : null}
                           <div className="mini-momentum-bar" aria-label={language.states.momentumAria}>
                             <span style={{ width: `${Math.min(100, Math.abs(stock.priceChangePercent ?? 0) * 12)}%` }} />
                           </div>
                           <small className="scanner-context-row">
-                            <span>RSI {formatNumber(stock.rsi)}</span>
-                            <span>Vol {formatCompactNumber(stock.volume)}</span>
+                            <span>
+                              {language.metrics.rsi} {formatNumber(stock.rsi)}
+                            </span>
+                            <span>
+                              {language.metrics.vol} {formatCompactNumber(stock.volume)}
+                            </span>
                             <span className={`trend-icon trend-icon-${stock.trend.toLowerCase()}`} aria-label={stock.trend} title={stock.trend} />
                           </small>
                         </Link>

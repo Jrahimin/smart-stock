@@ -43,6 +43,7 @@ import {
   localizeDashboardInsights,
   resolveTurnoverLiquidityInsightKey,
 } from "@/features/market-dashboard/view-models/dashboard-insights-localization";
+import { localizeTimelineItems } from "@/features/market-dashboard/view-models/dashboard-timeline-localization";
 import type { AppLocale } from "@/lib/locale/app-locale";
 import { DEFAULT_LOCALE } from "@/lib/locale/app-locale";
 import type { LeaderRowKind } from "@/lib/market/market-pulse-metrics";
@@ -382,6 +383,7 @@ function applyDashboardLocalization(
           : signal.supportingContext,
       };
     }),
+    timeline: localizeTimelineItems(model.timeline, locale, language),
     insights: localizedInsights,
   };
 }
