@@ -76,5 +76,7 @@ export function mapUniverseRowToListRow(row: BackendScoredUniverseRowDto): Stock
     returnTwentyDayPercent: snapshot.return_20d_percent ?? null,
     averageTurnover: snapshot.average_turnover ?? null,
     structure: snapshot.structure ?? null,
+    scannerConditions: row.scanner?.matches ?? [],
+    volumeBehavior: snapshot.volume_behavior ?? "UNKNOWN",
   };
 }

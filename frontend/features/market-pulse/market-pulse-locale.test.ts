@@ -58,8 +58,8 @@ describe("market pulse language", () => {
       },
       briefing: {
         story: {
-          headline: "SELLING PRESSURE BROADENING\nACROSS 3 SECTORS",
-          explanation: "Participation remains mixed.",
+          headline: "PRICE WEAKNESS BROADENING\nACROSS 3 SECTORS",
+          explanation: "Eligible-stock price breadth is mixed.",
           tone: "negative",
           metrics: [],
         },
@@ -70,7 +70,7 @@ describe("market pulse language", () => {
         },
         opportunityScore: {
           score: 95,
-          label: "Above Average Opportunity Environment",
+          label: "Broad Attention Environment",
           history: [48, 55, 95],
           previousSession: 55,
           weeklyAverage: 66,
@@ -90,7 +90,7 @@ describe("market pulse language", () => {
           tone: "warning",
           highlights: [],
           tradingEnvironment: {
-            signals: [{ text: "Sector rotation active", tone: "positive" }],
+            signals: [{ text: "Sector price leadership is broad", tone: "positive" }],
             overallLabel: "Selective Opportunity",
             overallTone: "warning",
           },
@@ -123,7 +123,7 @@ describe("market pulse language", () => {
         type: "unusual-volume",
         eventTitle: "Unusual Volume Detected",
         eventExplanation: "10.0x normal volume activity detected.",
-        whyItMatters: "Institutional participation may be building.",
+        whyItMatters: "Trading participation is above the stock's recent volume baseline.",
         metricLabel: "10.0x normal",
         significance: "HIGH",
         timeLabel: "3:00 PM",
@@ -143,17 +143,17 @@ describe("market pulse language", () => {
 
     const localized = applyMarketPulseLocalization(model, "bn");
     expect(localized.hero.attentionSubline).toContain("বাজারে কী চলছে");
-    expect(localized.briefing?.story.explanation).toContain("অংশগ্রহণ কম");
+    expect(localized.briefing?.story.explanation).toContain("নামা শেয়ার ওঠা শেয়ারের চেয়ে বেশি");
     expect(localized.focusStocks[0]?.whyHere[0]).toBe("BUY setup-এর heuristic evidence 77/100");
     expect(localized.focusStocks[0]?.actionSummary).toBe("দামের চেয়ে Volume দ্রুত বাড়ছে");
-    expect(localized.alerts[0]?.eventExplanation).toContain("Volume স্বাভাবিকের চেয়ে 10.0x");
+    expect(localized.alerts[0]?.eventExplanation).toContain("Volume recent baseline-এর 10.0x");
     expect(localized.briefing?.summary.text).toContain("বাজার এখন");
-    expect(localized.briefing?.story.headline).toBe("বিক্রির চাপ বাড়ছে\n3টি সেক্টরে");
+    expect(localized.briefing?.story.headline).toBe("দামের দুর্বলতা ছড়াচ্ছে\n3টি সেক্টরে");
   });
 
   it("localizes story headline variants by tone", () => {
     const language = getMarketPulseLanguage("bn");
-    expect(language.briefing.storyHeadline("positive", 4)).toBe("কেনার আগ্রহ ছড়িয়ে পড়ছে\n4টি সেক্টরে");
-    expect(language.briefing.storyHeadline("warning", 1)).toBe("মিশ্র বাজার, বেছে বেছে rotation");
+    expect(language.briefing.storyHeadline("positive", 4)).toBe("দামের শক্তি ছড়াচ্ছে\n4টি সেক্টরে");
+    expect(language.briefing.storyHeadline("warning", 1)).toBe("মিশ্র বাজার, বেছে বেছে price leadership");
   });
 });

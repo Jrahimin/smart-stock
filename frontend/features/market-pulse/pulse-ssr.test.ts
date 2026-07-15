@@ -104,7 +104,7 @@ const summaryFixture = {
 const briefingFixture = {
   story: {
     headline: "MIXED MARKET WITH SELECTIVE ROTATION",
-    explanation: "Participation is selective.",
+    explanation: "Eligible-stock price breadth is selective.",
     tone: "neutral",
     metrics: [],
   },
@@ -116,7 +116,7 @@ const briefingFixture = {
   money_flow: { inflows: [], outflows: [] },
   opportunity_score: {
     score: 98,
-    label: "Above Average Opportunity Environment",
+    label: "Broad Attention Environment",
     history: [47, 48, 55, 56, 98],
     previous_session: 56,
     weekly_average: 61,

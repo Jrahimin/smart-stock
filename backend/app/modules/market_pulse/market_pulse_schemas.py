@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.core.constants.trading_constants import PULSE_SCORE_VERSION
 from app.core.enums import ExchangeCode, MarketAlertType, PulseFocusLabel, PulseScoreBand
 
 
@@ -17,6 +18,7 @@ class PulseScoreBreakdownRead(BaseModel):
     total: int
     contributors: list[str]
     band: PulseScoreBand
+    score_version: str = PULSE_SCORE_VERSION
 
 
 class FocusStockRead(BaseModel):
@@ -157,6 +159,15 @@ class OpportunityScoreRead(BaseModel):
     previous_session: int | None = None
     weekly_average: int | None = None
     trend_label: str | None = None
+    semantics: str = "PULSE_ATTENTION_SCORE"
+
+
+class PulseCoverageRead(BaseModel):
+    score_version: str = PULSE_SCORE_VERSION
+    session_trade_date: date | None = None
+    universe_candidate_count: int = 0
+    eligible_candidate_count: int = 0
+    excluded_candidate_count: int = 0
 
 
 class PlaybookItemRead(BaseModel):
@@ -240,6 +251,7 @@ class MarketBriefingRead(BaseModel):
 
 class MarketPulsePreviousSnapshot(BaseModel):
     last_synced_at: datetime | None = None
+    score_version: str | None = None
     focus_stock_ids: list[UUID] = Field(default_factory=list)
     scores: dict[str, int] = Field(default_factory=dict)
     recommendations: dict[str, str] = Field(default_factory=dict)
@@ -259,6 +271,7 @@ class MarketPulseRead(BaseModel):
     empty_state: str
     empty_message: str | None
     data_quality_note: str | None
+    coverage: PulseCoverageRead | None = None
     last_synced_at: datetime | None = None
 
 
@@ -271,4 +284,5 @@ class MarketPulseSummaryRead(BaseModel):
     empty_state: str
     empty_message: str | None
     data_quality_note: str | None
+    coverage: PulseCoverageRead | None = None
     last_synced_at: datetime | None = None

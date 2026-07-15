@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import date
-from decimal import Decimal
 
 from app.core.enums import ExchangeCode, MarketAlertType, PulseFocusLabel, TrendDirection
 from app.models import DailyMarketSummary
@@ -20,13 +18,13 @@ from app.modules.market_pulse.market_pulse_schemas import (
     MarketStoryRead,
     MarketSummaryHighlightRead,
     MarketSummaryRead,
-    TradingEnvironmentRead,
-    TradingEnvironmentSignalRead,
     MoneyFlowRead,
     MoneyFlowSectorRead,
     OpportunityScoreRead,
     PlaybookItemRead,
     PlaybookRead,
+    TradingEnvironmentRead,
+    TradingEnvironmentSignalRead,
 )
 from app.modules.market_pulse.pulse_score import get_volume_ratio
 from app.modules.stock_details.decision.technical import TechnicalSnapshot
@@ -114,9 +112,9 @@ def _participation_line_from_summaries(summaries: list[DailyMarketSummary]) -> s
     return "Participation remains mixed while turnover stays near normal levels."
 
 
-def _rotation_line(top_inflow_names: list[str]) -> str:
+def _sector_leadership_line(top_inflow_names: list[str]) -> str:
     if not top_inflow_names:
-        return "Leadership remains concentrated in a narrow set of names."
+        return "No positive sector side is present in the eligible set."
     names = " & ".join(top_inflow_names[:2])
     return f"Sector price leadership is concentrated in {names}."
 
@@ -173,29 +171,40 @@ def build_market_briefing(
 
     sector_perf = _sector_performance(rows)
     declining_sectors = sum(1 for values in sector_perf.values() if _avg(values) < -0.15)
+    sector_changes = [
+        (name, _avg(values)) for name, values in sector_perf.items() if len(values) >= 3
+    ]
     inflow_sectors = sorted(
-        ((name, _avg(values)) for name, values in sector_perf.items() if len(values) >= 3),
+        ((name, change) for name, change in sector_changes if change > 0),
         key=lambda item: item[1],
         reverse=True,
     )
     outflow_sectors = sorted(
-        ((name, _avg(values)) for name, values in sector_perf.items() if len(values) >= 3),
+        ((name, change) for name, change in sector_changes if change < 0),
         key=lambda item: item[1],
     )
 
     top_inflow_names = [name for name, _ in inflow_sectors[:2]]
     briefing_line_one = _participation_line_from_summaries(summaries)
-    briefing_line_two = _rotation_line(top_inflow_names)
+    briefing_line_two = _sector_leadership_line(top_inflow_names)
 
     if breadth["declining"] > breadth["advancing"] * 1.15:
-        headline = f"SELLING PRESSURE BROADENING\nACROSS {max(declining_sectors, 1)} SECTORS"
+        headline = (
+            f"PRICE WEAKNESS BROADENING\nACROSS {declining_sectors} SECTORS"
+            if declining_sectors > 0
+            else "PRICE WEAKNESS BROADENING\nACROSS ELIGIBLE STOCKS"
+        )
         story_tone = "negative"
     elif breadth["advancing"] > breadth["declining"] * 1.15:
         expanding_sectors = len([change for _, change in inflow_sectors if change > 0.2])
-        headline = f"BUYING INTEREST EXPANDING\nACROSS {max(expanding_sectors, 1)} SECTORS"
+        headline = (
+            f"PRICE STRENGTH EXPANDING\nACROSS {expanding_sectors} SECTORS"
+            if expanding_sectors > 0
+            else "PRICE STRENGTH EXPANDING\nACROSS ELIGIBLE STOCKS"
+        )
         story_tone = "positive"
     else:
-        headline = "MIXED MARKET WITH SELECTIVE ROTATION"
+        headline = "MIXED MARKET WITH SELECTIVE LEADERSHIP"
         story_tone = "warning"
 
     explanation = f"{briefing_line_one}\n{briefing_line_two}"
@@ -240,8 +249,25 @@ def build_market_briefing(
     sentiment = "Bearish" if breadth["declining"] > breadth["advancing"] * 1.12 else (
         "Bullish" if breadth["advancing"] > breadth["declining"] * 1.12 else "Neutral"
     )
-    avg_volume_ratio = sum(get_volume_ratio(row.snapshot) for row in rows) / total
-    participation = "Weak" if avg_volume_ratio < 0.95 else "Strong" if avg_volume_ratio > 1.15 else "Moderate"
+    known_volume_ratios = [
+        ratio
+        for row in rows
+        if (ratio := get_volume_ratio(row.snapshot)) is not None
+    ]
+    avg_volume_ratio = (
+        sum(known_volume_ratios) / len(known_volume_ratios)
+        if known_volume_ratios
+        else None
+    )
+    participation = (
+        "Unknown"
+        if avg_volume_ratio is None
+        else "Weak"
+        if avg_volume_ratio < 0.95
+        else "Strong"
+        if avg_volume_ratio > 1.15
+        else "Moderate"
+    )
     uptrend_count = sum(1 for row in rows if row.snapshot.trend == TrendDirection.UPTREND)
     momentum = "Positive" if uptrend_count / total >= 0.42 else "Negative" if uptrend_count / total <= 0.32 else "Neutral"
     stock_sector_map = {str(getattr(row.stock, "id", "")): _sector_name(row.stock) for row in rows}
@@ -255,7 +281,7 @@ def build_market_briefing(
         overall = "Risk-On Expansion"
         overall_tone = "positive"
     elif sentiment == "Neutral":
-        overall = "Selective Opportunity"
+        overall = "Selective Attention"
         overall_tone = "info"
     else:
         overall = "Cautious Positioning"
@@ -282,7 +308,10 @@ def build_market_briefing(
         overall_tone=overall_tone,
     )
 
-    max_strength = max((abs(change) for _, change in inflow_sectors), default=1.0) or 1.0
+    max_strength = max(
+        (abs(change) for _, change in [*inflow_sectors, *outflow_sectors]),
+        default=1.0,
+    ) or 1.0
 
     def to_flow_sector(name: str, change: float, positive: bool) -> MoneyFlowSectorRead:
         sign = "+" if change >= 0 else ""
@@ -295,22 +324,20 @@ def build_market_briefing(
 
     money_flow = MoneyFlowRead(
         inflows=[to_flow_sector(name, change, True) for name, change in inflow_sectors[:3] if change > 0],
-        outflows=[to_flow_sector(name, change, False) for name, change in reversed(outflow_sectors[:3]) if change < 0],
+        outflows=[to_flow_sector(name, change, False) for name, change in outflow_sectors[:3]],
     )
 
-    focus_scores = [stock.pulse_score for stock in focus_reads]
-    monitor_scores = [stock.pulse_score for stock in monitor_reads]
-    pool_scores = focus_scores or monitor_scores or [row.score.total for row in rows[:20]]
+    pool_scores = [row.score.total for row in rows]
     opportunity = int(round(sum(pool_scores) / len(pool_scores))) if pool_scores else 50
 
     opportunity_score = OpportunityScoreRead(
         score=opportunity,
         label=(
-            "Above Average Opportunity Environment"
+            "Broad Attention Environment"
             if opportunity >= 68
-            else "Selective Opportunity Environment"
+            else "Selective Attention Environment"
             if opportunity >= 55
-            else "Limited Opportunity Environment"
+            else "Limited Attention Environment"
         ),
         # Comparable history is intentionally absent until point-in-time Pulse
         # snapshots with the same formula, population, and version are stored.
@@ -329,12 +356,12 @@ def build_market_briefing(
     )
     watchlist_count = len(monitor_reads) or len(focus_reads)
     playbook = PlaybookRead(
-        question="What should I do next?",
+        question="What deserves review next?",
         items=[
             PlaybookItemRead(
                 profile="Aggressive",
                 summary=f"{aggressive_count} setup{'s' if aggressive_count != 1 else ''} available",
-                guidance="Focus on momentum breakouts" if aggressive_count > 0 else "Wait for stronger setups",
+                guidance="Review confirmed price-volume breaks" if aggressive_count > 0 else "Wait for stronger evidence",
                 tone="positive",
             ),
             PlaybookItemRead(
@@ -372,7 +399,7 @@ def build_market_briefing(
             exchange=volume_alert.exchange or ExchangeCode.DSE,
             reason=volume_alert.why_it_matters,
             trigger_level=trigger_level,
-            metric_label=f"{volume_alert.metric_label} vs 30D average volume",
+            metric_label=f"{volume_alert.metric_label} vs prior 20-session median volume",
             latest_price=volume_alert.latest_price or "N/A",
             price_change_percent=volume_alert.price_change_percent or "N/A",
             price_tone=volume_alert.price_tone or "neutral",
@@ -394,7 +421,12 @@ def build_market_briefing(
 
     strongest_sector = inflow_sectors[0][0] if inflow_sectors else "N/A"
     strongest_stock_row = max(rows, key=lambda row: row.snapshot.price_change_percent or 0, default=None)
-    accumulation_row = max(rows, key=lambda row: get_volume_ratio(row.snapshot), default=None)
+    relative_volume_rows = [row for row in rows if get_volume_ratio(row.snapshot) is not None]
+    accumulation_row = max(
+        relative_volume_rows,
+        key=lambda row: get_volume_ratio(row.snapshot) or 0,
+        default=None,
+    )
     fresh_signals = [
         stock.symbol
         for stock in focus_reads
@@ -413,7 +445,7 @@ def build_market_briefing(
     leadership_narrative = (
         f"Leadership remains concentrated in {strongest_sector}."
         if strongest_sector != "N/A"
-        else "Leadership remains fragmented across sectors."
+        else "No positive sector leader is present in the eligible set."
     )
     accumulation_ratio = get_volume_ratio(accumulation_row.snapshot) if accumulation_row else None
 
@@ -424,11 +456,15 @@ def build_market_briefing(
         cards=[
             LeadershipCardRead(
                 kind="sector",
-                title="Strongest Sector",
+                title="Leading Sector",
                 name=strongest_sector,
                 detail=format_percent(sector_change) if sector_change is not None else None,
-                subtitle=f"Leading sector today · {advancing_in_sector} advancing stocks",
-                tone="positive",
+                subtitle=(
+                    f"Leading sector today · {advancing_in_sector} advancing stocks"
+                    if sector_change is not None
+                    else "No positive sector side in the eligible set"
+                ),
+                tone="positive" if sector_change is not None else "neutral",
                 href="/scanner",
                 sparkline_points=_index_close_sparkline(summaries),
             ),
@@ -442,7 +478,11 @@ def build_market_briefing(
                     else None
                 ),
                 subtitle="Session price leader",
-                tone="positive",
+                tone=(
+                    price_tone(strongest_stock_row.snapshot.price_change_percent)
+                    if strongest_stock_row
+                    else "neutral"
+                ),
                 href=(
                     f"/stocks/{getattr(strongest_stock_row.stock, 'exchange', ExchangeCode.DSE)}/"
                     f"{getattr(strongest_stock_row.stock, 'symbol', '')}"
@@ -455,10 +495,10 @@ def build_market_briefing(
             ),
             LeadershipCardRead(
                 kind="accumulation",
-                title="Accumulation Leader",
+                title="Relative-volume Leader",
                 name=getattr(accumulation_row.stock, "symbol", "N/A") if accumulation_row else "N/A",
-                detail=f"{accumulation_ratio:.1f}x accumulation" if accumulation_ratio is not None else None,
-                subtitle="vs 30D average volume",
+                detail=f"{accumulation_ratio:.1f}x median volume" if accumulation_ratio is not None else None,
+                subtitle="vs prior 20-session median volume",
                 tone="info",
                 href=(
                     f"/stocks/{getattr(accumulation_row.stock, 'exchange', ExchangeCode.DSE)}/"
@@ -474,7 +514,7 @@ def build_market_briefing(
         fresh_buy_signals=fresh_signals,
     )
 
-    inflow_text = " & ".join(name for name, _ in inflow_sectors[:2]) if inflow_sectors else "selective groups"
+    inflow_text = " & ".join(name for name, _ in inflow_sectors[:2]) if inflow_sectors else None
     opportunity_short = (
         "Above Average"
         if opportunity >= 68
@@ -483,23 +523,23 @@ def build_market_briefing(
         else "Limited"
     )
     leadership_highlight = "Concentrated" if leadership == "Narrow" else "Broad"
-    sector_rotation_active = len(inflow_sectors) >= 2 or advancing_in_sector >= 3
+    broad_sector_leadership = len(inflow_sectors) >= 2 or advancing_in_sector >= 3
     trading_signals: list[TradingEnvironmentSignalRead] = []
     if opportunity >= 68:
         trading_signals.append(
-            TradingEnvironmentSignalRead(text="Opportunity environment above average", tone="positive")
+            TradingEnvironmentSignalRead(text="Eligible attention breadth is broad", tone="positive")
         )
     elif opportunity >= 55:
         trading_signals.append(
-            TradingEnvironmentSignalRead(text="Opportunity environment selective", tone="warning")
+            TradingEnvironmentSignalRead(text="Eligible attention breadth is selective", tone="warning")
         )
     else:
         trading_signals.append(
-            TradingEnvironmentSignalRead(text="Opportunity environment limited", tone="warning")
+            TradingEnvironmentSignalRead(text="Eligible attention breadth is limited", tone="warning")
         )
-    if sector_rotation_active:
+    if broad_sector_leadership:
         trading_signals.append(
-            TradingEnvironmentSignalRead(text="Sector rotation active", tone="positive")
+            TradingEnvironmentSignalRead(text="Sector price leadership is broad", tone="positive")
         )
     if breadth["declining"] > breadth["advancing"]:
         trading_signals.append(
@@ -522,9 +562,14 @@ def build_market_briefing(
         trading_overall = overall
         trading_overall_tone = overall_tone
 
+    leadership_summary = (
+        f"Positive sector leadership is concentrated in {inflow_text}"
+        if inflow_text
+        else "No positive sector side is present"
+    )
     summary_text = (
         f"Market remains in a {overall.lower()} phase.\n"
-        f"Leadership is concentrated in {inflow_text} while participation remains {participation.lower()}. "
+        f"{leadership_summary} while participation remains {participation.lower()}. "
         "Focus on liquidity, confirmation, and disciplined position sizing."
     )
     summary = MarketSummaryRead(
@@ -533,7 +578,7 @@ def build_market_briefing(
         highlights=[
             MarketSummaryHighlightRead(label="Sentiment", value=sentiment, tone=_state_tone(sentiment)),
             MarketSummaryHighlightRead(
-                label="Opportunity",
+                label="Attention",
                 value=opportunity_short,
                 tone="positive" if opportunity >= 68 else "warning",
             ),

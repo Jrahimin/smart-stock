@@ -22,8 +22,9 @@ from app.core.constants.trading_constants import (
     SUPPORT_RESISTANCE_SWING_CONFIRM_BARS,
     TREND_SLOPE_LOOKBACK,
     VOLUME_EXPANSION_RATIO,
+    VOLUME_THIN_RATIO,
 )
-from app.core.enums import DataQualityFlag, TrendDirection, TurnoverProvenance
+from app.core.enums import DataQualityFlag, TrendDirection, TurnoverProvenance, VolumeBehavior
 from app.models import DailyPrice
 
 # Swing-point detection lives here so support/resistance and the pattern engine
@@ -197,6 +198,20 @@ def return_percent_over_lookback(closes: list[float], lookback: int) -> float | 
     if past == 0:
         return None
     return (closes[-1] / past - 1) * 100
+
+
+def classify_volume_behavior(
+    volume: int,
+    baseline_volume: float | None,
+) -> VolumeBehavior:
+    if baseline_volume is None or baseline_volume <= 0:
+        return VolumeBehavior.UNKNOWN
+    ratio = volume / baseline_volume
+    if ratio >= VOLUME_EXPANSION_RATIO:
+        return VolumeBehavior.EXPANSION
+    if ratio <= VOLUME_THIN_RATIO:
+        return VolumeBehavior.THIN
+    return VolumeBehavior.NORMAL
 
 
 def _return_percent(closes: list[float], lookback: int) -> float | None:
@@ -417,6 +432,7 @@ class TechnicalSnapshot:
     turnover_provenance: TurnoverProvenance = TurnoverProvenance.UNKNOWN
     analytical_price_basis: str = "RAW_UNADJUSTED"
     adjusted_close_coverage_ratio: float = 0.0
+    volume_behavior: VolumeBehavior = VolumeBehavior.UNKNOWN
 
 
 def build_technical_snapshot(prices: list[DailyPrice]) -> TechnicalSnapshot | None:
@@ -577,4 +593,5 @@ def build_technical_snapshot(prices: list[DailyPrice]) -> TechnicalSnapshot | No
             "SOURCE_ADJUSTED_CLOSE" if use_adjusted_close else "RAW_UNADJUSTED"
         ),
         adjusted_close_coverage_ratio=adjusted_coverage,
+        volume_behavior=classify_volume_behavior(latest.volume, average_volume),
     )

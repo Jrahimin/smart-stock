@@ -545,6 +545,10 @@ export function buildMarketPulseSnapshotFromDto(dto: BackendMarketPulseDto) {
 
   return {
     lastSyncedAt: null,
+    scoreVersion:
+      dto.coverage?.score_version ??
+      trackedStocks[0]?.score_breakdown.score_version ??
+      null,
     focusStockIds: dto.focus_stocks.map((stock) => stock.stock_id),
     scores,
     recommendations,

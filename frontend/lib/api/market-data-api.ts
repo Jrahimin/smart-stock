@@ -5,7 +5,6 @@ import type {
   BackendDsexIndexSnapshotDto,
   BackendLatestMarketPriceDto,
   BackendMarketFreshnessDto,
-  BackendMarketPriceWindowDto,
   DataQualityFlag,
   ExchangeCode,
 } from "@/lib/api/backend-api-types";
@@ -23,10 +22,6 @@ export type ListDailyPricesParams = {
   end_date?: string;
   source?: string;
   data_quality_flag?: DataQualityFlag;
-};
-
-export type ListMarketPriceWindowsParams = ListMarketSummariesParams & {
-  price_window_limit?: number;
 };
 
 export function getMarketFreshness(exchange: ExchangeCode = "DSE") {
@@ -50,16 +45,6 @@ export function listLatestMarketPrices(params: ListMarketSummariesParams = {}) {
     limit: params.limit ?? 100,
     offset: params.offset ?? 0,
     exchange: params.exchange,
-  });
-}
-
-/** @deprecated Prefer listUniverseRows — trader UI must use GET /market/universe-rows. */
-export function listMarketPriceWindows(params: ListMarketPriceWindowsParams = {}) {
-  return backendApiGetMarket<BackendMarketPriceWindowDto[]>("/market/price-windows", {
-    limit: params.limit ?? 100,
-    offset: params.offset ?? 0,
-    exchange: params.exchange,
-    price_window_limit: params.price_window_limit ?? 30,
   });
 }
 

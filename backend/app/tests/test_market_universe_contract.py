@@ -6,7 +6,12 @@ from uuid import uuid4
 
 import pytest
 
-from app.core.constants.trading_constants import TRADING_STRATEGY_VERSION, TRADING_THRESHOLD_VERSION
+from app.core.constants.trading_constants import (
+    PULSE_SCORE_VERSION,
+    TRADING_INPUT_SCHEMA_VERSION,
+    TRADING_STRATEGY_VERSION,
+    TRADING_THRESHOLD_VERSION,
+)
 from app.core.core_config import Settings
 from app.core.enums import (
     DataQualityFlag,
@@ -128,13 +133,15 @@ def _decision(recommendation: TraderRecommendation, confidence: int = 72) -> Tra
 
 def test_invalidation_key_lists_cover_presentation_and_foundation() -> None:
     assert universe_cache_key("scored", ExchangeCode.DSE) == (
-        f"universe:scored:DSE:{TRADING_STRATEGY_VERSION}"
+        f"universe:scored:DSE:{TRADING_STRATEGY_VERSION}:"
+        f"{TRADING_THRESHOLD_VERSION}:{TRADING_INPUT_SCHEMA_VERSION}"
     )
     assert universe_cache_key("scored", ExchangeCode.DSE, "future-v2") != universe_cache_key(
         "scored", ExchangeCode.DSE
     )
     assert pulse_cache_key("response", ExchangeCode.DSE) == (
-        f"pulse:response:DSE:{TRADING_STRATEGY_VERSION}:{TRADING_THRESHOLD_VERSION}"
+        f"pulse:response:DSE:{TRADING_STRATEGY_VERSION}:"
+        f"{TRADING_THRESHOLD_VERSION}:{TRADING_INPUT_SCHEMA_VERSION}:{PULSE_SCORE_VERSION}"
     )
     assert "overview" in DASHBOARD_CACHE_KEY_NAMES
     assert "response" in PULSE_CACHE_KEY_NAMES
@@ -178,6 +185,7 @@ def test_scored_universe_row_serialization_has_only_allowed_keys() -> None:
         "technical_snapshot",
         "decision",
         "eligibility",
+        "scanner",
         "session",
     }
     assert_no_forbidden_universe_fields(payload)
@@ -202,6 +210,7 @@ async def test_scored_universe_redis_cache_payload_is_lightweight() -> None:
             self.storage.pop(key, None)
 
     stock = _stock("CACHE")
+    freshness_time = datetime(2026, 6, 30, 15, 0)
     prices = [
         DailyPrice(
             stock_id=stock.id,
@@ -226,7 +235,7 @@ async def test_scored_universe_redis_cache_payload_is_lightweight() -> None:
             return []
 
         async def get_market_price_freshness(self, **kwargs):
-            return prices[-1].trade_date, datetime.now()
+            return prices[-1].trade_date, freshness_time
 
         async def list_recent_exchange_session_dates(self, **kwargs):
             return [price.trade_date for price in prices[-10:]]

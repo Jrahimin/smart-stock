@@ -260,6 +260,7 @@ export type MarketPulseModel = {
 
 export type MarketPulseStoredSnapshot = {
   lastSyncedAt: string | null;
+  scoreVersion: string | null;
   focusStockIds: string[];
   scores: Record<string, number>;
   recommendations: Record<string, string>;

@@ -91,18 +91,20 @@ Storage format: `SET key JSON EX=<ttl_seconds>` (not `SETEX` by name, same effec
 ### Cache hierarchy
 
 ```text
-universe:scored:{exchange}:{strategy_version}       ← canonical trader foundation
-universe:scored:prev:{exchange}:{strategy_version}  ← same-version stale fallback
+universe:scored:{exchange}:{strategy_version}:{threshold_version}:{input_schema_version}
+universe:scored:prev:{exchange}:{strategy_version}:{threshold_version}:{input_schema_version}
 dashboard:{section}:{exchange}                       ← lightweight presentation
-pulse:{response|summary}:{exchange}                  ← presentation
-stock-workspace:{section}:{ex}:{sym}:{trade_date}:{strategy_version}
+pulse:{response|summary}:{exchange}:{strategy_version}:{threshold_version}:{input_schema_version}:{pulse_score_version}
+                                                       ← presentation
+stock-workspace:{section}:{ex}:{sym}:{trade_date}:{strategy_version}:{threshold_version}:{input_schema_version}
                                                       ← per-symbol page aggregate
 ```
 
 **Stock workspace freshness (important):**
 
-* **Cross-day/version:** `latest_trade_date` and `strategy_version` in the key
-  prevent reuse after the session or canonical strategy changes.
+* **Cross-day/version:** `latest_trade_date`, `strategy_version`,
+  `threshold_version`, and `input_schema_version` in the key prevent reuse after
+  the session or any approved calculation-contract change.
 * **Same-day intraday:** snapshot upserts rewrite the same trade date; Redis TTL (`current_cache_ttl_seconds` / dashboard TTL) is the same-day safety net. There is no per-symbol fan-out on `sync_market_snapshot`.
 * Frontend stock-detail ISR / TanStack staleTime should follow that TTL (default 600s), not a shorter unrelated interval that fights IndexedDB.
 

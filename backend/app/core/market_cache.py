@@ -2,13 +2,19 @@ from __future__ import annotations
 
 import logging
 
-from app.core.constants.trading_constants import TRADING_STRATEGY_VERSION, TRADING_THRESHOLD_VERSION
+from app.core.constants.trading_constants import (
+    PULSE_SCORE_VERSION,
+    TRADING_INPUT_SCHEMA_VERSION,
+    TRADING_STRATEGY_VERSION,
+    TRADING_THRESHOLD_VERSION,
+)
 from app.core.core_config import Settings, get_settings
 from app.core.enums import ExchangeCode
 from app.core.redis_client import OptionalRedisClient, build_redis_client
 from app.modules.market_universe.market_universe_cache import (
     UNIVERSE_CACHE_KEY_NAMES,
     legacy_universe_cache_key,
+    strategy_only_universe_cache_key,
     universe_cache_key,
     universe_prev_cache_key,
 )
@@ -42,7 +48,8 @@ def dashboard_cache_key(section: str, exchange: ExchangeCode) -> str:
 def pulse_cache_key(section: str, exchange: ExchangeCode) -> str:
     return (
         f"pulse:{section}:{exchange.value}:"
-        f"{TRADING_STRATEGY_VERSION}:{TRADING_THRESHOLD_VERSION}"
+        f"{TRADING_STRATEGY_VERSION}:{TRADING_THRESHOLD_VERSION}:"
+        f"{TRADING_INPUT_SCHEMA_VERSION}:{PULSE_SCORE_VERSION}"
     )
 
 
@@ -78,6 +85,7 @@ async def invalidate_market_caches(
     for section in UNIVERSE_CACHE_KEY_NAMES:
         for key in (
             universe_cache_key(section, exchange),
+            strategy_only_universe_cache_key(section, exchange),
             legacy_universe_cache_key(section, exchange),
         ):
             try:
@@ -89,6 +97,15 @@ async def invalidate_market_caches(
         await redis.delete(universe_prev_cache_key(exchange))
     except Exception:
         logger.warning("Failed to delete universe prev cache for %s", exchange.value, exc_info=True)
+
+    try:
+        await redis.delete(strategy_only_universe_cache_key("scored:prev", exchange))
+    except Exception:
+        logger.warning(
+            "Failed to delete strategy-only universe prev cache for %s",
+            exchange.value,
+            exc_info=True,
+        )
 
     try:
         await redis.delete(legacy_universe_cache_key("scored:prev", exchange))

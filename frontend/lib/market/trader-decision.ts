@@ -145,28 +145,10 @@ export function buildDecisionSupportingContext(stock: StockIntelligenceModel): s
   return context;
 }
 
-export function isBreakdownRiskDecision(stock: StockIntelligenceModel): boolean {
-  const decision = resolveTraderDecision(stock);
-  return decision.recommendation === "SELL" || decision.riskLabel === "HIGH" || decision.riskLabel === "SPECULATIVE";
-}
-
 export function isActionableDecision(recommendation: TraderRecommendation): boolean {
   return recommendation === "BUY" || recommendation === "SELL";
 }
 
 export function getVolumeBehaviorId(stock: StockIntelligenceModel): string {
-  if (!stock.averageVolume || stock.averageVolume <= 0) {
-    return "NORMAL";
-  }
-
-  const ratio = stock.volume / stock.averageVolume;
-  if (ratio >= 1.8) {
-    return "EXPANSION";
-  }
-
-  if (ratio <= 0.55) {
-    return "THIN";
-  }
-
-  return "NORMAL";
+  return stock.volumeBehavior ?? "UNKNOWN";
 }

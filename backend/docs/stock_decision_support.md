@@ -24,8 +24,10 @@ GET /api/v1/stock-details/DSE/ACMEPL/decision-support
 
 - **Canonical decision identity** — `strategy_version`, `threshold_version`,
   `action_taxonomy`, exchange/session `as_of_date`, `previous_session_date`,
-  `calculated_at`, deterministic `shared_decision_id`, result semantics, primary
-  reason, contextual actions, eligibility and plan status.
+  `calculated_at`, deterministic `shared_decision_id`, `input_schema_version`,
+  `data_revision`, `event_revision`, `input_hash`, replay status/limitations,
+  result semantics, primary reason, contextual actions, eligibility and plan
+  status.
 - **Technical snapshot** — the same authoritative scalar technical projection
   supplied to universe/list consumers; clients use raw candles only for charts.
 - **Trader decision** — compatibility `BUY`, `HOLD`, `WAIT`, or `SELL`, plus
@@ -143,12 +145,25 @@ decision fields remain readable.
 For a stock/session/strategy/threshold identity, list and detail expose the same
 core recommendation, contextual actions, evidence/risk/plan status, primary
 reason and `shared_decision_id`. `calculated_at` is observational metadata and
-does not participate in identity. Watchlists reuse the universe projection;
+does not participate in identity. Price/event/context content does: a corrected
+input changes its revision hash, `input_hash`, and `shared_decision_id` even on
+the same market session. Watchlists reuse the universe projection;
 when it is unavailable they return an unavailable `WAIT`, not a local fallback
 calculation.
 
 The frontend may derive candle geometry for display, but client RSI, risk,
 levels or signal heuristics cannot drive action badges.
+
+## Phase 7 Audit Persistence
+
+Every successful scored-universe rebuild appends missing results to
+`canonical_decision_snapshots`, keyed immutably by `shared_decision_id`. The row
+stores the full compact canonical result and its data/event/input revisions.
+Existing rows are never updated in place; a source correction creates a new
+identity. Snapshots intentionally do not archive all raw OHLCV/status rows, so
+they report `IDENTIFIED_WITH_LIMITATIONS` and name the missing raw-input and
+effective-dated status lineage. Replay manifests provide dataset-level
+reproduction checks for formal backtests.
 
 ## Accuracy Model (Decision Engine Overhaul)
 

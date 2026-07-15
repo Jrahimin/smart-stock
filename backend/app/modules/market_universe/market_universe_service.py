@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import date
+from datetime import date, datetime
 from typing import Annotated
 
 from fastapi import Depends
@@ -11,6 +11,8 @@ from app.core.constants.trading_constants import (
     PULSE_PRICE_WINDOW_LIMIT,
     PULSE_UNIVERSE_LIMIT,
     REGIME_SUMMARY_FETCH_LIMIT,
+    SCANNER_CONDITION_VERSION,
+    TRADING_INPUT_SCHEMA_VERSION,
     TRADING_STRATEGY_VERSION,
     TRADING_THRESHOLD_VERSION,
 )
@@ -31,6 +33,9 @@ from app.modules.market_universe.market_universe_compute import (
     build_scored_universe_rows,
     group_price_window_rows,
 )
+from app.modules.market_universe.market_universe_lineage import (
+    compute_universe_payload_revision,
+)
 from app.modules.market_universe.market_universe_schemas import (
     ScoredUniverseCacheRead,
     ScoredUniverseRow,
@@ -39,6 +44,14 @@ from app.modules.market_universe.market_universe_schemas import (
 )
 from app.modules.stock_details.decision.market_regime import resolve_regime_from_summaries
 from app.modules.stocks.stocks_repository import StocksRepository, get_stocks_repository
+from app.modules.trading_intelligence.decision_snapshot_repository import (
+    DecisionSnapshotRepository,
+    get_decision_snapshot_repository,
+)
+from app.modules.trading_intelligence.monitoring import (
+    log_monitoring_report,
+    monitor_universe_payload,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -54,11 +67,13 @@ class MarketUniverseService:
         stocks_repository: StocksRepository,
         redis: OptionalRedisClient,
         settings: Settings,
+        decision_snapshot_repository: DecisionSnapshotRepository | None = None,
     ) -> None:
         self.market_repository = market_repository
         self.stocks_repository = stocks_repository
         self.redis = redis
         self.settings = settings
+        self.decision_snapshot_repository = decision_snapshot_repository
         self._last_compute_ms: float | None = None
 
     @property
@@ -73,7 +88,9 @@ class MarketUniverseService:
         await self.redis.set_json(cache_key, payload, ttl_seconds=ttl_seconds)
 
     async def get_scored_universe(self, *, exchange: ExchangeCode) -> list[ScoredUniverseRow]:
-        session_trade_date, _ = await self.market_repository.get_market_price_freshness(exchange=exchange)
+        session_trade_date, source_last_synced_at = (
+            await self.market_repository.get_market_price_freshness(exchange=exchange)
+        )
 
         if self.redis.is_available:
             cache_key = universe_cache_key("scored", exchange)
@@ -81,7 +98,9 @@ class MarketUniverseService:
             if cached is not None:
                 cached_payload = self._parse_cache_payload(cached)
                 if cached_payload is not None and self._cache_matches_identity(
-                    cached_payload, session_trade_date
+                    cached_payload,
+                    session_trade_date,
+                    source_last_synced_at,
                 ):
                     return cached_payload.rows
                 logger.info(
@@ -95,9 +114,14 @@ class MarketUniverseService:
             if stale is not None:
                 stale_payload = self._parse_cache_payload(stale)
                 if stale_payload is not None and self._cache_matches_identity(
-                    stale_payload, session_trade_date
+                    stale_payload,
+                    session_trade_date,
+                    source_last_synced_at,
                 ):
-                    logger.info("Serving universe:scored:prev for %s while rebuild runs", exchange.value)
+                    logger.info(
+                        "Serving universe:scored:prev for %s while rebuild runs",
+                        exchange.value,
+                    )
                     from app.jobs.market_cache_spawn import spawn_rebuild_universe_read_cache
 
                     spawn_rebuild_universe_read_cache(exchange, settings=self.settings)
@@ -108,10 +132,9 @@ class MarketUniverseService:
                     session_trade_date,
                 )
 
-        rows = await self.recompute_scored_universe(exchange)
-        if self.redis.is_available:
-            await self.cache_scored_universe(exchange, rows)
-        return rows
+        raise UniverseCacheUnavailableError(
+            f"Scored universe cache is unavailable for {exchange.value}; background rebuild required"
+        )
 
     @staticmethod
     def _parse_cache_payload(payload: dict) -> ScoredUniverseCacheRead | None:
@@ -124,24 +147,36 @@ class MarketUniverseService:
     def _cache_matches_identity(
         payload: ScoredUniverseCacheRead,
         session_trade_date: date | None,
+        source_last_synced_at: datetime | None,
     ) -> bool:
-        if (
-            session_trade_date is None
-            or not payload.rows
-            or payload.session_trade_date != session_trade_date
-            or payload.strategy_version != TRADING_STRATEGY_VERSION
-            or payload.threshold_version != TRADING_THRESHOLD_VERSION
-        ):
-            return False
-        return all(
+        structural_match = (
+            session_trade_date is not None
+            and bool(payload.rows)
+            and payload.session_trade_date == session_trade_date
+            and payload.strategy_version == TRADING_STRATEGY_VERSION
+            and payload.threshold_version == TRADING_THRESHOLD_VERSION
+            and payload.input_schema_version == TRADING_INPUT_SCHEMA_VERSION
+            and payload.scanner_version == SCANNER_CONDITION_VERSION
+            and all(
             row.eligibility is not None
             and row.eligibility.exchange_session_date == session_trade_date
             and row.decision is not None
             and row.decision.canonical is not None
             and row.decision.canonical.strategy_version == TRADING_STRATEGY_VERSION
             and row.decision.canonical.threshold_version == TRADING_THRESHOLD_VERSION
+            and row.scanner is not None
+            and row.scanner.version == SCANNER_CONDITION_VERSION
             for row in payload.rows
+            )
         )
+        report = monitor_universe_payload(
+            payload,
+            expected_session_date=session_trade_date,
+            expected_source_last_synced_at=source_last_synced_at,
+        )
+        if report.issues:
+            log_monitoring_report(report, exchange="cache-read")
+        return structural_match and not report.has_errors
 
     async def recompute_scored_universe(self, exchange: ExchangeCode) -> list[ScoredUniverseRow]:
         perf = PerfReport("universe.rebuild")
@@ -182,12 +217,29 @@ class MarketUniverseService:
                 exchange_session_dates=exchange_session_dates,
                 corporate_action_dates_by_stock=corporate_action_dates,
             )
+        if self.decision_snapshot_repository is not None:
+            try:
+                async with async_perf_stage(perf, "db.decision_snapshots"):
+                    await self.decision_snapshot_repository.persist_missing(rows)
+            except Exception:
+                logger.exception(
+                    "Failed to persist immutable decision snapshots for %s",
+                    exchange.value,
+                )
+                await self.decision_snapshot_repository.session.rollback()
         perf.log_summary()
         self._last_compute_ms = perf.total_ms
         return rows
 
-    async def cache_scored_universe(self, exchange: ExchangeCode, rows: list[ScoredUniverseRow]) -> None:
+    async def cache_scored_universe(
+        self,
+        exchange: ExchangeCode,
+        rows: list[ScoredUniverseRow],
+    ) -> None:
         cache_key = universe_cache_key("scored", exchange)
+        freshness_date, source_last_synced_at = (
+            await self.market_repository.get_market_price_freshness(exchange=exchange)
+        )
         session_dates = [
             row.eligibility.exchange_session_date
             for row in rows
@@ -196,26 +248,47 @@ class MarketUniverseService:
         payload = ScoredUniverseCacheRead(
             strategy_version=TRADING_STRATEGY_VERSION,
             threshold_version=TRADING_THRESHOLD_VERSION,
-            session_trade_date=max(session_dates) if session_dates else None,
+            input_schema_version=TRADING_INPUT_SCHEMA_VERSION,
+            scanner_version=SCANNER_CONDITION_VERSION,
+            session_trade_date=freshness_date or (max(session_dates) if session_dates else None),
+            source_last_synced_at=source_last_synced_at,
+            payload_revision=compute_universe_payload_revision(rows),
             rows=rows,
-        ).model_dump(mode="json")
+        )
 
         current = await self._cache_get(cache_key)
+        previous_payload = self._parse_cache_payload(current) if current is not None else None
+        monitoring_report = monitor_universe_payload(
+            payload,
+            expected_session_date=payload.session_trade_date,
+            expected_source_last_synced_at=source_last_synced_at,
+            previous_payload=previous_payload,
+        )
+        if monitoring_report.issues:
+            log_monitoring_report(monitoring_report, exchange=exchange.value)
+        serialized_payload = payload.model_dump(mode="json")
         if current is not None:
             prev_key = universe_prev_cache_key(exchange)
             await self._cache_set(prev_key, current)
 
-        await self._cache_set(cache_key, payload)
+        await self._cache_set(cache_key, serialized_payload)
 
     async def get_universe_rows(self, *, exchange: ExchangeCode) -> UniverseRowsRead:
-        session_trade_date, _ = await self.market_repository.get_market_price_freshness(exchange=exchange)
+        session_trade_date, source_last_synced_at = (
+            await self.market_repository.get_market_price_freshness(exchange=exchange)
+        )
         rows = await self.get_scored_universe(exchange=exchange)
-        listed_stock_count = await self.stocks_repository.count_stocks(exchange=exchange, is_active=True)
+        listed_stock_count = await self.stocks_repository.count_stocks(
+            exchange=exchange,
+            is_active=True,
+        )
         return UniverseRowsRead(
             meta=UniverseRowsMetaRead(
                 exchange=exchange,
                 listed_stock_count=listed_stock_count,
                 session_trade_date=session_trade_date,
+                source_last_synced_at=source_last_synced_at,
+                payload_revision=compute_universe_payload_revision(rows),
             ),
             rows=rows,
         )
@@ -226,10 +299,15 @@ def get_market_universe_service(
     stocks_repository: Annotated[StocksRepository, Depends(get_stocks_repository)],
     redis: Annotated[OptionalRedisClient, Depends(get_redis_client)],
     settings: Annotated[Settings, Depends(get_settings)],
+    decision_snapshot_repository: Annotated[
+        DecisionSnapshotRepository,
+        Depends(get_decision_snapshot_repository),
+    ],
 ) -> MarketUniverseService:
     return MarketUniverseService(
         market_repository,
         stocks_repository,
         redis,
         settings,
+        decision_snapshot_repository,
     )

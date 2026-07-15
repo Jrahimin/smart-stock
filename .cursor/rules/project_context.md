@@ -231,7 +231,7 @@ Each active feature module keeps schemas, repository, service, and router files 
   * Compute: `backend/app/modules/market_universe/market_universe_compute.py`
   * Service: `backend/app/modules/market_universe/market_universe_service.py`
   * Routes: `backend/app/modules/market_universe/market_universe_router.py`
-  * `GET /api/v1/market/universe-rows` — scored rows + canonical decision; Redis `universe:scored:{exchange}:{strategy_version}`; same-version stale key on miss; cold miss → 503
+  * `GET /api/v1/market/universe-rows` — scored rows + canonical decision; Redis identity includes exchange, strategy, thresholds, and input-schema version; envelope validation includes session/source revision; cold miss → 503
   * Docs: `backend/docs/market_universe.md`
 
 * Market dashboard (lightweight snapshot — no decision engine):
@@ -250,6 +250,28 @@ Each active feature module keeps schemas, repository, service, and router files 
   * Routes: `backend/app/modules/market_pulse/market_pulse_router.py`
   * Docs: `backend/docs/market_pulse.md`
   * `GET /api/v1/market/pulse` — curated daily briefing, Pulse Score, focus stocks, changes, alerts
+
+* Market Scanner conditions:
+  * Domain: `backend/app/modules/market_scanner/scanner_conditions.py`
+  * Versioned condition matches are embedded additively in `ScoredUniverseRow.scanner`; the frontend Scanner groups and renders them without owning trading/liquidity thresholds.
+  * Docs: `backend/docs/market_scanner.md`
+
+* Backtesting (read-only research path):
+  * Models/config: `backend/app/modules/backtesting/backtesting_models.py`
+  * Replay: `backend/app/modules/backtesting/backtesting_engine.py`
+  * Execution/outcomes: `backend/app/modules/backtesting/backtesting_execution.py`
+  * Metrics/walk-forward: `backend/app/modules/backtesting/backtesting_metrics.py`, `backtesting_walk_forward.py`
+  * CLI: from `backend/`, `python -m app.scripts.run_trading_backtest --start YYYY-MM-DD --end YYYY-MM-DD`
+  * Docs: `backend/docs/backtesting.md`
+  * Phase 7 manifests hash the explicit config, loaded point-in-time dataset,
+    observations, and outcomes; `--verify-manifest` detects non-reproduction.
+
+* Trading intelligence hardening:
+  * Input lineage: `backend/app/modules/stock_details/decision/lineage.py`
+  * Immutable snapshots: `backend/app/modules/trading_intelligence/decision_snapshot_repository.py`
+  * Monitoring: `backend/app/modules/trading_intelligence/monitoring.py`
+  * Operational check: from `backend/`, `python -m app.scripts.check_trading_intelligence --exchange DSE`
+  * Runbook: `backend/docs/trading_intelligence_operations.md`
 
 * Stock details:
   * Schemas: `backend/app/modules/stock_details/stock_details_schemas.py`

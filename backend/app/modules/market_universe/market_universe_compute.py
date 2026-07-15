@@ -3,7 +3,15 @@ from __future__ import annotations
 from datetime import date
 
 from app.models import DailyPrice, Stock
+from app.modules.market_scanner.scanner_conditions import (
+    ScannerConditionMatch,
+    ScannerRankCandidate,
+    build_scanner_rankings,
+    evaluate_scanner_conditions,
+)
 from app.modules.market_universe.market_universe_schemas import (
+    ScannerConditionMatchRead,
+    ScannerResultRead,
     ScoredUniverseRow,
     TechnicalSnapshotRead,
     UniverseSessionRead,
@@ -67,6 +75,7 @@ def technical_snapshot_to_read(snapshot: TechnicalSnapshot) -> TechnicalSnapshot
         turnover_provenance=snapshot.turnover_provenance,
         analytical_price_basis=snapshot.analytical_price_basis,
         adjusted_close_coverage_ratio=snapshot.adjusted_close_coverage_ratio,
+        volume_behavior=snapshot.volume_behavior,
     )
 
 
@@ -109,6 +118,7 @@ def technical_snapshot_from_read(read: TechnicalSnapshotRead) -> TechnicalSnapsh
         turnover_provenance=read.turnover_provenance,
         analytical_price_basis=read.analytical_price_basis,
         adjusted_close_coverage_ratio=read.adjusted_close_coverage_ratio,
+        volume_behavior=read.volume_behavior,
     )
 
 
@@ -133,6 +143,8 @@ def build_scored_universe_rows(
     corporate_action_dates_by_stock: dict[object, set[date]] | None = None,
 ) -> list[ScoredUniverseRow]:
     scored: list[ScoredUniverseRow] = []
+    scanner_matches_by_stock: dict[str, tuple[ScannerConditionMatch, ...]] = {}
+    scanner_rank_candidates: list[ScannerRankCandidate] = []
     for entry in grouped.values():
         stock = entry["stock"]
         prices = entry["prices"]
@@ -154,37 +166,75 @@ def build_scored_universe_rows(
         bundle = compute_trader_decision(strategy_input, snapshot=snapshot)
         decision = build_trader_decision_summary(bundle) if bundle is not None else None
         latest_price = sorted_prices[-1]
+        eligibility_read = (
+            EligibilityResultRead(
+                status=bundle.eligibility.status,
+                reason_codes=list(bundle.eligibility.reason_codes),
+                exchange_session_date=bundle.eligibility.exchange_session_date,
+                latest_trade_date=bundle.eligibility.latest_trade_date,
+                missed_session_count=bundle.eligibility.missed_session_count,
+                valid_ohlcv_row_count=bundle.eligibility.valid_ohlcv_row_count,
+                invalid_ohlcv_row_count=bundle.eligibility.invalid_ohlcv_row_count,
+                traded_session_count=bundle.eligibility.traded_session_count,
+                zero_volume_session_count=bundle.eligibility.zero_volume_session_count,
+                traded_session_ratio=bundle.eligibility.traded_session_ratio,
+                quality_ok_count=bundle.eligibility.quality_ok_count,
+                quality_partial_count=bundle.eligibility.quality_partial_count,
+                quality_suspicious_count=bundle.eligibility.quality_suspicious_count,
+                median_turnover=bundle.eligibility.median_turnover,
+                turnover_observation_count=bundle.eligibility.turnover_observation_count,
+                turnover_provenance=bundle.eligibility.turnover_provenance,
+                analytical_price_basis=bundle.eligibility.analytical_price_basis,
+                corporate_action_status=bundle.eligibility.corporate_action_status,
+            )
+            if bundle is not None and bundle.eligibility is not None
+            else None
+        )
+        stock_id = str(stock.id)
+        if decision is not None and eligibility_read is not None:
+            matches = evaluate_scanner_conditions(snapshot, decision, eligibility_read)
+            scanner_matches_by_stock[stock_id] = matches
+            scanner_rank_candidates.extend(
+                ScannerRankCandidate(
+                    stock_id=stock_id,
+                    symbol=stock.symbol,
+                    match=match,
+                )
+                for match in matches
+            )
 
         scored.append(
             ScoredUniverseRow(
                 stock=StockRead.model_validate(stock),
                 technical_snapshot=technical_snapshot_to_read(snapshot),
                 decision=decision,
-                eligibility=(
-                    EligibilityResultRead(
-                        status=bundle.eligibility.status,
-                        reason_codes=list(bundle.eligibility.reason_codes),
-                        exchange_session_date=bundle.eligibility.exchange_session_date,
-                        latest_trade_date=bundle.eligibility.latest_trade_date,
-                        missed_session_count=bundle.eligibility.missed_session_count,
-                        valid_ohlcv_row_count=bundle.eligibility.valid_ohlcv_row_count,
-                        invalid_ohlcv_row_count=bundle.eligibility.invalid_ohlcv_row_count,
-                        traded_session_count=bundle.eligibility.traded_session_count,
-                        zero_volume_session_count=bundle.eligibility.zero_volume_session_count,
-                        traded_session_ratio=bundle.eligibility.traded_session_ratio,
-                        quality_ok_count=bundle.eligibility.quality_ok_count,
-                        quality_partial_count=bundle.eligibility.quality_partial_count,
-                        quality_suspicious_count=bundle.eligibility.quality_suspicious_count,
-                        median_turnover=bundle.eligibility.median_turnover,
-                        turnover_observation_count=bundle.eligibility.turnover_observation_count,
-                        turnover_provenance=bundle.eligibility.turnover_provenance,
-                        analytical_price_basis=bundle.eligibility.analytical_price_basis,
-                        corporate_action_status=bundle.eligibility.corporate_action_status,
-                    )
-                    if bundle is not None and bundle.eligibility is not None
-                    else None
-                ),
+                eligibility=eligibility_read,
                 session=session_from_latest_price(latest_price),
             )
         )
-    return scored
+
+    rankings = build_scanner_rankings(scanner_rank_candidates)
+    ranked_rows: list[ScoredUniverseRow] = []
+    for row in scored:
+        stock_id = str(row.stock.id)
+        matches = scanner_matches_by_stock.get(stock_id, ())
+        ranked_rows.append(
+            row.model_copy(
+                update={
+                    "scanner": ScannerResultRead(
+                        matches=[
+                            ScannerConditionMatchRead(
+                                condition_id=match.condition_id,
+                                reason_code=match.reason_code,
+                                reason=match.reason,
+                                rank_score=match.rank_score,
+                                capacity_score=match.capacity_score,
+                                rank=rankings[(stock_id, match.condition_id)],
+                            )
+                            for match in matches
+                        ]
+                    )
+                }
+            )
+        )
+    return ranked_rows

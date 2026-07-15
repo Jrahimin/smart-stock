@@ -621,7 +621,8 @@ Return market mood, deterministic insight blocks, signal count, and turnover con
 **Description**
 Return the shared `ScoredUniverseRow` list for Explorer, Scanner, Signals, and
 Watchlist. Serves from Redis
-`universe:scored:{exchange}:{strategy_version}` on cache hit. This is the
+`universe:scored:{exchange}:{strategy_version}:{threshold_version}:{input_schema_version}`
+on cache hit. This is the
 preferred list endpoint — do not use `GET /market/price-windows` on trader UI
 paths.
 
@@ -633,7 +634,12 @@ evidence strength, data reliability, trading risk, contextual holder/non-holder
 actions, authoritative constraints, and an explicit primary reason. Pulse focus
 ranking uses only `ELIGIBLE` rows. Each decision also carries an additive
 `canonical` object with strategy/threshold/taxonomy, session dates,
-`shared_decision_id`, result semantics and the canonical primary reason.
+`shared_decision_id`, content-derived `data_revision`, `event_revision`, and
+`input_hash`, explicit replay limitations, result semantics, and the canonical
+primary reason.
+Each row also carries an additive `scanner` object. Its versioned condition
+matches include factual reasons and deterministic server ranks, so Scanner does
+not duplicate liquidity or technical thresholds in the browser.
 
 **Query Params**
 
@@ -651,7 +657,11 @@ ranking uses only `ELIGIBLE` rows. Each decision also carries an additive
       "listed_stock_count": 392,
       "session_trade_date": "2026-06-17",
       "strategy_version": "trading-intelligence-v1",
-      "threshold_version": "trading-thresholds-v1"
+      "threshold_version": "trading-thresholds-v2",
+      "input_schema_version": "trading-input-v1",
+      "source_last_synced_at": "2026-06-17T15:01:00Z",
+      "payload_revision": "a25f...9d10",
+      "scanner_version": "scanner-conditions-v1"
     },
     "rows": []
   }
@@ -663,18 +673,18 @@ ranking uses only `ELIGIBLE` rows. Each decision also carries an additive
 ### GET /api/v1/market/pulse
 
 **Description**
-Return the curated Market Pulse briefing: hero attention summary, focus stocks, conditional insight, change timeline, and market alerts. Pulse Score, focus labels, triggers, and ranking are computed server-side from `market_universe_service` scored rows (presentation layer).
+Return the curated Market Pulse briefing: hero attention summary, focus stocks, conditional insight, change timeline, and market alerts. Pulse Score, focus labels, triggers, and ranking are computed server-side from current-session `ELIGIBLE` market-universe rows. The response includes additive candidate coverage and score-version metadata. Monitor candidates are disjoint from focus.
 
 **Related tiered endpoints**
 
-* `GET /api/v1/market/pulse/summary` — hero, focus stocks, alerts (cached in `pulse:summary:{exchange}:{strategy_version}:{threshold_version}`)
+* `GET /api/v1/market/pulse/summary` — hero, focus stocks, alerts (cached in a key versioned by strategy, thresholds, input schema, and Pulse score version)
 * `GET /api/v1/market/pulse/briefing` — narrative briefing blocks only
 
 **Query Params**
 
 * exchange: optional enum, one of `DSE`, `CSE` (default `DSE`)
 * display_name: optional string, max 160 chars — used for greeting personalization
-* previous_snapshot: optional URL-encoded JSON string — prior client snapshot for change detection
+* previous_snapshot: optional URL-encoded JSON string — prior client snapshot for change detection. Additive `score_version` identifies comparable Pulse values; absent or older versions are accepted but do not drive score/focus deltas.
 
 **Response**
 
@@ -1330,11 +1340,20 @@ rows for the same stock/session/version; existing `decision`, `opportunity`,
       "primary_reason": "The setup is constructive near resistance; wait for a confirmed price break.",
       "canonical": {
         "strategy_version": "trading-intelligence-v1",
-        "threshold_version": "trading-thresholds-v1",
+        "threshold_version": "trading-thresholds-v2",
         "action_taxonomy": "TRADER_RECOMMENDATION_V1",
         "as_of_date": "2026-06-17",
         "previous_session_date": "2026-06-16",
-        "shared_decision_id": "d6b5cf4f-37f7-5740-9918-a47ca49176fb"
+        "shared_decision_id": "d6b5cf4f-37f7-5740-9918-a47ca49176fb",
+        "input_schema_version": "trading-input-v1",
+        "data_revision": "8c23...a440",
+        "event_revision": "2f41...7d19",
+        "input_hash": "9ab1...fe03",
+        "replay_status": "IDENTIFIED_WITH_LIMITATIONS",
+        "replay_limitations": [
+          "RAW_INPUT_ROWS_NOT_ARCHIVED_IN_DECISION_SNAPSHOT",
+          "EFFECTIVE_DATED_STATUS_CATEGORY_CIRCUIT_HISTORY_INCOMPLETE"
+        ]
       },
       "constraints": [
         {
@@ -1603,7 +1622,7 @@ additive/nullable.
       "reason": "Volume confirms positive trend continuation.",
       "strategy_name": "deterministic-v1",
       "strategy_version": "trading-intelligence-v1",
-      "threshold_version": "trading-thresholds-v1",
+      "threshold_version": "trading-thresholds-v2",
       "action_taxonomy": "TRADER_RECOMMENDATION_V1",
       "canonical_recommendation": "BUY",
       "signal_as_of": "2026-05-10",

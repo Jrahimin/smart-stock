@@ -10,9 +10,14 @@ from fastapi import Depends
 from pydantic import ValidationError
 
 from app.core.constants.trading_constants import (
+    PULSE_FOCUS_SECTOR_EXCEPTION_LIMIT,
+    PULSE_FOCUS_SECTOR_EXCEPTION_SCORE_GAP,
+    PULSE_FOCUS_SECTOR_LIMIT,
     PULSE_FOCUS_STOCK_LIMIT,
     PULSE_MARKET_MOVERS_LIMIT,
     PULSE_SCORE_JUMP_THRESHOLD,
+    PULSE_SCORE_MONITOR_THRESHOLD,
+    PULSE_SCORE_VERSION,
     VOLUME_EXPANSION_RATIO,
 )
 from app.core.core_config import Settings, get_settings
@@ -42,6 +47,7 @@ from app.modules.market_pulse.market_pulse_schemas import (
     MarketPulseRead,
     MarketPulseSummaryRead,
     PulseChangeRead,
+    PulseCoverageRead,
     PulseScoreBreakdownRead,
     SinceLastVisitRead,
     TodayInsightRead,
@@ -76,19 +82,39 @@ class PulsePresentationRow:
     label: PulseFocusLabel
 
 
-def is_eligible_pulse_candidate(row: ScoredUniverseRow) -> bool:
+def is_eligible_pulse_candidate(
+    row: ScoredUniverseRow,
+    session_trade_date: date | None = None,
+) -> bool:
+    if (
+        row.decision is None
+        or row.eligibility is None
+        or row.eligibility.status != EligibilityStatus.ELIGIBLE
+    ):
+        return False
+    expected_session = session_trade_date or row.eligibility.exchange_session_date
     return (
-        row.decision is not None
-        and row.eligibility is not None
-        and row.eligibility.status == EligibilityStatus.ELIGIBLE
+        expected_session is not None
+        and row.eligibility.exchange_session_date == expected_session
+        and row.eligibility.latest_trade_date == expected_session
+        and row.session.latest_trade_date == expected_session
+        and row.technical_snapshot.latest_trade_date == expected_session.isoformat()
     )
+
+
+def _comparable_previous_snapshot(
+    previous: MarketPulsePreviousSnapshot | None,
+) -> MarketPulsePreviousSnapshot | None:
+    if previous is None or previous.score_version != PULSE_SCORE_VERSION:
+        return None
+    return previous
 
 
 def _label_tone(label: PulseFocusLabel) -> str:
     if label in {PulseFocusLabel.NEW_BUY_SETUP, PulseFocusLabel.SIGNAL_UPGRADE}:
         return "positive"
     if label == PulseFocusLabel.VOLUME_BREAKOUT:
-        return "negative"
+        return "info"
     if label == PulseFocusLabel.MOMENTUM_BUILDING:
         return "info"
     return "warning"
@@ -155,30 +181,79 @@ def _sparkline_points(snapshot: TechnicalSnapshot) -> list[float]:
     return []
 
 
-def _diversify_focus_list(rows: list[PulsePresentationRow], limit: int = PULSE_FOCUS_STOCK_LIMIT) -> list[PulsePresentationRow]:
-    sorted_rows = sorted(rows, key=lambda row: row.score.total, reverse=True)
+def _pulse_sort_key(row: PulsePresentationRow) -> tuple[float, float, str, str]:
+    capacity = row.snapshot.median_turnover or row.snapshot.average_turnover or 0.0
+    return (
+        -float(row.score.total),
+        -float(capacity),
+        str(getattr(row.stock, "symbol", "")).casefold(),
+        str(getattr(row.stock, "id", "")),
+    )
+
+
+def _stable_pulse_sort(rows: list[PulsePresentationRow]) -> list[PulsePresentationRow]:
+    return sorted(rows, key=_pulse_sort_key)
+
+
+def _sector_key(row: PulsePresentationRow) -> str:
+    return (row.stock.sector or row.stock.category or "Unclassified").strip() or "Unclassified"
+
+
+def _diversify_focus_list(
+    rows: list[PulsePresentationRow],
+    limit: int = PULSE_FOCUS_STOCK_LIMIT,
+) -> list[PulsePresentationRow]:
+    remaining = _stable_pulse_sort(rows)
     selected: list[PulsePresentationRow] = []
     sector_counts: dict[str, int] = {}
 
-    for row in sorted_rows:
-        if len(selected) >= limit:
-            break
-        sector = (row.stock.sector or row.stock.category or "Unclassified").strip() or "Unclassified"
-        if sector_counts.get(sector, 0) >= 2 and len(selected) < limit - 1:
-            continue
-        selected.append(row)
-        sector_counts[sector] = sector_counts.get(sector, 0) + 1
+    while remaining and len(selected) < limit:
+        top = remaining[0]
+        top_sector = _sector_key(top)
+        top_sector_count = sector_counts.get(top_sector, 0)
+        under_cap = next(
+            (
+                row
+                for row in remaining
+                if sector_counts.get(_sector_key(row), 0) < PULSE_FOCUS_SECTOR_LIMIT
+            ),
+            None,
+        )
 
-    if len(selected) < limit:
-        selected_ids = {str(getattr(row.stock, "id", "")) for row in selected}
-        for row in sorted_rows:
-            if str(getattr(row.stock, "id", "")) in selected_ids:
-                continue
-            selected.append(row)
-            if len(selected) >= limit:
-                break
+        if top_sector_count < PULSE_FOCUS_SECTOR_LIMIT:
+            chosen = top
+        elif top_sector_count < PULSE_FOCUS_SECTOR_EXCEPTION_LIMIT and (
+            under_cap is None
+            or top.score.total - under_cap.score.total
+            >= PULSE_FOCUS_SECTOR_EXCEPTION_SCORE_GAP
+        ):
+            chosen = top
+        elif under_cap is not None:
+            chosen = under_cap
+        else:
+            break
+
+        remaining.remove(chosen)
+        selected.append(chosen)
+        chosen_sector = _sector_key(chosen)
+        sector_counts[chosen_sector] = sector_counts.get(chosen_sector, 0) + 1
 
     return selected
+
+
+def _select_monitor_rows(
+    rows: list[PulsePresentationRow],
+    focus_rows: list[PulsePresentationRow],
+    *,
+    limit: int = 3,
+) -> list[PulsePresentationRow]:
+    focus_ids = {str(getattr(row.stock, "id", "")) for row in focus_rows}
+    return [
+        row
+        for row in _stable_pulse_sort(rows)
+        if row.score.total >= PULSE_SCORE_MONITOR_THRESHOLD
+        and str(getattr(row.stock, "id", "")) not in focus_ids
+    ][:limit]
 
 
 def _to_focus_stock_read(row: PulsePresentationRow, rank: int) -> FocusStockRead:
@@ -200,6 +275,7 @@ def _to_focus_stock_read(row: PulsePresentationRow, rank: int) -> FocusStockRead
             total=breakdown.total,
             contributors=breakdown.contributors,
             band=breakdown.band,
+            score_version=breakdown.score_version,
         ),
         focus_label=row.label,
         label_tone=_label_tone(row.label),
@@ -417,6 +493,7 @@ class MarketPulseService:
             empty_state=pulse.empty_state,
             empty_message=pulse.empty_message,
             data_quality_note=pulse.data_quality_note,
+            coverage=pulse.coverage,
             last_synced_at=freshness.last_synced_at,
         )
         if uses_shared_pulse_cache(previous, display_name):
@@ -451,11 +528,15 @@ class MarketPulseService:
             offset=0,
         )
 
+        # Client snapshots created before this score version are accepted for
+        # compatibility, but are not comparable enough to drive deltas or labels.
+        previous = _comparable_previous_snapshot(previous)
+
         scored_rows: list[PulsePresentationRow] = []
         previous_recommendations = previous.recommendations if previous else {}
 
         for universe_row in universe_rows:
-            if not is_eligible_pulse_candidate(universe_row):
+            if not is_eligible_pulse_candidate(universe_row, freshness.trade_date):
                 continue
             snapshot = technical_snapshot_from_read(universe_row.technical_snapshot)
             decision = universe_row.decision
@@ -488,11 +569,7 @@ class MarketPulseService:
         selected = _diversify_focus_list(focus_candidates, PULSE_FOCUS_STOCK_LIMIT)
         focus_reads = [_to_focus_stock_read(row, index + 1) for index, row in enumerate(selected)]
 
-        monitor_rows = sorted(
-            [row for row in scored_rows if row.score.total >= 55],
-            key=lambda row: row.score.total,
-            reverse=True,
-        )[:3]
+        monitor_rows = _select_monitor_rows(scored_rows, selected)
         monitor_reads = [_to_focus_stock_read(row, index + 1) for index, row in enumerate(monitor_rows)]
 
         last_synced = freshness.last_synced_at
@@ -506,7 +583,7 @@ class MarketPulseService:
         hero = MarketPulseHeroRead(
             greeting=f"{_greeting()}{greeting_name}",
             attention_headline="Story of the day",
-            attention_subline="A quick read on what's moving the market and where the opportunities are.",
+            attention_subline="A quick read on what's moving the market and what deserves attention.",
             last_updated_label=_format_time_label(last_synced),
             relative_updated_label=_format_relative_updated(last_synced),
             session_label=freshness.market_status.replace("_", " ") if freshness.market_status else None,
@@ -538,7 +615,11 @@ class MarketPulseService:
             sparkline_points=_sparkline_points,
         )
 
-        suspicious_count = sum(1 for row in scored_rows if row.snapshot.data_quality == DataQualityFlag.SUSPICIOUS)
+        suspicious_count = sum(
+            1
+            for row in universe_rows
+            if row.technical_snapshot.data_quality == DataQualityFlag.SUSPICIOUS
+        )
         empty_state = "none"
         empty_message: str | None = None
 
@@ -568,6 +649,12 @@ class MarketPulseService:
                 f"{suspicious_count} instruments flagged for data quality review."
                 if suspicious_count > 0
                 else None
+            ),
+            coverage=PulseCoverageRead(
+                session_trade_date=freshness.trade_date,
+                universe_candidate_count=len(universe_rows),
+                eligible_candidate_count=len(scored_rows),
+                excluded_candidate_count=max(0, len(universe_rows) - len(scored_rows)),
             ),
         )
 
@@ -614,7 +701,7 @@ class MarketPulseService:
         sector_volume: dict[str, int] = {}
         for row in rows:
             ratio = get_volume_ratio(row.snapshot)
-            if ratio >= VOLUME_EXPANSION_RATIO:
+            if ratio is not None and ratio >= VOLUME_EXPANSION_RATIO:
                 sector = (row.stock.sector or row.stock.category or "Unclassified").strip() or "Unclassified"
                 sector_volume[sector] = sector_volume.get(sector, 0) + 1
 
@@ -624,7 +711,7 @@ class MarketPulseService:
             return TodayInsightRead(
                 title=f"{name} sector attracting unusual volume",
                 explanation=f"Multiple {name} names are trading with expanded participation today, making the group worth a closer read.",
-                supporting_fact=f"{count} stocks in this sector are above {VOLUME_EXPANSION_RATIO}x average volume.",
+                supporting_fact=f"{count} stocks in this sector are above {VOLUME_EXPANSION_RATIO}x prior-session median volume.",
                 tone="info",
             )
 
@@ -641,7 +728,7 @@ class MarketPulseService:
             name, count = concentrated
             return TodayInsightRead(
                 title=f"Multiple focus candidates emerging in {name}",
-                explanation=f"Several {name} stocks crossed the attention threshold together, suggesting a sector-level shift rather than an isolated move.",
+                explanation=f"Several {name} stocks crossed the attention threshold together, showing group-level participation rather than an isolated move.",
                 supporting_fact=f"{count} stocks from this sector are in focus today.",
                 tone="positive",
             )
@@ -654,7 +741,7 @@ class MarketPulseService:
         if rows and len(improving) / len(rows) >= 0.45 and len(improving) >= 12:
             return TodayInsightRead(
                 title="Broad momentum improvement across the market",
-                explanation="Participation is improving beyond a handful of leaders, which often precedes broader follow-through if volume holds.",
+                explanation="Positive momentum is present beyond a handful of leaders while volume confirmation remains necessary.",
                 supporting_fact=f"{len(improving)} stocks are in uptrends with positive moves today.",
                 tone="positive",
             )
@@ -765,12 +852,17 @@ class MarketPulseService:
         time_label = _format_time_label(last_synced)
 
         unusual_volume = max(
-            (row for row in rows if get_volume_ratio(row.snapshot) >= VOLUME_EXPANSION_RATIO),
-            key=lambda row: get_volume_ratio(row.snapshot),
+            (
+                row
+                for row in rows
+                if (get_volume_ratio(row.snapshot) or 0) >= VOLUME_EXPANSION_RATIO
+            ),
+            key=lambda row: get_volume_ratio(row.snapshot) or 0,
             default=None,
         )
         if unusual_volume is not None:
             ratio = get_volume_ratio(unusual_volume.snapshot)
+            assert ratio is not None
             change = unusual_volume.snapshot.price_change_percent
             alerts.append(
                 MarketAlertRead(
@@ -778,7 +870,7 @@ class MarketPulseService:
                     alert_type=MarketAlertType.UNUSUAL_VOLUME,
                     event_title="Unusual Volume Detected",
                     event_explanation=f"{ratio:.1f}x normal volume activity detected.",
-                    why_it_matters="Institutional participation may be building.",
+                    why_it_matters="Trading participation is above the stock's recent volume baseline.",
                     metric_label=f"{ratio:.1f}x normal",
                     significance=_alert_significance(MarketAlertType.UNUSUAL_VOLUME, ratio),
                     time_label=time_label,
@@ -809,7 +901,7 @@ class MarketPulseService:
                     alert_type=MarketAlertType.MOMENTUM_REVERSAL,
                     event_title="Momentum Reversal Forming",
                     event_explanation="Recovery forming against a weaker trend.",
-                    why_it_matters="Distribution may be shifting if volume confirms.",
+                    why_it_matters="The current session is positive against a weaker canonical trend.",
                     metric_label=_format_percent(change),
                     significance=_alert_significance(MarketAlertType.MOMENTUM_REVERSAL, abs(change or 0)),
                     time_label=time_label,
@@ -830,7 +922,7 @@ class MarketPulseService:
                     alert_type=MarketAlertType.LIQUIDITY_SURGE,
                     event_title="Liquidity Surge",
                     event_explanation="Session turnover leader.",
-                    why_it_matters="Heavy turnover can signal institutional interest or exit pressure.",
+                    why_it_matters="The stock has the highest current-session turnover in the eligible set.",
                     metric_label=_format_number(liquidity_surge.snapshot.turnover),
                     significance=_alert_significance(MarketAlertType.LIQUIDITY_SURGE, float(liquidity_surge.snapshot.turnover or 0)),
                     time_label=time_label,
@@ -861,9 +953,9 @@ class MarketPulseService:
                 MarketAlertRead(
                     id=f"alert-sector-{name}",
                     alert_type=MarketAlertType.SECTOR_ROTATION,
-                    event_title="Sector Rotation Signal",
-                    event_explanation="Broad sector participation detected.",
-                    why_it_matters="Rotation may be broadening beyond a single-name move.",
+                    event_title="Sector Price Leadership",
+                    event_explanation="Several eligible stocks in the sector are advancing.",
+                    why_it_matters="The price move is broader than a single eligible stock.",
                     metric_label=f"{len(values)} movers",
                     significance=_alert_significance(MarketAlertType.SECTOR_ROTATION, float(len(values))),
                     time_label=time_label,
@@ -893,7 +985,7 @@ class MarketPulseService:
                         alert_type=MarketAlertType.PULSE_SCORE_JUMP,
                         event_title="Pulse Score Jump",
                         event_explanation=f"{row.stock.symbol} attention score moved +{delta} points.",
-                        why_it_matters="A sharp score jump often precedes a fresh focus-list review.",
+                        why_it_matters="The versioned attention inputs changed enough to warrant review.",
                         metric_label=f"+{delta} points",
                         significance=_alert_significance(MarketAlertType.PULSE_SCORE_JUMP, float(delta)),
                         time_label=time_label,

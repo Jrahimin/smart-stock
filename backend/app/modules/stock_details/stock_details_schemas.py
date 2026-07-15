@@ -24,6 +24,7 @@ from app.core.enums import (
     TraderStance,
     TrendDirection,
     TurnoverProvenance,
+    VolumeBehavior,
     WarningSeverity,
 )
 
@@ -166,6 +167,12 @@ class CanonicalDecisionResultRead(BaseModel):
     previous_session_date: date | None = None
     calculated_at: datetime
     shared_decision_id: str
+    input_schema_version: str | None = None
+    data_revision: str | None = None
+    event_revision: str | None = None
+    input_hash: str | None = None
+    replay_status: str = "LEGACY_UNVERSIONED"
+    replay_limitations: list[str] = Field(default_factory=list)
     result_semantics: dict[str, str]
     recommendation: TraderRecommendation
     evidence_strength: int
@@ -191,6 +198,12 @@ def canonical_decision_to_read(result: Any) -> CanonicalDecisionResultRead:
         previous_session_date=result.previous_session_date,
         calculated_at=result.calculated_at,
         shared_decision_id=result.shared_decision_id,
+        input_schema_version=result.input_schema_version,
+        data_revision=result.data_revision,
+        event_revision=result.event_revision,
+        input_hash=result.input_hash,
+        replay_status=result.replay_status,
+        replay_limitations=list(result.replay_limitations),
         result_semantics=result.semantics_dict(),
         recommendation=result.recommendation,
         evidence_strength=result.evidence_strength,
@@ -280,6 +293,7 @@ class TechnicalSnapshotRead(BaseModel):
     turnover_provenance: TurnoverProvenance = TurnoverProvenance.UNKNOWN
     analytical_price_basis: str = "RAW_UNADJUSTED"
     adjusted_close_coverage_ratio: float = 0.0
+    volume_behavior: VolumeBehavior = VolumeBehavior.UNKNOWN
 
 
 class PricePositionRead(BaseModel):
@@ -591,6 +605,7 @@ class StockDecisionSupportRead(BaseModel):
                 turnover_provenance=snapshot.turnover_provenance,
                 analytical_price_basis=snapshot.analytical_price_basis,
                 adjusted_close_coverage_ratio=snapshot.adjusted_close_coverage_ratio,
+                volume_behavior=snapshot.volume_behavior,
             ),
             opportunity=OpportunityScoreRead(
                 score=opportunity.score,
