@@ -7,18 +7,24 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from app.core.enums import (
     DataQualityFlag,
     DataReliabilityLabel,
+    DecisionDisplayAction,
     DecisionConstraintKind,
     EligibilityStatus,
+    EntryReadiness,
+    EntryTiming,
     EvidenceDirection,
     ExchangeCode,
     HolderAction,
     LiquidityLabel,
+    MarketRegimePhase,
     NonHolderAction,
+    OpportunityQuality,
     PatternStatus,
     RiskLevelLabel,
     StockDetailsSyncJobStatus,
     StockDetailsSyncScope,
     StockDetailsSyncTriggerType,
+    TradePlanManagementMode,
     TradePlanStatus,
     TraderRecommendation,
     TraderStance,
@@ -106,6 +112,7 @@ class ScoreComponentRead(BaseModel):
 class OpportunityScoreRead(BaseModel):
     score: int
     components: list[ScoreComponentRead]
+    quality: OpportunityQuality | None = None
     score_semantics: str = "HEURISTIC_LONG_SETUP_INDEX"
 
 
@@ -163,6 +170,7 @@ class CanonicalDecisionResultRead(BaseModel):
     strategy_version: str
     threshold_version: str
     action_taxonomy: str
+    decision_taxonomy_version: str = "v1"
     as_of_date: date
     previous_session_date: date | None = None
     calculated_at: datetime
@@ -175,8 +183,15 @@ class CanonicalDecisionResultRead(BaseModel):
     replay_limitations: list[str] = Field(default_factory=list)
     result_semantics: dict[str, str]
     recommendation: TraderRecommendation
+    internal_action: TraderRecommendation | None = None
+    display_action: DecisionDisplayAction = DecisionDisplayAction.WAIT
     evidence_strength: int
     opportunity_score: int
+    opportunity_quality: OpportunityQuality | None = None
+    entry_readiness: EntryReadiness = EntryReadiness.NOT_READY
+    entry_timing: EntryTiming | None = None
+    entry_condition: str | None = None
+    blocker_codes: list[str] = Field(default_factory=list)
     risk_label: RiskLevelLabel
     trade_plan_status: TradePlanStatus
     eligibility_status: EligibilityStatus
@@ -185,6 +200,10 @@ class CanonicalDecisionResultRead(BaseModel):
     stance: TraderStance
     non_holder_action: NonHolderAction
     holder_action: HolderAction
+    regime_score: int = 50
+    regime_label: str = "NEUTRAL"
+    regime_phase: MarketRegimePhase = MarketRegimePhase.HEALTHY
+    regime_confidence: int = 0
 
 
 def canonical_decision_to_read(result: Any) -> CanonicalDecisionResultRead:
@@ -194,6 +213,7 @@ def canonical_decision_to_read(result: Any) -> CanonicalDecisionResultRead:
         strategy_version=result.strategy_version,
         threshold_version=result.threshold_version,
         action_taxonomy=result.action_taxonomy,
+        decision_taxonomy_version=result.decision_taxonomy_version,
         as_of_date=result.as_of_date,
         previous_session_date=result.previous_session_date,
         calculated_at=result.calculated_at,
@@ -206,8 +226,15 @@ def canonical_decision_to_read(result: Any) -> CanonicalDecisionResultRead:
         replay_limitations=list(result.replay_limitations),
         result_semantics=result.semantics_dict(),
         recommendation=result.recommendation,
+        internal_action=result.internal_action,
+        display_action=result.display_action,
         evidence_strength=result.evidence_strength,
         opportunity_score=result.opportunity_score,
+        opportunity_quality=result.opportunity_quality,
+        entry_readiness=result.entry_readiness,
+        entry_timing=result.entry_timing,
+        entry_condition=result.entry_condition,
+        blocker_codes=list(result.blocker_codes),
         risk_label=result.risk_label,
         trade_plan_status=result.trade_plan_status,
         eligibility_status=result.eligibility_status,
@@ -216,11 +243,18 @@ def canonical_decision_to_read(result: Any) -> CanonicalDecisionResultRead:
         stance=result.stance,
         non_holder_action=result.non_holder_action,
         holder_action=result.holder_action,
+        regime_score=result.regime_score,
+        regime_label=result.regime_label,
+        regime_phase=result.regime_phase,
+        regime_confidence=result.regime_confidence,
     )
 
 
 class TraderDecisionRead(BaseModel):
     recommendation: TraderRecommendation
+    internal_action: TraderRecommendation | None = None
+    display_action: DecisionDisplayAction = DecisionDisplayAction.WAIT
+    decision_taxonomy_version: str = "v1"
     confidence: int
     reasoning: list[str]
     confidence_semantics: str = "HEURISTIC_EVIDENCE"
@@ -232,11 +266,19 @@ class TraderDecisionRead(BaseModel):
     non_holder_action: NonHolderAction | None = None
     holder_action: HolderAction | None = None
     constraints: list[DecisionConstraintRead] = Field(default_factory=list)
+    opportunity_quality: OpportunityQuality | None = None
+    entry_readiness: EntryReadiness = EntryReadiness.NOT_READY
+    entry_timing: EntryTiming | None = None
+    entry_condition: str | None = None
+    blocker_codes: list[str] = Field(default_factory=list)
     canonical: CanonicalDecisionResultRead | None = None
 
 
 class TraderDecisionSummaryRead(BaseModel):
     recommendation: TraderRecommendation
+    internal_action: TraderRecommendation | None = None
+    display_action: DecisionDisplayAction = DecisionDisplayAction.WAIT
+    decision_taxonomy_version: str = "v1"
     confidence: int
     reason: str
     opportunity_score: int
@@ -252,6 +294,11 @@ class TraderDecisionSummaryRead(BaseModel):
     data_reliability: DataReliabilityRead | None = None
     trading_risk: TradingRiskRead | None = None
     constraints: list[DecisionConstraintRead] = Field(default_factory=list)
+    opportunity_quality: OpportunityQuality | None = None
+    entry_readiness: EntryReadiness = EntryReadiness.NOT_READY
+    entry_timing: EntryTiming | None = None
+    entry_condition: str | None = None
+    blocker_codes: list[str] = Field(default_factory=list)
     canonical: CanonicalDecisionResultRead | None = None
 
 
@@ -314,6 +361,19 @@ class TradePlanRead(BaseModel):
     explanation: str
     status: TradePlanStatus = TradePlanStatus.UNAVAILABLE
     reasons: list[str] = Field(default_factory=list)
+    entry_readiness: EntryReadiness = EntryReadiness.NOT_READY
+    entry_timing: EntryTiming | None = None
+    preferred_entry_zone_low: float | None = None
+    preferred_entry_zone_high: float | None = None
+    invalidation_price: float | None = None
+    condition_text: str | None = None
+    expiry_sessions: int | None = None
+    trigger_price: float | None = None
+    confirmation_rule: str | None = None
+    management_mode: TradePlanManagementMode | None = None
+    trailing_rule: str | None = None
+    reassessment_sessions: int | None = None
+    partial_profit_price: float | None = None
 
 
 class LiquidityAnalysisRead(BaseModel):
@@ -457,6 +517,9 @@ class StockDecisionSupportRead(BaseModel):
     stock_id: UUID
     symbol: str
     exchange: ExchangeCode
+    decision_session_date: date
+    live_data_as_of: datetime | None = None
+    is_live_session: bool = False
     decision: TraderDecisionRead
     canonical_decision: CanonicalDecisionResultRead | None = None
     technical_snapshot: TechnicalSnapshotRead | None = None
@@ -508,6 +571,9 @@ class StockDecisionSupportRead(BaseModel):
         data_reliability = kwargs["data_reliability"]
         trading_risk = kwargs["trading_risk"]
         canonical_result = kwargs.get("canonical_result")
+        decision_session_date = kwargs["decision_session_date"]
+        live_data_as_of = kwargs.get("live_data_as_of")
+        is_live_session = kwargs.get("is_live_session", False)
 
         pattern_reads = [
             PatternDetectionRead(
@@ -535,8 +601,26 @@ class StockDecisionSupportRead(BaseModel):
             stock_id=stock.id,
             symbol=stock.symbol,
             exchange=stock.exchange,
+            decision_session_date=decision_session_date,
+            live_data_as_of=live_data_as_of,
+            is_live_session=is_live_session,
             decision=TraderDecisionRead(
                 recommendation=decision.recommendation,
+                internal_action=(
+                    canonical_result.internal_action
+                    if canonical_result is not None
+                    else decision.recommendation
+                ),
+                display_action=(
+                    canonical_result.display_action
+                    if canonical_result is not None
+                    else DecisionDisplayAction.WAIT
+                ),
+                decision_taxonomy_version=(
+                    canonical_result.decision_taxonomy_version
+                    if canonical_result is not None
+                    else "v1"
+                ),
                 confidence=confidence,
                 reasoning=decision.reasoning,
                 confidence_semantics="HEURISTIC_EVIDENCE",
@@ -556,6 +640,23 @@ class StockDecisionSupportRead(BaseModel):
                     )
                     for constraint in decision.constraints
                 ],
+                opportunity_quality=(
+                    canonical_result.opportunity_quality
+                    if canonical_result is not None
+                    else None
+                ),
+                entry_readiness=trade_plan.entry_readiness,
+                entry_timing=trade_plan.entry_timing,
+                entry_condition=(
+                    canonical_result.entry_condition
+                    if canonical_result is not None
+                    else None
+                ),
+                blocker_codes=(
+                    list(canonical_result.blocker_codes)
+                    if canonical_result is not None
+                    else []
+                ),
                 canonical=(
                     canonical_decision_to_read(canonical_result)
                     if canonical_result is not None
@@ -609,6 +710,11 @@ class StockDecisionSupportRead(BaseModel):
             ),
             opportunity=OpportunityScoreRead(
                 score=opportunity.score,
+                quality=(
+                    canonical_result.opportunity_quality
+                    if canonical_result is not None
+                    else None
+                ),
                 components=[
                     ScoreComponentRead(
                         key=component.key,
@@ -688,6 +794,19 @@ class StockDecisionSupportRead(BaseModel):
                 explanation=trade_plan.explanation,
                 status=trade_plan.status,
                 reasons=list(trade_plan.reasons),
+                entry_readiness=trade_plan.entry_readiness,
+                entry_timing=trade_plan.entry_timing,
+                preferred_entry_zone_low=trade_plan.preferred_entry_zone_low,
+                preferred_entry_zone_high=trade_plan.preferred_entry_zone_high,
+                invalidation_price=trade_plan.invalidation_price,
+                condition_text=trade_plan.condition_text,
+                expiry_sessions=trade_plan.expiry_sessions,
+                trigger_price=trade_plan.trigger_price,
+                confirmation_rule=trade_plan.confirmation_rule,
+                management_mode=trade_plan.management_mode,
+                trailing_rule=trade_plan.trailing_rule,
+                reassessment_sessions=trade_plan.reassessment_sessions,
+                partial_profit_price=trade_plan.partial_profit_price,
             ),
             liquidity=LiquidityAnalysisRead(
                 label=liquidity.label,

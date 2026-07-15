@@ -352,7 +352,7 @@ def build_market_briefing(
         for row in rows
         if row.score.total >= 75
         and getattr(row, "label", None)
-        in {PulseFocusLabel.NEW_BUY_SETUP, PulseFocusLabel.VOLUME_BREAKOUT}
+        in {PulseFocusLabel.POTENTIAL_BUY_SETUP, PulseFocusLabel.VOLUME_BREAKOUT}
     )
     watchlist_count = len(monitor_reads) or len(focus_reads)
     playbook = PlaybookRead(
@@ -430,10 +430,15 @@ def build_market_briefing(
     fresh_signals = [
         stock.symbol
         for stock in focus_reads
-        if stock.recommendation == "BUY"
-        or stock.focus_label in {PulseFocusLabel.NEW_BUY_SETUP, PulseFocusLabel.SIGNAL_UPGRADE}
+        if stock.recommendation == "POTENTIAL_BUY"
+        or stock.focus_label
+        in {PulseFocusLabel.POTENTIAL_BUY_SETUP, PulseFocusLabel.SIGNAL_UPGRADE}
     ][:4]
-    fresh_new_count = sum(1 for stock in focus_reads if stock.focus_label == PulseFocusLabel.NEW_BUY_SETUP)
+    fresh_new_count = sum(
+        1
+        for stock in focus_reads
+        if stock.focus_label == PulseFocusLabel.POTENTIAL_BUY_SETUP
+    )
     fresh_upgraded_count = sum(1 for stock in focus_reads if stock.focus_label == PulseFocusLabel.SIGNAL_UPGRADE)
 
     sector_change = inflow_sectors[0][1] if inflow_sectors else None

@@ -110,7 +110,7 @@ const scannerLanguage = {
       eyebrow: "Market Scanner",
       title: "Daily opportunity detection",
       subtitle:
-        "সর্বশেষ বাজারের তথ্য দেখে সম্ভাবনাময় শেয়ার ও BUY/HOLD/SELL সিদ্ধান্ত",
+        "সর্বশেষ বাজারের তথ্য দেখে সম্ভাবনাময় শেয়ার ও POTENTIAL BUY/WAIT/SELL সিদ্ধান্ত",
       filterContextName: "scanner",
     },
 

@@ -15,6 +15,9 @@ from app.modules.market_universe.market_universe_service import (
     UniverseCacheUnavailableError,
     get_market_universe_service,
 )
+from app.modules.stock_details.decision.display_taxonomy import (
+    resolve_holder_display_action,
+)
 from app.modules.watchlists.watchlists_repository import (
     WatchlistsRepository,
     get_watchlists_repository,
@@ -203,13 +206,12 @@ class WatchlistsService:
                 current_price = canonical_row.session.close_price
             contextual_action = "WAIT"
             if trader_decision is not None:
-                selected_action = (
-                    trader_decision.holder_action
-                    if entry.is_holding
-                    else trader_decision.non_holder_action
-                )
-                if selected_action is not None:
-                    contextual_action = selected_action.value
+                if entry.is_holding and trader_decision.holder_action is not None:
+                    contextual_action = resolve_holder_display_action(
+                        trader_decision.holder_action
+                    ).value
+                elif not entry.is_holding:
+                    contextual_action = trader_decision.display_action.value
 
             created_date = (
                 entry.created_at.date()

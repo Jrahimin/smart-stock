@@ -5,7 +5,10 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.core.constants.trading_constants import PULSE_SCORE_VERSION
+from app.core.constants.trading_constants import (
+    DECISION_TAXONOMY_VERSION,
+    PULSE_SCORE_VERSION,
+)
 from app.core.enums import ExchangeCode, MarketAlertType, PulseFocusLabel, PulseScoreBand
 
 
@@ -164,6 +167,7 @@ class OpportunityScoreRead(BaseModel):
 
 class PulseCoverageRead(BaseModel):
     score_version: str = PULSE_SCORE_VERSION
+    decision_taxonomy_version: str = DECISION_TAXONOMY_VERSION
     session_trade_date: date | None = None
     universe_candidate_count: int = 0
     eligible_candidate_count: int = 0
@@ -252,6 +256,7 @@ class MarketBriefingRead(BaseModel):
 class MarketPulsePreviousSnapshot(BaseModel):
     last_synced_at: datetime | None = None
     score_version: str | None = None
+    decision_taxonomy_version: str | None = None
     focus_stock_ids: list[UUID] = Field(default_factory=list)
     scores: dict[str, int] = Field(default_factory=dict)
     recommendations: dict[str, str] = Field(default_factory=dict)

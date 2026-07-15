@@ -67,12 +67,20 @@ def _assert_same_core(left, right) -> None:
     assert left.recommendation == right.recommendation
     assert left.evidence_strength == right.evidence_strength
     assert left.opportunity_score == right.opportunity_score
+    assert left.opportunity_quality == right.opportunity_quality
+    assert left.entry_readiness == right.entry_readiness
+    assert left.entry_timing == right.entry_timing
+    assert left.blocker_codes == right.blocker_codes
     assert left.risk_label == right.risk_label
     assert left.trade_plan_status == right.trade_plan_status
     assert left.eligibility_status == right.eligibility_status
     assert left.primary_reason == right.primary_reason
     assert left.primary_reason_code == right.primary_reason_code
     assert left.result_semantics == right.result_semantics
+    assert left.regime_score == right.regime_score
+    assert left.regime_label == right.regime_label
+    assert left.regime_phase == right.regime_phase
+    assert left.regime_confidence == right.regime_confidence
 
 
 def _direct_and_universe(

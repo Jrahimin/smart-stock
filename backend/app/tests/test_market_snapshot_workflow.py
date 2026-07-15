@@ -119,6 +119,7 @@ async def test_run_daily_market_sync_runs_news_not_snapshot_enrichment(monkeypat
     mock_service = MagicMock()
     mock_service.run_daily_news_sync = AsyncMock(return_value=enrich_stats)
     mock_service.run_snapshot_enrichment = AsyncMock()
+    mock_service.finalize_market_session = AsyncMock(return_value=True)
 
     mock_session = MagicMock()
     mock_session_cm = MagicMock()
@@ -148,6 +149,11 @@ async def test_run_daily_market_sync_runs_news_not_snapshot_enrichment(monkeypat
     mock_service.run_snapshot_enrichment.assert_not_called()
     assert result.news_upserted == 3
     assert result.news_skipped == 1
+    assert result.session_finalized is True
+    mock_service.finalize_market_session.assert_awaited_once_with(
+        exchange=ExchangeCode.DSE,
+        trade_date=date(2026, 6, 11),
+    )
 
 
 @pytest.mark.asyncio

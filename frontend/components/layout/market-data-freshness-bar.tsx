@@ -27,6 +27,8 @@ const englishFreshnessLabels: DashboardLanguage["freshness"] = {
   synced: (label) => `Synced ${label}`,
   session: (label) => `Session: ${label}`,
   nextUpdate: (label) => `Next update: ${label}`,
+  provisional: (sessionDate) =>
+    `Live snapshot is provisional; canonical decisions use ${sessionDate}.`,
 };
 
 function buildFreshnessTooltip(
@@ -40,6 +42,9 @@ function buildFreshnessTooltip(
     model.sessionLabel ? labels.session(model.sessionLabel) : null,
     model.nextUpdateLabel ? labels.nextUpdate(model.nextUpdateLabel) : null,
     model.delayDisclaimer,
+    model.isLiveSession
+      ? labels.provisional(model.decisionSessionLabel ?? "the last completed session")
+      : null,
     staleDisclaimer,
   ].filter(Boolean);
 

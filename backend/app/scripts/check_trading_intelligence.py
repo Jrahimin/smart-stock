@@ -44,7 +44,10 @@ async def _run(args: argparse.Namespace) -> int:
     from app.modules.trading_intelligence.decision_snapshot_repository import (
         DecisionSnapshotRepository,
     )
-    from app.modules.trading_intelligence.monitoring import monitor_universe_payload
+    from app.modules.trading_intelligence.monitoring import (
+        build_decision_funnel,
+        monitor_universe_payload,
+    )
 
     exchange = ExchangeCode(args.exchange)
     redis = build_redis_client(get_settings())
@@ -61,7 +64,7 @@ async def _run(args: argparse.Namespace) -> int:
 
     async with AsyncSessionLocal() as session:
         market_repository = MarketDataRepository(session)
-        session_date, last_synced_at = await market_repository.get_market_price_freshness(
+        session_date, last_synced_at = await market_repository.get_decision_session_freshness(
             exchange=exchange
         )
         snapshots = []
@@ -82,6 +85,7 @@ async def _run(args: argparse.Namespace) -> int:
         expected_source_last_synced_at=last_synced_at,
         cross_surface_results=cross_surface_results,
     )
+    funnel = build_decision_funnel(payload.rows)
     print(
         json.dumps(
             {
@@ -89,6 +93,10 @@ async def _run(args: argparse.Namespace) -> int:
                 "has_errors": report.has_errors,
                 "issues": [asdict(issue) for issue in report.issues],
                 "snapshot_count": len(snapshots),
+                "decision_funnel": {
+                    **asdict(funnel),
+                    "reconciles": funnel.reconciles,
+                },
             },
             sort_keys=True,
         )

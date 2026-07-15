@@ -1,4 +1,7 @@
-import type { BackendUserWatchlistDto, TraderRecommendation } from "@/lib/api/backend-api-types";
+import type {
+  BackendUserWatchlistDto,
+  DecisionDisplayAction,
+} from "@/lib/api/backend-api-types";
 import type { StockIntelligenceModel, TrendDirection } from "@/lib/market/market-intelligence-types";
 import type { ResolvedTraderDecision } from "@/lib/market/trader-decision";
 
@@ -6,7 +9,13 @@ export type WatchlistFilterMode = "ALL" | "WATCHLISTED" | "NOT_WATCHLISTED" | "H
 
 export type WatchlistHoldingsFilter = "ALL" | "HOLDINGS_ONLY";
 
-export type WatchlistActionFilter = "ALL" | "BUY" | "HOLD" | "WAIT" | "SELL" | "NEW";
+export type WatchlistActionFilter =
+  | "ALL"
+  | "POTENTIAL_BUY"
+  | "HOLD"
+  | "WAIT"
+  | "SELL"
+  | "NEW";
 
 export type WatchlistTrendFilter = "ALL" | "BULLISH" | "BEARISH" | "SIDEWAYS";
 
@@ -31,9 +40,10 @@ export type WatchlistRowViewModel = {
   trendTone: "positive" | "negative" | "neutral";
   trendKey: WatchlistTrendKey;
   trendDirection: TrendDirection;
-  actionLabel: TraderRecommendation;
+  actionLabel: DecisionDisplayAction;
+  entryCondition: string | null;
   lastUpdatedLabel: string;
   unrealizedGainLabel: string | null;
   isNewSignal: boolean;
-  previousActionLabel: TraderRecommendation | null;
+  previousActionLabel: DecisionDisplayAction | null;
 };

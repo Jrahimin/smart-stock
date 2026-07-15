@@ -44,6 +44,7 @@ function toApiPreviousSnapshot(stored: ReturnType<typeof readMarketPulseSnapshot
   return {
     last_synced_at: stored.lastSyncedAt,
     score_version: stored.scoreVersion,
+    decision_taxonomy_version: stored.decisionTaxonomyVersion,
     focus_stock_ids: stored.focusStockIds,
     scores: stored.scores,
     recommendations: stored.recommendations,

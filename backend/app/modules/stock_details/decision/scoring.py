@@ -34,9 +34,12 @@ from app.core.constants.trading_constants import (
 )
 from app.core.enums import (
     EligibilityStatus,
+    EntryReadiness,
+    EntryTiming,
     HolderAction,
     LiquidityLabel,
     NonHolderAction,
+    OpportunityQuality,
     RiskLevelLabel,
     TradePlanStatus,
     TraderRecommendation,
@@ -54,6 +57,7 @@ if TYPE_CHECKING:
         DataReliabilityResult,
         DirectionalEvidenceResult,
     )
+    from app.modules.stock_details.decision.market_regime import MarketRegimeResult
     from app.modules.stock_details.decision.risk import TradingRiskResult
 
 
@@ -475,7 +479,7 @@ def compute_recommendation(
     is_sparse: bool,
     liquidity_label: LiquidityLabel | None = None,
     suspected_adjustment: bool = False,
-    market_regime: str | None = None,
+    market_regime: MarketRegimeResult | str | None = None,
     trade_plan_status: TradePlanStatus | None = None,
     eligibility_status: EligibilityStatus | None = None,
     eligibility_reasons: tuple[str, ...] = (),
@@ -483,6 +487,9 @@ def compute_recommendation(
     data_reliability: DataReliabilityResult | None = None,
     trading_risk: TradingRiskResult | None = None,
     constraints: ConstraintResult | None = None,
+    opportunity_quality: OpportunityQuality | None = None,
+    entry_readiness: EntryReadiness | None = None,
+    entry_timing: EntryTiming | None = None,
 ) -> DecisionResult:
     """Compatibility entry point for the explicit Phase 3 action matrix."""
     from app.modules.stock_details.decision.recommendation import (
@@ -508,4 +515,7 @@ def compute_recommendation(
         data_reliability=data_reliability,
         trading_risk=trading_risk,
         constraints=constraints,
+        opportunity_quality=opportunity_quality,
+        entry_readiness=entry_readiness,
+        entry_timing=entry_timing,
     )

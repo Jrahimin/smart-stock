@@ -11,7 +11,7 @@
 | `GET /api/v1/market/universe-rows` | `ScoredUniverseRow[]` + `listed_stock_count` meta |
 
 Serves from Redis
-`universe:scored:{exchange}:{strategy_version}:{threshold_version}:{input_schema_version}`
+`universe:scored:{exchange}:{strategy_version}:{threshold_version}:{input_schema_version}:{decision_taxonomy_version}`
 on cache hit. On miss, serves the equivalently versioned `scored:prev` key
 if present and spawns background rebuild. Cold miss returns HTTP 503 — **no
 inline compute on the HTTP request path**. Legacy unversioned keys are invalidated
@@ -30,7 +30,7 @@ Canonical row type in `market_universe_schemas.py`. Frontend mirror: `BackendSco
 | `decision` | `TraderDecisionSummaryRead` — compatibility fields plus the versioned canonical result, evidence strength, stance, holder/non-holder actions, primary reason, data reliability, trading risk, and constraints |
 | `eligibility` | Shared status/reasons, exchange-session identity, traded coverage, quality counts, robust turnover and corporate-action state |
 | `scanner` | Additive `scanner-conditions-v1` condition matches with reason, server rank score, capacity score, and deterministic per-condition rank. No OHLCV arrays are added. |
-| `session` | Latest bar metadata — trade date, close, volume, turnover, change%, data quality |
+| `session` | Latest completed-session bar metadata — trade date, close, volume, turnover, change%, data quality |
 
 ### Forbidden in `universe:scored` Redis payload
 
@@ -44,13 +44,26 @@ Never cache or serialize:
 
 Contract tests in `test_market_universe_contract.py` enforce this denylist.
 
-Cached rows are accepted only when the envelope and every row match the current
-exchange session, latest source-sync timestamp, strategy version, threshold
-version, input-schema version, scanner-condition version, and aggregate payload
+Cached rows are accepted only when the envelope and every row match the latest
+finalized exchange session, that session's source-sync timestamp, strategy version, threshold
+version, input-schema version, decision-taxonomy version, scanner-condition version, and aggregate payload
 revision. Every row must carry eligibility, scanner context, and a valid input
 hash. A stock may lag that session, but its row is then explicitly
 review-only/ineligible. Old or mixed-identity caches are rebuilt. Market Pulse
 ranks only `ELIGIBLE` rows.
+
+The envelope exposes `decision_session_date` plus separate `live_data_as_of` and
+`is_live_session` metadata. The legacy `session_trade_date` field remains readable
+and equals `decision_session_date`. Price windows, exchange-session dates, regime
+summaries, cache identity, and immutable snapshot `as_of_date` are all capped at
+that same completed date.
+
+Decision summaries include Phase 2 `opportunity_quality`, `entry_readiness`,
+`entry_timing`, and ordered `blocker_codes`. Phase 3 adds the explicit
+`internal_action`, trader-facing `display_action`, `entry_condition`, and
+`decision_taxonomy_version=v2`. The embedded canonical result also includes the
+capped regime score/label/phase/confidence. `recommendation` remains readable as
+the internal compatibility action; public consumers render `display_action`.
 
 Scanner predicates are owned by `modules/market_scanner/scanner_conditions.py`. They consume only canonical eligibility, technical snapshots, and decision summaries. Frontend Scanner cards group the returned matches and preserve their server ranks; they do not mirror liquidity, breakout, rebound, breakdown, risk, or compression thresholds. See [market_scanner.md](market_scanner.md).
 
@@ -66,10 +79,10 @@ Frontend-only pulse display does **not** trigger promotion.
 ## Cache hierarchy
 
 ```text
-universe:scored:{exchange}:{strategy_version}:{threshold_version}:{input_schema_version}
-universe:scored:prev:{exchange}:{strategy_version}:{threshold_version}:{input_schema_version}
-dashboard:{section}:{exchange}      # presentation — lightweight snapshot (no universe)
-pulse:{section}:{exchange}:{strategy_version}:{threshold_version}:{input_schema_version}:{pulse_score_version}
+universe:scored:{exchange}:{strategy_version}:{threshold_version}:{input_schema_version}:{decision_taxonomy_version}
+universe:scored:prev:{exchange}:{strategy_version}:{threshold_version}:{input_schema_version}:{decision_taxonomy_version}
+dashboard:{section}:{exchange}:{decision_taxonomy_version}
+pulse:{section}:{exchange}:{strategy_version}:{threshold_version}:{input_schema_version}:{pulse_score_version}:{decision_taxonomy_version}
                                     # versioned Pulse presentation and briefing
 ```
 
@@ -87,8 +100,8 @@ To extend historical context:
 
 Per-stock chart OHLCV (`GET /stock-details/{exchange}/{symbol}/workspace`) is out
 of scope. Its `stock-workspace:*` keys also include strategy version so a strategy
-release cannot reuse an older decision projection; they also include threshold
-and input-schema versions.
+release cannot reuse an older decision projection; they also include threshold,
+input-schema, and decision-taxonomy versions.
 
 ## Module files
 

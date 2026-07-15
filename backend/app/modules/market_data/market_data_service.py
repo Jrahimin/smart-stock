@@ -10,25 +10,28 @@ from fastapi import Depends
 from app.api.dependencies.auth_dependencies import get_current_user_context
 from app.core.core_config import get_settings
 from app.core.enums import DataQualityFlag, ExchangeCode, TurnoverProvenance
-from app.jobs.market_cache_spawn import spawn_rebuild_market_read_cache
+from app.core.exception_handlers import NotFoundError
+from app.core.perf_timing import PerfReport, async_perf_stage
+from app.core.security_config import UserContext
 from app.jobs.ingestion.amarstock_daily_enrichment import (
     PostDailyAmarstockStats,
     run_daily_news_enrichment,
     run_snapshot_market_enrichment,
 )
-from app.core.perf_timing import PerfReport, async_perf_stage
 from app.jobs.ingestion.amarstock_index_api_source import AmarStockIndexApiSource
-from app.core.exception_handlers import NotFoundError
-from app.core.security_config import UserContext
 from app.jobs.ingestion.ingestion_source_base import IngestedDailyPrice, MarketDataSource
-from app.models import DailyMarketSummary, DailyPrice, Stock
-from app.modules.market_data.dsex_metrics import build_dsex_performance_snapshot
-from app.modules.market_data.market_data_repository import MarketDataRepository, get_market_data_repository
+from app.jobs.market_cache_spawn import spawn_rebuild_market_read_cache
 from app.jobs.market_session_schedule import (
     build_freshness_label,
     next_snapshot_sync_at,
     resolve_cache_ttl_seconds,
     resolve_market_status,
+)
+from app.models import DailyMarketSummary, DailyPrice, Stock
+from app.modules.market_data.dsex_metrics import build_dsex_performance_snapshot
+from app.modules.market_data.market_data_repository import (
+    MarketDataRepository,
+    get_market_data_repository,
 )
 from app.modules.market_data.market_data_schemas import (
     DailyMarketSummaryCreate,
@@ -567,6 +570,7 @@ class MarketDataService:
                 "source": source.source_name,
                 "data_quality_flag": DataQualityFlag.OK,
                 "has_suspicious_prices": False,
+                "is_finalized": False,
             }
         )
 
@@ -708,6 +712,12 @@ class MarketDataService:
         now = datetime.now(ZoneInfo("Asia/Dhaka"))
         status = resolve_market_status(now, settings)
         trade_date, last_synced_at = await self.repository.get_market_price_freshness(exchange=exchange)
+        decision_session_date, _ = await self.repository.get_decision_session_freshness(
+            exchange=exchange
+        )
+        is_live_session = trade_date is not None and (
+            decision_session_date is None or trade_date > decision_session_date
+        )
         from app.core.enums import MarketSessionStatus
 
         interval = settings.market_snapshot_interval_minutes
@@ -719,6 +729,9 @@ class MarketDataService:
             exchange=exchange,
             trade_date=trade_date,
             last_synced_at=last_synced_at,
+            decision_session_date=decision_session_date,
+            live_data_as_of=last_synced_at if is_live_session else None,
+            is_live_session=is_live_session,
             next_sync_at=next_sync,
             snapshot_interval_minutes=interval,
             market_sync_interval_seconds=settings.market_sync_interval_seconds,
@@ -729,6 +742,22 @@ class MarketDataService:
             market_status=status,
             freshness_label=build_freshness_label(settings, status),
         )
+
+    async def finalize_market_session(
+        self,
+        *,
+        exchange: ExchangeCode,
+        trade_date: date,
+    ) -> bool:
+        finalized = await self.repository.finalize_market_session(
+            exchange=exchange,
+            trade_date=trade_date,
+        )
+        if finalized:
+            await self.repository.commit()
+        else:
+            await self.repository.session.rollback()
+        return finalized
 
 
 def get_market_data_service(

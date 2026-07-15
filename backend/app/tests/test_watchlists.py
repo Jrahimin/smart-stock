@@ -8,6 +8,7 @@ import pytest
 
 from app.core.enums import (
     DataQualityFlag,
+    DecisionDisplayAction,
     EligibilityStatus,
     ExchangeCode,
     HolderAction,
@@ -122,17 +123,28 @@ def _canonical_universe_row(stock_id, *, stale: bool = False) -> ScoredUniverseR
         exchange=ExchangeCode.DSE,
         strategy_version="trading-intelligence-v1",
         threshold_version="trading-thresholds-v1",
-        action_taxonomy="TRADER_RECOMMENDATION_V1",
+        action_taxonomy="TRADER_DECISION_V2",
+        decision_taxonomy_version="v2",
         as_of_date=date(2026, 7, 14),
         previous_session_date=date(2026, 7, 13),
         calculated_at=now,
         shared_decision_id="watchlist-stale-id" if stale else "watchlist-normal-id",
         result_semantics={"recommendation": "CANONICAL_CONTEXTUAL_ACTION"},
         recommendation=recommendation,
+        internal_action=recommendation,
+        display_action=(
+            DecisionDisplayAction.WAIT
+            if stale
+            else DecisionDisplayAction.POTENTIAL_BUY
+        ),
         evidence_strength=72,
         opportunity_score=66,
         risk_label=RiskLevelLabel.LOW,
-        trade_plan_status=TradePlanStatus.WATCH_ONLY,
+        trade_plan_status=(
+            TradePlanStatus.WATCH_ONLY
+            if stale
+            else TradePlanStatus.VALID_ENTRY_PLAN
+        ),
         eligibility_status=eligibility_status,
         primary_reason="Canonical reason",
         primary_reason_code="canonical_test",
@@ -167,6 +179,13 @@ def _canonical_universe_row(stock_id, *, stale: bool = False) -> ScoredUniverseR
         ),
         decision=TraderDecisionSummaryRead(
             recommendation=recommendation,
+            internal_action=recommendation,
+            display_action=(
+                DecisionDisplayAction.WAIT
+                if stale
+                else DecisionDisplayAction.POTENTIAL_BUY
+            ),
+            decision_taxonomy_version="v2",
             confidence=72,
             reason="Canonical reason",
             opportunity_score=66,
@@ -299,7 +318,7 @@ def test_watchlist_projects_canonical_universe_decision_and_holding_context() ->
         await service.add_item(UserWatchlistCreate(stock_id=stock_id))
         non_holder = (await service.list_items(holding_only=False, limit=10, offset=0))[0]
         assert non_holder.decision_source == "CANONICAL_UNIVERSE"
-        assert non_holder.contextual_action == "BUY"
+        assert non_holder.contextual_action == "POTENTIAL_BUY"
         assert non_holder.trader_decision is not None
         assert non_holder.trader_decision.reason == "Canonical reason"
         assert non_holder.trader_decision.canonical is not None

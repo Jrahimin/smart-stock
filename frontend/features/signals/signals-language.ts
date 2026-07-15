@@ -92,8 +92,8 @@ function buildSignalsLanguage(locale: AppLocale): SignalsLanguage {
         risk: (label) => `${label} risk`,
         riskShort: (label) => `Risk ${label}`,
         momentum: (recommendation) =>
-          recommendation === "BUY"
-            ? "Momentum expanding"
+          recommendation === "POTENTIAL_BUY"
+            ? "Entry condition available"
             : recommendation === "SELL"
               ? "Pressure rising"
               : recommendation === "WAIT"
@@ -153,8 +153,8 @@ function buildSignalsLanguage(locale: AppLocale): SignalsLanguage {
       risk: (label) => `${label} Risk`,
       riskShort: (label) => `Risk ${label}`,
       momentum: (recommendation) =>
-        recommendation === "BUY"
-          ? "কেনার গতি বাড়ছে"
+        recommendation === "POTENTIAL_BUY"
+          ? "শর্তসাপেক্ষ entry setup আছে"
           : recommendation === "SELL"
             ? "Sell pressure বাড়ছে"
             : recommendation === "WAIT"

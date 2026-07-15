@@ -1,4 +1,7 @@
-import type { ExchangeCode } from "@/lib/api/backend-api-types";
+import type {
+  DecisionDisplayAction,
+  ExchangeCode,
+} from "@/lib/api/backend-api-types";
 import {
   filterSectorPeers,
   filterSimilarSetup,
@@ -19,7 +22,7 @@ export type RelatedStockCard = {
   href: string;
   price: string;
   changePercent: string;
-  recommendation: string;
+  recommendation: DecisionDisplayAction;
   reasons: string[];
 };
 

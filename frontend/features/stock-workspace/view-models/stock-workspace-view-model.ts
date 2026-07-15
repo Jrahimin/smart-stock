@@ -90,10 +90,15 @@ function applyCanonicalDecisionSupport(
 
   const snapshot = decisionSupport.technical_snapshot;
   const decision = decisionSupport.decision;
+  const displayAction =
+    decision.display_action ??
+    (decision.recommendation === "SELL" ? "SELL" : "WAIT");
   const compatibilitySignal =
-    decision.recommendation === "BUY" || decision.recommendation === "SELL"
-      ? decision.recommendation
-      : "HOLD";
+    displayAction === "POTENTIAL_BUY"
+      ? "BUY"
+      : displayAction === "SELL"
+        ? "SELL"
+        : "HOLD";
 
   return {
     ...chartIntelligence,
@@ -134,6 +139,9 @@ function applyCanonicalDecisionSupport(
     },
     traderDecision: {
       recommendation: decision.recommendation,
+      internal_action: decision.internal_action,
+      display_action: displayAction,
+      decision_taxonomy_version: decision.decision_taxonomy_version ?? "v1",
       confidence: decision.confidence,
       reason: decision.primary_reason ?? decision.reasoning[0] ?? "Canonical decision available.",
       opportunity_score: decisionSupport.opportunity.score,
@@ -149,6 +157,11 @@ function applyCanonicalDecisionSupport(
       data_reliability: decisionSupport.data_reliability,
       trading_risk: decisionSupport.trading_risk,
       constraints: decision.constraints,
+      opportunity_quality: decision.opportunity_quality,
+      entry_readiness: decision.entry_readiness,
+      entry_timing: decision.entry_timing,
+      entry_condition: decision.entry_condition,
+      blocker_codes: decision.blocker_codes,
       canonical: decisionSupport.canonical_decision ?? decision.canonical,
     },
   };
@@ -208,7 +221,8 @@ export function buildStockWorkspaceModel(
       latestPrice,
       changePercent: formatPercent(intelligence?.priceChangePercent),
       marketCap: resolveDisplayedMarketCap(stock, intelligence, decisionSupport, displayMetrics),
-      chartContextSignal: canonicalDecision?.recommendation ?? "—",
+      chartContextSignal:
+        canonicalDecision?.display_action?.replace("_", " ") ?? "—",
       chartContextConfidence: canonicalDecision
         ? `${canonicalDecision.evidence_strength ?? canonicalDecision.confidence}/100 evidence`
         : "—",

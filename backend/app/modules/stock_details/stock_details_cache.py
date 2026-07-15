@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from app.core.constants.trading_constants import (
+    DECISION_TAXONOMY_VERSION,
     TRADING_INPUT_SCHEMA_VERSION,
     TRADING_STRATEGY_VERSION,
     TRADING_THRESHOLD_VERSION,
@@ -13,13 +14,17 @@ def stock_workspace_cache_key(
     exchange: ExchangeCode,
     symbol: str,
     latest_trade_date: str,
+    decision_session_date: str,
     strategy_version: str = TRADING_STRATEGY_VERSION,
     threshold_version: str = TRADING_THRESHOLD_VERSION,
     input_schema_version: str = TRADING_INPUT_SCHEMA_VERSION,
+    decision_taxonomy_version: str = DECISION_TAXONOMY_VERSION,
 ) -> str:
     return (
         f"stock-workspace:{section}:{exchange.value}:{symbol.upper()}:"
-        f"{latest_trade_date}:{strategy_version}:{threshold_version}:{input_schema_version}"
+        f"live-{latest_trade_date}:decision-{decision_session_date}:"
+        f"{strategy_version}:{threshold_version}:{input_schema_version}:"
+        f"{decision_taxonomy_version}"
     )
 
 

@@ -1,4 +1,8 @@
-import type { DataQualityFlag, ExchangeCode, TraderRecommendation } from "@/lib/api/backend-api-types";
+import type {
+  DataQualityFlag,
+  DecisionDisplayAction,
+  ExchangeCode,
+} from "@/lib/api/backend-api-types";
 import type { InsightBlockModel } from "@/lib/insights/insight-types";
 import type {
   BreadthPulseContext,
@@ -73,7 +77,7 @@ export type HeatmapTileModel = {
 
 export type SignalFeedItemModel = {
   symbol: string;
-  signal: TraderRecommendation;
+  signal: DecisionDisplayAction;
   confidence: string;
   confidenceValue: number;
   reason: string;

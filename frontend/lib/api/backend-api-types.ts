@@ -15,6 +15,15 @@ export type DecisionConstraintKind = "BLOCK" | "DOWNGRADE" | "EXIT_AVOID" | "INF
 export type TraderStance = "BULLISH" | "CONSTRUCTIVE" | "NEUTRAL" | "BEARISH" | "UNAVAILABLE";
 export type NonHolderAction = "BUY" | "WAIT" | "AVOID";
 export type HolderAction = "HOLD" | "REVIEW" | "SELL" | "REDUCE";
+export type OpportunityQuality = "WEAK" | "CONSTRUCTIVE" | "STRONG";
+export type EntryReadiness = "NOT_READY" | "CONDITIONAL" | "READY";
+export type EntryTiming = "READY" | "PULLBACK" | "BREAKOUT" | "CONTINUATION";
+export type TradePlanManagementMode =
+  | "STRUCTURAL"
+  | "ATR_PROJECTION"
+  | "MEASURED_MOVE"
+  | "TRAILING";
+export type MarketRegimePhase = "EARLY" | "HEALTHY" | "EXTENDED" | "REVERSAL_RISK";
 
 export type MarketSessionStatus = "PRE_OPEN" | "OPEN" | "POST_CLOSE" | "HOLIDAY";
 
@@ -22,6 +31,9 @@ export type BackendMarketFreshnessDto = {
   exchange: ExchangeCode;
   trade_date: string | null;
   last_synced_at: string | null;
+  decision_session_date?: string | null;
+  live_data_as_of?: string | null;
+  is_live_session?: boolean;
   next_sync_at: string | null;
   snapshot_interval_minutes: number;
   market_sync_interval_seconds: number;
@@ -36,6 +48,7 @@ export type BackendMarketFreshnessDto = {
 export type SignalType = "BUY" | "SELL" | "HOLD";
 
 export type TraderRecommendation = "BUY" | "HOLD" | "WAIT" | "SELL";
+export type DecisionDisplayAction = "POTENTIAL_BUY" | "HOLD" | "WAIT" | "SELL";
 
 export type WarningSeverity = "INFO" | "WARNING" | "CRITICAL";
 
@@ -91,6 +104,9 @@ export type BackendLatestMarketPriceDto = {
 
 export type BackendTraderDecisionSummaryDto = {
   recommendation: TraderRecommendation;
+  internal_action?: TraderRecommendation | null;
+  display_action?: DecisionDisplayAction;
+  decision_taxonomy_version?: string;
   confidence: number;
   reason: string;
   opportunity_score: number;
@@ -106,6 +122,11 @@ export type BackendTraderDecisionSummaryDto = {
   data_reliability?: BackendDataReliabilityDto | null;
   trading_risk?: BackendTradingRiskDto | null;
   constraints?: BackendDecisionConstraintDto[];
+  opportunity_quality?: OpportunityQuality | null;
+  entry_readiness?: EntryReadiness;
+  entry_timing?: EntryTiming | null;
+  entry_condition?: string | null;
+  blocker_codes?: string[];
   canonical?: BackendCanonicalDecisionResultDto | null;
 };
 
@@ -115,6 +136,7 @@ export type BackendCanonicalDecisionResultDto = {
   strategy_version: string;
   threshold_version: string;
   action_taxonomy: string;
+  decision_taxonomy_version?: string;
   as_of_date: string;
   previous_session_date: string | null;
   calculated_at: string;
@@ -127,8 +149,15 @@ export type BackendCanonicalDecisionResultDto = {
   replay_limitations?: string[];
   result_semantics: Record<string, string>;
   recommendation: TraderRecommendation;
+  internal_action?: TraderRecommendation | null;
+  display_action?: DecisionDisplayAction;
   evidence_strength: number;
   opportunity_score: number;
+  opportunity_quality?: OpportunityQuality | null;
+  entry_readiness?: EntryReadiness;
+  entry_timing?: EntryTiming | null;
+  entry_condition?: string | null;
+  blocker_codes?: string[];
   risk_label: "LOW" | "MEDIUM" | "HIGH" | "SPECULATIVE";
   trade_plan_status: "VALID_ENTRY_PLAN" | "WATCH_ONLY" | "UNAVAILABLE";
   eligibility_status: EligibilityStatus;
@@ -137,6 +166,10 @@ export type BackendCanonicalDecisionResultDto = {
   stance: TraderStance;
   non_holder_action: NonHolderAction;
   holder_action: HolderAction;
+  regime_score?: number;
+  regime_label?: string;
+  regime_phase?: MarketRegimePhase;
+  regime_confidence?: number;
 };
 
 export type BackendDecisionConstraintDto = {
@@ -281,9 +314,13 @@ export type BackendUniverseRowsMetaDto = {
   exchange: ExchangeCode;
   listed_stock_count: number;
   session_trade_date: string | null;
+  decision_session_date?: string | null;
+  live_data_as_of?: string | null;
+  is_live_session?: boolean;
   strategy_version?: string;
   threshold_version?: string;
   scanner_version?: string;
+  decision_taxonomy_version?: string;
 };
 
 export type BackendUniverseRowsDto = {
@@ -397,10 +434,11 @@ export type BackendDashboardMarketAlertsDto = {
 export type BackendDashboardSignalDto = {
   symbol: string;
   exchange: ExchangeCode;
-  signal: TraderRecommendation;
+  signal: DecisionDisplayAction;
   confidence: number;
   confidence_semantics?: "HEURISTIC_EVIDENCE";
   reason: string;
+  entry_condition?: string | null;
   risk: string;
   priority: string;
   supporting_context: string[];
@@ -525,7 +563,7 @@ export type BackendUserWatchlistDto = {
   trader_decision: BackendTraderDecisionSummaryDto | null;
   technical_snapshot: BackendTechnicalSnapshotDto | null;
   decision_source?: "CANONICAL_UNIVERSE" | "UNAVAILABLE";
-  contextual_action?: NonHolderAction | HolderAction | "WAIT";
+  contextual_action?: DecisionDisplayAction;
 };
 
 export type BackendUserWatchlistSummaryDto = {
@@ -547,6 +585,7 @@ export type TradingSignalSummary = {
 };
 
 export type PulseFocusLabel =
+  | "Potential Buy Setup"
   | "New BUY Setup"
   | "Momentum Building"
   | "Volume Breakout"
@@ -591,7 +630,7 @@ export type BackendFocusStockDto = {
   price_change_percent: string;
   price_tone: string;
   sparkline_points: number[];
-  recommendation: string;
+  recommendation: DecisionDisplayAction;
 };
 
 export type BackendMarketPulseHeroDto = {
@@ -715,6 +754,7 @@ export type BackendOpportunityScoreDto = {
 
 export type BackendPulseCoverageDto = {
   score_version: string;
+  decision_taxonomy_version: string;
   session_trade_date: string | null;
   universe_candidate_count: number;
   eligible_candidate_count: number;
@@ -819,6 +859,7 @@ export type BackendMarketPulseDto = {
 export type BackendMarketPulsePreviousSnapshotDto = {
   last_synced_at: string | null;
   score_version?: string | null;
+  decision_taxonomy_version?: string | null;
   focus_stock_ids: string[];
   scores: Record<string, number>;
   recommendations: Record<string, string>;

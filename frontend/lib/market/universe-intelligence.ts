@@ -48,7 +48,12 @@ function buildIntelligenceFromSnapshot(
       symbol: stock.symbol,
       name: stock.name,
       exchange: stock.exchange,
-      signal: decision?.recommendation === "BUY" || decision?.recommendation === "SELL" ? decision.recommendation : "HOLD",
+      signal:
+        decision?.display_action === "POTENTIAL_BUY"
+          ? "BUY"
+          : decision?.display_action === "SELL"
+            ? "SELL"
+            : "HOLD",
       confidence: decision?.confidence ?? 48,
       risk: decision?.risk_label === "LOW" || decision?.risk_label === "MEDIUM" || decision?.risk_label === "HIGH" ? decision.risk_label : "MEDIUM",
       reason: decision?.reason ?? "Awaiting decision data",

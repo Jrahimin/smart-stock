@@ -356,6 +356,14 @@ monitoring, an operational runbook/check command, and final deprecation cleanup.
 Raw source-revision archives and institutional independent validation remain
 explicitly outside the available data boundary.
 
+## Decision Model Evolution
+
+Source: `backend/docs/decision_model_evolution_three_phase_plan.md`.
+
+* [x] Phase 1 — canonical session integrity and observability
+* [x] Phase 2 — conditional opportunity and entry-plan model
+* [x] Phase 3 — public taxonomy rollout, compatibility, and validation
+
 ---
 
 # 🧠 EXECUTION STRATEGY

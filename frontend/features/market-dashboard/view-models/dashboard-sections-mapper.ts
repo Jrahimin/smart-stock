@@ -47,7 +47,11 @@ function formatGeneratedAt(latestTradeDate: string | null): string {
 function buildSignalFeedReason(stock: ReturnType<typeof mapUniverseRowToListRow>): string {
   const decision = resolveTraderDecision(stock);
   const stockSpecific = buildDecisionSupportingContext(stock).slice(0, 2).join(" · ");
-  return stockSpecific ? `${stockSpecific}. ${decision.reason}` : decision.reason;
+  const actionReason =
+    decision.recommendation === "POTENTIAL_BUY" && decision.entryCondition
+      ? decision.entryCondition
+      : decision.reason;
+  return stockSpecific ? `${stockSpecific}. ${actionReason}` : actionReason;
 }
 
 function compareSignalFeedCandidates(
@@ -118,20 +122,29 @@ export function mapTraderDecisionsToSignalFeed(
   const ranked = decisions
     .filter(
       ({ decision }) =>
-        isActionableDecision(decision.recommendation) || decision.confidence >= 55,
+        isActionableDecision(
+          decision.display_action ??
+            (decision.recommendation === "SELL" ? "SELL" : "WAIT"),
+        ) || decision.confidence >= 55,
     )
     .sort((left, right) => right.decision.confidence - left.decision.confidence)
     .slice(0, limit);
 
   return ranked.map(({ stock, decision, latest_trade_date }) => {
     const resolvedReason = resolveTraderDecisionReason(decision.reason);
+    const displayAction =
+      decision.display_action ??
+      (decision.recommendation === "SELL" ? "SELL" : "WAIT");
 
     return {
       symbol: stock.symbol,
-      signal: decision.recommendation,
+      signal: displayAction,
       confidence: `${decision.confidence}%`,
       confidenceValue: decision.confidence,
-      reason: decision.reason,
+      reason:
+        displayAction === "POTENTIAL_BUY" && decision.entry_condition
+          ? decision.entry_condition
+          : decision.reason,
       reasonSummary: decision.reason,
       reasonKey: resolvedReason.key,
       reasonParams: resolvedReason.params,
@@ -154,7 +167,10 @@ export function mapDashboardSignalsDto(dto: BackendDashboardStocksInFocusDto): S
       signal: signal.signal,
       confidence: `${signal.confidence}%`,
       confidenceValue: signal.confidence,
-      reason: signal.reason,
+      reason:
+        signal.signal === "POTENTIAL_BUY" && signal.entry_condition
+          ? signal.entry_condition
+          : signal.reason,
       reasonSummary: signal.reason,
       reasonKey: resolvedReason.key,
       reasonParams: resolvedReason.params,

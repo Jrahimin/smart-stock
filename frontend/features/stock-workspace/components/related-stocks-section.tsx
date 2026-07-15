@@ -6,7 +6,6 @@ import Link from "next/link";
 import { SignalBadge } from "@/components/ui/signal-badge";
 import type { RelatedStocksCta, RelatedStocksGroup } from "@/features/stock-workspace/view-models/related-stocks-view-model";
 import type { StockWorkspaceLanguage } from "@/features/stock-workspace/stock-workspace-language";
-import type { TraderRecommendation } from "@/lib/api/backend-api-types";
 
 type RelatedStocksSectionProps = {
   groups: RelatedStocksGroup[];
@@ -88,7 +87,7 @@ export function RelatedStocksSection({
                       <Link className="scanner-result-card related-stock-card" href={item.href} key={item.stockId}>
                         <div className="scanner-card-topline">
                           <strong>{item.symbol}</strong>
-                          <SignalBadge signal={item.recommendation as TraderRecommendation} />
+                          <SignalBadge signal={item.recommendation} />
                         </div>
                         <div className={`related-stock-quote related-stock-quote-${changeTone}`}>
                           <strong className="related-stock-quote-price">{item.price}</strong>

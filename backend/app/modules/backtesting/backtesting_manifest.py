@@ -5,6 +5,7 @@ from typing import Any
 
 from app.core.audit_hashing import stable_audit_hash
 from app.core.constants.trading_constants import (
+    DECISION_TAXONOMY_VERSION,
     TRADING_INPUT_SCHEMA_VERSION,
     TRADING_REPLAY_MANIFEST_VERSION,
 )
@@ -95,6 +96,7 @@ def build_replay_manifest(
         "strategy_version": config.strategy_version,
         "threshold_version": config.threshold_version,
         "input_schema_version": TRADING_INPUT_SCHEMA_VERSION,
+        "decision_taxonomy_version": DECISION_TAXONOMY_VERSION,
         "config_hash": config_hash,
         "dataset_revision": dataset_revision,
         "observation_revision": observation_revision,
@@ -106,6 +108,7 @@ def build_replay_manifest(
         strategy_version=config.strategy_version,
         threshold_version=config.threshold_version,
         input_schema_version=TRADING_INPUT_SCHEMA_VERSION,
+        decision_taxonomy_version=DECISION_TAXONOMY_VERSION,
         config_hash=config_hash,
         dataset_revision=dataset_revision,
         observation_revision=observation_revision,
@@ -125,6 +128,7 @@ def replay_manifest_mismatches(
         "strategy_version",
         "threshold_version",
         "input_schema_version",
+        "decision_taxonomy_version",
         "config_hash",
         "dataset_revision",
         "observation_revision",

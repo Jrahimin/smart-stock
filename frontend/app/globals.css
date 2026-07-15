@@ -3626,7 +3626,9 @@ button {
 }
 
 .signal-feed-item-buy::before,
-.signal-center-item-buy::before {
+.signal-center-item-buy::before,
+.signal-feed-item-potential_buy::before,
+.signal-center-item-potential_buy::before {
   background: var(--positive);
 }
 
@@ -3765,8 +3767,10 @@ button {
 }
 
 .momentum-marker-buy,
+.momentum-marker-potential_buy,
 .trend-badge-uptrend,
-.signal-chip-buy {
+.signal-chip-buy,
+.signal-chip-potential_buy {
   background: rgb(75 214 164 / 10%);
   color: var(--positive);
 }
@@ -3794,7 +3798,8 @@ button {
   width: 7px;
 }
 
-.signal-dot-buy {
+.signal-dot-buy,
+.signal-dot-potential_buy {
   background: var(--positive);
   box-shadow: 0 0 12px rgb(75 214 164 / 60%);
 }
@@ -3837,6 +3842,7 @@ button {
 }
 
 .signal-badge-buy,
+.signal-badge-potential_buy,
 .quality-badge-ok {
   background: linear-gradient(135deg, rgb(75 214 164 / 24%), rgb(75 214 164 / 10%));
   border: 1px solid rgb(75 214 164 / 34%);
@@ -3859,7 +3865,8 @@ button {
   color: var(--warning);
 }
 
-.signal-badge-buy i {
+.signal-badge-buy i,
+.signal-badge-potential_buy i {
   border-bottom: 7px solid var(--positive);
   border-left: 5px solid transparent;
   border-right: 5px solid transparent;
@@ -3881,7 +3888,10 @@ button {
 
 .scanner-result-card .signal-badge-buy,
 .signal-center-item .signal-badge-buy,
-.signal-feed-item .signal-badge-buy {
+.signal-feed-item .signal-badge-buy,
+.scanner-result-card .signal-badge-potential_buy,
+.signal-center-item .signal-badge-potential_buy,
+.signal-feed-item .signal-badge-potential_buy {
   color: var(--positive);
 }
 
@@ -4195,7 +4205,9 @@ button {
 }
 
 .signal-center-item-buy,
-.signal-feed-item-buy {
+.signal-feed-item-buy,
+.signal-center-item-potential_buy,
+.signal-feed-item-potential_buy {
   background:
     linear-gradient(135deg, rgb(75 214 164 / 9%), transparent 42%),
     var(--soft-surface);
@@ -4218,11 +4230,24 @@ button {
 }
 
 :root[data-theme="light"] .signal-center-item-buy,
-:root[data-theme="light"] .signal-feed-item-buy {
+:root[data-theme="light"] .signal-feed-item-buy,
+:root[data-theme="light"] .signal-center-item-potential_buy,
+:root[data-theme="light"] .signal-feed-item-potential_buy {
   background:
     linear-gradient(135deg, rgb(8 127 91 / 9%), transparent 48%),
     #ffffff;
   border-color: rgb(8 127 91 / 18%);
+}
+
+.scanner-entry-condition,
+.watchlist-entry-condition,
+.signal-action-with-condition small {
+  color: var(--muted);
+  display: block;
+  font-size: 0.68rem;
+  line-height: 1.35;
+  margin-top: 5px;
+  max-width: 32ch;
 }
 
 :root[data-theme="light"] .signal-center-item-sell,

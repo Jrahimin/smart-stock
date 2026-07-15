@@ -5,7 +5,7 @@ import { WatchlistStarToggle } from "@/features/watchlist/components/watchlist-s
 import type { StockDecisionViewModel } from "@/features/stock-workspace/view-models/stock-decision-view-model";
 import type { StockWorkspaceModel } from "@/features/stock-workspace/view-models/stock-workspace-view-model";
 import type { StockWorkspaceLanguage } from "@/features/stock-workspace/stock-workspace-language";
-import type { SignalType, TraderRecommendation } from "@/lib/api/backend-api-types";
+import type { DecisionDisplayAction } from "@/lib/api/backend-api-types";
 
 type StockWorkspaceHeaderProps = {
   model: StockWorkspaceModel;
@@ -25,9 +25,9 @@ function getChangeTone(changePercent: string): "positive" | "negative" | "neutra
 }
 
 export function StockWorkspaceHeader({ model, decision, stockId, copy }: StockWorkspaceHeaderProps) {
-  const action: SignalType | TraderRecommendation = decision?.available
-    ? (decision.recommendation as TraderRecommendation)
-    : (model.header.chartContextSignal as SignalType);
+  const action: DecisionDisplayAction = decision?.available
+    ? decision.recommendation.replace(" ", "_") as DecisionDisplayAction
+    : model.header.chartContextSignal.replace(" ", "_") as DecisionDisplayAction;
   const confidence = decision?.available ? decision.confidenceLabel : model.header.chartContextConfidence;
   const sector = model.header.sector;
   const sectorHref =

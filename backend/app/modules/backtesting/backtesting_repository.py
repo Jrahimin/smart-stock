@@ -29,6 +29,22 @@ class BacktestingRepository:
 
     async def load_dataset(self, config: BacktestConfig) -> BacktestDataset:
         history_start = config.start_date - timedelta(days=365)
+        finalized_session_dates = tuple(
+            (
+                await self.session.scalars(
+                    select(DailyMarketSummary.trade_date)
+                    .where(
+                        DailyMarketSummary.exchange == config.exchange,
+                        DailyMarketSummary.index_name == "DSEX",
+                        DailyMarketSummary.is_finalized.is_(True),
+                        DailyMarketSummary.trade_date >= history_start,
+                        DailyMarketSummary.trade_date <= config.end_date,
+                    )
+                    .distinct()
+                    .order_by(DailyMarketSummary.trade_date)
+                )
+            ).all()
+        )
         price_rows = (
             await self.session.execute(
                 select(Stock, DailyPrice)
@@ -37,6 +53,7 @@ class BacktestingRepository:
                     Stock.exchange == config.exchange,
                     DailyPrice.trade_date >= history_start,
                     DailyPrice.trade_date <= config.end_date,
+                    DailyPrice.trade_date.in_(finalized_session_dates),
                 )
                 .order_by(Stock.symbol, Stock.id, DailyPrice.trade_date, DailyPrice.id)
             )
@@ -82,6 +99,7 @@ class BacktestingRepository:
                         DailyMarketSummary.exchange == config.exchange,
                         DailyMarketSummary.trade_date >= history_start,
                         DailyMarketSummary.trade_date <= config.end_date,
+                        DailyMarketSummary.trade_date.in_(finalized_session_dates),
                     )
                     .order_by(
                         DailyMarketSummary.trade_date,
@@ -121,6 +139,7 @@ class BacktestingRepository:
             for price in history.prices
         )
         limitations = [
+            "Replay observations include only explicitly finalized exchange sessions.",
             "Historical exchange membership is reconstructed from observed price rows; "
             "deleted securities cannot be recovered.",
             "Category and sector are not effective-dated. Current values are reported for "

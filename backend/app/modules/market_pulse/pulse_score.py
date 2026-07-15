@@ -17,9 +17,9 @@ from app.core.constants.trading_constants import (
 )
 from app.core.enums import (
     DataQualityFlag,
+    DecisionDisplayAction,
     PulseFocusLabel,
     PulseScoreBand,
-    TraderRecommendation,
     TrendDirection,
 )
 from app.modules.stock_details.decision.technical import TechnicalSnapshot
@@ -105,11 +105,11 @@ def _compute_volume_score(snapshot: TechnicalSnapshot) -> int:
 
 
 def _compute_signal_boost(decision: TraderDecisionSummaryRead) -> int:
-    if decision.recommendation == TraderRecommendation.BUY:
+    if decision.display_action == DecisionDisplayAction.POTENTIAL_BUY:
         return PULSE_SCORE_SIGNAL_BOOST_MAX
-    if decision.recommendation == TraderRecommendation.HOLD:
+    if decision.display_action == DecisionDisplayAction.HOLD:
         return 4
-    if decision.recommendation == TraderRecommendation.WAIT:
+    if decision.display_action == DecisionDisplayAction.WAIT:
         return 1
     return 0
 
@@ -159,7 +159,7 @@ def _build_contributors(
     elif volume >= 10:
         contributors.append("Above-baseline volume")
     if signal_boost >= 6:
-        contributors.append("Canonical BUY context")
+        contributors.append("Conditional potential-buy context")
     if risk_penalty >= 10:
         contributors.append("Elevated modeled trading risk")
     return contributors[:3]
@@ -193,12 +193,19 @@ def derive_pulse_focus_label(
     decision: TraderDecisionSummaryRead,
     score: PulseScoreBreakdown,
     *,
-    previous_recommendation: TraderRecommendation | None = None,
+    previous_recommendation: DecisionDisplayAction | None = None,
 ) -> PulseFocusLabel:
     volume_ratio = get_volume_ratio(snapshot)
 
-    if previous_recommendation in {TraderRecommendation.WAIT, TraderRecommendation.HOLD} and decision.recommendation == TraderRecommendation.BUY:
+    if (
+        previous_recommendation
+        in {DecisionDisplayAction.WAIT, DecisionDisplayAction.HOLD}
+        and decision.display_action == DecisionDisplayAction.POTENTIAL_BUY
+    ):
         return PulseFocusLabel.SIGNAL_UPGRADE
+
+    if decision.display_action == DecisionDisplayAction.POTENTIAL_BUY:
+        return PulseFocusLabel.POTENTIAL_BUY_SETUP
 
     if (
         snapshot.is_breakout
@@ -218,6 +225,8 @@ def derive_pulse_focus_label(
 
 
 def build_pulse_trigger(snapshot: TechnicalSnapshot, decision: TraderDecisionSummaryRead) -> str:
+    if decision.entry_condition:
+        return decision.entry_condition
     volume_ratio = get_volume_ratio(snapshot)
 
     if snapshot.resistance is not None and snapshot.latest_price is not None:
@@ -256,14 +265,14 @@ def build_conviction_insight(
             return "Volume expanding faster than price"
         return "Price-volume break needs follow-through"
 
-    if label == PulseFocusLabel.NEW_BUY_SETUP:
-        return "Canonical BUY setup needs entry review"
+    if label == PulseFocusLabel.POTENTIAL_BUY_SETUP:
+        return "Potential entry setup has a defined condition"
 
     if label == PulseFocusLabel.MOMENTUM_BUILDING:
         return "Momentum evidence is improving"
 
     if label == PulseFocusLabel.SIGNAL_UPGRADE:
-        return "Comparable action changed to BUY"
+        return "Comparable action changed to POTENTIAL_BUY"
 
     if score.momentum >= 18:
         return "Momentum evidence is improving"
@@ -272,8 +281,8 @@ def build_conviction_insight(
 
 
 def build_action_summary(label: PulseFocusLabel) -> str:
-    if label == PulseFocusLabel.NEW_BUY_SETUP:
-        return "Investigate for entry today"
+    if label == PulseFocusLabel.POTENTIAL_BUY_SETUP:
+        return "Review the entry condition before acting"
     if label == PulseFocusLabel.VOLUME_BREAKOUT:
         return "Confirm volume before acting"
     if label == PulseFocusLabel.MOMENTUM_BUILDING:
@@ -292,10 +301,12 @@ def build_why_here(
     reasons: list[str] = []
     volume_ratio = get_volume_ratio(snapshot)
 
-    if label == PulseFocusLabel.NEW_BUY_SETUP:
-        reasons.append(f"BUY setup with {decision.confidence}/100 evidence strength")
+    if label == PulseFocusLabel.POTENTIAL_BUY_SETUP:
+        reasons.append(
+            f"Potential-buy setup with {decision.confidence}/100 evidence strength"
+        )
     elif label == PulseFocusLabel.SIGNAL_UPGRADE:
-        reasons.append("Trader signal upgraded to BUY")
+        reasons.append("Trader decision upgraded to POTENTIAL_BUY")
     elif label == PulseFocusLabel.VOLUME_BREAKOUT:
         if volume_ratio is not None:
             reasons.append(f"Price-volume break at {volume_ratio:.1f}x baseline volume")

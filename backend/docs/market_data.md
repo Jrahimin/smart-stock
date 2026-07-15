@@ -34,7 +34,7 @@ Exit codes: `0` success · `2` bad date · `130` interrupt · `1` error.
 | Workflow | Code entry | Cadence | Writes |
 |----------|------------|---------|--------|
 | Intraday snapshot | `sync_market_snapshot()` | Every `market_snapshot_interval_minutes` (default 15) between `market_open_time`–`market_close_time`, Sun–Thu | `daily_prices` (upsert), DSEX summary |
-| Daily news | `run_daily_market_sync()` | Once per session day at `daily_market_sync_time` (default 15:15) | `market_events` |
+| Daily news/finality | `run_daily_market_sync()` | Once per session day at `daily_market_sync_time` (default 15:15) | `market_events`; finalize DSEX session when price + index inputs exist |
 | Historical backfill | `backfill_daily_prices()` | Manual / API | `daily_prices` from DSE archive |
 
 ```text
@@ -42,6 +42,7 @@ Scheduler (snapshot) → LatestPrice JSON → daily_prices
                     → Index API → daily_market_summaries (DSEX)
 
 Scheduler (daily)    → News API → market_events
+                     → mark DSEX session finalized → canonical rebuild eligible
 
 backfill_daily_prices → DSE day-end archive → daily_prices (insert-only by default)
 ```
@@ -114,12 +115,17 @@ Session helpers live in `market_session_schedule.py` (shared with `GET /market/f
 | `GET /api/v1/stocks/{id}/prices` | Paginated history |
 | `POST /api/v1/market-data/ingestion/daily-prices?trade_date=` | DSE archive ingest (same as backfill CLI) |
 
-`GET /market/freshness` intentionally omits `is_live` — prices are always snapshot-based.
+`GET /market/freshness` separates live/provisional timing from canonical timing:
+`decision_session_date`, `live_data_as_of`, and `is_live_session`. Snapshot rows
+remain available to live dashboard and price UI, but canonical decision windows
+are capped at the latest DSEX summary with `is_finalized=true`.
 
 ## Rules
 
 * Natural key: `stock_id + trade_date`
 * Snapshot ingest: upsert; backfill default: insert-only (skip existing rows)
+* Snapshot DSEX upserts always set `is_finalized=false`. The after-close daily path
+  sets it true only when both a DSEX summary and at least one exchange price row exist.
 * **Session gate:** before snapshot or daily sync writes, `validate_market_session()` calls the AmarStock index API and requires `DateEpoch` trade date to equal today (Asia/Dhaka). Mismatch (public holiday, stale feed, API lag) skips all writes for that run. `MarketStatus` is logged only. Override: `skip_session_validation=True` on sync functions or `--skip-session-validation` on the CLI.
 * Unknown symbols skipped — run `seed_stocks` on a fresh DB
 * Official breadth from index API only; do not aggregate LatestPrice `ChangePer` as exchange breadth

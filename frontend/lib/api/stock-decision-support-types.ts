@@ -7,10 +7,15 @@ import type {
   BackendStockDto,
   BackendTechnicalSnapshotDto,
   BackendTradingRiskDto,
+  DecisionDisplayAction,
   EvidenceDirection,
   ExchangeCode,
   HolderAction,
   NonHolderAction,
+  OpportunityQuality,
+  EntryReadiness,
+  EntryTiming,
+  TradePlanManagementMode,
   TraderStance,
   TraderRecommendation,
   WarningSeverity,
@@ -28,8 +33,14 @@ export type StockDecisionSupportDto = {
   stock_id: string;
   symbol: string;
   exchange: ExchangeCode;
+  decision_session_date?: string;
+  live_data_as_of?: string | null;
+  is_live_session?: boolean;
   decision: {
     recommendation: TraderRecommendation;
+    internal_action?: TraderRecommendation | null;
+    display_action?: DecisionDisplayAction;
+    decision_taxonomy_version?: string;
     confidence: number;
     reasoning: string[];
     confidence_semantics?: "HEURISTIC_EVIDENCE";
@@ -41,12 +52,18 @@ export type StockDecisionSupportDto = {
     non_holder_action?: NonHolderAction | null;
     holder_action?: HolderAction | null;
     constraints?: BackendDecisionConstraintDto[];
+    opportunity_quality?: OpportunityQuality | null;
+    entry_readiness?: EntryReadiness;
+    entry_timing?: EntryTiming | null;
+    entry_condition?: string | null;
+    blocker_codes?: string[];
     canonical?: BackendCanonicalDecisionResultDto | null;
   };
   canonical_decision?: BackendCanonicalDecisionResultDto | null;
   technical_snapshot?: BackendTechnicalSnapshotDto | null;
   opportunity: {
     score: number;
+    quality?: OpportunityQuality | null;
     components: ScoreComponentDto[];
     score_semantics?: "HEURISTIC_LONG_SETUP_INDEX";
   };
@@ -90,6 +107,19 @@ export type StockDecisionSupportDto = {
     explanation: string;
     status?: "VALID_ENTRY_PLAN" | "WATCH_ONLY" | "UNAVAILABLE";
     reasons?: string[];
+    entry_readiness?: EntryReadiness;
+    entry_timing?: EntryTiming | null;
+    preferred_entry_zone_low?: number | null;
+    preferred_entry_zone_high?: number | null;
+    invalidation_price?: number | null;
+    condition_text?: string | null;
+    expiry_sessions?: number | null;
+    trigger_price?: number | null;
+    confirmation_rule?: string | null;
+    management_mode?: TradePlanManagementMode | null;
+    trailing_rule?: string | null;
+    reassessment_sessions?: number | null;
+    partial_profit_price?: number | null;
   };
   liquidity: {
     label: "STRONG" | "NORMAL" | "THIN" | "ILLIQUID";

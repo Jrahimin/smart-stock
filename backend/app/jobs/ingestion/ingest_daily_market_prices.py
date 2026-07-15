@@ -7,11 +7,10 @@ from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from app.core.core_config import Settings, get_settings
+from app.core.database_session import AsyncSessionLocal
 from app.core.enums import ExchangeCode
-from app.jobs.market_cache_spawn import spawn_rebuild_market_read_cache
 from app.core.security_config import UserContext
 from app.jobs.ingestion.dse_market_data_source import DseMarketDataSource
-from app.jobs.market_session_validation import validate_market_session
 from app.jobs.ingestion.ingestion_source_base import MarketDataSource
 from app.jobs.ingestion.market_data_source_factory import (
     build_primary_market_data_source,
@@ -19,6 +18,8 @@ from app.jobs.ingestion.market_data_source_factory import (
     should_attempt_stocknow_fallback,
 )
 from app.jobs.ingestion.stocknow_market_data_source import StockNowMarketDataSource
+from app.jobs.market_cache_spawn import spawn_rebuild_market_read_cache
+from app.jobs.market_session_validation import validate_market_session
 from app.modules.market_data.market_data_repository import MarketDataRepository
 from app.modules.market_data.market_data_schemas import (
     DailyNewsSyncResult,
@@ -26,7 +27,6 @@ from app.modules.market_data.market_data_schemas import (
     MarketSnapshotSyncResult,
 )
 from app.modules.market_data.market_data_service import MarketDataService
-from app.core.database_session import AsyncSessionLocal
 
 logger = logging.getLogger(__name__)
 DHAKA_TIMEZONE = ZoneInfo("Asia/Dhaka")
@@ -235,6 +235,18 @@ async def run_daily_market_sync(
             exchange=exchange,
             trade_date=resolved_trade_date,
         )
+        session_finalized = await service.finalize_market_session(
+            exchange=exchange,
+            trade_date=resolved_trade_date,
+        )
+
+    if not session_finalized:
+        logger.error(
+            "Market session was not finalized because completed price/DSEX inputs are missing: "
+            "exchange=%s trade_date=%s",
+            exchange.value,
+            resolved_trade_date,
+        )
 
     spawn_rebuild_market_read_cache(exchange, settings=resolved_settings)
 
@@ -244,6 +256,7 @@ async def run_daily_market_sync(
         news_upserted=enrich.news_upserted,
         news_skipped=enrich.news_skipped,
         news_error=enrich.news_error,
+        session_finalized=session_finalized,
     )
 
 
