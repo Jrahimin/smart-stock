@@ -217,24 +217,24 @@ const marketPulseLanguage = {
         outflowSector,
       ) => [
         tone === "positive"
-          ? "Participation is improving while turnover runs above recent averages."
+          ? "Advancing stocks outnumber declining stocks in the eligible set."
           : tone === "negative"
-            ? "Participation remains weak while turnover stays below normal levels."
-            : "Participation remains mixed while turnover stays near normal levels.",
+            ? "Declining stocks outnumber advancing stocks in the eligible set."
+            : "Eligible-stock price breadth is mixed.",
         inflowSector
           ? `Sector price leadership is concentrated in ${inflowSector}.`
           : outflowSector
-            ? `Selling pressure is visible across ${outflowSector}.`
-            : "Leadership remains concentrated in a narrow set of names.",
+            ? `Sector price weakness is led by ${outflowSector}.`
+            : "No positive sector side is present in the eligible set.",
       ],
       storyHeadline: (tone, sectorCount) => {
         if (tone === "negative") {
-          return `SELLING PRESSURE BROADENING\nACROSS ${sectorCount} SECTORS`;
+          return `PRICE WEAKNESS BROADENING\nACROSS ${sectorCount} SECTORS`;
         }
         if (tone === "positive") {
-          return `BUYING INTEREST EXPANDING\nACROSS ${sectorCount} SECTORS`;
+          return `PRICE STRENGTH EXPANDING\nACROSS ${sectorCount} SECTORS`;
         }
-        return "MIXED MARKET WITH SELECTIVE ROTATION";
+        return "MIXED MARKET WITH SELECTIVE LEADERSHIP";
       },
       storyMetricLabel: (label) => label,
       stateDimensionLabel: (_key, label) => label,
@@ -243,10 +243,10 @@ const marketPulseLanguage = {
       opportunityTrendLabel: (label) => label,
       opportunityLabel: (score) =>
         score >= 68
-          ? "Above Average Opportunity Environment"
+          ? "Broad Attention Environment"
           : score >= 55
-            ? "Selective Opportunity Environment"
-            : "Limited Opportunity Environment",
+            ? "Selective Attention Environment"
+            : "Limited Attention Environment",
     },
     leadership: {
       title: "Market Leadership",
@@ -395,24 +395,24 @@ const marketPulseLanguage = {
         outflowSector,
       ) => [
         tone === "positive"
-          ? "বাজারে অংশগ্রহণ বাড়ছে, আর লেনদেনও গড়ের চেয়ে ভালো।"
+          ? "Eligible শেয়ারের মধ্যে ওঠা শেয়ার নামা শেয়ারের চেয়ে বেশি।"
           : tone === "negative"
-            ? "বাজারে অংশগ্রহণ কম, লেনদেনও স্বাভাবিকের নিচে।"
-            : "বাজারে অংশগ্রহণ মিশ্র, লেনদেন মোটামুটি স্বাভাবিক।",
+            ? "Eligible শেয়ারের মধ্যে নামা শেয়ার ওঠা শেয়ারের চেয়ে বেশি।"
+            : "Eligible শেয়ারের price breadth মিশ্র।",
         inflowSector
           ? `${inflowSector} sector দামের দিক থেকে এগিয়ে।`
           : outflowSector
-            ? `${outflowSector}-এ sell pressure দেখা যাচ্ছে।`
-            : "বাজারের গতি এখনো কয়েকটি শেয়ারের ওপর বেশি নির্ভর করছে।",
+            ? `${outflowSector} sector দামের দিক থেকে সবচেয়ে দুর্বল।`
+            : "Eligible set-এ positive sector side নেই।",
       ],
       storyHeadline: (tone, sectorCount) => {
         if (tone === "negative") {
-          return `বিক্রির চাপ বাড়ছে\n${sectorCount}টি সেক্টরে`;
+          return `দামের দুর্বলতা ছড়াচ্ছে\n${sectorCount}টি সেক্টরে`;
         }
         if (tone === "positive") {
-          return `কেনার আগ্রহ ছড়িয়ে পড়ছে\n${sectorCount}টি সেক্টরে`;
+          return `দামের শক্তি ছড়াচ্ছে\n${sectorCount}টি সেক্টরে`;
         }
-        return "মিশ্র বাজার, বেছে বেছে rotation";
+        return "মিশ্র বাজার, বেছে বেছে price leadership";
       },
       storyMetricLabel: (label) => {
         const metrics: Record<string, string> = {
@@ -447,7 +447,8 @@ const marketPulseLanguage = {
           Broad: "Broad",
           "Defensive Rotation": "Defensive Rotation",
           "Risk-On Expansion": "Risk-On Expansion",
-          "Selective Opportunity": "Selective Opportunity",
+          "Selective Attention": "Selective Attention",
+          "Selective Opportunity": "Selective Attention",
           "Cautious Positioning": "Cautious Positioning",
         };
         return values[value] ?? value;
@@ -456,7 +457,8 @@ const marketPulseLanguage = {
         const states: Record<string, string> = {
           "Defensive Rotation": "টাকা সুরক্ষিত জায়গায় যাচ্ছে",
           "Risk-On Expansion": "ঝুঁকি নেওয়ার মেজাজ বাড়ছে",
-          "Selective Opportunity": "বেছে সুযোগ নেওয়ার সময়",
+          "Selective Attention": "বেছে নজর দেওয়ার সময়",
+          "Selective Opportunity": "বেছে নজর দেওয়ার সময়",
           "Cautious Positioning": "এখন একটু সতর্ক থাকা ভালো",
         };
         return states[label] ?? label;
@@ -471,10 +473,10 @@ const marketPulseLanguage = {
       },
       opportunityLabel: (score) =>
         score >= 68
-          ? "সুযোগের পরিবেশ ভালো"
+          ? "বাজারজুড়ে নজর দেওয়ার মতো শেয়ার বেশি"
           : score >= 55
-            ? "বেছে সুযোগ নেওয়ার সময়"
-            : "সুযোগ কম, সাবধানে এগোন",
+            ? "বেছে নজর দেওয়ার সময়"
+            : "নজর দেওয়ার মতো শেয়ার কম",
     },
 
     leadership: {
@@ -501,7 +503,7 @@ const marketPulseLanguage = {
         }
 
         if (kind === "accumulation") {
-          return "30D average volume-এর তুলনায়";
+          return "আগের ২০ session-এর median volume-এর তুলনায়";
         }
 
         return rawSubtitle;
@@ -520,51 +522,50 @@ const marketPulseLanguage = {
       ) => {
         const phase =
           overallLabel === "Selective Risk-On"
-            ? "বেছে সুযোগ নেওয়ার মতো"
+            ? "বেছে attention দেওয়ার মতো"
             : overallLabel === "Risk-On"
-              ? "সুযোগ নেওয়ার পক্ষে"
+              ? "বাজারজুড়ে attention বেশি"
               : overallLabel === "Cautious Positioning"
                 ? "সতর্ক থাকার মতো"
-                : "বেছে এগোনোর মতো";
+                : "বেছে attention দেওয়ার মতো";
 
         const leadership = sectors.length
           ? `আজ ${sectors.join(" ও ")} বেশি এগিয়ে।`
-          : "বাজারের নেতৃত্ব এখনো কয়েকটি সেক্টরে সীমিত।";
+          : "Eligible set-এ positive sector side নেই।";
 
-        const participation =
+        const breadth =
           tone === "positive"
-            ? "বাজারে অংশগ্রহণ ভালো"
-            : "বাজারে অংশগ্রহণ মিশ্র";
+            ? "price breadth positive"
+            : tone === "negative"
+              ? "price breadth দুর্বল"
+              : "price breadth মিশ্র";
 
         return [
           `বাজার এখন ${phase} অবস্থায় আছে।`,
-          `${leadership} ${participation}, তাই লেনদেনের গতি, confirmation আর position size দেখে সিদ্ধান্ত নিন।`,
+          `${leadership} ${breadth}, তাই liquidity, confirmation আর position size দেখে সিদ্ধান্ত নিন।`,
         ];
       },
       signal: (text) => {
         if (
-          text ===
-          "Opportunity environment above average"
+          text === "Eligible attention breadth is broad"
         ) {
-          return "সুযোগের পরিবেশ গড়ের চেয়ে ভালো";
+          return "Eligible শেয়ারের বড় অংশ নজর দেওয়ার মতো";
         }
 
         if (
-          text ===
-          "Opportunity environment selective"
+          text === "Eligible attention breadth is selective"
         ) {
-          return "সুযোগ আছে, তবে বেছে নিতে হবে";
+          return "Eligible শেয়ারের মধ্যে বেছে নজর দিতে হবে";
         }
 
         if (
-          text ===
-          "Opportunity environment limited"
+          text === "Eligible attention breadth is limited"
         ) {
-          return "সুযোগ কম, সাবধানে এগোন";
+          return "Eligible শেয়ারের মধ্যে attention কম";
         }
 
-        if (text === "Sector rotation active") {
-          return "টাকা এক সেক্টর থেকে আরেক সেক্টরে যাচ্ছে";
+        if (text === "Sector price leadership is broad") {
+          return "দামের দিক থেকে একাধিক সেক্টর এগিয়ে";
         }
 
         if (text === "Breadth remains weak") {
@@ -640,20 +641,20 @@ const marketPulseLanguage = {
           "Volume expanding faster than price":
             "দামের চেয়ে Volume দ্রুত বাড়ছে",
 
-          "Participation surge needs price follow-through":
-            "কেনাবেচা বেড়েছে, এখন দামের সাপোর্ট দরকার",
+          "Price-volume break needs follow-through":
+            "Price-volume break হয়েছে, এখন follow-through দরকার",
 
-          "Fresh breakout from consolidation":
-            "একই range থেকে price বেরিয়েছে",
+          "Canonical BUY setup needs entry review":
+            "Canonical BUY setup আছে, Entry নেওয়ার আগে review করুন",
 
           "Investigate for entry today":
             "Entry নেওয়ার আগে আজ একটু দেখে নিন",
 
-          "Sector leadership improving":
-            "সেক্টরটি আরও শক্ত হচ্ছে",
+          "Momentum evidence is improving":
+            "Momentum evidence উন্নত হচ্ছে",
 
-          "Signal strength upgraded today":
-            "আজ Signal আরও শক্ত হয়েছে",
+          "Comparable action changed to BUY":
+            "Comparable action এখন BUY হয়েছে",
 
           "Momentum building with participation":
             "Momentum আর অংশগ্রহণ দুটোই বাড়ছে",
@@ -724,7 +725,7 @@ const marketPulseLanguage = {
           trigger ===
           "Momentum holds with positive participation"
         ) {
-          return "Momentum ও কেনার চাপ ঠিক থাকলে";
+          return "Momentum positive থাকলে";
         }
 
         return trigger;
@@ -753,8 +754,8 @@ const marketPulseLanguage = {
             )?.[1];
 
           return ratio
-            ? `Volume স্বাভাবিকের চেয়ে ${ratio}x বেশি।`
-            : "স্বাভাবিকের চেয়ে বেশি Volume দেখা যাচ্ছে।";
+            ? `Volume recent baseline-এর ${ratio}x।`
+            : "Volume recent baseline-এর ওপরে।";
         }
 
         if (type === "momentum-reversal") {
@@ -762,11 +763,11 @@ const marketPulseLanguage = {
         }
 
         if (type === "liquidity-surge") {
-          return "আজ লেনদেনের পরিমাণ অনেক বেড়েছে।";
+          return "Eligible set-এ আজকের turnover সবচেয়ে বেশি।";
         }
 
         if (type === "sector-rotation") {
-          return "একই সেক্টরের একাধিক শেয়ারে নড়াচড়া দেখা যাচ্ছে।";
+          return "একই sector-এর একাধিক eligible শেয়ারে একই দিকের price move আছে।";
         }
 
         if (type === "pulse-score-jump") {
@@ -778,19 +779,19 @@ const marketPulseLanguage = {
 
       whyItMatters: (type) => {
         if (type === "unusual-volume") {
-          return "বড় বিনিয়োগকারীদের আগ্রহ বাড়ার ইঙ্গিত হতে পারে।";
+          return "আজকের Volume prior-session median baseline-এর ওপরে।";
         }
 
         if (type === "momentum-reversal") {
-          return "Volume সঙ্গে থাকলে sell pressure কমতে পারে।";
+          return "দুর্বল canonical Trend-এর বিপরীতে session move positive।";
         }
 
         if (type === "liquidity-surge") {
-          return "বড় কেনাবেচা বা exit pressure-এর ইঙ্গিত হতে পারে।";
+          return "Current-session turnover eligible set-এর অন্য শেয়ারগুলোর চেয়ে বেশি।";
         }
 
         if (type === "sector-rotation") {
-          return "Movement একটি শেয়ারে সীমিত নয়, পুরো সেক্টরে ছড়াচ্ছে।";
+          return "একই sector-এর একাধিক eligible শেয়ার একই দিকের price move দেখাচ্ছে।";
         }
 
         if (type === "pulse-score-jump") {

@@ -261,7 +261,7 @@ If listed count or mobile cold-load cost grows, add:
 GET /api/v1/stock-details/{exchange}/{symbol}/related
 ```
 
-* Filter from existing `universe:scored:{exchange}:{strategy_version}` Redis
+* Filter from the existing versioned `universe:scored` Redis foundation
   cache (same source as `market_universe_service`).
 * Return four groups (Sector Peers, Similar Setup, Similar Size, Top Opportunities) with ~4 symbols each (~2 KB response).
 * Move filter logic from `frontend/lib/market/related-stocks.ts` into `stock_details_workspace_service` or a dedicated builder module.

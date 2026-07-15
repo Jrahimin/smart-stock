@@ -10,11 +10,18 @@ from app.core.constants.trading_constants import (
     PULSE_SCORE_RISK_PENALTY_MAX,
     PULSE_SCORE_SIGNAL_BOOST_MAX,
     PULSE_SCORE_TREND_MAX,
+    PULSE_SCORE_VERSION,
     PULSE_SCORE_VOLUME_MAX,
     PULSE_VOLUME_BREAKOUT_RATIO,
     VOLUME_EXPANSION_RATIO,
 )
-from app.core.enums import DataQualityFlag, PulseFocusLabel, PulseScoreBand, TrendDirection, TraderRecommendation
+from app.core.enums import (
+    DataQualityFlag,
+    PulseFocusLabel,
+    PulseScoreBand,
+    TraderRecommendation,
+    TrendDirection,
+)
 from app.modules.stock_details.decision.technical import TechnicalSnapshot
 from app.modules.stock_details.stock_details_schemas import TraderDecisionSummaryRead
 
@@ -29,11 +36,12 @@ class PulseScoreBreakdown:
     total: int
     contributors: list[str]
     band: PulseScoreBand
+    score_version: str = PULSE_SCORE_VERSION
 
 
-def get_volume_ratio(snapshot: TechnicalSnapshot) -> float:
+def get_volume_ratio(snapshot: TechnicalSnapshot) -> float | None:
     if snapshot.average_volume is None or snapshot.average_volume <= 0:
-        return 1.0
+        return None
     return snapshot.volume / snapshot.average_volume
 
 
@@ -46,28 +54,17 @@ def get_pulse_score_band(score: int) -> PulseScoreBand:
 
 
 def _compute_trend_score(snapshot: TechnicalSnapshot) -> int:
-    score = 0
-    latest = snapshot.latest_price
-    change = snapshot.price_change_percent or 0.0
-
-    if latest is not None and snapshot.sma20 is not None and latest > snapshot.sma20:
-        score += 12
-    if latest is not None and snapshot.ema20 is not None and latest > snapshot.ema20:
-        score += 10
     if snapshot.trend == TrendDirection.UPTREND:
-        score += 13
-    elif snapshot.trend == TrendDirection.SIDEWAYS and change > 0:
-        score += 8
-    elif snapshot.trend == TrendDirection.DOWNTREND and change > 0:
-        score += 5
-
-    return min(PULSE_SCORE_TREND_MAX, score)
+        return min(PULSE_SCORE_TREND_MAX, 30)
+    if snapshot.trend == TrendDirection.SIDEWAYS:
+        return 12
+    return 0
 
 
 def _compute_momentum_score(snapshot: TechnicalSnapshot) -> int:
     score = 0
     rsi = snapshot.rsi
-    change = snapshot.price_change_percent or 0.0
+    return_5d = snapshot.return_5d_percent
 
     if rsi is not None:
         if 45 <= rsi <= 68:
@@ -79,21 +76,21 @@ def _compute_momentum_score(snapshot: TechnicalSnapshot) -> int:
         elif rsi < 30:
             score += 6
 
-    if change > 2:
-        score += 10
-    elif change > 0.5:
-        score += 7
-    elif change > 0:
-        score += 4
-
-    if snapshot.trend == TrendDirection.UPTREND:
-        score += 5
+    if return_5d is not None:
+        if return_5d > 3:
+            score += 15
+        elif return_5d > 0:
+            score += 10
+        elif return_5d == 0:
+            score += 3
 
     return min(PULSE_SCORE_MOMENTUM_MAX, score)
 
 
 def _compute_volume_score(snapshot: TechnicalSnapshot) -> int:
     ratio = get_volume_ratio(snapshot)
+    if ratio is None:
+        return 0
     if ratio >= 2.5:
         return PULSE_SCORE_VOLUME_MAX
     if ratio >= VOLUME_EXPANSION_RATIO:
@@ -108,20 +105,13 @@ def _compute_volume_score(snapshot: TechnicalSnapshot) -> int:
 
 
 def _compute_signal_boost(decision: TraderDecisionSummaryRead) -> int:
-    boost = 0
-    if decision.recommendation == TraderRecommendation.BUY and decision.confidence >= 65:
-        boost += 6
-    elif decision.recommendation == TraderRecommendation.BUY:
-        boost += 4
-    elif decision.recommendation == TraderRecommendation.WAIT and decision.confidence >= 60:
-        boost += 3
-
-    if decision.confidence >= 75:
-        boost += 4
-    elif decision.confidence >= 65:
-        boost += 2
-
-    return min(PULSE_SCORE_SIGNAL_BOOST_MAX, boost)
+    if decision.recommendation == TraderRecommendation.BUY:
+        return PULSE_SCORE_SIGNAL_BOOST_MAX
+    if decision.recommendation == TraderRecommendation.HOLD:
+        return 4
+    if decision.recommendation == TraderRecommendation.WAIT:
+        return 1
+    return 0
 
 
 def _compute_risk_penalty(snapshot: TechnicalSnapshot, decision: TraderDecisionSummaryRead) -> int:
@@ -142,7 +132,7 @@ def _compute_risk_penalty(snapshot: TechnicalSnapshot, decision: TraderDecisionS
     if snapshot.volatility is not None and snapshot.volatility >= 4:
         penalty += 6
 
-    if ratio < 0.4:
+    if ratio is not None and ratio < 0.4:
         penalty += 8
 
     return min(PULSE_SCORE_RISK_PENALTY_MAX, penalty)
@@ -157,21 +147,21 @@ def _build_contributors(
 ) -> list[str]:
     contributors: list[str] = []
     if trend >= 20:
-        contributors.append("Improving trend")
+        contributors.append("Canonical uptrend")
     elif trend >= 12:
-        contributors.append("Supportive trend")
+        contributors.append("Sideways trend context")
     if momentum >= 18:
-        contributors.append("Stronger momentum")
+        contributors.append("RSI and five-session momentum")
     elif momentum >= 10:
-        contributors.append("Momentum improving")
+        contributors.append("Positive momentum evidence")
     if volume >= 18:
-        contributors.append("High relative volume")
+        contributors.append("Expanded relative volume")
     elif volume >= 10:
-        contributors.append("Volume confirmation")
+        contributors.append("Above-baseline volume")
     if signal_boost >= 6:
-        contributors.append("Actionable signal context")
+        contributors.append("Canonical BUY context")
     if risk_penalty >= 10:
-        contributors.append("Risk-adjusted")
+        contributors.append("Elevated modeled trading risk")
     return contributors[:3]
 
 
@@ -210,10 +200,15 @@ def derive_pulse_focus_label(
     if previous_recommendation in {TraderRecommendation.WAIT, TraderRecommendation.HOLD} and decision.recommendation == TraderRecommendation.BUY:
         return PulseFocusLabel.SIGNAL_UPGRADE
 
-    if decision.recommendation == TraderRecommendation.BUY and decision.confidence >= 60:
-        return PulseFocusLabel.NEW_BUY_SETUP
-
-    if volume_ratio >= PULSE_VOLUME_BREAKOUT_RATIO:
+    if (
+        snapshot.is_breakout
+        and volume_ratio is not None
+        and volume_ratio >= PULSE_VOLUME_BREAKOUT_RATIO
+        and snapshot.resistance is not None
+        and snapshot.previous_close is not None
+        and snapshot.latest_price is not None
+        and snapshot.previous_close <= snapshot.resistance < snapshot.latest_price
+    ):
         return PulseFocusLabel.VOLUME_BREAKOUT
 
     if snapshot.trend == TrendDirection.UPTREND or score.momentum >= 18:
@@ -225,10 +220,12 @@ def derive_pulse_focus_label(
 def build_pulse_trigger(snapshot: TechnicalSnapshot, decision: TraderDecisionSummaryRead) -> str:
     volume_ratio = get_volume_ratio(snapshot)
 
-    if snapshot.resistance is not None and snapshot.latest_price is not None and snapshot.latest_price < snapshot.resistance:
-        return f"Break above {snapshot.resistance:.2f}"
+    if snapshot.resistance is not None and snapshot.latest_price is not None:
+        if snapshot.latest_price < snapshot.resistance:
+            return f"Break above {snapshot.resistance:.2f}"
+        return f"Hold above {snapshot.resistance:.2f}"
 
-    if volume_ratio >= 1.5:
+    if volume_ratio is not None and volume_ratio >= 1.5:
         return f"Volume stays above {max(1.5, volume_ratio - 0.3):.1f}x average"
 
     if snapshot.sma20 is not None:
@@ -237,10 +234,10 @@ def build_pulse_trigger(snapshot: TechnicalSnapshot, decision: TraderDecisionSum
     if snapshot.rsi is not None and snapshot.rsi < 55:
         return "RSI crosses above 55"
 
-    if decision.recommendation == TraderRecommendation.BUY:
-        return "Price confirms BUY setup"
+    if snapshot.return_5d_percent is not None and snapshot.return_5d_percent > 0:
+        return "Five-session momentum remains positive"
 
-    return "Momentum holds with positive participation"
+    return "Await fresh technical confirmation"
 
 
 def build_conviction_insight(
@@ -252,24 +249,24 @@ def build_conviction_insight(
     volume_ratio = get_volume_ratio(snapshot)
     change = snapshot.price_change_percent or 0
 
-    if label == PulseFocusLabel.VOLUME_BREAKOUT or volume_ratio >= 2.0:
-        if change > 0 and volume_ratio >= 2.5:
+    if label == PulseFocusLabel.VOLUME_BREAKOUT or (
+        volume_ratio is not None and volume_ratio >= 2.0
+    ):
+        if change > 0 and volume_ratio is not None and volume_ratio >= 2.5:
             return "Volume expanding faster than price"
-        return "Participation surge needs price follow-through"
+        return "Price-volume break needs follow-through"
 
     if label == PulseFocusLabel.NEW_BUY_SETUP:
-        if snapshot.trend == TrendDirection.UPTREND:
-            return "Fresh breakout from consolidation"
-        return "Investigate for entry today"
+        return "Canonical BUY setup needs entry review"
 
     if label == PulseFocusLabel.MOMENTUM_BUILDING:
-        return "Sector leadership improving"
+        return "Momentum evidence is improving"
 
     if label == PulseFocusLabel.SIGNAL_UPGRADE:
-        return "Signal strength upgraded today"
+        return "Comparable action changed to BUY"
 
     if score.momentum >= 18:
-        return "Momentum building with participation"
+        return "Momentum evidence is improving"
 
     return build_action_summary(label)
 
@@ -300,12 +297,17 @@ def build_why_here(
     elif label == PulseFocusLabel.SIGNAL_UPGRADE:
         reasons.append("Trader signal upgraded to BUY")
     elif label == PulseFocusLabel.VOLUME_BREAKOUT:
-        reasons.append(f"Volume {volume_ratio:.1f}x normal")
+        if volume_ratio is not None:
+            reasons.append(f"Price-volume break at {volume_ratio:.1f}x baseline volume")
     elif label == PulseFocusLabel.MOMENTUM_BUILDING:
         reasons.append("Momentum improving today")
 
-    if volume_ratio >= 1.8 and label != PulseFocusLabel.VOLUME_BREAKOUT:
-        reasons.append(f"Volume {volume_ratio:.1f}x normal")
+    if (
+        volume_ratio is not None
+        and volume_ratio >= PULSE_VOLUME_BREAKOUT_RATIO
+        and label != PulseFocusLabel.VOLUME_BREAKOUT
+    ):
+        reasons.append(f"Volume {volume_ratio:.1f}x prior-session median")
 
     if snapshot.trend == TrendDirection.UPTREND and "Momentum" not in " ".join(reasons):
         reasons.append("Price above moving-average context")

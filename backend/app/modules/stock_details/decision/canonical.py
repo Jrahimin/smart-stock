@@ -20,6 +20,7 @@ from app.core.enums import (
     TraderStance,
 )
 from app.models import DailyPrice, Stock
+from app.modules.stock_details.decision.lineage import build_decision_input_lineage
 
 _SHARED_DECISION_NAMESPACE = UUID("ea888502-07ac-4b4b-b644-4450cc742ebe")
 
@@ -82,6 +83,12 @@ class CanonicalDecisionResult:
     previous_session_date: date | None
     calculated_at: datetime
     shared_decision_id: str
+    input_schema_version: str
+    data_revision: str
+    event_revision: str
+    input_hash: str
+    replay_status: str
+    replay_limitations: tuple[str, ...]
     result_semantics: tuple[tuple[str, str], ...]
     recommendation: TraderRecommendation
     evidence_strength: int
@@ -180,15 +187,7 @@ def build_canonical_decision_result(
     non_holder_action: NonHolderAction,
     holder_action: HolderAction,
 ) -> CanonicalDecisionResult:
-    identity_key = ":".join(
-        (
-            str(strategy_input.stock_id),
-            strategy_input.exchange.value,
-            strategy_input.as_of_date.isoformat(),
-            TRADING_STRATEGY_VERSION,
-            TRADING_THRESHOLD_VERSION,
-        )
-    )
+    lineage = build_decision_input_lineage(strategy_input)
     return CanonicalDecisionResult(
         stock_id=strategy_input.stock_id,
         exchange=strategy_input.exchange,
@@ -198,7 +197,13 @@ def build_canonical_decision_result(
         as_of_date=strategy_input.as_of_date,
         previous_session_date=strategy_input.previous_session_date,
         calculated_at=strategy_input.calculated_at,
-        shared_decision_id=str(uuid5(_SHARED_DECISION_NAMESPACE, identity_key)),
+        shared_decision_id=str(uuid5(_SHARED_DECISION_NAMESPACE, lineage.input_hash)),
+        input_schema_version=lineage.input_schema_version,
+        data_revision=lineage.data_revision,
+        event_revision=lineage.event_revision,
+        input_hash=lineage.input_hash,
+        replay_status=lineage.replay_status,
+        replay_limitations=lineage.replay_limitations,
         result_semantics=CANONICAL_RESULT_SEMANTICS,
         recommendation=recommendation,
         evidence_strength=evidence_strength,

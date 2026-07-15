@@ -1,5 +1,6 @@
 import type {
   BackendDailyPriceDto,
+  BackendScannerConditionMatchDto,
   BackendStockDto,
   BackendTraderDecisionSummaryDto,
   DataQualityFlag,
@@ -115,6 +116,8 @@ export type StockIntelligenceModel = {
   returnTwentyDayPercent?: number | null;
   averageTurnover?: number | null;
   structure?: string | null;
+  scannerConditions?: BackendScannerConditionMatchDto[];
+  volumeBehavior?: "EXPANSION" | "NORMAL" | "THIN" | "UNKNOWN";
 };
 
 export type MarketBreadthStats = {

@@ -17,6 +17,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    func,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
@@ -25,9 +26,9 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database_session import Base, TimestampMixin, UUIDPrimaryKeyMixin
 from app.core.enums import (
     AdminConfigCategory,
+    ConfigValueType,
     CorporateActionSubtype,
     CorporateActionType,
-    ConfigValueType,
     DataQualityFlag,
     DividendStatus,
     DividendType,
@@ -48,15 +49,14 @@ from app.core.enums import (
     SignalType,
     StockDetailsSyncJobStatus,
     StockDetailsSyncTriggerType,
-    TurnoverProvenance,
     SystemJobExecutionStatus,
     SystemJobTriggerSource,
     SystemJobType,
+    TurnoverProvenance,
     UserGender,
     UserRole,
     WealthGoalCategory,
     WealthGoalStatus,
-    WealthInsightSeverity,
     WealthScenarioType,
 )
 
@@ -267,6 +267,10 @@ class Stock(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     daily_prices = relationship("DailyPrice", back_populates="stock")
     technical_indicators = relationship("TechnicalIndicator", back_populates="stock")
     trading_signals = relationship("TradingSignal", back_populates="stock")
+    canonical_decision_snapshots = relationship(
+        "CanonicalDecisionSnapshot",
+        back_populates="stock",
+    )
     financial_reports = relationship("FinancialReport", back_populates="stock")
     dividend_events = relationship("DividendEvent", back_populates="stock")
     shareholding_snapshots = relationship("ShareholdingSnapshot", back_populates="stock")
@@ -818,6 +822,60 @@ class TradingSignal(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     stock = relationship("Stock", back_populates="trading_signals")
+
+
+class CanonicalDecisionSnapshot(UUIDPrimaryKeyMixin, Base):
+    """Append-only audit record for one canonical stock/session/input result."""
+
+    __tablename__ = "canonical_decision_snapshots"
+    __table_args__ = (
+        UniqueConstraint(
+            "shared_decision_id",
+            name="uq_canonical_decision_snapshots_shared_decision_id",
+        ),
+        Index(
+            "ix_canonical_decision_snapshots_session",
+            "exchange",
+            "as_of_date",
+            "strategy_version",
+        ),
+        Index(
+            "ix_canonical_decision_snapshots_input_hash",
+            "input_hash",
+        ),
+    )
+
+    stock_id: Mapped[UUID] = mapped_column(
+        PostgresUUID(as_uuid=True),
+        ForeignKey("stocks.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    exchange: Mapped[ExchangeCode] = mapped_column(Enum(ExchangeCode), nullable=False)
+    as_of_date: Mapped[date] = mapped_column(Date, nullable=False)
+    calculated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    recorded_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+    strategy_version: Mapped[str] = mapped_column(String(80), nullable=False)
+    threshold_version: Mapped[str] = mapped_column(String(80), nullable=False)
+    input_schema_version: Mapped[str] = mapped_column(String(80), nullable=False)
+    action_taxonomy: Mapped[str] = mapped_column(String(80), nullable=False)
+    shared_decision_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    input_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    data_revision: Mapped[str] = mapped_column(String(64), nullable=False)
+    event_revision: Mapped[str] = mapped_column(String(64), nullable=False)
+    replay_status: Mapped[str] = mapped_column(String(80), nullable=False)
+    replay_limitations: Mapped[list[str]] = mapped_column(JSONB, default=list, nullable=False)
+    recommendation: Mapped[str] = mapped_column(String(16), nullable=False)
+    eligibility_status: Mapped[str] = mapped_column(String(24), nullable=False)
+    evidence_strength: Mapped[int] = mapped_column(Integer, nullable=False)
+    opportunity_score: Mapped[int] = mapped_column(Integer, nullable=False)
+    primary_reason_code: Mapped[str] = mapped_column(String(120), nullable=False)
+    result_payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+
+    stock = relationship("Stock", back_populates="canonical_decision_snapshots")
 
 
 class MoneySnapshot(UUIDPrimaryKeyMixin, TimestampMixin, Base):

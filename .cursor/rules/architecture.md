@@ -130,7 +130,7 @@ Feature-specific query params, such as `exchange`, `indicator_type`, or date ran
 | File | Responsibility |
 |------|----------------|
 | `market_universe_router.py` | HTTP only; cold cache miss → HTTP 503 |
-| `market_universe_service.py` | Redis `universe:scored:{exchange}:{strategy_version}`; same-version stale key on miss; envelope/rows must match current session and threshold version; background rebuild only (no inline compute on request) |
+| `market_universe_service.py` | Redis identity includes exchange, strategy, threshold, and input-schema versions; envelope/rows must match current session, source sync, and payload revision; background rebuild only (no inline compute on request) |
 | `market_universe_compute.py` | `build_scored_universe_rows` — only place OHLCV is held in memory for exchange-wide scored reads |
 | `market_universe_schemas.py` | `ScoredUniverseRow` contract |
 

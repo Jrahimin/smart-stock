@@ -17,6 +17,9 @@ from app.modules.market_data.market_data_repository import MarketDataRepository
 from app.modules.market_data.market_data_service import MarketDataService
 from app.modules.market_universe.market_universe_service import MarketUniverseService
 from app.modules.stocks.stocks_repository import StocksRepository
+from app.modules.trading_intelligence.decision_snapshot_repository import (
+    DecisionSnapshotRepository,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +66,7 @@ def _build_universe_service(session, settings: Settings, redis: OptionalRedisCli
         stocks_repository=StocksRepository(session),
         redis=redis,
         settings=settings,
+        decision_snapshot_repository=DecisionSnapshotRepository(session),
     )
 
 

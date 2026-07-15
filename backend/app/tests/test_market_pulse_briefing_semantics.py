@@ -78,6 +78,10 @@ def test_sector_price_change_never_fabricates_a_missing_side(
     assert briefing.money_flow.semantics == "SECTOR_PRICE_CHANGE"
     assert len(briefing.money_flow.inflows) == expected_leaders
     assert len(briefing.money_flow.outflows) == expected_laggards
+    if expected_leaders == 0:
+        assert "No positive sector side" in briefing.story.explanation
+        assert briefing.leadership.cards[0].name == "N/A"
+        assert briefing.leadership.cards[0].tone == "neutral"
     assert briefing.opportunity_score.history == []
     assert briefing.opportunity_score.previous_session is None
     assert briefing.opportunity_score.weekly_average is None

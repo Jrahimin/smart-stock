@@ -18,7 +18,11 @@ All user-facing **Action** badges (`BUY`, `HOLD`, `WAIT`, `SELL`) come from one 
 
 **Lookback:** `DECISION_RECOMMENDATION_LOOKBACK` (90 sessions by default) in `trading_constants.py`. Universe rebuild and stock workspace both run the same engine on this window.
 
-**Cached foundation:** `MarketUniverseService.get_scored_universe()` loads price windows, resolves regime once, runs `build_scored_universe_rows()` (decision per stock), and stores Redis key `universe:scored:{exchange}:{strategy_version}`. Rebuild order after sync: dashboard overview → sectors → movers → **universe** (`market_cache_rebuild.py`).
+**Cached foundation:** `MarketUniverseService.get_scored_universe()` reads the
+background-built scored universe. Redis identity includes exchange, strategy,
+threshold, and input-schema versions; its envelope also binds the source-sync
+and payload revisions. Rebuild order after sync: dashboard overview → sectors →
+movers → **universe** (`market_cache_rebuild.py`).
 
 ```
 daily_prices + daily_market_summaries
@@ -27,7 +31,7 @@ build_strategy_input() + compute_trader_decision()  ← per stock
         ↓
 build_trader_decision_summary()         ← list DTO (compact)
         ↓
-Redis universe:scored:{exchange}:{strategy_version}
+Redis universe:scored:{exchange}:{strategy_version}:{threshold_version}:{input_schema_version}
         ↓
 GET /market/universe-rows  (canonical list payload)
 ```

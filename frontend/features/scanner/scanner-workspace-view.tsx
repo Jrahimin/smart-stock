@@ -15,30 +15,19 @@ import {
   getScannerLanguage,
   type ScannerCategoryId,
 } from "@/features/scanner/scanner-language";
+import { buildScannerCategoryItems } from "@/features/scanner/scanner-results";
 import { formatCompactNumber, formatNumber, formatPercent } from "@/lib/formatters/financial-formatters";
 import { frontendConfig } from "@/lib/frontend-config";
 import type { AppLocale } from "@/lib/locale/app-locale";
 import { DEFAULT_LOCALE } from "@/lib/locale/app-locale";
-import { isBreakdownRiskDecision, resolveTraderDecision } from "@/lib/market/trader-decision";
+import { resolveTraderDecision } from "@/lib/market/trader-decision";
 import type { StockIntelligenceModel } from "@/lib/market/market-intelligence-types";
 import { buildStockDetailPath } from "@/lib/seo/stock-page-seo";
-
-// BDT average-daily-turnover floor for a name to be considered tradable in a
-// scan (mirrors the backend LIQUIDITY_TURNOVER_THIN threshold).
-const MIN_SCAN_TURNOVER = 2_000_000;
-const MIN_SCAN_AVERAGE_VOLUME_FALLBACK = 50_000;
 
 type ScannerCategoryView = {
   id: ScannerCategoryId;
   items: StockIntelligenceModel[];
 };
-
-function passesLiquidityFloor(stock: StockIntelligenceModel): boolean {
-  if (stock.averageTurnover != null) {
-    return stock.averageTurnover >= MIN_SCAN_TURNOVER;
-  }
-  return (stock.averageVolume ?? 0) >= MIN_SCAN_AVERAGE_VOLUME_FALLBACK;
-}
 
 type ScannerWorkspaceViewProps = {
   locale?: AppLocale;
@@ -78,42 +67,19 @@ export function ScannerWorkspaceView({ locale = DEFAULT_LOCALE }: ScannerWorkspa
     [holdingStockIds, symbolFilter, universe, watchlistFilter, watchedStockIds],
   );
   const categories = useMemo(() => {
-    // Every scan applies a liquidity floor so illiquid names (untradeable, gap/
-    // manipulation-prone on DSE) never surface as opportunities.
-    const tradable = filteredUniverse.filter(passesLiquidityFloor);
-
     if (advancedScanners) {
       return [
         {
           id: "volume_breakouts" as const,
-          items: tradable
-            .filter((stock) => stock.isBreakout === true)
-            .sort((a, b) => resolveTraderDecision(b).confidence - resolveTraderDecision(a).confidence)
-            .slice(0, 6),
+          items: buildScannerCategoryItems(filteredUniverse, "volume_breakouts"),
         },
         {
           id: "support_rebound" as const,
-          items: tradable
-            .filter(
-              (stock) =>
-                stock.support !== null &&
-                stock.latestPrice !== null &&
-                stock.latestPrice <= stock.support * 1.04 &&
-                (stock.rsi ?? 50) < 45 &&
-                (stock.priceChangePercent ?? 0) > 0,
-            )
-            .sort((a, b) => (a.latestPrice ?? Infinity) - (b.latestPrice ?? Infinity))
-            .slice(0, 6),
+          items: buildScannerCategoryItems(filteredUniverse, "support_rebound"),
         },
         {
           id: "risk_compression" as const,
-          items: tradable
-            .filter((stock) => {
-              const decision = resolveTraderDecision(stock);
-              return decision.riskLabel === "HIGH" || decision.riskLabel === "SPECULATIVE" || (stock.volatility !== null && stock.volatility < 1.1);
-            })
-            .sort((a, b) => resolveTraderDecision(b).confidence - resolveTraderDecision(a).confidence)
-            .slice(0, 6),
+          items: buildScannerCategoryItems(filteredUniverse, "risk_compression"),
         },
       ] satisfies ScannerCategoryView[];
     }
@@ -121,23 +87,19 @@ export function ScannerWorkspaceView({ locale = DEFAULT_LOCALE }: ScannerWorkspa
     return [
       {
         id: "volume_breakouts" as const,
-        items: tradable.filter((stock) => stock.isBreakout === true).slice(0, 6),
+        items: buildScannerCategoryItems(filteredUniverse, "volume_breakouts"),
       },
       {
         id: "momentum_continuation" as const,
-        items: tradable
-          .filter((stock) => stock.trend === "UPTREND" && (stock.returnFiveDayPercent ?? 0) > 0)
-          .slice(0, 6),
+        items: buildScannerCategoryItems(filteredUniverse, "momentum_continuation"),
       },
       {
         id: "breakdown_risk" as const,
-        items: tradable.filter((stock) => isBreakdownRiskDecision(stock)).slice(0, 6),
+        items: buildScannerCategoryItems(filteredUniverse, "breakdown_risk"),
       },
       {
         id: "oversold_rebound" as const,
-        items: tradable
-          .filter((stock) => stock.rsi !== null && stock.rsi < 40 && (stock.priceChangePercent ?? 0) > 0)
-          .slice(0, 6),
+        items: buildScannerCategoryItems(filteredUniverse, "oversold_rebound"),
       },
     ] satisfies ScannerCategoryView[];
   }, [advancedScanners, filteredUniverse]);

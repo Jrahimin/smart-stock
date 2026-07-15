@@ -62,14 +62,14 @@ market_pulse_router
 
 Opportunity history is intentionally empty until comparable point-in-time Pulse snapshots exist. Historical points must use the same formula, candidate population, and strategy version before the API can publish a trend.
 
-The compatibility `money_flow.inflows` / `money_flow.outflows` arrays contain only observed positive/negative **average sector price changes** and declare `semantics=SECTOR_PRICE_CHANGE`. They are rendered as sector price leaders/laggards. Missing positive or negative sides remain empty; the backend never fabricates fallback signs.
+The compatibility `money_flow.inflows` / `money_flow.outflows` arrays contain only observed positive/negative **average sector price changes** and declare `semantics=SECTOR_PRICE_CHANGE`. They are rendered as sector price leaders/laggards. Missing positive or negative sides remain empty; the backend never fabricates fallback signs. Institutional participation, accumulation, capital flow, and sector-rotation claims are not inferred from daily OHLCV.
 
 ### Redis caches
 
 | Key | Contents |
 |-----|----------|
-| `pulse:response:{exchange}:{strategy_version}:{threshold_version}` | Full `MarketPulseRead` |
-| `pulse:summary:{exchange}:{strategy_version}:{threshold_version}` | `MarketPulseSummaryRead` (includes `last_synced_at` generation identity) |
+| `pulse:response:{exchange}:{strategy_version}:{threshold_version}:{input_schema_version}:{pulse_score_version}` | Full `MarketPulseRead` |
+| `pulse:summary:{exchange}:{strategy_version}:{threshold_version}:{input_schema_version}:{pulse_score_version}` | `MarketPulseSummaryRead` (includes `last_synced_at` generation identity) |
 
 Both are invalidated with exchange-wide keys on sync via `invalidate_market_caches()`.
 
@@ -86,15 +86,15 @@ Registered in `backend/app/api/v1/v1_router.py`.
 
 ## Pulse Score
 
-Pulse Score is an attention score (0–100), not a BUY score.
+Pulse Score is a versioned attention score (0–100), not a recommendation, confidence, or probability. The current definition is `pulse-attention-v2`.
 
 ### Core components
 
-| Component | Max points |
-|-----------|------------|
-| Trend | 35 |
-| Momentum | 30 |
-| Volume | 25 |
+| Component | Max points | Meaning |
+|-----------|------------|---------|
+| Trend | 35 | One canonical trend classification: uptrend 30, sideways 12, otherwise 0. Moving-average checks are not counted again. |
+| Momentum | 30 | RSI band plus five-session return. Trend is not counted in this component. |
+| Volume | 25 | Current volume versus the prior traded-session median. Missing/invalid baseline contributes 0 and remains unknown. |
 
 ### Modifiers
 
@@ -107,9 +107,11 @@ Constants live in `backend/app/core/constants/trading_constants.py`.
 
 ### Focus labels
 
-Each focus stock receives one editorial label:
+Each focus stock receives one editorial label. `Volume Breakout` requires a current price crossing of canonical resistance plus expanded relative volume; unusual volume alone does not qualify.
 
-- `New BUY Setup`
+Client `previous_snapshot` payloads may include additive `score_version`. Score/focus deltas are emitted only when that value matches the current Pulse version; older snapshots remain accepted but are treated as non-comparable until the browser stores one current-version response.
+
+- `New BUY Setup` (compatibility enum; not emitted without like-for-like change evidence)
 - `Momentum Building`
 - `Volume Breakout`
 - `Watch Closely`
@@ -119,7 +121,11 @@ Each focus stock receives one editorial label:
 
 - Threshold: `PULSE_SCORE_FOCUS_THRESHOLD` (60)
 - Maximum focus stocks: 5
-- Sector diversification: max 2 stocks per sector unless scores force inclusion
+- Candidate gate: canonical eligibility must be `ELIGIBLE`, and the stock, eligibility result, technical snapshot, and exchange session must share the same current trade date
+- Stable ordering: score descending, robust turnover/capacity descending, symbol ascending, stock id ascending
+- Sector diversification: normally max 2 per sector; one third name may enter only when it leads the best under-cap alternative by at least 10 score points, or no under-cap alternative exists. A sector never contributes more than 3 focus names.
+- Monitor candidates use the same stable ordering and are always disjoint from focus
+- `coverage` reports the score version, session date, universe count, eligible count, and excluded count
 
 ## Data sources
 
@@ -152,7 +158,7 @@ The `/market-pulse` route server-prefetches before hydration:
 | TanStack seed | `PULSE_ANONYMOUS_SUMMARY_QUERY_KEY` + `PULSE_ANONYMOUS_BRIEFING_QUERY_KEY` + freshness via `HydrationBoundary` |
 | Generation guard | Hydrate summary only when `summary.last_synced_at === freshness.last_synced_at`; hydrate briefing only when reconciled summary is present |
 | Client-only | Personalized briefing (`display_name`), `display_name` greeting, `previous_snapshot` since-last-visit personalization |
-| Shared Redis | Anonymous requests only (`pulse:summary:{exchange}:{strategy_version}:{threshold_version}`); personalized requests bypass shared cache reads and writes |
+| Shared Redis | Anonymous requests only (fully versioned `pulse:summary` key including strategy, thresholds, input schema, and Pulse score version); personalized requests bypass shared cache reads and writes |
 | Snapshot writes | Protected — write only when resolved summary generation matches freshness; personalized failures preserve `localStorage` |
 
 Component layers:

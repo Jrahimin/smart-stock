@@ -38,6 +38,13 @@ class TurnoverProvenance(StrEnum):
     UNKNOWN = "UNKNOWN"
 
 
+class VolumeBehavior(StrEnum):
+    EXPANSION = "EXPANSION"
+    NORMAL = "NORMAL"
+    THIN = "THIN"
+    UNKNOWN = "UNKNOWN"
+
+
 class EligibilityStatus(StrEnum):
     ELIGIBLE = "ELIGIBLE"
     LIMITED = "LIMITED"
@@ -204,6 +211,15 @@ class PulseScoreBand(StrEnum):
     HIGH_ATTENTION = "High Attention"
     WORTH_WATCHING = "Worth Watching"
     MONITOR = "Monitor"
+
+
+class ScannerConditionId(StrEnum):
+    PRICE_VOLUME_BREAKOUT = "PRICE_VOLUME_BREAKOUT"
+    SUPPORT_REBOUND = "SUPPORT_REBOUND"
+    MOMENTUM_CONTINUATION = "MOMENTUM_CONTINUATION"
+    BREAKDOWN = "BREAKDOWN"
+    HIGH_RISK_WATCH = "HIGH_RISK_WATCH"
+    LOW_VOLATILITY_COMPRESSION = "LOW_VOLATILITY_COMPRESSION"
 
 
 class MarketAlertType(StrEnum):

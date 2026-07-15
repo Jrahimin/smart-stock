@@ -89,12 +89,6 @@ export type BackendLatestMarketPriceDto = {
   price: BackendDailyPriceDto;
 };
 
-export type BackendMarketPriceWindowDto = {
-  stock: BackendStockDto;
-  prices: BackendDailyPriceDto[];
-  trader_decision: BackendTraderDecisionSummaryDto | null;
-};
-
 export type BackendTraderDecisionSummaryDto = {
   recommendation: TraderRecommendation;
   confidence: number;
@@ -125,6 +119,12 @@ export type BackendCanonicalDecisionResultDto = {
   previous_session_date: string | null;
   calculated_at: string;
   shared_decision_id: string;
+  input_schema_version?: string;
+  data_revision?: string;
+  event_revision?: string;
+  input_hash?: string;
+  replay_status?: string;
+  replay_limitations?: string[];
   result_semantics: Record<string, string>;
   recommendation: TraderRecommendation;
   evidence_strength: number;
@@ -211,6 +211,7 @@ export type BackendTechnicalSnapshotDto = {
   turnover_provenance?: TurnoverProvenance;
   analytical_price_basis?: string;
   adjusted_close_coverage_ratio?: number;
+  volume_behavior?: "EXPANSION" | "NORMAL" | "THIN" | "UNKNOWN";
 };
 
 export type BackendEligibilityResultDto = {
@@ -245,11 +246,34 @@ export type BackendUniverseSessionDto = {
   updated_at: string | null;
 };
 
+export type BackendScannerConditionId =
+  | "PRICE_VOLUME_BREAKOUT"
+  | "SUPPORT_REBOUND"
+  | "MOMENTUM_CONTINUATION"
+  | "BREAKDOWN"
+  | "HIGH_RISK_WATCH"
+  | "LOW_VOLATILITY_COMPRESSION";
+
+export type BackendScannerConditionMatchDto = {
+  condition_id: BackendScannerConditionId;
+  reason_code: string;
+  reason: string;
+  rank_score: number;
+  capacity_score: number;
+  rank: number;
+};
+
+export type BackendScannerResultDto = {
+  version: string;
+  matches: BackendScannerConditionMatchDto[];
+};
+
 export type BackendScoredUniverseRowDto = {
   stock: BackendStockDto;
   technical_snapshot: BackendTechnicalSnapshotDto;
   decision: BackendTraderDecisionSummaryDto | null;
   eligibility?: BackendEligibilityResultDto | null;
+  scanner?: BackendScannerResultDto | null;
   session: BackendUniverseSessionDto;
 };
 
@@ -259,6 +283,7 @@ export type BackendUniverseRowsMetaDto = {
   session_trade_date: string | null;
   strategy_version?: string;
   threshold_version?: string;
+  scanner_version?: string;
 };
 
 export type BackendUniverseRowsDto = {
@@ -546,6 +571,7 @@ export type BackendPulseScoreBreakdownDto = {
   total: number;
   contributors: string[];
   band: PulseScoreBand;
+  score_version?: string;
 };
 
 export type BackendFocusStockDto = {
@@ -684,6 +710,15 @@ export type BackendOpportunityScoreDto = {
   previous_session?: number | null;
   weekly_average?: number | null;
   trend_label?: string | null;
+  semantics?: "PULSE_ATTENTION_SCORE";
+};
+
+export type BackendPulseCoverageDto = {
+  score_version: string;
+  session_trade_date: string | null;
+  universe_candidate_count: number;
+  eligible_candidate_count: number;
+  excluded_candidate_count: number;
 };
 
 export type BackendPlaybookItemDto = {
@@ -778,10 +813,12 @@ export type BackendMarketPulseDto = {
   empty_state: string;
   empty_message: string | null;
   data_quality_note: string | null;
+  coverage?: BackendPulseCoverageDto | null;
 };
 
 export type BackendMarketPulsePreviousSnapshotDto = {
   last_synced_at: string | null;
+  score_version?: string | null;
   focus_stock_ids: string[];
   scores: Record<string, number>;
   recommendations: Record<string, string>;

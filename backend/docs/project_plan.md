@@ -269,13 +269,13 @@
 
 ### 🔹 Basic
 
-* [ ] Replay signals on historical data
+* [x] Replay signals on historical data
 
 ---
 
 ### 🔹 Moderate
 
-* [ ] Performance metrics (return, win rate)
+* [x] Performance metrics (return, win rate)
 
 ---
 
@@ -315,6 +315,9 @@ Source: `backend/docs/trading_intelligence_audit_and_refinement_plan.md`.
 * [x] Phase 2 — data correctness and DSE/CSE safeguards
 * [x] Phase 3 — decision logic, risk, evidence, and trade-plan coherence
 * [x] Phase 4 — authoritative decision ownership and cross-surface consistency
+* [x] Phase 5 — Market Pulse and scanner alignment
+* [x] Phase 6 — practical point-in-time backtesting and calibration
+* [x] Phase 7 — production hardening and deferred advanced validation
 
 Phase 1 keeps existing response fields readable while adding explicit score semantics and trade-plan feasibility status. No Phase 2 eligibility, adjusted-series, session-staleness, or liquidity-policy work is included.
 
@@ -337,6 +340,21 @@ or actions. Redis identity includes exchange session and strategy version,
 persisted signals are comparable only when version/date/taxonomy match, and
 frontend chart calculations cannot override backend action badges. Existing
 recommendation fields remain compatibility projections.
+
+Phase 5 applies canonical eligibility to Pulse focus/ranking and moves Scanner
+predicates to a versioned backend domain result. Phase 6 adds a read-only,
+prefix-only canonical replay with next-session execution, explicit costs and
+non-fills, 5/10/20-session outcomes, simple baselines, purged walk-forward
+splits, Pulse rank metrics, a small sensitivity grid, and held-out calibration
+diagnostics. Missing effective-dated status/category/circuit and corporate-action
+history is disclosed and never silently treated as complete point-in-time data.
+
+Phase 7 adds content-derived data/event/input revisions, lineage-aware cache
+validation, append-only canonical decision snapshots, reproducible backtest
+manifests, selected golden regression coverage, stale/drift/cross-surface
+monitoring, an operational runbook/check command, and final deprecation cleanup.
+Raw source-revision archives and institutional independent validation remain
+explicitly outside the available data boundary.
 
 ---
 

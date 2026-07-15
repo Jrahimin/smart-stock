@@ -7,6 +7,16 @@ DEFAULT_LONG_MOVING_AVERAGE_PERIOD = 50
 TRADING_STRATEGY_VERSION = "trading-intelligence-v1"
 TRADING_THRESHOLD_VERSION = "trading-thresholds-v2"
 TRADING_ACTION_TAXONOMY = "TRADER_RECOMMENDATION_V1"
+# Version the canonical serialization used for input hashes, cache envelopes,
+# immutable decision snapshots, and replay manifests. Bump this whenever the
+# hashed input contract changes even if strategy thresholds do not.
+TRADING_INPUT_SCHEMA_VERSION = "trading-input-v1"
+TRADING_REPLAY_MANIFEST_VERSION = "trading-replay-manifest-v1"
+
+# Operational drift gates compare consecutive like-for-like universe payloads.
+# They are alerting thresholds, not trading rules and do not affect decisions.
+TRADING_MONITOR_ACTION_DISTRIBUTION_DELTA = 0.25
+TRADING_MONITOR_ELIGIBILITY_RATE_DELTA = 0.25
 
 RSI_OVERSOLD_THRESHOLD = 30
 RSI_OVERBOUGHT_THRESHOLD = 70
@@ -188,7 +198,9 @@ REGIME_BEARISH_CONFIDENCE_CAP = 60
 BREAKOUT_NEAR_RESISTANCE_PERCENT = 4.0
 
 # Pulse Score (Market Pulse attention ranking)
+PULSE_SCORE_VERSION = "pulse-attention-v2"
 PULSE_SCORE_FOCUS_THRESHOLD = 60
+PULSE_SCORE_MONITOR_THRESHOLD = 55
 PULSE_SCORE_TREND_MAX = 35
 PULSE_SCORE_MOMENTUM_MAX = 30
 PULSE_SCORE_VOLUME_MAX = 25
@@ -198,6 +210,9 @@ PULSE_VOLUME_BREAKOUT_RATIO = 1.8
 PULSE_SCORE_JUMP_THRESHOLD = 10
 PULSE_FOCUS_STOCK_LIMIT = 5
 PULSE_MARKET_MOVERS_LIMIT = 4
+PULSE_FOCUS_SECTOR_LIMIT = 2
+PULSE_FOCUS_SECTOR_EXCEPTION_LIMIT = 3
+PULSE_FOCUS_SECTOR_EXCEPTION_SCORE_GAP = 10
 DASHBOARD_MARKET_MOVERS_LIMIT = 5
 DASHBOARD_OVERVIEW_SUMMARIES_LIMIT = 30
 DASHBOARD_PRICE_WINDOW_LIMIT = 90
@@ -207,3 +222,10 @@ DASHBOARD_HEATMAP_LIMIT = 500
 DASHBOARD_SECTOR_MIN_STOCKS = 3
 PULSE_UNIVERSE_LIMIT = 500
 PULSE_PRICE_WINDOW_LIMIT = 90
+
+# Versioned scanner predicates. The frontend consumes the resulting condition
+# matches and ranks; it does not mirror these business thresholds.
+SCANNER_CONDITION_VERSION = "scanner-conditions-v1"
+SCANNER_SUPPORT_REBOUND_MAX_DISTANCE_PERCENT = 4.0
+SCANNER_SUPPORT_REBOUND_RSI_MAX = 45.0
+SCANNER_COMPRESSION_VOLATILITY_MAX = 1.1

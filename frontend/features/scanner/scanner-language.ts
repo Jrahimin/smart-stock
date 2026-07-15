@@ -64,27 +64,27 @@ const scannerLanguage = {
       loading: "Scanning market universe...",
       emptyTitle: "No names match this scan yet",
       emptyDescription:
-        "This means the current universe has no high-conviction candidates for this condition, not that market data is missing.",
+        "No eligible current-session stock matches this versioned condition.",
       sectionEyebrow: "Scanner",
       momentumAria: "Momentum strength",
     },
     categories: {
       volume_breakouts: {
-        title: "Volume-confirmed Breakouts",
+        title: "Price-volume Break Events",
         descriptionDefault:
-          "Clearing prior resistance on expanding volume (shared breakout flag).",
+          "Crossed prior resistance from below with expanded relative volume.",
         descriptionAdvanced:
-          "Closing above prior resistance on expanding volume (shared breakout flag).",
+          "Current-session close crossed canonical resistance with expanded relative volume.",
       },
       support_rebound: {
-        title: "Support-rebound Candidates",
+        title: "Support Reclaim",
         descriptionDefault:
-          "Near recent support, oversold, and already turning up (confirmed rebound).",
+          "Reclaimed canonical support from below, remains in the support band, and has weak RSI.",
       },
       risk_compression: {
-        title: "Risk / Compression Watchlist",
+        title: "Low-volatility Compression",
         descriptionDefault:
-          "High-risk or low-volatility names that need confirmation before action.",
+          "Eligible names inside the versioned low-volatility compression band.",
       },
       momentum_continuation: {
         title: "Momentum Continuation",
@@ -92,14 +92,14 @@ const scannerLanguage = {
           "Uptrend confirmed by a positive multi-day return.",
       },
       breakdown_risk: {
-        title: "Breakdown Risk",
+        title: "Support-break Events",
         descriptionDefault:
-          "Sell actions or elevated risk from the shared decision engine.",
+          "Crossed below canonical support from the prior close; risk alone does not qualify.",
       },
       oversold_rebound: {
-        title: "Oversold Rebound",
+        title: "Weak-RSI Support Reclaim",
         descriptionDefault:
-          "Below RSI 40 and already turning up on the session (not just falling).",
+          "Weak RSI plus a current-session reclaim of canonical support from below.",
       },
     },
     localeSwitcherAria: "Scanner language",
@@ -128,30 +128,30 @@ const scannerLanguage = {
       loading: "বাজারে সুযোগ খোঁজা হচ্ছে...",
       emptyTitle: "এই শর্তে এখনো কোনো শেয়ার নেই",
       emptyDescription:
-        "এখনো শক্তিশালী কোনো candidate পাওয়া যায়নি। এর মানে data নেই—তা নয়।",
+        "বর্তমান session-এ eligible কোনো শেয়ার এই versioned শর্তে মেলেনি।",
       sectionEyebrow: "Scanner",
       momentumAria: "Momentum কতটা শক্ত",
     },
 
     categories: {
       volume_breakouts: {
-        title: "Volume-সহ Breakout",
+        title: "Price-volume Break Event",
         descriptionDefault:
-          "আগের Resistance পার হচ্ছে, সঙ্গে Volume-ও বাড়ছে।",
+          "নিচ থেকে আগের Resistance পার করেছে, সঙ্গে relative Volume বেড়েছে।",
         descriptionAdvanced:
-          "আগের Resistance-এর ওপরে Close, সঙ্গে Volume বাড়ছে।",
+          "বর্তমান session-এর Close canonical Resistance পার করেছে, সঙ্গে relative Volume বেড়েছে।",
       },
 
       support_rebound: {
-        title: "Support থেকে ঘুরে দাঁড়ানো",
+        title: "Support Reclaim",
         descriptionDefault:
-          "দাম Support-এর কাছে, অনেকটা নেমেছে, এখন আবার উঠতে শুরু করেছে।",
+          "নিচ থেকে canonical Support ফিরে পেয়েছে, support band-এর মধ্যে আছে এবং RSI দুর্বল।",
       },
 
       risk_compression: {
-        title: "ঝুঁকিপূর্ণ শেয়ার নজরে",
+        title: "Low-volatility Compression",
         descriptionDefault:
-          "ঝুঁকি বেশি বা দাম খুব কম নড়ছে—সিদ্ধান্তের আগে Confirmation দরকার।",
+          "Eligible শেয়ার versioned low-volatility compression band-এর মধ্যে আছে।",
       },
 
       momentum_continuation: {
@@ -161,15 +161,15 @@ const scannerLanguage = {
       },
 
       breakdown_risk: {
-        title: "Breakdown-এর ঝুঁকি",
+        title: "Support-break Event",
         descriptionDefault:
-          "SELL signal এসেছে বা ঝুঁকির মাত্রা বেড়েছে।",
+          "আগের Close থেকে canonical Support-এর নিচে নেমেছে; শুধু risk বেশি হলেই এখানে আসবে না।",
       },
 
       oversold_rebound: {
-        title: "বেশি নামার পর বর্তমান অবস্থা",
+        title: "Weak-RSI Support Reclaim",
         descriptionDefault:
-          "RSI 40-এর নিচে, তবে দাম আবার উঠতে শুরু করেছে।",
+          "RSI দুর্বল এবং বর্তমান session-এ নিচ থেকে canonical Support ফিরে পেয়েছে।",
       },
     },
 
