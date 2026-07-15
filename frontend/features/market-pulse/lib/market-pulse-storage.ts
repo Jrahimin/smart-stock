@@ -5,6 +5,7 @@ const STORAGE_KEY = "smart-stock-market-pulse-snapshot-v1";
 const EMPTY_SNAPSHOT: MarketPulseStoredSnapshot = {
   lastSyncedAt: null,
   scoreVersion: null,
+  decisionTaxonomyVersion: null,
   focusStockIds: [],
   scores: {},
   recommendations: {},

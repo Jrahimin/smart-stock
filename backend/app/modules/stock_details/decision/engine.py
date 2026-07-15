@@ -8,13 +8,17 @@ from app.core.constants.trading_constants import (
     DECISION_MIN_OHLCV_ROWS,
     DECISION_RECOMMENDATION_LOOKBACK,
 )
-from app.core.enums import ExchangeCode
+from app.core.enums import ExchangeCode, TradePlanStatus
 from app.models import DailyPrice
 from app.modules.stock_details.decision.canonical import (
     CanonicalDecisionResult,
     StrategyInput,
     build_canonical_decision_result,
     build_strategy_input_from_prices,
+)
+from app.modules.stock_details.decision.conditional_opportunity import (
+    OpportunityQualityResult,
+    assess_opportunity_quality,
 )
 from app.modules.stock_details.decision.constraints import (
     ConstraintResult,
@@ -32,6 +36,7 @@ from app.modules.stock_details.decision.evidence import (
     compute_directional_evidence,
     compute_evidence_strength,
 )
+from app.modules.stock_details.decision.market_regime import MarketRegimeResult
 from app.modules.stock_details.decision.risk import TradingRiskResult, compute_trading_risk
 from app.modules.stock_details.decision.scoring import (
     DecisionResult,
@@ -64,6 +69,7 @@ class TraderDecisionBundle:
     confidence: int
     is_stale: bool
     is_sparse: bool
+    opportunity_quality: OpportunityQualityResult | None = None
     suspected_adjustment: bool = False
     eligibility: EligibilityResult | None = None
     data_reliability: DataReliabilityResult | None = None
@@ -84,7 +90,7 @@ def compute_trader_decision_from_prices(
     known_corporate_action_dates: set[date] | None = None,
     exchange_session_dates: list[date] | tuple[date, ...] | None = None,
     is_active: bool = True,
-    market_regime: str | None = None,
+    market_regime: MarketRegimeResult | str | None = None,
     stock_id: UUID | None = None,
     exchange: ExchangeCode = ExchangeCode.DSE,
 ) -> TraderDecisionBundle | None:
@@ -146,9 +152,18 @@ def compute_trader_decision(
     )
     trading_risk = compute_trading_risk(resolved_snapshot, strategy_input.category)
     opportunity = compute_opportunity_score(resolved_snapshot, risk.score, liquidity.label)
-    trade_plan = compute_trade_plan(resolved_snapshot)
     data_reliability = compute_data_reliability(eligibility, resolved_snapshot)
     directional_evidence = compute_directional_evidence(resolved_snapshot)
+    opportunity_quality = assess_opportunity_quality(
+        resolved_snapshot,
+        opportunity,
+        directional_evidence,
+    )
+    trade_plan = compute_trade_plan(
+        resolved_snapshot,
+        opportunity_quality=opportunity_quality.quality,
+        market_regime=strategy_input.market_regime,
+    )
     suspected_adjustment = eligibility.corporate_action_status in {
         "KNOWN_UNADJUSTED",
         "UNRESOLVED_DISCONTINUITY",
@@ -168,6 +183,12 @@ def compute_trader_decision(
         below_support=below_support,
         near_resistance=near_resistance,
         market_regime=strategy_input.market_regime,
+        entry_timing=trade_plan.entry_timing,
+    )
+    plan_blocker_codes = (
+        trade_plan.reasons
+        if trade_plan.status != TradePlanStatus.VALID_ENTRY_PLAN
+        else ()
     )
     decision = compute_recommendation(
         resolved_snapshot,
@@ -188,6 +209,9 @@ def compute_trader_decision(
         data_reliability=data_reliability,
         trading_risk=trading_risk,
         constraints=constraint_result,
+        opportunity_quality=opportunity_quality.quality,
+        entry_readiness=trade_plan.entry_readiness,
+        entry_timing=trade_plan.entry_timing,
     )
     trade_plan = align_trade_plan_with_decision(
         trade_plan,
@@ -202,11 +226,24 @@ def compute_trader_decision(
     # Compatibility confidence is the same uncalibrated directional evidence
     # value. Data reliability and tradability are separate results.
     confidence = evidence_strength.score
+    blocker_codes = tuple(
+        dict.fromkeys(
+            (
+                *constraint_result.blocker_codes,
+                *plan_blocker_codes,
+            )
+        )
+    )
     canonical_result = build_canonical_decision_result(
         strategy_input,
         recommendation=decision.recommendation,
         evidence_strength=evidence_strength.score,
         opportunity_score=opportunity.score,
+        opportunity_quality=opportunity_quality.quality,
+        entry_readiness=trade_plan.entry_readiness,
+        entry_timing=trade_plan.entry_timing,
+        entry_condition=trade_plan.condition_text,
+        blocker_codes=blocker_codes,
         risk_label=risk.label,
         trade_plan_status=trade_plan.status,
         eligibility_status=eligibility.status,
@@ -221,6 +258,7 @@ def compute_trader_decision(
         snapshot=resolved_snapshot,
         liquidity=liquidity,
         opportunity=opportunity,
+        opportunity_quality=opportunity_quality,
         risk=risk,
         trade_plan=trade_plan,
         decision=decision,

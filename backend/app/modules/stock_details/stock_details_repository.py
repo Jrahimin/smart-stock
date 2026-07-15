@@ -48,13 +48,21 @@ class StockDetailsRepository(BaseRepository[StockDetailsSyncJob]):
         )
         return await self.session.scalar(statement)
 
-    async def list_daily_prices_window(self, *, stock_id: UUID, limit: int = DECISION_OHLCV_WINDOW) -> list[DailyPrice]:
+    async def list_daily_prices_window(
+        self,
+        *,
+        stock_id: UUID,
+        limit: int = DECISION_OHLCV_WINDOW,
+        end_date: date | None = None,
+    ) -> list[DailyPrice]:
         statement = (
             select(DailyPrice)
             .where(DailyPrice.stock_id == stock_id)
             .order_by(DailyPrice.trade_date.desc(), DailyPrice.id.desc())
-            .limit(limit)
         )
+        if end_date is not None:
+            statement = statement.where(DailyPrice.trade_date <= end_date)
+        statement = statement.limit(limit)
         result = await self.session.scalars(statement)
         return list(reversed(result.all()))
 
@@ -114,14 +122,16 @@ class StockDetailsRepository(BaseRepository[StockDetailsSyncJob]):
         return list((await self.session.scalars(statement)).all())
 
     async def list_recent_market_summaries(
-        self, *, exchange: ExchangeCode, limit: int
+        self, *, exchange: ExchangeCode, limit: int, end_date: date | None = None
     ) -> list[DailyMarketSummary]:
         statement = (
             select(DailyMarketSummary)
             .where(DailyMarketSummary.exchange == exchange)
             .order_by(DailyMarketSummary.trade_date.desc(), DailyMarketSummary.id.desc())
-            .limit(limit)
         )
+        if end_date is not None:
+            statement = statement.where(DailyMarketSummary.trade_date <= end_date)
+        statement = statement.limit(limit)
         result = await self.session.scalars(statement)
         return list(result.all())
 
@@ -130,6 +140,7 @@ class StockDetailsRepository(BaseRepository[StockDetailsSyncJob]):
         *,
         exchange: ExchangeCode,
         limit: int,
+        end_date: date | None = None,
     ) -> list[date]:
         statement = (
             select(DailyPrice.trade_date)
@@ -137,9 +148,23 @@ class StockDetailsRepository(BaseRepository[StockDetailsSyncJob]):
             .where(Stock.exchange == exchange, Stock.is_active.is_(True))
             .distinct()
             .order_by(DailyPrice.trade_date.desc())
-            .limit(limit)
         )
+        if end_date is not None:
+            statement = statement.where(DailyPrice.trade_date <= end_date)
+        statement = statement.limit(limit)
         return list(reversed((await self.session.scalars(statement)).all()))
+
+    async def get_latest_finalized_session_date(
+        self,
+        *,
+        exchange: ExchangeCode,
+    ) -> date | None:
+        statement = select(func.max(DailyMarketSummary.trade_date)).where(
+            DailyMarketSummary.exchange == exchange,
+            DailyMarketSummary.index_name == "DSEX",
+            DailyMarketSummary.is_finalized.is_(True),
+        )
+        return await self.session.scalar(statement)
 
     async def list_dividend_events(self, *, stock_id: UUID, limit: int = 10) -> list[DividendEvent]:
         statement = (

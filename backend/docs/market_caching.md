@@ -91,19 +91,20 @@ Storage format: `SET key JSON EX=<ttl_seconds>` (not `SETEX` by name, same effec
 ### Cache hierarchy
 
 ```text
-universe:scored:{exchange}:{strategy_version}:{threshold_version}:{input_schema_version}
-universe:scored:prev:{exchange}:{strategy_version}:{threshold_version}:{input_schema_version}
-dashboard:{section}:{exchange}                       ← lightweight presentation
-pulse:{response|summary}:{exchange}:{strategy_version}:{threshold_version}:{input_schema_version}:{pulse_score_version}
+universe:scored:{exchange}:{strategy_version}:{threshold_version}:{input_schema_version}:{decision_taxonomy_version}
+universe:scored:prev:{exchange}:{strategy_version}:{threshold_version}:{input_schema_version}:{decision_taxonomy_version}
+dashboard:{section}:{exchange}:{decision_taxonomy_version}
+pulse:{response|summary}:{exchange}:{strategy_version}:{threshold_version}:{input_schema_version}:{pulse_score_version}:{decision_taxonomy_version}
                                                        ← presentation
-stock-workspace:{section}:{ex}:{sym}:{trade_date}:{strategy_version}:{threshold_version}:{input_schema_version}
+stock-workspace:{section}:{ex}:{sym}:live-{trade_date}:decision-{decision_date}:{strategy_version}:{threshold_version}:{input_schema_version}:{decision_taxonomy_version}
                                                       ← per-symbol page aggregate
 ```
 
 **Stock workspace freshness (important):**
 
-* **Cross-day/version:** `latest_trade_date`, `strategy_version`,
-  `threshold_version`, and `input_schema_version` in the key prevent reuse after
+* **Cross-day/version:** `latest_trade_date`, `decision_session_date`,
+  `strategy_version`, `threshold_version`, `input_schema_version`, and
+  `decision_taxonomy_version` in the key prevent reuse after
   the session or any approved calculation-contract change.
 * **Same-day intraday:** snapshot upserts rewrite the same trade date; Redis TTL (`current_cache_ttl_seconds` / dashboard TTL) is the same-day safety net. There is no per-symbol fan-out on `sync_market_snapshot`.
 * Frontend stock-detail ISR / TanStack staleTime should follow that TTL (default 600s), not a shorter unrelated interval that fights IndexedDB.
@@ -204,7 +205,7 @@ The `/market-pulse` route server-prefetches a **narrow core slice** before hydra
 | Server URL | `SERVER_API_BASE_URL` (required in production), e.g. `http://backend-api:8000/api/v1` |
 | Fetch mode | `cache: "no-store"` — **no** Next.js Data Cache / ISR for market JSON |
 | Timeout | `PULSE_CORE_LOADER_TIMEOUT_MS`, default **5000ms** (aligned with dashboard core SSR) |
-| Redis | Anonymous summary uses `pulse:summary:{exchange}:{strategy_version}:{threshold_version}`; personalized requests bypass shared Redis reads and writes |
+| Redis | Anonymous summary uses the fully versioned `pulse:summary:{exchange}:{strategy_version}:{threshold_version}:{input_schema_version}:{pulse_score_version}:{decision_taxonomy_version}` key; personalized requests bypass shared Redis reads and writes |
 | TanStack seed | `HydrationBoundary` + `PULSE_ANONYMOUS_SUMMARY_QUERY_KEY` + `PULSE_ANONYMOUS_BRIEFING_QUERY_KEY` + freshness |
 | Generation guard | Seed summary only when `summary.last_synced_at === freshness.last_synced_at`; seed briefing only when reconciled summary is present |
 | Identity guard | On hydrate, if SSR `last_synced_at` ≠ client freshness → clear market IndexedDB + `syncMarketClientCachesOnBackendUpdate` |

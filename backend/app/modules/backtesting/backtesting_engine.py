@@ -18,7 +18,9 @@ from app.modules.backtesting.backtesting_models import (
 from app.modules.market_pulse.pulse_score import compute_pulse_score
 from app.modules.stock_details.decision.canonical import build_strategy_input
 from app.modules.stock_details.decision.engine import compute_trader_decision
-from app.modules.stock_details.decision.market_regime import resolve_regime_from_summaries
+from app.modules.stock_details.decision.market_regime import (
+    resolve_regime_result_from_summaries,
+)
 from app.modules.stock_details.decision.summary import build_trader_decision_summary
 
 
@@ -55,7 +57,10 @@ def replay_canonical_engine(
                 for summary in dataset.market_summaries
                 if summary.trade_date <= as_of_date
             ]
-            market_regime = resolve_regime_from_summaries(summary_prefix)
+            market_regime = resolve_regime_result_from_summaries(
+                summary_prefix,
+                decision_session_date=as_of_date,
+            )
             known_action_dates = {
                 action_date
                 for action_date in history.corporate_action_dates
@@ -93,7 +98,7 @@ def replay_canonical_engine(
                 sector=history.stock.sector,
                 category=history.stock.category,
                 as_of_date=as_of_date,
-                market_regime=market_regime,
+                market_regime=market_regime.label,
                 recommendation=bundle.decision.recommendation,
                 eligibility_status=bundle.eligibility.status,
                 eligibility_reason_codes=bundle.eligibility.reason_codes,
@@ -107,6 +112,25 @@ def replay_canonical_engine(
                 sma50=bundle.snapshot.sma50,
                 rsi=bundle.snapshot.rsi,
                 shared_decision_id=bundle.canonical_result.shared_decision_id,
+                opportunity_quality=bundle.canonical_result.opportunity_quality,
+                entry_readiness=bundle.canonical_result.entry_readiness,
+                entry_timing=bundle.canonical_result.entry_timing,
+                blocker_codes=bundle.canonical_result.blocker_codes,
+                regime_score=bundle.canonical_result.regime_score,
+                regime_phase=bundle.canonical_result.regime_phase,
+                regime_confidence=bundle.canonical_result.regime_confidence,
+                internal_action=bundle.canonical_result.internal_action,
+                display_action=bundle.canonical_result.display_action,
+                decision_taxonomy_version=(
+                    bundle.canonical_result.decision_taxonomy_version
+                ),
+                entry_condition=bundle.canonical_result.entry_condition,
+                preferred_entry_zone_low=bundle.trade_plan.preferred_entry_zone_low,
+                preferred_entry_zone_high=bundle.trade_plan.preferred_entry_zone_high,
+                trigger_price=bundle.trade_plan.trigger_price,
+                invalidation_price=bundle.trade_plan.invalidation_price,
+                expiry_sessions=bundle.trade_plan.expiry_sessions,
+                average_volume=bundle.snapshot.average_volume,
             )
             observations.append(observation)
             execution = simulate_next_session_execution(

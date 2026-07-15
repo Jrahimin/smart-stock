@@ -64,6 +64,8 @@ export function buildWatchlistRowViewModel(
     trendKey: intelligence ? getTrendFilterKey(trendDirection) : "UNKNOWN",
     trendDirection,
     actionLabel,
+    entryCondition:
+      actionLabel === "POTENTIAL_BUY" ? decision?.entryCondition ?? null : null,
     previousActionLabel,
     lastUpdatedLabel: formatShortTradeDate(intelligence?.latestTradeDate),
     unrealizedGainLabel:

@@ -16,7 +16,7 @@ import {
 
 const STRATEGY_VERSION = "trading-intelligence-v1";
 const THRESHOLD_VERSION = "trading-thresholds-v1";
-const ACTION_TAXONOMY = "TRADER_RECOMMENDATION_V1";
+const ACTION_TAXONOMY = "TRADER_DECISION_V2";
 
 function canonical(recommendation: TraderRecommendation): BackendCanonicalDecisionResultDto {
   return {
@@ -25,6 +25,7 @@ function canonical(recommendation: TraderRecommendation): BackendCanonicalDecisi
     strategy_version: STRATEGY_VERSION,
     threshold_version: THRESHOLD_VERSION,
     action_taxonomy: ACTION_TAXONOMY,
+    decision_taxonomy_version: "v2",
     as_of_date: "2026-07-14",
     previous_session_date: "2026-07-13",
     calculated_at: "2026-07-14T10:00:00Z",
@@ -34,6 +35,13 @@ function canonical(recommendation: TraderRecommendation): BackendCanonicalDecisi
       evidence_strength: "HEURISTIC_DIRECTIONAL_EVIDENCE",
     },
     recommendation,
+    internal_action: recommendation,
+    display_action:
+      recommendation === "BUY"
+        ? "POTENTIAL_BUY"
+        : recommendation === "SELL"
+          ? "SELL"
+          : "WAIT",
     evidence_strength: 72,
     opportunity_score: 66,
     risk_label: "LOW",
@@ -87,6 +95,9 @@ function universeRow(recommendation: TraderRecommendation = "BUY"): BackendScore
     },
     decision: {
       recommendation,
+      internal_action: recommendation,
+      display_action: identity.display_action,
+      decision_taxonomy_version: "v2",
       confidence: 72,
       reason: "Canonical reason",
       opportunity_score: 66,
@@ -146,7 +157,7 @@ describe("canonical decision and persisted signal versioning", () => {
 
     expect(getPreviousSessionRecommendation(model)).toBe("SELL");
     expect(isTraderDecisionChangedThisSession(model)).toBe(true);
-    expect(resolveTraderDecision(model).recommendation).toBe("BUY");
+    expect(resolveTraderDecision(model).recommendation).toBe("POTENTIAL_BUY");
   });
 
   it("ignores mismatched and legacy persisted signals", () => {
@@ -168,7 +179,7 @@ describe("canonical decision and persisted signal versioning", () => {
       }),
     );
     expect(getPreviousSessionRecommendation(legacy)).toBeNull();
-    expect(resolveTraderDecision(legacy).recommendation).toBe("BUY");
+    expect(resolveTraderDecision(legacy).recommendation).toBe("POTENTIAL_BUY");
   });
 
   it("fails closed to WAIT and uses holder context without client formulas", () => {
@@ -179,6 +190,6 @@ describe("canonical decision and persisted signal versioning", () => {
 
     const bearish = buildStockIntelligenceFromUniverseRow(universeRow("SELL"));
     expect(resolveWatchlistAction(bearish, true)).toBe("SELL");
-    expect(resolveWatchlistAction(bearish, false)).toBe("WAIT");
+    expect(resolveWatchlistAction(bearish, false)).toBe("SELL");
   });
 });

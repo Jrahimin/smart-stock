@@ -15,7 +15,8 @@ function getOpportunityScore(stock: StockIntelligenceModel) {
 }
 
 function getRecommendation(stock: StockIntelligenceModel) {
-  return stock.traderDecision?.recommendation ?? stock.signal.signal;
+  return stock.traderDecision?.display_action ??
+    (stock.traderDecision?.recommendation === "SELL" ? "SELL" : "WAIT");
 }
 
 function getMarketCap(stock: StockIntelligenceModel) {
@@ -102,7 +103,7 @@ export function resolveRelatedStockReasons(
       return ["Same sector"];
     case "similar-setup": {
       const reasons: string[] = [];
-      if (current.traderDecision?.recommendation === candidate.traderDecision?.recommendation) {
+      if (current.traderDecision?.display_action === candidate.traderDecision?.display_action) {
         reasons.push("Similar momentum");
       }
       if (current.trend !== "UNKNOWN" && current.trend === candidate.trend) {

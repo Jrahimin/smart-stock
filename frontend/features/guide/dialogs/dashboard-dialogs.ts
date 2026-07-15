@@ -123,7 +123,7 @@ const sidebarGuideDialogsBn = {
   signals: {
     eyebrow: "🎯 সিগন্যালস",
     message:
-      "শুধু BUY, HOLD বা SELL দেখেই থামবেন না। সিদ্ধান্তটি কেন এসেছে এবং ঝুঁকি কোথায়—সেটাও বুঝে নিন।",
+      "শুধু POTENTIAL BUY, WAIT বা SELL দেখেই থামবেন না। সিদ্ধান্তটি কেন এসেছে এবং ঝুঁকি কোথায়—সেটাও বুঝে নিন।",
   },
   watchlist: {
     eyebrow: "⭐ ওয়াচলিস্ট",
@@ -161,7 +161,7 @@ const sidebarGuideDialogsEn = {
   signals: {
     eyebrow: "🎯 Signals",
     message:
-      "Do not stop at BUY, HOLD, or SELL. Understand why the decision appeared and where the risk sits.",
+      "Do not stop at POTENTIAL BUY, WAIT, or SELL. Understand the condition and where the risk sits.",
   },
   watchlist: {
     eyebrow: "⭐ Watchlist",

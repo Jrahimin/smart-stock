@@ -10,8 +10,11 @@ function mapRiskLabel(value: string | undefined): RiskLevel {
 }
 
 function mapRecommendationToSignal(recommendation: string | undefined): SignalType {
-  if (recommendation === "BUY" || recommendation === "SELL") {
-    return recommendation;
+  if (recommendation === "POTENTIAL_BUY") {
+    return "BUY";
+  }
+  if (recommendation === "SELL") {
+    return "SELL";
   }
   return "HOLD";
 }
@@ -34,7 +37,7 @@ export function mapUniverseRowToListRow(row: BackendScoredUniverseRowDto): Stock
     symbol: stock.symbol,
     name: stock.name,
     exchange: stock.exchange,
-    signal: mapRecommendationToSignal(decision?.recommendation),
+    signal: mapRecommendationToSignal(decision?.display_action),
     confidence: decision?.confidence ?? 48,
     risk: mapRiskLabel(decision?.risk_label),
     reason: decision?.reason ?? "Awaiting decision data",

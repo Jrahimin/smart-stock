@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from app.core.constants.trading_constants import (
+    DECISION_TAXONOMY_VERSION,
     TRADING_INPUT_SCHEMA_VERSION,
     TRADING_STRATEGY_VERSION,
     TRADING_THRESHOLD_VERSION,
@@ -15,6 +16,7 @@ def universe_cache_key(
     strategy_version: str = TRADING_STRATEGY_VERSION,
     threshold_version: str = TRADING_THRESHOLD_VERSION,
     input_schema_version: str = TRADING_INPUT_SCHEMA_VERSION,
+    decision_taxonomy_version: str = DECISION_TAXONOMY_VERSION,
 ) -> str:
     from app.core.enums import ExchangeCode
 
@@ -24,7 +26,7 @@ def universe_cache_key(
         exchange_value = str(exchange)
     return (
         f"universe:{section}:{exchange_value}:{strategy_version}:"
-        f"{threshold_version}:{input_schema_version}"
+        f"{threshold_version}:{input_schema_version}:{decision_taxonomy_version}"
     )
 
 
@@ -33,6 +35,7 @@ def universe_prev_cache_key(
     strategy_version: str = TRADING_STRATEGY_VERSION,
     threshold_version: str = TRADING_THRESHOLD_VERSION,
     input_schema_version: str = TRADING_INPUT_SCHEMA_VERSION,
+    decision_taxonomy_version: str = DECISION_TAXONOMY_VERSION,
 ) -> str:
     return universe_cache_key(
         "scored:prev",
@@ -40,6 +43,7 @@ def universe_prev_cache_key(
         strategy_version,
         threshold_version,
         input_schema_version,
+        decision_taxonomy_version,
     )
 
 

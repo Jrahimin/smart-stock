@@ -142,7 +142,7 @@ export function WatchlistView() {
               }
             >
               <option value="ALL">All</option>
-              <option value="BUY">BUY</option>
+              <option value="POTENTIAL_BUY">POTENTIAL BUY</option>
               <option value="HOLD">HOLD</option>
               <option value="WAIT">WAIT</option>
               <option value="SELL">SELL</option>
@@ -260,6 +260,11 @@ export function WatchlistView() {
                     <div className="watchlist-cell watchlist-action-signal-cell" role="cell">
                       <div className="watchlist-action-badges">
                         <SignalBadge signal={row.actionLabel} />
+                        {row.entryCondition ? (
+                          <small className="watchlist-entry-condition">
+                            {row.entryCondition}
+                          </small>
+                        ) : null}
                         {row.isNewSignal ? (
                           <span
                             className="watchlist-badge watchlist-badge-new"

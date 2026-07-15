@@ -100,6 +100,7 @@ class MarketDataRepository(BaseRepository[DailyPrice]):
         limit: int,
         offset: int,
         price_window_limit: int,
+        end_date: date | None = None,
     ) -> list[tuple[Stock, DailyPrice]]:
         limited_stocks = (
             select(Stock.id)
@@ -119,7 +120,7 @@ class MarketDataRepository(BaseRepository[DailyPrice]):
                 .subquery()
             )
 
-        ranked_prices = (
+        ranked_prices_statement = (
             select(
                 DailyPrice.id.label("price_id"),
                 DailyPrice.stock_id.label("stock_id"),
@@ -131,8 +132,12 @@ class MarketDataRepository(BaseRepository[DailyPrice]):
                 .label("row_number"),
             )
             .join(limited_stocks, limited_stocks.c.id == DailyPrice.stock_id)
-            .subquery()
         )
+        if end_date is not None:
+            ranked_prices_statement = ranked_prices_statement.where(
+                DailyPrice.trade_date <= end_date
+            )
+        ranked_prices = ranked_prices_statement.subquery()
         statement = (
             select(Stock, DailyPrice)
             .join(limited_stocks, limited_stocks.c.id == Stock.id)
@@ -150,6 +155,7 @@ class MarketDataRepository(BaseRepository[DailyPrice]):
         *,
         exchange: ExchangeCode,
         limit: int,
+        end_date: date | None = None,
     ) -> list[date]:
         statement = (
             select(DailyPrice.trade_date)
@@ -157,8 +163,10 @@ class MarketDataRepository(BaseRepository[DailyPrice]):
             .where(Stock.exchange == exchange, Stock.is_active.is_(True))
             .distinct()
             .order_by(DailyPrice.trade_date.desc())
-            .limit(limit)
         )
+        if end_date is not None:
+            statement = statement.where(DailyPrice.trade_date <= end_date)
+        statement = statement.limit(limit)
         return list(reversed((await self.session.scalars(statement)).all()))
 
     async def list_corporate_action_dates_by_stock(
@@ -323,10 +331,13 @@ class MarketDataRepository(BaseRepository[DailyPrice]):
         exchange: ExchangeCode | None,
         limit: int,
         offset: int,
+        end_date: date | None = None,
     ) -> list[DailyMarketSummary]:
         statement = select(DailyMarketSummary)
         if exchange is not None:
             statement = statement.where(DailyMarketSummary.exchange == exchange)
+        if end_date is not None:
+            statement = statement.where(DailyMarketSummary.trade_date <= end_date)
         statement = statement.order_by(
             DailyMarketSummary.trade_date.desc(),
             DailyMarketSummary.exchange,
@@ -377,6 +388,76 @@ class MarketDataRepository(BaseRepository[DailyPrice]):
         )
         last_synced_at = await self.session.scalar(last_synced_stmt)
         return latest_trade_date, last_synced_at
+
+    async def get_latest_finalized_session_date(
+        self,
+        *,
+        exchange: ExchangeCode,
+    ) -> date | None:
+        statement = select(func.max(DailyMarketSummary.trade_date)).where(
+            DailyMarketSummary.exchange == exchange,
+            DailyMarketSummary.index_name == "DSEX",
+            DailyMarketSummary.is_finalized.is_(True),
+        )
+        return await self.session.scalar(statement)
+
+    async def get_decision_session_freshness(
+        self,
+        *,
+        exchange: ExchangeCode,
+    ) -> tuple[date | None, datetime | None]:
+        decision_session_date = await self.get_latest_finalized_session_date(exchange=exchange)
+        if decision_session_date is None:
+            return None, None
+
+        last_synced_statement = (
+            select(func.max(DailyPrice.updated_at))
+            .select_from(DailyPrice)
+            .join(Stock, Stock.id == DailyPrice.stock_id)
+            .where(
+                Stock.exchange == exchange,
+                Stock.is_active.is_(True),
+                DailyPrice.trade_date == decision_session_date,
+            )
+        )
+        return decision_session_date, await self.session.scalar(last_synced_statement)
+
+    async def finalize_market_session(
+        self,
+        *,
+        exchange: ExchangeCode,
+        trade_date: date,
+    ) -> bool:
+        price_exists = await self.session.scalar(
+            select(DailyPrice.id)
+            .join(Stock, Stock.id == DailyPrice.stock_id)
+            .where(
+                Stock.exchange == exchange,
+                DailyPrice.trade_date == trade_date,
+            )
+            .limit(1)
+        )
+        if price_exists is None:
+            return False
+
+        await self.session.execute(
+            update(DailyMarketSummary)
+            .where(
+                DailyMarketSummary.exchange == exchange,
+                DailyMarketSummary.trade_date == trade_date,
+                DailyMarketSummary.index_name == "DSEX",
+            )
+            .values(is_finalized=True, updated_at=func.now())
+        )
+        finalized_summary_id = await self.session.scalar(
+            select(DailyMarketSummary.id).where(
+                DailyMarketSummary.exchange == exchange,
+                DailyMarketSummary.trade_date == trade_date,
+                DailyMarketSummary.index_name == "DSEX",
+                DailyMarketSummary.is_finalized.is_(True),
+            )
+        )
+        return finalized_summary_id is not None
 
     async def upsert_daily_market_summary(self, values: dict[str, object]) -> DailyMarketSummary:
         statement = insert(DailyMarketSummary).values(**values)

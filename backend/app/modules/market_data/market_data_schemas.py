@@ -79,6 +79,7 @@ class DailyMarketSummaryBase(BaseModel):
     market_cap: Decimal | None = Field(default=None, ge=0)
     source: str = Field(min_length=1, max_length=80)
     has_suspicious_prices: bool = False
+    is_finalized: bool = False
     data_quality_flag: DataQualityFlag = DataQualityFlag.OK
 
     @field_validator("index_name", "source", mode="before")
@@ -157,6 +158,7 @@ class DailyNewsSyncResult(BaseModel):
     news_upserted: int = 0
     news_skipped: int = 0
     news_error: str | None = None
+    session_finalized: bool = False
     session_skipped: bool = False
     session_skip_reason: str | None = None
 
@@ -165,6 +167,9 @@ class MarketFreshnessRead(BaseModel):
     exchange: ExchangeCode
     trade_date: date | None
     last_synced_at: datetime | None
+    decision_session_date: date | None = None
+    live_data_as_of: datetime | None = None
+    is_live_session: bool = False
     next_sync_at: datetime | None
     snapshot_interval_minutes: int
     market_sync_interval_seconds: int

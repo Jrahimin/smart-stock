@@ -2,13 +2,23 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.core.constants.trading_constants import MARKET_REGIME_BEARISH, STRUCTURE_LOWER
+from app.core.constants.trading_constants import (
+    MARKET_REGIME_BEARISH,
+    OVEREXTENSION_ABOVE_SMA20_PERCENT,
+    OVEREXTENSION_RETURN_20D_PERCENT,
+    STRUCTURE_LOWER,
+)
 from app.core.enums import (
     DecisionConstraintKind,
     EligibilityStatus,
+    EntryTiming,
     LiquidityLabel,
     RiskLevelLabel,
     TradePlanStatus,
+)
+from app.modules.stock_details.decision.market_regime import (
+    MarketRegimeResult,
+    normalize_market_regime,
 )
 from app.modules.stock_details.decision.technical import TechnicalSnapshot
 
@@ -42,6 +52,15 @@ class ConstraintResult:
             constraint.kind == DecisionConstraintKind.EXIT_AVOID for constraint in self.constraints
         )
 
+    @property
+    def blocker_codes(self) -> tuple[str, ...]:
+        return tuple(
+            constraint.code
+            for constraint in self.constraints
+            if constraint.kind
+            in {DecisionConstraintKind.BLOCK, DecisionConstraintKind.EXIT_AVOID}
+        )
+
 
 def build_decision_constraints(
     snapshot: TechnicalSnapshot,
@@ -56,7 +75,8 @@ def build_decision_constraints(
     suspected_adjustment: bool,
     below_support: bool,
     near_resistance: bool,
-    market_regime: str | None,
+    market_regime: MarketRegimeResult | str | None,
+    entry_timing: EntryTiming | None = None,
 ) -> ConstraintResult:
     constraints: list[DecisionConstraint] = []
 
@@ -134,14 +154,29 @@ def build_decision_constraints(
             DecisionConstraintKind.BLOCK,
             "The current structural plan is not valid for a fresh entry.",
         )
-    if market_regime == MARKET_REGIME_BEARISH and not snapshot.is_breakout:
+    regime = normalize_market_regime(market_regime)
+    if entry_timing is not None and not regime.permits_plan(entry_timing):
+        add(
+            "regime_plan_not_permitted",
+            "Regime blocks conditional plan",
+            DecisionConstraintKind.BLOCK,
+            (
+                f"The {regime.label.lower()} {regime.phase.value.lower()} regime does not "
+                f"permit a {entry_timing.value.lower()} entry."
+            ),
+        )
+    if regime.label == MARKET_REGIME_BEARISH and not snapshot.is_breakout:
         add(
             "bearish_market_regime",
             "Bearish market regime",
             DecisionConstraintKind.DOWNGRADE,
             "The broad market regime downgrades new long exposure.",
         )
-    if near_resistance and not snapshot.is_breakout:
+    if (
+        near_resistance
+        and not snapshot.is_breakout
+        and entry_timing != EntryTiming.BREAKOUT
+    ):
         add(
             "near_resistance",
             "Near resistance",
@@ -152,8 +187,36 @@ def build_decision_constraints(
         add(
             "extended_momentum",
             "Extended momentum",
-            DecisionConstraintKind.DOWNGRADE,
+            (
+                DecisionConstraintKind.BLOCK
+                if entry_timing is not None
+                else DecisionConstraintKind.DOWNGRADE
+            ),
             "RSI is above the fresh-entry limit.",
+        )
+    above_sma20_percent = None
+    if (
+        snapshot.latest_price is not None
+        and snapshot.sma20 is not None
+        and snapshot.sma20 > 0
+    ):
+        above_sma20_percent = (snapshot.latest_price / snapshot.sma20 - 1) * 100
+    if (
+        snapshot.return_20d_percent is not None
+        and snapshot.return_20d_percent > OVEREXTENSION_RETURN_20D_PERCENT
+    ) or (
+        above_sma20_percent is not None
+        and above_sma20_percent > OVEREXTENSION_ABOVE_SMA20_PERCENT
+    ):
+        add(
+            "overextended_price",
+            "Price extension block",
+            (
+                DecisionConstraintKind.BLOCK
+                if entry_timing is not None
+                else DecisionConstraintKind.DOWNGRADE
+            ),
+            "Price extension exceeds the fresh-entry policy limit.",
         )
     if snapshot.structure == STRUCTURE_LOWER and not snapshot.is_breakout:
         add(

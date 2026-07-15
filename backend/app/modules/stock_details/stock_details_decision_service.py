@@ -15,7 +15,9 @@ from app.modules.stock_details.decision.breakout import analyze_breakout
 from app.modules.stock_details.decision.canonical import build_strategy_input
 from app.modules.stock_details.decision.engine import compute_trader_decision
 from app.modules.stock_details.decision.events import build_event_timeline
-from app.modules.stock_details.decision.market_regime import resolve_regime_from_summaries
+from app.modules.stock_details.decision.market_regime import (
+    resolve_regime_result_from_summaries,
+)
 from app.modules.stock_details.decision.ownership import build_ownership_insights
 from app.modules.stock_details.decision.patterns import detect_patterns
 from app.modules.stock_details.decision.trade_plan import compute_price_position
@@ -39,7 +41,16 @@ class StockDetailsDecisionService:
         if stock is None:
             raise NotFoundError("Stock was not found")
 
-        prices = await self.repository.list_daily_prices_window(stock_id=stock.id)
+        live_prices = await self.repository.list_daily_prices_window(stock_id=stock.id, limit=1)
+        decision_session_date = await self.repository.get_latest_finalized_session_date(
+            exchange=exchange
+        )
+        if decision_session_date is None:
+            raise NotFoundError("No finalized market session is available for decision support")
+        prices = await self.repository.list_daily_prices_window(
+            stock_id=stock.id,
+            end_date=decision_session_date,
+        )
         (
             dividend_events,
             corporate_actions,
@@ -51,13 +62,25 @@ class StockDetailsDecisionService:
             self.repository.list_corporate_actions(stock_id=stock.id),
             self.repository.list_decision_corporate_action_dates(stock_id=stock.id),
             self.repository.list_recent_market_summaries(
-                exchange=exchange, limit=REGIME_SUMMARY_FETCH_LIMIT
+                exchange=exchange,
+                limit=REGIME_SUMMARY_FETCH_LIMIT,
+                end_date=decision_session_date,
             ),
             self.repository.list_recent_exchange_session_dates(
-                exchange=exchange, limit=ELIGIBILITY_SESSION_LOOKBACK
+                exchange=exchange,
+                limit=ELIGIBILITY_SESSION_LOOKBACK,
+                end_date=decision_session_date,
             ),
         )
-        market_regime = resolve_regime_from_summaries(market_summaries)
+        market_regime = resolve_regime_result_from_summaries(
+            market_summaries,
+            decision_session_date=decision_session_date,
+        )
+        live_price = live_prices[-1] if live_prices else None
+        is_live_session = live_price is not None and live_price.trade_date > decision_session_date
+        live_data_as_of = (
+            live_price.updated_at if live_price is not None and is_live_session else None
+        )
         strategy_input = build_strategy_input(
             stock,
             prices,
@@ -158,6 +181,9 @@ class StockDetailsDecisionService:
             data_reliability=data_reliability,
             trading_risk=trading_risk,
             canonical_result=decision_bundle.canonical_result,
+            decision_session_date=decision_session_date,
+            live_data_as_of=live_data_as_of,
+            is_live_session=is_live_session,
             missing_fields=missing_fields,
         )
 

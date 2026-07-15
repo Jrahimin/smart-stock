@@ -28,6 +28,8 @@ export function buildPreviousSnapshotFingerprint(
 
   return JSON.stringify({
     last_synced_at: snapshot.last_synced_at,
+    score_version: snapshot.score_version,
+    decision_taxonomy_version: snapshot.decision_taxonomy_version,
     focus_stock_ids: focusStockIds,
     alert_ids: alertIds,
     scores,

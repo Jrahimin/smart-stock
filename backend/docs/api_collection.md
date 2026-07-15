@@ -465,6 +465,9 @@ Return snapshot timing and session metadata so the frontend can show last/next u
     "exchange": "DSE",
     "trade_date": "2026-06-11",
     "last_synced_at": "2026-06-11T14:45:00+06:00",
+    "decision_session_date": "2026-06-10",
+    "live_data_as_of": "2026-06-11T14:45:00+06:00",
+    "is_live_session": true,
     "next_sync_at": "2026-06-11T15:00:00+06:00",
     "snapshot_interval_minutes": 15,
     "market_sync_interval_seconds": 900,
@@ -481,12 +484,14 @@ Return snapshot timing and session metadata so the frontend can show last/next u
 **Notes**
 
 * `last_synced_at` is `max(daily_prices.updated_at)` for the latest trade date with rows.
+* `decision_session_date` is the latest explicitly finalized DSEX session and is the only date used by canonical decisions, regime, caches, snapshots, and replay.
+* `live_data_as_of` is populated when a newer provisional row exists; `is_live_session=true` means that live row is intentionally excluded from canonical EOD analysis.
 * `next_sync_at` is present only when `market_status` is `PRE_OPEN` or `OPEN`; otherwise `null`.
 * `expected_delay_minutes` matches `snapshot_interval_minutes` by default (max staleness between scheduled snapshots).
 * `market_sync_interval_seconds` is `snapshot_interval_minutes * 60`.
 * `dashboard_cache_ttl_seconds` is `max(60, min(600, market_sync_interval_seconds))` — shared TTL for dashboard Redis cache and frontend TanStack Query `staleTime`.
 * `market_status`: `PRE_OPEN` | `OPEN` | `POST_CLOSE` | `HOLIDAY`.
-* No `is_live` field — prices are always snapshot-based.
+* Snapshot prices remain visible during the session, but are explicitly provisional until the after-close daily path finalizes the DSEX session.
 
 ---
 
@@ -621,7 +626,7 @@ Return market mood, deterministic insight blocks, signal count, and turnover con
 **Description**
 Return the shared `ScoredUniverseRow` list for Explorer, Scanner, Signals, and
 Watchlist. Serves from Redis
-`universe:scored:{exchange}:{strategy_version}:{threshold_version}:{input_schema_version}`
+`universe:scored:{exchange}:{strategy_version}:{threshold_version}:{input_schema_version}:{decision_taxonomy_version}`
 on cache hit. This is the
 preferred list endpoint — do not use `GET /market/price-windows` on trader UI
 paths.
@@ -656,9 +661,13 @@ not duplicate liquidity or technical thresholds in the browser.
       "exchange": "DSE",
       "listed_stock_count": 392,
       "session_trade_date": "2026-06-17",
-      "strategy_version": "trading-intelligence-v1",
-      "threshold_version": "trading-thresholds-v2",
-      "input_schema_version": "trading-input-v1",
+      "decision_session_date": "2026-06-17",
+      "live_data_as_of": "2026-06-18T06:30:00Z",
+      "is_live_session": true,
+      "strategy_version": "trading-intelligence-v2",
+      "threshold_version": "trading-thresholds-v3",
+      "input_schema_version": "trading-input-v2",
+      "decision_taxonomy_version": "v2",
       "source_last_synced_at": "2026-06-17T15:01:00Z",
       "payload_revision": "a25f...9d10",
       "scanner_version": "scanner-conditions-v1"
@@ -667,6 +676,10 @@ not duplicate liquidity or technical thresholds in the browser.
   }
 }
 ```
+
+`session_trade_date` remains a compatibility alias for `decision_session_date`.
+The canonical source revision is bound to that completed date; live sync metadata
+is reported separately and cannot invalidate or rewrite the completed decision.
 
 ---
 
@@ -677,14 +690,14 @@ Return the curated Market Pulse briefing: hero attention summary, focus stocks, 
 
 **Related tiered endpoints**
 
-* `GET /api/v1/market/pulse/summary` — hero, focus stocks, alerts (cached in a key versioned by strategy, thresholds, input schema, and Pulse score version)
+* `GET /api/v1/market/pulse/summary` — hero, focus stocks, alerts (cached in a key versioned by strategy, thresholds, input schema, Pulse score, and decision taxonomy)
 * `GET /api/v1/market/pulse/briefing` — narrative briefing blocks only
 
 **Query Params**
 
 * exchange: optional enum, one of `DSE`, `CSE` (default `DSE`)
 * display_name: optional string, max 160 chars — used for greeting personalization
-* previous_snapshot: optional URL-encoded JSON string — prior client snapshot for change detection. Additive `score_version` identifies comparable Pulse values; absent or older versions are accepted but do not drive score/focus deltas.
+* previous_snapshot: optional URL-encoded JSON string — prior client snapshot for change detection. Additive `score_version` and `decision_taxonomy_version` identify comparable Pulse values/actions; absent or older versions are accepted but do not drive deltas.
 
 **Response**
 
@@ -717,14 +730,22 @@ Return the curated Market Pulse briefing: hero attention summary, focus stocks, 
     "alerts": [],
     "empty_state": "none",
     "empty_message": null,
-    "data_quality_note": null
+    "data_quality_note": null,
+    "coverage": {
+      "score_version": "pulse-attention-v2",
+      "decision_taxonomy_version": "v2",
+      "session_trade_date": "2026-06-17",
+      "universe_candidate_count": 392,
+      "eligible_candidate_count": 284,
+      "excluded_candidate_count": 108
+    }
   }
 }
 ```
 
 **Notes**
 
-* Focus labels: `New BUY Setup`, `Momentum Building`, `Volume Breakout`, `Watch Closely`, `Signal Upgrade`.
+* Focus labels: `Potential Buy Setup`, `Momentum Building`, `Volume Breakout`, `Watch Closely`, `Signal Upgrade`. `New BUY Setup` is accepted only as a legacy value.
 * `briefing.opportunity_score.history`, `previous_session`, `weekly_average`, and `trend_label` remain empty/null until comparable point-in-time Pulse snapshots exist.
 * `briefing.money_flow` retains its compatibility field names, declares `semantics: "SECTOR_PRICE_CHANGE"`, and contains observed sector price leaders/laggards only. A missing positive or negative side is returned as an empty array.
 * See `backend/docs/market_pulse.md` for Pulse Score methodology and module architecture.
@@ -1247,7 +1268,7 @@ Run API-only AmarStock stock details ingestion for eligible active stocks. The w
 **Description**
 Page aggregate / read model for the public stock details page (`StockWorkspaceRead`): `StockRead`, OHLCV window (chart series), full `decision_support`, fundamentals, valuation context, dividend intelligence, and backend-resolved `display_metrics` (live P/E, P/B, earnings yield, scaled market cap). This is **not** the Stock Entity itself — it is a composed projection over the Stock domain.
 
-Cached in Redis with versioned key `stock-workspace:core:{exchange}:{symbol}:{latest_trade_date}`. **Cross-day:** trade-date key change busts the cache. **Same-day:** TTL follows `market_dashboard_cache_ttl_seconds` as the intraday safety net. **Not** invalidated on exchange-wide sync — eventually consistent by design.
+Cached in Redis with versioned key `stock-workspace:core:{exchange}:{symbol}:live-{latest_trade_date}:decision-{decision_session_date}:{strategy_version}:{threshold_version}:{input_schema_version}:{decision_taxonomy_version}`. **Cross-day:** trade-date key change busts the cache. **Same-day:** TTL follows `market_dashboard_cache_ttl_seconds` as the intraday safety net. Exchange-wide sync invalidates the stock-workspace key family.
 
 **Lazy section endpoints**
 
@@ -1327,25 +1348,35 @@ rows for the same stock/session/version; existing `decision`, `opportunity`,
     "stock_id": "8f8e3b52-2a27-4df8-8e76-c9eb6f61c123",
     "symbol": "ACMEPL",
     "exchange": "DSE",
+    "decision_session_date": "2026-06-17",
+    "live_data_as_of": "2026-06-18T06:30:00Z",
+    "is_live_session": true,
     "decision": {
-      "recommendation": "WAIT",
+      "recommendation": "BUY",
+      "internal_action": "BUY",
+      "display_action": "POTENTIAL_BUY",
+      "decision_taxonomy_version": "v2",
       "confidence": 68,
       "confidence_semantics": "HEURISTIC_EVIDENCE",
       "evidence_strength": 68,
       "evidence_strength_semantics": "HEURISTIC_DIRECTIONAL_EVIDENCE",
       "stance": "CONSTRUCTIVE",
-      "non_holder_action": "WAIT",
+      "non_holder_action": "BUY",
       "holder_action": "HOLD",
+      "entry_condition": "Enter only after a completed close above 126.50 with confirming volume.",
       "primary_reason_code": "near_resistance",
       "primary_reason": "The setup is constructive near resistance; wait for a confirmed price break.",
       "canonical": {
-        "strategy_version": "trading-intelligence-v1",
-        "threshold_version": "trading-thresholds-v2",
-        "action_taxonomy": "TRADER_RECOMMENDATION_V1",
+        "strategy_version": "trading-intelligence-v2",
+        "threshold_version": "trading-thresholds-v3",
+        "action_taxonomy": "TRADER_DECISION_V2",
+        "decision_taxonomy_version": "v2",
+        "internal_action": "BUY",
+        "display_action": "POTENTIAL_BUY",
         "as_of_date": "2026-06-17",
         "previous_session_date": "2026-06-16",
         "shared_decision_id": "d6b5cf4f-37f7-5740-9918-a47ca49176fb",
-        "input_schema_version": "trading-input-v1",
+        "input_schema_version": "trading-input-v2",
         "data_revision": "8c23...a440",
         "event_revision": "2f41...7d19",
         "input_hash": "9ab1...fe03",
@@ -1353,7 +1384,16 @@ rows for the same stock/session/version; existing `decision`, `opportunity`,
         "replay_limitations": [
           "RAW_INPUT_ROWS_NOT_ARCHIVED_IN_DECISION_SNAPSHOT",
           "EFFECTIVE_DATED_STATUS_CATEGORY_CIRCUIT_HISTORY_INCOMPLETE"
-        ]
+        ],
+        "opportunity_quality": "STRONG",
+        "entry_readiness": "CONDITIONAL",
+        "entry_timing": "BREAKOUT",
+        "entry_condition": "Enter only after a completed close above 126.50 with confirming volume.",
+        "blocker_codes": [],
+        "regime_score": 64,
+        "regime_label": "BULLISH",
+        "regime_phase": "HEALTHY",
+        "regime_confidence": 100
       },
       "constraints": [
         {
@@ -1372,6 +1412,7 @@ rows for the same stock/session/version; existing `decision`, `opportunity`,
     },
     "opportunity": {
       "score": 58,
+      "quality": "STRONG",
       "components": [
         {
           "key": "trend",
@@ -1425,7 +1466,20 @@ rows for the same stock/session/version; existing `decision`, `opportunity`,
       "risk_reward_ratio": 1.42,
       "explanation": "Entry, structural stop, and target references form a valid conditional scenario.",
       "status": "VALID_ENTRY_PLAN",
-      "reasons": []
+      "reasons": [],
+      "entry_readiness": "CONDITIONAL",
+      "entry_timing": "BREAKOUT",
+      "preferred_entry_zone_low": 25.84,
+      "preferred_entry_zone_high": 26.23,
+      "invalidation_price": 24.5,
+      "condition_text": "Enter only after a completed-session close confirms the trigger with acceptable participation.",
+      "expiry_sessions": 10,
+      "trigger_price": 25.84,
+      "confirmation_rule": "Completed-session close above trigger with volume at or above its baseline.",
+      "management_mode": "ATR_PROJECTION",
+      "trailing_rule": null,
+      "reassessment_sessions": null,
+      "partial_profit_price": null
     },
     "liquidity": {
       "label": "STRONG",
@@ -1505,8 +1559,9 @@ rows for the same stock/session/version; existing `decision`, `opportunity`,
 * `confidence` is now the compatibility alias of `evidence_strength`. Data reliability, liquidity/tradability, and trading risk are separate fields and do not share that score.
 * `stance`, `non_holder_action`, and `holder_action` remove the former HOLD/WAIT/SELL ambiguity without removing `recommendation`.
 * `constraints` are computed before the action. `primary_reason` is stored separately and is the source of compact-list `reason`.
-* A fresh `BUY` requires `trade_plan.status=VALID_ENTRY_PLAN`. `WATCH_ONLY` and `UNAVAILABLE` plans cannot be bypassed by a breakout flag.
-* Missing/invalid overhead resistance produces a target-less `WATCH_ONLY` plan rather than a fabricated target.
+* Phase 2 adds typed `opportunity_quality`, `entry_readiness`, `entry_timing`, and ordered `blocker_codes`. Phase 3 adds `internal_action`, `display_action`, `entry_condition`, and `decision_taxonomy_version=v2`; public consumers render the display action while legacy recommendation values remain readable.
+* A fresh internal `BUY` requires strong completed-session quality plus `trade_plan.status=VALID_ENTRY_PLAN` and a meaningful condition/invalidation. `WATCH_ONLY` and `UNAVAILABLE` plans cannot be bypassed by a breakout or regime flag.
+* Missing/invalid overhead resistance remains target-less. Only the narrow completed-breakout continuation policy may be valid there, using `TRAILING` management and no claimed fixed risk/reward; other cases stay `WATCH_ONLY`.
 * Frontend consumers should treat this endpoint as optional enrichment. If it fails, the existing chart, technical summary, fundamentals, and insight sidebar should continue to render from stock lookup and daily prices.
 * Formula weights and thresholds are documented in `backend/docs/stock_decision_support.md`.
 
@@ -1549,12 +1604,17 @@ Return the latest shared trader decision per active stock. This is the preferred
       },
       "decision": {
         "recommendation": "BUY",
+        "internal_action": "BUY",
+        "display_action": "POTENTIAL_BUY",
+        "decision_taxonomy_version": "v2",
         "confidence": 71,
         "confidence_semantics": "HEURISTIC_EVIDENCE",
         "evidence_strength": 71,
         "stance": "BULLISH",
         "non_holder_action": "BUY",
         "holder_action": "HOLD",
+        "entry_timing": "BREAKOUT",
+        "entry_condition": "Enter only after a completed close above the trigger with confirming volume.",
         "primary_reason_code": "bullish_setup_valid_entry",
         "primary_reason": "Uptrend and directional evidence align with a valid entry plan.",
         "reason": "Uptrend and directional evidence align with a valid entry plan.",
@@ -1583,7 +1643,7 @@ Return the latest shared trader decision per active stock. This is the preferred
 
 **Notes**
 
-* Recommendations use `BUY`, `HOLD`, `WAIT`, or `SELL`.
+* `recommendation` remains the internal `BUY` / `HOLD` / `WAIT` / `SELL` compatibility field. Trader-facing screens use `display_action`: `POTENTIAL_BUY`, `WAIT`, or `SELL`.
 * Compatibility confidence/evidence strength is returned on a `0..100` integer scale and is not calibrated probability.
 * See `backend/docs/signals.md` and `backend/docs/stock_decision_support.md`.
 
@@ -1621,8 +1681,8 @@ additive/nullable.
       "risk_score": "0.2500",
       "reason": "Volume confirms positive trend continuation.",
       "strategy_name": "deterministic-v1",
-      "strategy_version": "trading-intelligence-v1",
-      "threshold_version": "trading-thresholds-v2",
+      "strategy_version": "trading-intelligence-v2",
+      "threshold_version": "trading-thresholds-v3",
       "action_taxonomy": "TRADER_RECOMMENDATION_V1",
       "canonical_recommendation": "BUY",
       "signal_as_of": "2026-05-10",
@@ -1691,14 +1751,19 @@ List the authenticated user's watchlist rows with optional market enrichment.
       "watching_label": "Watching for 47 days",
       "current_price": "262.0000",
       "decision_source": "CANONICAL_UNIVERSE",
-      "contextual_action": "SELL",
+      "contextual_action": "HOLD",
       "trader_decision": {
         "recommendation": "BUY",
+        "internal_action": "BUY",
+        "display_action": "POTENTIAL_BUY",
+        "decision_taxonomy_version": "v2",
         "confidence": 72,
         "confidence_semantics": "HEURISTIC_EVIDENCE",
         "reason": "Momentum and trend align with acceptable risk.",
         "opportunity_score": 68,
-        "risk_label": "MEDIUM"
+        "risk_label": "MEDIUM",
+        "entry_timing": "BREAKOUT",
+        "entry_condition": "Enter only after a completed close above the trigger with confirming volume."
       }
     }
   ]
@@ -1710,7 +1775,9 @@ List the authenticated user's watchlist rows with optional market enrichment.
 * Ordering: `is_holding DESC`, then `created_at DESC`.
 * `unrealized_gain_percent` is computed server-side from latest close and `buy_price`.
 * Market enrichment is projected from the canonical universe row. Holding rows
-  receive `holder_action`; non-holding rows receive `non_holder_action`.
+  receive the holder display mapping (`HOLD`, `WAIT`, or `SELL`); non-holding
+  rows receive the generic public `display_action` (`POTENTIAL_BUY`, `WAIT`, or
+  `SELL`). The shared cached row remains user-independent.
 * If the universe cache is unavailable, decision/technical fields are omitted,
   `decision_source` is `UNAVAILABLE`, and `contextual_action` fails closed to
   `WAIT`; the watchlist does not recompute a parallel result.

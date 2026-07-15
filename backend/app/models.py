@@ -363,6 +363,7 @@ class DailyMarketSummary(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     market_cap: Mapped[Decimal | None] = mapped_column(Numeric(24, 4), nullable=True)
     source: Mapped[str] = mapped_column(String(80), nullable=False)
     has_suspicious_prices: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_finalized: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     data_quality_flag: Mapped[DataQualityFlag] = mapped_column(
         Enum(DataQualityFlag),
         default=DataQualityFlag.OK,

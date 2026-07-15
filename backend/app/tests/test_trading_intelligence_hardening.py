@@ -271,24 +271,38 @@ def test_selected_canonical_golden_regression() -> None:
         "input_hash": result.input_hash,
         "shared_decision_id": result.shared_decision_id,
         "recommendation": result.recommendation.value,
+        "internal_action": result.internal_action.value,
+        "display_action": result.display_action.value,
+        "decision_taxonomy_version": result.decision_taxonomy_version,
         "eligibility_status": result.eligibility_status.value,
         "evidence_strength": result.evidence_strength,
         "opportunity_score": result.opportunity_score,
+        "opportunity_quality": result.opportunity_quality.value,
+        "entry_readiness": result.entry_readiness.value,
+        "entry_timing": result.entry_timing.value if result.entry_timing is not None else None,
+        "blocker_codes": result.blocker_codes,
         "primary_reason_code": result.primary_reason_code,
     }
     assert actual == {
-        "strategy_version": "trading-intelligence-v1",
-        "threshold_version": "trading-thresholds-v2",
-        "input_schema_version": "trading-input-v1",
-        "data_revision": "2b66318742ec6d345363473d5349cf4732c6bb6a2711ce025bf0de197aef7160",
-        "event_revision": "cea0567598f677435ca27bbfb7dcf09892691cf95e1bbe05333450b0b2c23ea6",
-        "input_hash": "20797cbb18c00e06561cb469b825e7cce93ce5770510bc5529b7d884c860ed98",
-        "shared_decision_id": "2d0e44c3-8994-537d-8ad4-e7dc9c78db42",
-        "recommendation": "HOLD",
+        "strategy_version": "trading-intelligence-v2",
+        "threshold_version": "trading-thresholds-v3",
+        "input_schema_version": "trading-input-v2",
+        "data_revision": "db363fc0f5760b4b20a52d8142b635a87ad4b1d30747f9c3bd4ed49f5ff9b187",
+        "event_revision": "3ad061b2af20f48de19f53c1e1084967a7c2340aa1b798e2272e2ea75493d99e",
+        "input_hash": "b35c17a83fcc7e6e8c79653794daf1d818afd509f1740d9244dfdc15fc77ad85",
+        "shared_decision_id": "8ec230e1-a8f2-5499-b4c0-5726e23fdfd8",
+        "recommendation": "WAIT",
+        "internal_action": "WAIT",
+        "display_action": "WAIT",
+        "decision_taxonomy_version": "v2",
         "eligibility_status": "ELIGIBLE",
-        "evidence_strength": 73,
+        "evidence_strength": 54,
         "opportunity_score": 59,
-        "primary_reason_code": "entry_plan_not_valid",
+        "opportunity_quality": "STRONG",
+        "entry_readiness": "NOT_READY",
+        "entry_timing": None,
+        "blocker_codes": ("extended_momentum",),
+        "primary_reason_code": "fresh_entry_risk_block",
     }
 
 
@@ -296,6 +310,9 @@ def test_selected_canonical_golden_regression() -> None:
 async def test_cold_universe_cache_fails_closed_without_inline_compute() -> None:
     class MarketRepository:
         async def get_market_price_freshness(self, **kwargs):
+            return date(2026, 7, 14), CALCULATED_AT
+
+        async def get_decision_session_freshness(self, **kwargs):
             return date(2026, 7, 14), CALCULATED_AT
 
     class StocksRepository:

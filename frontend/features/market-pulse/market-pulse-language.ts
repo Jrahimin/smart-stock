@@ -482,7 +482,7 @@ const marketPulseLanguage = {
     leadership: {
       title: "আজ কারা এগিয়ে",
       subtitle: "বাজারের নেতৃত্বে থাকা শেয়ার ও সেক্টর।",
-      freshSignals: "নতুন BUY Signal",
+      freshSignals: "নতুন Potential Buy Setup",
       newToday: (count) => `আজ নতুন: ${count}`,
       upgradedToday: (count) =>
         `আজ উন্নতি হয়েছে: ${count}`,
@@ -599,10 +599,12 @@ const marketPulseLanguage = {
           )?.[1];
 
         if (
-          focusLabel === "New BUY Setup" &&
+          (focusLabel === "Potential Buy Setup" || focusLabel === "New BUY Setup") &&
           evidence
         ) {
-          return `BUY setup-এর heuristic evidence ${evidence}/100`;
+          const setupLabel =
+            focusLabel === "Potential Buy Setup" ? "Potential Buy" : "BUY";
+          return `${setupLabel} setup-এর heuristic evidence ${evidence}/100`;
         }
 
         const volume =
@@ -616,9 +618,9 @@ const marketPulseLanguage = {
         }
 
         if (
-          /signal upgraded to BUY/i.test(reason)
+          /decision upgraded to POTENTIAL_BUY/i.test(reason)
         ) {
-          return "Signal আজ BUY হয়েছে";
+          return "Decision আজ Potential Buy হয়েছে";
         }
 
         if (/momentum improving/i.test(reason)) {
@@ -644,8 +646,8 @@ const marketPulseLanguage = {
           "Price-volume break needs follow-through":
             "Price-volume break হয়েছে, এখন follow-through দরকার",
 
-          "Canonical BUY setup needs entry review":
-            "Canonical BUY setup আছে, Entry নেওয়ার আগে review করুন",
+          "Potential entry setup has a defined condition":
+            "Entry setup-এর নির্দিষ্ট শর্ত আছে; শর্ত পূরণ হলে বিবেচনা করুন",
 
           "Investigate for entry today":
             "Entry নেওয়ার আগে আজ একটু দেখে নিন",
@@ -653,8 +655,11 @@ const marketPulseLanguage = {
           "Momentum evidence is improving":
             "Momentum evidence উন্নত হচ্ছে",
 
-          "Comparable action changed to BUY":
-            "Comparable action এখন BUY হয়েছে",
+          "Comparable action changed to POTENTIAL_BUY":
+            "Comparable action এখন Potential Buy হয়েছে",
+
+          "Review the entry condition before acting":
+            "Entry নেওয়ার আগে শর্তটি মিলিয়ে নিন",
 
           "Momentum building with participation":
             "Momentum আর অংশগ্রহণ দুটোই বাড়ছে",
@@ -716,9 +721,9 @@ const marketPulseLanguage = {
 
         if (
           trigger ===
-          "Price confirms BUY setup"
+          "Price confirms POTENTIAL_BUY setup"
         ) {
-          return "Price BUY setup confirm করলে";
+          return "Price Potential Buy setup confirm করলে";
         }
 
         if (

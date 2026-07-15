@@ -42,8 +42,14 @@ verified value for a formal study.
 - A missing stock bar, zero volume, known suspension, known circuit lock,
   invalid price, or order above the configured turnover capacity records a
   non-fill. The order is not carried forward automatically.
-- Forward outcomes use 5, 10, and 20 exchange sessions. Missing/zero-volume
+- Forward outcomes use 3, 5, 10, and 20 exchange sessions. Missing/zero-volume
   horizon bars remain unavailable rather than becoming flat returns.
+- `READY` and `CONTINUATION` opportunities use the next eligible session.
+  `PULLBACK` waits through the plan expiry for its entry zone. `BREAKOUT` waits
+  for a completed close above the trigger with required volume, then enters no
+  earlier than the following session. Conditional plans report
+  `EXPIRED_WITHOUT_ENTRY` or `INVALIDATED_BEFORE_ENTRY` instead of being treated
+  as flat trades.
 - A stored corporate action inside an unadjusted outcome window fails closed.
   Same-day stop/target ordering is not inferred from daily bars.
 
@@ -51,17 +57,21 @@ verified value for a formal study.
 
 The aggregate JSON contains:
 
-- a `trading-replay-manifest-v1` manifest with hashes of the explicit config,
+- a `trading-replay-manifest-v2` manifest with hashes of the explicit config,
   complete loaded dataset, canonical observations, and forward outcomes;
 
 - action/eligibility coverage and exclusion counts;
 - machine-readable eligibility-reason counts, including empty-candidate failure
   states rather than suppressed or relaxed safeguards;
-- 10-session canonical BUY results beside price>SMA20,
+- 10-session `POTENTIAL_BUY` results beside price>SMA20,
   price>SMA20>SMA50, RSI<30, and no-trade baselines;
 - modeled fill rate, net/excess return, hit rate, MFE, and MAE;
 - Pulse top-five precision/lift and Spearman rank information coefficient;
-- principal canonical BUY results stratified by market regime, sector,
+- `POTENTIAL_BUY` timing cohorts at 3, 5, 10, and 20 sessions, including trigger
+  activation, expiry/invalidation, expectancy, MFE/MAE, and a clearly labeled
+  false-breakout proxy;
+- `POTENTIAL_BUY` results at every configured horizon stratified by market
+  regime, regime phase, entry timing, sector,
   liquidity/capacity, traded-session coverage, and clearly labeled current
   category snapshot, always with sample counts;
 - expanding or rolling chronological folds with max-horizon purging and a

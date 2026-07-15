@@ -4,14 +4,16 @@ DEFAULT_LONG_MOVING_AVERAGE_PERIOD = 50
 
 # Canonical live decision identity. Threshold-only changes must increment the
 # threshold version even when the API shape and strategy family stay stable.
-TRADING_STRATEGY_VERSION = "trading-intelligence-v1"
-TRADING_THRESHOLD_VERSION = "trading-thresholds-v2"
-TRADING_ACTION_TAXONOMY = "TRADER_RECOMMENDATION_V1"
+TRADING_STRATEGY_VERSION = "trading-intelligence-v2"
+TRADING_THRESHOLD_VERSION = "trading-thresholds-v3"
+LEGACY_TRADING_ACTION_TAXONOMY = "TRADER_RECOMMENDATION_V1"
+TRADING_ACTION_TAXONOMY = "TRADER_DECISION_V2"
+DECISION_TAXONOMY_VERSION = "v2"
 # Version the canonical serialization used for input hashes, cache envelopes,
 # immutable decision snapshots, and replay manifests. Bump this whenever the
 # hashed input contract changes even if strategy thresholds do not.
-TRADING_INPUT_SCHEMA_VERSION = "trading-input-v1"
-TRADING_REPLAY_MANIFEST_VERSION = "trading-replay-manifest-v1"
+TRADING_INPUT_SCHEMA_VERSION = "trading-input-v2"
+TRADING_REPLAY_MANIFEST_VERSION = "trading-replay-manifest-v2"
 
 # Operational drift gates compare consecutive like-for-like universe payloads.
 # They are alerting thresholds, not trading rules and do not affect decisions.
@@ -140,6 +142,13 @@ DEFAULT_RISK_REWARD_TARGET = 2.0
 # stops unacceptable, so risk is bounded on both ends.
 TRADE_PLAN_ATR_STOP_MULTIPLIER = 2.0
 TRADE_PLAN_MAX_RISK_PERCENT = 8.0
+TRADE_PLAN_PULLBACK_MAX_DISTANCE_PERCENT = 8.0
+TRADE_PLAN_ENTRY_ZONE_PERCENT = 1.5
+TRADE_PLAN_BREAKOUT_ENTRY_BUFFER_PERCENT = 0.5
+TRADE_PLAN_BREAKOUT_INVALIDATION_ATR_MULTIPLIER = 1.0
+TRADE_PLAN_EXPIRY_SESSIONS = 10
+TRADE_PLAN_CONTINUATION_REASSESS_SESSIONS = 5
+TRADE_PLAN_TRAILING_ATR_MULTIPLIER = 2.0
 
 # Liquidity thresholds expressed in BDT average daily turnover (not share count),
 # which is the meaningful liquidity measure on DSE.
@@ -193,6 +202,8 @@ REGIME_BREADTH_BULLISH_RATIO = 0.55
 REGIME_BREADTH_BEARISH_RATIO = 0.40
 REGIME_SUMMARY_FETCH_LIMIT = 220
 REGIME_BEARISH_CONFIDENCE_CAP = 60
+REGIME_EXTENDED_DISTANCE_PERCENT = 5.0
+REGIME_SCORE_TREND_CAP = 30.0
 
 # Breakout analysis
 BREAKOUT_NEAR_RESISTANCE_PERCENT = 4.0

@@ -178,6 +178,13 @@ class TraderRecommendation(StrEnum):
     SELL = "SELL"
 
 
+class DecisionDisplayAction(StrEnum):
+    POTENTIAL_BUY = "POTENTIAL_BUY"
+    HOLD = "HOLD"
+    WAIT = "WAIT"
+    SELL = "SELL"
+
+
 class TraderStance(StrEnum):
     BULLISH = "BULLISH"
     CONSTRUCTIVE = "CONSTRUCTIVE"
@@ -200,6 +207,8 @@ class HolderAction(StrEnum):
 
 
 class PulseFocusLabel(StrEnum):
+    POTENTIAL_BUY_SETUP = "Potential Buy Setup"
+    # Retained so historical payloads remain readable during the compatibility window.
     NEW_BUY_SETUP = "New BUY Setup"
     MOMENTUM_BUILDING = "Momentum Building"
     VOLUME_BREAKOUT = "Volume Breakout"
@@ -248,6 +257,39 @@ class TradePlanStatus(StrEnum):
     VALID_ENTRY_PLAN = "VALID_ENTRY_PLAN"
     WATCH_ONLY = "WATCH_ONLY"
     UNAVAILABLE = "UNAVAILABLE"
+
+
+class OpportunityQuality(StrEnum):
+    WEAK = "WEAK"
+    CONSTRUCTIVE = "CONSTRUCTIVE"
+    STRONG = "STRONG"
+
+
+class EntryReadiness(StrEnum):
+    NOT_READY = "NOT_READY"
+    CONDITIONAL = "CONDITIONAL"
+    READY = "READY"
+
+
+class EntryTiming(StrEnum):
+    READY = "READY"
+    PULLBACK = "PULLBACK"
+    BREAKOUT = "BREAKOUT"
+    CONTINUATION = "CONTINUATION"
+
+
+class TradePlanManagementMode(StrEnum):
+    STRUCTURAL = "STRUCTURAL"
+    ATR_PROJECTION = "ATR_PROJECTION"
+    MEASURED_MOVE = "MEASURED_MOVE"
+    TRAILING = "TRAILING"
+
+
+class MarketRegimePhase(StrEnum):
+    EARLY = "EARLY"
+    HEALTHY = "HEALTHY"
+    EXTENDED = "EXTENDED"
+    REVERSAL_RISK = "REVERSAL_RISK"
 
 
 class WarningSeverity(StrEnum):

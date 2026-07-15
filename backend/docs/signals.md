@@ -4,7 +4,10 @@ This document describes how trading actions are produced and consumed across the
 
 ## Single Source Of Truth
 
-All user-facing **Action** badges (`BUY`, `HOLD`, `WAIT`, `SELL`) come from one deterministic decision engine — not from legacy `trading_signals` rows and not from client-side heuristics.
+All generic user-facing **Action** badges (`POTENTIAL_BUY`, `WAIT`, `SELL`) come
+from one deterministic decision engine and its v2 display taxonomy—not from
+legacy `trading_signals` rows or client-side heuristics. Holder watchlist rows
+may additionally show contextual `HOLD`.
 
 | Layer | Module | Role |
 |-------|--------|------|
@@ -20,7 +23,7 @@ All user-facing **Action** badges (`BUY`, `HOLD`, `WAIT`, `SELL`) come from one 
 
 **Cached foundation:** `MarketUniverseService.get_scored_universe()` reads the
 background-built scored universe. Redis identity includes exchange, strategy,
-threshold, and input-schema versions; its envelope also binds the source-sync
+threshold, input-schema, and decision-taxonomy versions; its envelope also binds the source-sync
 and payload revisions. Rebuild order after sync: dashboard overview → sectors →
 movers → **universe** (`market_cache_rebuild.py`).
 
@@ -31,7 +34,7 @@ build_strategy_input() + compute_trader_decision()  ← per stock
         ↓
 build_trader_decision_summary()         ← list DTO (compact)
         ↓
-Redis universe:scored:{exchange}:{strategy_version}:{threshold_version}:{input_schema_version}
+Redis universe:scored:{exchange}:{strategy_version}:{threshold_version}:{input_schema_version}:{decision_taxonomy_version}
         ↓
 GET /market/universe-rows  (canonical list payload)
 ```
@@ -45,7 +48,10 @@ GET /market/universe-rows  (canonical list payload)
 | `GET /api/v1/market/price-windows` | Deprecated OHLCV + embedded decision | Still reads `universe:scored` for decisions |
 | `GET /api/v1/stock-details/{exchange}/{symbol}/decision-support` | Full workspace payload with `reasoning[]`, trade plan, patterns | Recomputes engine for one symbol; same formulas |
 
-List endpoints expose `TraderDecisionSummaryRead` (`recommendation`, `confidence`, `reason`, `opportunity_score`, `risk_label`). Workspace exposes full `TraderDecisionRead.reasoning` (all lines).
+List endpoints expose `TraderDecisionSummaryRead`, including internal
+`recommendation`, public `display_action`, decision taxonomy, timing, condition,
+reason, opportunity, and risk. Workspace exposes the same canonical display
+projection plus full `TraderDecisionRead.reasoning`.
 
 ## Legacy Persisted Signals
 
@@ -59,9 +65,10 @@ Existing rows remain readable as **legacy strategy records** (`BUY` / `HOLD` /
 Terminal pages do **not** override the shared decision engine with persisted rows
 for action badges. A prior row may support a **NEW** highlight only when all
 identity fields are present, its strategy/threshold/taxonomy exactly match the
-current canonical result, and `signal_as_of` equals that result's
+current canonical result—including v2 action taxonomy—and `signal_as_of` equals that result's
 `previous_session_date`. Mismatched or unversioned legacy rows are explicitly
-not comparable and produce no transition claim.
+not comparable, are never relabeled from v1 `BUY` to `POTENTIAL_BUY`, and produce
+no transition claim.
 
 The batch job hook lives at `backend/app/jobs/signals/generate_daily_signals.py`
 and reports the current canonical strategy/threshold/taxonomy identity. The new

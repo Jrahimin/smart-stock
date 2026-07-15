@@ -5,7 +5,14 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal
 from uuid import uuid4
 
-from app.core.enums import DataQualityFlag, EligibilityStatus, ExchangeCode, TraderRecommendation
+from app.core.enums import (
+    DataQualityFlag,
+    DecisionDisplayAction,
+    EligibilityStatus,
+    EntryTiming,
+    ExchangeCode,
+    TraderRecommendation,
+)
 from app.models import DailyPrice, Stock
 from app.modules.backtesting.backtesting_engine import replay_canonical_engine
 from app.modules.backtesting.backtesting_execution import (
@@ -122,6 +129,79 @@ def test_execution_never_uses_the_signal_close() -> None:
     assert execution.raw_price != float(prices[60].close_price)
 
 
+def test_pullback_waits_for_the_zone_within_expiry() -> None:
+    stock = _stock()
+    prices = _prices(stock)
+    observation = replace(
+        _observation(stock, prices, 60),
+        display_action=DecisionDisplayAction.POTENTIAL_BUY,
+        entry_timing=EntryTiming.PULLBACK,
+        preferred_entry_zone_low=99.2,
+        preferred_entry_zone_high=99.6,
+        invalidation_price=95.0,
+        expiry_sessions=2,
+    )
+
+    execution = simulate_next_session_execution(
+        observation,
+        StockReplayHistory(stock=stock, prices=tuple(prices)),
+        tuple(price.trade_date for price in prices),
+        _config(prices),
+    )
+
+    assert execution.status == "FILLED"
+    assert execution.execution_date == prices[62].trade_date
+    assert execution.raw_price == 99.2
+
+
+def test_breakout_requires_completed_price_and_volume_then_enters_next_session() -> None:
+    stock = _stock()
+    prices = _prices(stock)
+    observation = replace(
+        _observation(stock, prices, 60),
+        display_action=DecisionDisplayAction.POTENTIAL_BUY,
+        entry_timing=EntryTiming.BREAKOUT,
+        trigger_price=98.5,
+        invalidation_price=95.0,
+        expiry_sessions=3,
+        average_volume=150_000,
+    )
+
+    execution = simulate_next_session_execution(
+        observation,
+        StockReplayHistory(stock=stock, prices=tuple(prices)),
+        tuple(price.trade_date for price in prices),
+        _config(prices),
+    )
+
+    assert execution.status == "FILLED"
+    assert execution.execution_date == prices[63].trade_date
+    assert execution.raw_price == float(prices[63].open_price)
+
+
+def test_breakout_without_a_volume_baseline_expires_without_entry() -> None:
+    stock = _stock()
+    prices = _prices(stock)
+    observation = replace(
+        _observation(stock, prices, 60),
+        display_action=DecisionDisplayAction.POTENTIAL_BUY,
+        entry_timing=EntryTiming.BREAKOUT,
+        trigger_price=98.0,
+        invalidation_price=95.0,
+        expiry_sessions=2,
+        average_volume=None,
+    )
+
+    execution = simulate_next_session_execution(
+        observation,
+        StockReplayHistory(stock=stock, prices=tuple(prices)),
+        tuple(price.trade_date for price in prices),
+        _config(prices),
+    )
+
+    assert execution.status == "EXPIRED_WITHOUT_ENTRY"
+
+
 def test_prefix_replay_is_unchanged_by_a_future_bar_and_includes_inactive_history() -> None:
     stock = _stock(active=False)
     prices = _prices(stock, 70)
@@ -143,6 +223,9 @@ def test_prefix_replay_is_unchanged_by_a_future_bar_and_includes_inactive_histor
 
     assert len(first) == len(second) == 1
     assert first[0] == second[0]
+    assert first[0].opportunity_quality is not None
+    assert first[0].regime_phase is not None
+    assert isinstance(first[0].blocker_codes, tuple)
 
 
 def test_pattern_and_swing_detection_uses_only_the_as_of_prefix() -> None:
@@ -257,7 +340,7 @@ def test_zero_signal_close_does_not_abort_next_open_economic_outcome() -> None:
     )
 
     assert outcome.status == "AVAILABLE"
-    assert outcome.raw_close_return_percent is None
+    assert outcome.raw_close_return_percent is not None
     assert outcome.net_return_percent is not None
 
 

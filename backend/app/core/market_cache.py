@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 
 from app.core.constants.trading_constants import (
+    DECISION_TAXONOMY_VERSION,
     PULSE_SCORE_VERSION,
     TRADING_INPUT_SCHEMA_VERSION,
     TRADING_STRATEGY_VERSION,
@@ -42,14 +43,15 @@ PULSE_CACHE_KEY_NAMES: tuple[str, ...] = (
 
 
 def dashboard_cache_key(section: str, exchange: ExchangeCode) -> str:
-    return f"dashboard:{section}:{exchange.value}"
+    return f"dashboard:{section}:{exchange.value}:{DECISION_TAXONOMY_VERSION}"
 
 
 def pulse_cache_key(section: str, exchange: ExchangeCode) -> str:
     return (
         f"pulse:{section}:{exchange.value}:"
         f"{TRADING_STRATEGY_VERSION}:{TRADING_THRESHOLD_VERSION}:"
-        f"{TRADING_INPUT_SCHEMA_VERSION}:{PULSE_SCORE_VERSION}"
+        f"{TRADING_INPUT_SCHEMA_VERSION}:{PULSE_SCORE_VERSION}:"
+        f"{DECISION_TAXONOMY_VERSION}"
     )
 
 

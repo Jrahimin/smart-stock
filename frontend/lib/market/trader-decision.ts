@@ -1,29 +1,53 @@
-import type { TraderRecommendation } from "@/lib/api/backend-api-types";
+import type {
+  DecisionDisplayAction,
+  TraderRecommendation,
+} from "@/lib/api/backend-api-types";
 import type { StockIntelligenceModel } from "@/lib/market/market-intelligence-types";
 
 export type ResolvedTraderDecision = {
-  recommendation: TraderRecommendation;
+  recommendation: DecisionDisplayAction;
   confidence: number;
   reason: string;
   riskLabel: string;
   opportunityScore: number | null;
+  entryTiming: string | null;
+  entryCondition: string | null;
   source: "decision-engine" | "unavailable";
 };
+
+export function resolveVersionedInternalAction(
+  internalAction: TraderRecommendation,
+  actionTaxonomy: string | null,
+  decisionTaxonomyVersion: string | undefined,
+): DecisionDisplayAction | null {
+  if (actionTaxonomy !== "TRADER_DECISION_V2" || decisionTaxonomyVersion !== "v2") {
+    return null;
+  }
+  if (internalAction === "BUY") {
+    return "POTENTIAL_BUY";
+  }
+  if (internalAction === "SELL") {
+    return "SELL";
+  }
+  return "WAIT";
+}
 
 export function resolveWatchlistAction(
   intelligence: StockIntelligenceModel | null,
   isHolding: boolean,
   backendContextualAction?: string | null,
-): TraderRecommendation {
+): DecisionDisplayAction {
   const decision = intelligence?.traderDecision;
-  const contextualAction = decision
-    ? isHolding
-      ? decision.holder_action
-      : decision.non_holder_action
-    : backendContextualAction;
+  if (decision && !isHolding) {
+    return (
+      decision.display_action ??
+      (decision.recommendation === "SELL" ? "SELL" : "WAIT")
+    );
+  }
+  const contextualAction = decision?.holder_action ?? backendContextualAction;
 
-  if (contextualAction === "BUY") {
-    return "BUY";
+  if (contextualAction === "POTENTIAL_BUY" || contextualAction === "BUY") {
+    return "POTENTIAL_BUY";
   }
   if (contextualAction === "SELL" || contextualAction === "REDUCE") {
     return "SELL";
@@ -35,7 +59,7 @@ export function resolveWatchlistAction(
   return "WAIT";
 }
 
-export function getPreviousSessionRecommendation(stock: StockIntelligenceModel): TraderRecommendation | null {
+export function getPreviousSessionRecommendation(stock: StockIntelligenceModel): DecisionDisplayAction | null {
   const persisted = stock.persistedSignal;
   const canonical = stock.traderDecision?.canonical;
   if (
@@ -45,12 +69,17 @@ export function getPreviousSessionRecommendation(stock: StockIntelligenceModel):
     persisted.strategyVersion !== canonical.strategy_version ||
     persisted.thresholdVersion !== canonical.threshold_version ||
     persisted.actionTaxonomy !== canonical.action_taxonomy ||
+    canonical.decision_taxonomy_version !== "v2" ||
     persisted.signalAsOf !== canonical.previous_session_date ||
     !persisted.canonicalRecommendation
   ) {
     return null;
   }
-  return persisted.canonicalRecommendation;
+  return resolveVersionedInternalAction(
+    persisted.canonicalRecommendation,
+    persisted.actionTaxonomy,
+    canonical.decision_taxonomy_version,
+  );
 }
 
 export function isTraderDecisionChangedThisSession(stock: StockIntelligenceModel): boolean {
@@ -67,11 +96,15 @@ export function isTraderDecisionChangedThisSession(stock: StockIntelligenceModel
 export function resolveTraderDecision(stock: StockIntelligenceModel): ResolvedTraderDecision {
   if (stock.traderDecision) {
     return {
-      recommendation: stock.traderDecision.recommendation,
+      recommendation:
+        stock.traderDecision.display_action ??
+        (stock.traderDecision.recommendation === "SELL" ? "SELL" : "WAIT"),
       confidence: stock.traderDecision.confidence,
       reason: stock.traderDecision.reason,
       riskLabel: stock.traderDecision.risk_label,
       opportunityScore: stock.traderDecision.opportunity_score,
+      entryTiming: stock.traderDecision.entry_timing ?? null,
+      entryCondition: stock.traderDecision.entry_condition ?? null,
       source: "decision-engine",
     };
   }
@@ -82,6 +115,8 @@ export function resolveTraderDecision(stock: StockIntelligenceModel): ResolvedTr
     reason: "Decision engine unavailable for this row; defaulting to wait.",
     riskLabel: stock.signal.risk,
     opportunityScore: null,
+    entryTiming: null,
+    entryCondition: null,
     source: "unavailable",
   };
 }
@@ -117,8 +152,8 @@ export function getVolumeConfirmationScore(stock: StockIntelligenceModel): numbe
 
 export function getDecisionMomentumHint(stock: StockIntelligenceModel): string {
   const decision = resolveTraderDecision(stock);
-  if (decision.recommendation === "BUY") {
-    return "Momentum expanding";
+  if (decision.recommendation === "POTENTIAL_BUY") {
+    return "Entry condition available";
   }
   if (decision.recommendation === "SELL") {
     return "Pressure rising";
@@ -145,8 +180,8 @@ export function buildDecisionSupportingContext(stock: StockIntelligenceModel): s
   return context;
 }
 
-export function isActionableDecision(recommendation: TraderRecommendation): boolean {
-  return recommendation === "BUY" || recommendation === "SELL";
+export function isActionableDecision(recommendation: DecisionDisplayAction): boolean {
+  return recommendation === "POTENTIAL_BUY" || recommendation === "SELL";
 }
 
 export function getVolumeBehaviorId(stock: StockIntelligenceModel): string {

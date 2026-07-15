@@ -6,11 +6,21 @@ from typing import Literal
 from uuid import UUID
 
 from app.core.constants.trading_constants import (
+    DECISION_TAXONOMY_VERSION,
     PULSE_SCORE_FOCUS_THRESHOLD,
     TRADING_STRATEGY_VERSION,
     TRADING_THRESHOLD_VERSION,
 )
-from app.core.enums import EligibilityStatus, ExchangeCode, TraderRecommendation
+from app.core.enums import (
+    DecisionDisplayAction,
+    EligibilityStatus,
+    EntryReadiness,
+    EntryTiming,
+    ExchangeCode,
+    MarketRegimePhase,
+    OpportunityQuality,
+    TraderRecommendation,
+)
 from app.models import DailyMarketSummary, DailyPrice, Stock
 
 
@@ -33,7 +43,7 @@ class BacktestConfig:
     exchange: ExchangeCode
     start_date: date
     end_date: date
-    horizons: tuple[int, ...] = (5, 10, 20)
+    horizons: tuple[int, ...] = (3, 5, 10, 20)
     minimum_history_rows: int = 50
     execution_price: Literal["open", "close"] = "open"
     one_way_cost_bps: float = 50
@@ -50,6 +60,7 @@ class BacktestConfig:
     frozen_test_sessions: int = 20
     strategy_version: str = TRADING_STRATEGY_VERSION
     threshold_version: str = TRADING_THRESHOLD_VERSION
+    decision_taxonomy_version: str = DECISION_TAXONOMY_VERSION
     sensitivity_cost_bps: tuple[float, ...] = (25, 50, 75)
     sensitivity_pulse_thresholds: tuple[int, ...] = (55, 60, 65)
 
@@ -79,6 +90,8 @@ class BacktestConfig:
             raise ValueError("This replay build can only execute the current strategy version")
         if self.threshold_version != TRADING_THRESHOLD_VERSION:
             raise ValueError("This replay build can only execute the current threshold version")
+        if self.decision_taxonomy_version != DECISION_TAXONOMY_VERSION:
+            raise ValueError("This replay build can only execute the current decision taxonomy")
 
 
 @dataclass(frozen=True)
@@ -119,6 +132,23 @@ class ReplayObservation:
     sma50: float | None
     rsi: float | None
     shared_decision_id: str
+    opportunity_quality: OpportunityQuality | None = None
+    entry_readiness: EntryReadiness = EntryReadiness.NOT_READY
+    entry_timing: EntryTiming | None = None
+    blocker_codes: tuple[str, ...] = ()
+    regime_score: int = 50
+    regime_phase: MarketRegimePhase = MarketRegimePhase.HEALTHY
+    regime_confidence: int = 0
+    internal_action: TraderRecommendation | None = None
+    display_action: DecisionDisplayAction | None = None
+    decision_taxonomy_version: str = DECISION_TAXONOMY_VERSION
+    entry_condition: str | None = None
+    preferred_entry_zone_low: float | None = None
+    preferred_entry_zone_high: float | None = None
+    trigger_price: float | None = None
+    invalidation_price: float | None = None
+    expiry_sessions: int | None = None
+    average_volume: float | None = None
 
 
 ExecutionStatus = Literal[
@@ -130,6 +160,8 @@ ExecutionStatus = Literal[
     "CIRCUIT_LOCKED",
     "INVALID_EXECUTION_PRICE",
     "CAPACITY_EXCEEDED",
+    "EXPIRED_WITHOUT_ENTRY",
+    "INVALIDATED_BEFORE_ENTRY",
 ]
 
 
@@ -196,6 +228,7 @@ class ReplayManifest:
     strategy_version: str
     threshold_version: str
     input_schema_version: str
+    decision_taxonomy_version: str
     config_hash: str
     dataset_revision: str
     observation_revision: str

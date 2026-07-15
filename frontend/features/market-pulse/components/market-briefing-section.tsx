@@ -309,7 +309,7 @@ export function MarketBriefingFooter({ leadership, summary, copy }: MarketBriefi
                   <span className="pulse-leadership-signal" key={symbol}>
                     <span aria-hidden="true" className="pulse-leadership-signal-dot" />
                     {symbol}
-                    <span className="pulse-leadership-signal-buy">BUY</span>
+                    <span className="pulse-leadership-signal-buy">POTENTIAL BUY</span>
                   </span>
                 ))}
               </div>

@@ -282,6 +282,7 @@ export type DashboardLanguage = {
     synced: (label: string) => string;
     session: (label: string) => string;
     nextUpdate: (label: string) => string;
+    provisional: (sessionDate: string) => string;
   };
 };
 
@@ -511,6 +512,8 @@ const dashboardLanguage = {
       synced: (label) => `Synced ${label}`,
       session: (label) => `Session: ${label}`,
       nextUpdate: (label) => `Next update: ${label}`,
+      provisional: (sessionDate) =>
+        `Live snapshot is provisional; canonical decisions use ${sessionDate}.`,
     },
   },
 
@@ -733,6 +736,8 @@ const dashboardLanguage = {
       synced: (label) => `Synced ${label}`,
       session: (label) => `Session: ${label}`,
       nextUpdate: (label) => `Next update: ${label}`,
+      provisional: (sessionDate) =>
+        `Live snapshot provisional; canonical decision ${sessionDate} session-এর।`,
     },
   },
 } as const satisfies Record<AppLocale, DashboardLanguage>;

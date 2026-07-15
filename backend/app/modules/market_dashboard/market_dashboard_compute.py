@@ -8,7 +8,7 @@ from app.core.constants.trading_constants import (
     DASHBOARD_SECTOR_MIN_STOCKS,
     DASHBOARD_SIGNAL_FEED_LIMIT,
 )
-from app.core.enums import DataQualityFlag, TraderRecommendation, TrendDirection
+from app.core.enums import DataQualityFlag, DecisionDisplayAction, TrendDirection
 from app.models import DailyMarketSummary, Stock
 from app.modules.market_data.market_mover_rules import is_eligible_session_mover
 from app.modules.market_universe.market_universe_compute import technical_snapshot_from_read
@@ -202,15 +202,18 @@ def _decision_priority(confidence: int) -> str:
     return "low"
 
 
-def _is_actionable(recommendation: TraderRecommendation) -> bool:
-    return recommendation in {TraderRecommendation.BUY, TraderRecommendation.SELL}
+def _is_actionable(action: DecisionDisplayAction) -> bool:
+    return action in {
+        DecisionDisplayAction.POTENTIAL_BUY,
+        DecisionDisplayAction.SELL,
+    }
 
 
 def count_actionable_decisions(rows: list[ScoredUniverseRow]) -> int:
     return sum(
         1
         for row in rows
-        if row.decision is not None and _is_actionable(row.decision.recommendation)
+        if row.decision is not None and _is_actionable(row.decision.display_action)
     )
 
 
@@ -241,7 +244,7 @@ def build_signal_feed(rows: list[ScoredUniverseRow], *, limit: int = DASHBOARD_S
         row
         for row in rows
         if row.decision is not None
-        and (_is_actionable(row.decision.recommendation) or row.decision.confidence >= 55)
+        and (_is_actionable(row.decision.display_action) or row.decision.confidence >= 55)
     ]
     ranked.sort(key=lambda row: row.decision.confidence if row.decision else 0, reverse=True)
 
@@ -254,9 +257,10 @@ def build_signal_feed(rows: list[ScoredUniverseRow], *, limit: int = DASHBOARD_S
             {
                 "symbol": row.stock.symbol,
                 "exchange": row.stock.exchange,
-                "signal": decision.recommendation,
+                "signal": decision.display_action,
                 "confidence": decision.confidence,
                 "reason": decision.reason,
+                "entry_condition": decision.entry_condition,
                 "risk": decision.risk_label.value,
                 "priority": _decision_priority(decision.confidence),
                 "supporting_context": _supporting_context(row),
@@ -296,7 +300,10 @@ def build_market_alerts(
         items.append(
             {
                 "time": top.technical_snapshot.latest_trade_date or "Latest",
-                "title": f"{top.stock.symbol} {decision.recommendation.value}",
+                "title": (
+                    f"{top.stock.symbol} "
+                    f"{decision.display_action.value.replace('_', ' ').title()}"
+                ),
                 "description": decision.reason,
             }
         )

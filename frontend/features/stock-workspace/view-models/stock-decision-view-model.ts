@@ -48,6 +48,7 @@ export type StockDecisionViewModel = {
   confidence: number;
   confidenceLabel: string;
   recommendationTone: "buy" | "hold" | "wait" | "sell" | "neutral";
+  entryCondition: string | null;
   decisionSignals: DecisionSignal[];
   opportunityScore: number;
   opportunityComponents: Array<{ key: string; label: string; score: number; explanation: string }>;
@@ -73,7 +74,7 @@ export type StockDecisionViewModel = {
 };
 
 const recommendationToneMap = {
-  BUY: "buy",
+  POTENTIAL_BUY: "buy",
   HOLD: "hold",
   WAIT: "wait",
   SELL: "sell",
@@ -148,6 +149,7 @@ export function buildStockDecisionViewModel(
         confidence: 0,
         confidenceLabel: "N/A",
         recommendationTone: "neutral",
+        entryCondition: null,
         decisionSignals: [],
         opportunityScore: 0,
         opportunityComponents: [],
@@ -189,14 +191,22 @@ export function buildStockDecisionViewModel(
     severity: warning.severity,
     code: warning.code,
   }));
+  const displayAction =
+    decision.decision.display_action ??
+    (decision.decision.recommendation === "SELL" ? "SELL" : "WAIT");
 
   return applyStockDecisionLocalization(
     {
       available: true,
-      recommendation: decision.decision.recommendation,
+      recommendation: displayAction.replace("_", " "),
       confidence: decision.decision.confidence,
       confidenceLabel: `${decision.decision.confidence}/100`,
-      recommendationTone: recommendationToneMap[decision.decision.recommendation] ?? "neutral",
+      recommendationTone:
+        recommendationToneMap[displayAction] ?? "neutral",
+      entryCondition:
+        displayAction === "POTENTIAL_BUY"
+          ? decision.decision.entry_condition ?? decision.trade_plan.condition_text ?? null
+          : null,
       decisionSignals: buildDecisionSignals(decision),
       opportunityScore: decision.opportunity.score,
       opportunityComponents: decision.opportunity.components.map((component) => ({
