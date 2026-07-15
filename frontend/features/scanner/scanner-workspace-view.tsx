@@ -164,6 +164,11 @@ export function ScannerWorkspaceView({ locale = DEFAULT_LOCALE }: ScannerWorkspa
                           <span>
                             {formatNumber(stock.latestPrice)} / {formatPercent(stock.priceChangePercent)}
                           </span>
+                          {decision.recommendation === "POTENTIAL_BUY" && decision.entryCondition ? (
+                            <small className="scanner-entry-condition">
+                              {decision.entryCondition}
+                            </small>
+                          ) : null}
                           <div className="mini-momentum-bar" aria-label={language.states.momentumAria}>
                             <span style={{ width: `${Math.min(100, Math.abs(stock.priceChangePercent ?? 0) * 12)}%` }} />
                           </div>

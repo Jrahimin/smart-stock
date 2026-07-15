@@ -6,6 +6,7 @@ from decimal import Decimal
 from pydantic import BaseModel, Field
 
 from app.core.constants.trading_constants import (
+    DECISION_TAXONOMY_VERSION,
     SCANNER_CONDITION_VERSION,
     TRADING_INPUT_SCHEMA_VERSION,
     TRADING_STRATEGY_VERSION,
@@ -60,9 +61,13 @@ class UniverseRowsMetaRead(BaseModel):
     exchange: ExchangeCode
     listed_stock_count: int
     session_trade_date: date | None = None
+    decision_session_date: date | None = None
+    live_data_as_of: datetime | None = None
+    is_live_session: bool = False
     strategy_version: str = TRADING_STRATEGY_VERSION
     threshold_version: str = TRADING_THRESHOLD_VERSION
     input_schema_version: str = TRADING_INPUT_SCHEMA_VERSION
+    decision_taxonomy_version: str = DECISION_TAXONOMY_VERSION
     scanner_version: str = SCANNER_CONDITION_VERSION
     source_last_synced_at: datetime | None = None
     payload_revision: str | None = None
@@ -77,8 +82,12 @@ class ScoredUniverseCacheRead(BaseModel):
     strategy_version: str
     threshold_version: str
     input_schema_version: str = TRADING_INPUT_SCHEMA_VERSION
+    decision_taxonomy_version: str = DECISION_TAXONOMY_VERSION
     scanner_version: str = SCANNER_CONDITION_VERSION
     session_trade_date: date | None
+    decision_session_date: date | None = None
+    live_data_as_of: datetime | None = None
+    is_live_session: bool = False
     source_last_synced_at: datetime | None = None
     payload_revision: str | None = None
     rows: list[ScoredUniverseRow] = Field(default_factory=list)

@@ -43,14 +43,17 @@ Secondary endpoints:
 
 ### Cache semantics (workspace)
 
-Per-symbol keys are versioned by `latest_trade_date`:
+Per-symbol keys are versioned by live date, finalized decision date, engine
+identity, and public decision taxonomy:
 
 ```text
-stock-workspace:core:{exchange}:{symbol}:{latest_trade_date}
+stock-workspace:core:{exchange}:{symbol}:live-{latest_trade_date}:decision-{decision_session_date}:{strategy_version}:{threshold_version}:{input_schema_version}:{decision_taxonomy_version}
 ```
 
 * **Cross-day:** trade-date key change is hard invalidation.
-* **Same-day intraday:** the same trade date is upserted during OPEN (~15 min). TTL is the same-day safety net; there is no per-stock fan-out on snapshot sync (intentional).
+* **Same-day intraday:** the same trade date is upserted during OPEN (~15 min).
+  TTL is the same-day safety net; exchange-wide market-cache invalidation also
+  deletes the stock-workspace key family after sync.
 * Frontend ISR / TanStack stale times should follow market freshness TTL, not fight IndexedDB with an unrelated magic interval.
 
 ## Sources
@@ -190,15 +193,13 @@ Omit `scope` or set `"full"` for the default. Use `"stocks"` for stocks-table-on
 
 ## Stock workspace cache
 
-Per-symbol workspace keys are versioned by `latest_trade_date` from OHLCV:
+Per-symbol workspace sections use the same full key identity:
 
 ```text
-stock-workspace:core:{exchange}:{symbol}:{latest_trade_date}
-stock-workspace:patterns:{exchange}:{symbol}:{latest_trade_date}
-stock-workspace:events:{exchange}:{symbol}:{latest_trade_date}
+stock-workspace:{core|patterns|events}:{exchange}:{symbol}:live-{latest_trade_date}:decision-{decision_session_date}:{strategy_version}:{threshold_version}:{input_schema_version}:{decision_taxonomy_version}
 ```
 
-* **Invalidation:** no per-stock fan-out on `sync_market_snapshot` (intentional).
+* **Invalidation:** exchange-wide cache invalidation deletes the workspace key family.
 * **Cross-day freshness:** keys miss naturally when trade date advances.
 * **Same-day intraday freshness:** TTL is the safety net while the trade date stays constant; workspace JSON may lag the latest snapshot upsert by up to that TTL unless a future explicit rebuild hook is added.
 * **Consistency:** eventually consistent within one sync interval on the same trade date.

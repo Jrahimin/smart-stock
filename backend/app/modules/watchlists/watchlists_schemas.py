@@ -4,6 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.core.enums import DecisionDisplayAction
 from app.modules.market_universe.market_universe_schemas import TechnicalSnapshotRead
 from app.modules.stock_details.stock_details_schemas import TraderDecisionSummaryRead
 
@@ -38,7 +39,7 @@ class UserWatchlistRead(BaseModel):
     trader_decision: TraderDecisionSummaryRead | None = None
     technical_snapshot: TechnicalSnapshotRead | None = None
     decision_source: str = "UNAVAILABLE"
-    contextual_action: str = "WAIT"
+    contextual_action: DecisionDisplayAction = DecisionDisplayAction.WAIT
 
 
 class UserWatchlistSummaryRead(BaseModel):

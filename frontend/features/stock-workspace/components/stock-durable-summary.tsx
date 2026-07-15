@@ -68,7 +68,9 @@ export function StockDurableSummary({ workspace, locale = DEFAULT_LOCALE }: Stoc
         <div>
           <dt>{copy.durableSummary.decisionSupport}</dt>
           <dd>
-            {decision.decision.recommendation}
+            {(decision.decision.display_action ??
+              (decision.decision.recommendation === "SELL" ? "SELL" : "WAIT")
+            ).replace("_", " ")}
             <span className="stock-durable-summary-confidence">
               {" "}
               · {copy.durableSummary.modelConfidence(decision.decision.confidence)}

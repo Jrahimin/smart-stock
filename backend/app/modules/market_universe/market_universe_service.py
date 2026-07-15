@@ -7,6 +7,7 @@ from typing import Annotated
 from fastapi import Depends
 
 from app.core.constants.trading_constants import (
+    DECISION_TAXONOMY_VERSION,
     ELIGIBILITY_SESSION_LOOKBACK,
     PULSE_PRICE_WINDOW_LIMIT,
     PULSE_UNIVERSE_LIMIT,
@@ -42,13 +43,16 @@ from app.modules.market_universe.market_universe_schemas import (
     UniverseRowsMetaRead,
     UniverseRowsRead,
 )
-from app.modules.stock_details.decision.market_regime import resolve_regime_from_summaries
+from app.modules.stock_details.decision.market_regime import (
+    resolve_regime_result_from_summaries,
+)
 from app.modules.stocks.stocks_repository import StocksRepository, get_stocks_repository
 from app.modules.trading_intelligence.decision_snapshot_repository import (
     DecisionSnapshotRepository,
     get_decision_snapshot_repository,
 )
 from app.modules.trading_intelligence.monitoring import (
+    build_decision_funnel,
     log_monitoring_report,
     monitor_universe_payload,
 )
@@ -89,7 +93,7 @@ class MarketUniverseService:
 
     async def get_scored_universe(self, *, exchange: ExchangeCode) -> list[ScoredUniverseRow]:
         session_trade_date, source_last_synced_at = (
-            await self.market_repository.get_market_price_freshness(exchange=exchange)
+            await self.market_repository.get_decision_session_freshness(exchange=exchange)
         )
 
         if self.redis.is_available:
@@ -133,7 +137,8 @@ class MarketUniverseService:
                 )
 
         raise UniverseCacheUnavailableError(
-            f"Scored universe cache is unavailable for {exchange.value}; background rebuild required"
+            f"Scored universe cache is unavailable for {exchange.value}; "
+            "background rebuild required"
         )
 
     @staticmethod
@@ -153,9 +158,11 @@ class MarketUniverseService:
             session_trade_date is not None
             and bool(payload.rows)
             and payload.session_trade_date == session_trade_date
+            and payload.decision_session_date == session_trade_date
             and payload.strategy_version == TRADING_STRATEGY_VERSION
             and payload.threshold_version == TRADING_THRESHOLD_VERSION
             and payload.input_schema_version == TRADING_INPUT_SCHEMA_VERSION
+            and payload.decision_taxonomy_version == DECISION_TAXONOMY_VERSION
             and payload.scanner_version == SCANNER_CONDITION_VERSION
             and all(
             row.eligibility is not None
@@ -164,6 +171,8 @@ class MarketUniverseService:
             and row.decision.canonical is not None
             and row.decision.canonical.strategy_version == TRADING_STRATEGY_VERSION
             and row.decision.canonical.threshold_version == TRADING_THRESHOLD_VERSION
+            and row.decision.canonical.decision_taxonomy_version
+            == DECISION_TAXONOMY_VERSION
             and row.scanner is not None
             and row.scanner.version == SCANNER_CONDITION_VERSION
             for row in payload.rows
@@ -180,20 +189,34 @@ class MarketUniverseService:
 
     async def recompute_scored_universe(self, exchange: ExchangeCode) -> list[ScoredUniverseRow]:
         perf = PerfReport("universe.rebuild")
+        decision_session_date = await self.market_repository.get_latest_finalized_session_date(
+            exchange=exchange
+        )
+        if decision_session_date is None:
+            logger.info(
+                "Skipping canonical universe rebuild for %s: no finalized session",
+                exchange.value,
+            )
+            return []
         async with async_perf_stage(perf, "db.price_windows"):
             window_rows = await self.market_repository.list_market_price_windows(
                 exchange=exchange,
                 limit=PULSE_UNIVERSE_LIMIT,
                 offset=0,
                 price_window_limit=PULSE_PRICE_WINDOW_LIMIT,
+                end_date=decision_session_date,
             )
         async with async_perf_stage(perf, "db.market_regime"):
             summaries = await self.market_repository.list_daily_market_summaries(
                 exchange=exchange,
                 limit=REGIME_SUMMARY_FETCH_LIMIT,
                 offset=0,
+                end_date=decision_session_date,
             )
-            market_regime = resolve_regime_from_summaries(summaries)
+            market_regime = resolve_regime_result_from_summaries(
+                summaries,
+                decision_session_date=decision_session_date,
+            )
         grouped = group_price_window_rows(window_rows)
         stock_ids = {
             entry["stock"].id
@@ -201,9 +224,12 @@ class MarketUniverseService:
             if hasattr(entry.get("stock"), "id")
         }
         async with async_perf_stage(perf, "db.eligibility_context"):
-            exchange_session_dates = await self.market_repository.list_recent_exchange_session_dates(
-                exchange=exchange,
-                limit=ELIGIBILITY_SESSION_LOOKBACK,
+            exchange_session_dates = (
+                await self.market_repository.list_recent_exchange_session_dates(
+                    exchange=exchange,
+                    limit=ELIGIBILITY_SESSION_LOOKBACK,
+                    end_date=decision_session_date,
+                )
             )
             corporate_action_dates = (
                 await self.market_repository.list_corporate_action_dates_by_stock(
@@ -216,6 +242,7 @@ class MarketUniverseService:
                 market_regime=market_regime,
                 exchange_session_dates=exchange_session_dates,
                 corporate_action_dates_by_stock=corporate_action_dates,
+                decision_session_date=decision_session_date,
             )
         if self.decision_snapshot_repository is not None:
             try:
@@ -238,7 +265,13 @@ class MarketUniverseService:
     ) -> None:
         cache_key = universe_cache_key("scored", exchange)
         freshness_date, source_last_synced_at = (
+            await self.market_repository.get_decision_session_freshness(exchange=exchange)
+        )
+        live_trade_date, live_last_synced_at = (
             await self.market_repository.get_market_price_freshness(exchange=exchange)
+        )
+        is_live_session = live_trade_date is not None and (
+            freshness_date is None or live_trade_date > freshness_date
         )
         session_dates = [
             row.eligibility.exchange_session_date
@@ -249,8 +282,12 @@ class MarketUniverseService:
             strategy_version=TRADING_STRATEGY_VERSION,
             threshold_version=TRADING_THRESHOLD_VERSION,
             input_schema_version=TRADING_INPUT_SCHEMA_VERSION,
+            decision_taxonomy_version=DECISION_TAXONOMY_VERSION,
             scanner_version=SCANNER_CONDITION_VERSION,
             session_trade_date=freshness_date or (max(session_dates) if session_dates else None),
+            decision_session_date=freshness_date,
+            live_data_as_of=live_last_synced_at if is_live_session else None,
+            is_live_session=is_live_session,
             source_last_synced_at=source_last_synced_at,
             payload_revision=compute_universe_payload_revision(rows),
             rows=rows,
@@ -266,6 +303,29 @@ class MarketUniverseService:
         )
         if monitoring_report.issues:
             log_monitoring_report(monitoring_report, exchange=exchange.value)
+        funnel = build_decision_funnel(rows)
+        logger.info(
+            "decision_funnel exchange=%s session=%s total=%s eligible=%s bullish=%s "
+            "potential_buy=%s hold=%s wait=%s sell=%s unavailable=%s data=%s liquidity=%s "
+            "extension=%s entry_plan=%s risk=%s other=%s reconciles=%s",
+            exchange.value,
+            payload.decision_session_date,
+            funnel.total_universe,
+            funnel.eligible,
+            funnel.bullish_opportunity,
+            funnel.potential_buy,
+            funnel.hold,
+            funnel.wait,
+            funnel.sell,
+            funnel.unavailable,
+            funnel.blocked_by_data,
+            funnel.blocked_by_liquidity,
+            funnel.blocked_by_extension,
+            funnel.blocked_by_entry_plan,
+            funnel.blocked_by_risk,
+            funnel.other_or_unblocked,
+            funnel.reconciles,
+        )
         serialized_payload = payload.model_dump(mode="json")
         if current is not None:
             prev_key = universe_prev_cache_key(exchange)
@@ -275,7 +335,13 @@ class MarketUniverseService:
 
     async def get_universe_rows(self, *, exchange: ExchangeCode) -> UniverseRowsRead:
         session_trade_date, source_last_synced_at = (
+            await self.market_repository.get_decision_session_freshness(exchange=exchange)
+        )
+        live_trade_date, live_last_synced_at = (
             await self.market_repository.get_market_price_freshness(exchange=exchange)
+        )
+        is_live_session = live_trade_date is not None and (
+            session_trade_date is None or live_trade_date > session_trade_date
         )
         rows = await self.get_scored_universe(exchange=exchange)
         listed_stock_count = await self.stocks_repository.count_stocks(
@@ -287,6 +353,9 @@ class MarketUniverseService:
                 exchange=exchange,
                 listed_stock_count=listed_stock_count,
                 session_trade_date=session_trade_date,
+                decision_session_date=session_trade_date,
+                live_data_as_of=live_last_synced_at if is_live_session else None,
+                is_live_session=is_live_session,
                 source_last_synced_at=source_last_synced_at,
                 payload_revision=compute_universe_payload_revision(rows),
             ),

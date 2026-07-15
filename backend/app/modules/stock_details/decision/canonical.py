@@ -5,15 +5,21 @@ from datetime import UTC, date, datetime
 from uuid import UUID, uuid5
 
 from app.core.constants.trading_constants import (
+    DECISION_TAXONOMY_VERSION,
     TRADING_ACTION_TAXONOMY,
     TRADING_STRATEGY_VERSION,
     TRADING_THRESHOLD_VERSION,
 )
 from app.core.enums import (
+    DecisionDisplayAction,
     EligibilityStatus,
+    EntryReadiness,
+    EntryTiming,
     ExchangeCode,
     HolderAction,
+    MarketRegimePhase,
     NonHolderAction,
+    OpportunityQuality,
     RiskLevelLabel,
     TradePlanStatus,
     TraderRecommendation,
@@ -21,13 +27,24 @@ from app.core.enums import (
 )
 from app.models import DailyPrice, Stock
 from app.modules.stock_details.decision.lineage import build_decision_input_lineage
+from app.modules.stock_details.decision.display_taxonomy import resolve_display_decision
+from app.modules.stock_details.decision.market_regime import (
+    MarketRegimeResult,
+    normalize_market_regime,
+)
 
 _SHARED_DECISION_NAMESPACE = UUID("ea888502-07ac-4b4b-b644-4450cc742ebe")
 
 CANONICAL_RESULT_SEMANTICS: tuple[tuple[str, str], ...] = (
     ("recommendation", "DETERMINISTIC_CONTEXTUAL_ACTION"),
+    ("internal_action", "LEGACY_CANONICAL_ACTION"),
+    ("display_action", "VERSIONED_PUBLIC_NON_HOLDER_ACTION"),
     ("evidence_strength", "HEURISTIC_DIRECTIONAL_EVIDENCE"),
     ("opportunity_score", "HEURISTIC_LONG_SETUP_INDEX"),
+    ("opportunity_quality", "DETERMINISTIC_COMPLETED_SESSION_QUALITY"),
+    ("entry_readiness", "DETERMINISTIC_PLAN_READINESS"),
+    ("entry_timing", "DETERMINISTIC_CONDITIONAL_TIMING"),
+    ("blocker_codes", "ORDERED_MACHINE_READABLE_CONSTRAINTS"),
     ("risk_label", "LEGACY_COMPOSITE_RISK"),
     ("trade_plan_status", "DETERMINISTIC_PLAN_FEASIBILITY"),
 )
@@ -45,7 +62,7 @@ class StrategyInput:
     known_corporate_action_dates: frozenset[date]
     exchange_session_dates: tuple[date, ...]
     is_active: bool
-    market_regime: str | None
+    market_regime: MarketRegimeResult
     calculated_at: datetime
 
     @property
@@ -79,6 +96,7 @@ class CanonicalDecisionResult:
     strategy_version: str
     threshold_version: str
     action_taxonomy: str
+    decision_taxonomy_version: str
     as_of_date: date
     previous_session_date: date | None
     calculated_at: datetime
@@ -91,8 +109,15 @@ class CanonicalDecisionResult:
     replay_limitations: tuple[str, ...]
     result_semantics: tuple[tuple[str, str], ...]
     recommendation: TraderRecommendation
+    internal_action: TraderRecommendation
+    display_action: DecisionDisplayAction
     evidence_strength: int
     opportunity_score: int
+    opportunity_quality: OpportunityQuality
+    entry_readiness: EntryReadiness
+    entry_timing: EntryTiming | None
+    entry_condition: str | None
+    blocker_codes: tuple[str, ...]
     risk_label: RiskLevelLabel
     trade_plan_status: TradePlanStatus
     eligibility_status: EligibilityStatus
@@ -101,6 +126,10 @@ class CanonicalDecisionResult:
     stance: TraderStance
     non_holder_action: NonHolderAction
     holder_action: HolderAction
+    regime_score: int
+    regime_label: str
+    regime_phase: MarketRegimePhase
+    regime_confidence: int
 
     def semantics_dict(self) -> dict[str, str]:
         return dict(self.result_semantics)
@@ -114,7 +143,7 @@ def build_strategy_input(
     ex_dividend_dates: set[date] | None = None,
     known_corporate_action_dates: set[date] | None = None,
     exchange_session_dates: list[date] | tuple[date, ...] | None = None,
-    market_regime: str | None = None,
+    market_regime: MarketRegimeResult | str | None = None,
     calculated_at: datetime | None = None,
 ) -> StrategyInput:
     return build_strategy_input_from_prices(
@@ -143,7 +172,7 @@ def build_strategy_input_from_prices(
     known_corporate_action_dates: set[date] | None = None,
     exchange_session_dates: list[date] | tuple[date, ...] | None = None,
     is_active: bool = True,
-    market_regime: str | None = None,
+    market_regime: MarketRegimeResult | str | None = None,
     calculated_at: datetime | None = None,
 ) -> StrategyInput:
     if not prices:
@@ -167,7 +196,7 @@ def build_strategy_input_from_prices(
         known_corporate_action_dates=action_dates,
         exchange_session_dates=session_dates,
         is_active=is_active,
-        market_regime=market_regime,
+        market_regime=normalize_market_regime(market_regime),
         calculated_at=calculated_at or datetime.now(UTC),
     )
 
@@ -178,6 +207,11 @@ def build_canonical_decision_result(
     recommendation: TraderRecommendation,
     evidence_strength: int,
     opportunity_score: int,
+    opportunity_quality: OpportunityQuality,
+    entry_readiness: EntryReadiness,
+    entry_timing: EntryTiming | None,
+    entry_condition: str | None,
+    blocker_codes: tuple[str, ...],
     risk_label: RiskLevelLabel,
     trade_plan_status: TradePlanStatus,
     eligibility_status: EligibilityStatus,
@@ -188,16 +222,30 @@ def build_canonical_decision_result(
     holder_action: HolderAction,
 ) -> CanonicalDecisionResult:
     lineage = build_decision_input_lineage(strategy_input)
+    display = resolve_display_decision(
+        recommendation,
+        opportunity_quality=opportunity_quality,
+        entry_readiness=entry_readiness,
+        entry_timing=entry_timing,
+        trade_plan_status=trade_plan_status,
+        entry_condition=entry_condition,
+    )
     return CanonicalDecisionResult(
         stock_id=strategy_input.stock_id,
         exchange=strategy_input.exchange,
         strategy_version=TRADING_STRATEGY_VERSION,
         threshold_version=TRADING_THRESHOLD_VERSION,
         action_taxonomy=TRADING_ACTION_TAXONOMY,
+        decision_taxonomy_version=DECISION_TAXONOMY_VERSION,
         as_of_date=strategy_input.as_of_date,
         previous_session_date=strategy_input.previous_session_date,
         calculated_at=strategy_input.calculated_at,
-        shared_decision_id=str(uuid5(_SHARED_DECISION_NAMESPACE, lineage.input_hash)),
+        shared_decision_id=str(
+            uuid5(
+                _SHARED_DECISION_NAMESPACE,
+                f"{lineage.input_hash}:{DECISION_TAXONOMY_VERSION}",
+            )
+        ),
         input_schema_version=lineage.input_schema_version,
         data_revision=lineage.data_revision,
         event_revision=lineage.event_revision,
@@ -206,8 +254,15 @@ def build_canonical_decision_result(
         replay_limitations=lineage.replay_limitations,
         result_semantics=CANONICAL_RESULT_SEMANTICS,
         recommendation=recommendation,
+        internal_action=display.internal_action,
+        display_action=display.display_action,
         evidence_strength=evidence_strength,
         opportunity_score=opportunity_score,
+        opportunity_quality=opportunity_quality,
+        entry_readiness=entry_readiness,
+        entry_timing=display.entry_timing,
+        entry_condition=display.entry_condition,
+        blocker_codes=blocker_codes,
         risk_label=risk_label,
         trade_plan_status=trade_plan_status,
         eligibility_status=eligibility_status,
@@ -216,4 +271,8 @@ def build_canonical_decision_result(
         stance=stance,
         non_holder_action=non_holder_action,
         holder_action=holder_action,
+        regime_score=strategy_input.market_regime.score,
+        regime_label=strategy_input.market_regime.label,
+        regime_phase=strategy_input.market_regime.phase,
+        regime_confidence=strategy_input.market_regime.confidence,
     )

@@ -6,7 +6,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.core.enums import ExchangeCode, TraderRecommendation, TrendDirection
+from app.core.enums import DecisionDisplayAction, ExchangeCode, TrendDirection
 from app.modules.market_data.market_data_schemas import DailyMarketSummaryRead, DsexIndexSnapshotRead
 
 
@@ -71,11 +71,12 @@ class DashboardMarketAlertsRead(BaseModel):
 class DashboardSignalRead(BaseModel):
     symbol: str
     exchange: ExchangeCode
-    signal: TraderRecommendation
+    signal: DecisionDisplayAction
     confidence: int
     confidence_semantics: str = "HEURISTIC_EVIDENCE"
     confidence_semantics: str = "HEURISTIC_EVIDENCE"
     reason: str
+    entry_condition: str | None = None
     risk: str
     priority: str
     supporting_context: list[str] = Field(default_factory=list)

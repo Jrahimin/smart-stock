@@ -6,6 +6,7 @@ from uuid import uuid4
 
 from app.core.enums import (
     DataQualityFlag,
+    DecisionDisplayAction,
     EligibilityStatus,
     ExchangeCode,
     PulseFocusLabel,
@@ -67,6 +68,9 @@ def _snapshot(**changes: object) -> TechnicalSnapshot:
 def _decision() -> TraderDecisionSummaryRead:
     return TraderDecisionSummaryRead(
         recommendation=TraderRecommendation.BUY,
+        internal_action=TraderRecommendation.BUY,
+        display_action=DecisionDisplayAction.POTENTIAL_BUY,
+        decision_taxonomy_version="v2",
         confidence=70,
         evidence_strength=70,
         reason="Canonical reason",
@@ -146,6 +150,7 @@ def test_previous_snapshot_requires_the_current_score_version_for_comparison() -
     legacy = MarketPulsePreviousSnapshot(scores={"stock": 72})
     current = MarketPulsePreviousSnapshot(
         score_version="pulse-attention-v2",
+        decision_taxonomy_version="v2",
         scores={"stock": 72},
     )
 

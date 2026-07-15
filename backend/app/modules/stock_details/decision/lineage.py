@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any
 
 from app.core.audit_hashing import stable_audit_hash
 from app.core.constants.trading_constants import (
-    TRADING_ACTION_TAXONOMY,
+    LEGACY_TRADING_ACTION_TAXONOMY,
     TRADING_INPUT_SCHEMA_VERSION,
     TRADING_STRATEGY_VERSION,
     TRADING_THRESHOLD_VERSION,
@@ -72,7 +72,10 @@ def build_decision_input_lineage(strategy_input: StrategyInput) -> DecisionInput
             "input_schema_version": TRADING_INPUT_SCHEMA_VERSION,
             "strategy_version": TRADING_STRATEGY_VERSION,
             "threshold_version": TRADING_THRESHOLD_VERSION,
-            "action_taxonomy": TRADING_ACTION_TAXONOMY,
+            # The public v2 taxonomy is output metadata, not a decision input.
+            # Retain the internal legacy taxonomy identity so an output-only
+            # rollout does not masquerade as an input revision.
+            "action_taxonomy": LEGACY_TRADING_ACTION_TAXONOMY,
             "stock_id": strategy_input.stock_id,
             "exchange": strategy_input.exchange,
             "category": strategy_input.category,

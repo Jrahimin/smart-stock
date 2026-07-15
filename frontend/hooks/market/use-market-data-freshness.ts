@@ -54,6 +54,8 @@ export type MarketFreshnessViewModel = {
   delayDisclaimer: string | null;
   sessionLabel: string | null;
   freshnessLabel: string | null;
+  decisionSessionLabel: string | null;
+  isLiveSession: boolean;
   snapshotIntervalMs: number;
   isLoading: boolean;
   isError: boolean;
@@ -140,6 +142,8 @@ export function buildMarketFreshnessViewModel(
       : null,
     sessionLabel: data?.market_status?.replace("_", " ") ?? null,
     freshnessLabel: data?.freshness_label ?? null,
+    decisionSessionLabel: data?.decision_session_date ?? null,
+    isLiveSession: data?.is_live_session ?? false,
     snapshotIntervalMs: intervalMs,
     isLoading,
     isError,

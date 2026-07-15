@@ -29,7 +29,9 @@ Unlike the Dashboard or Scanner, Market Pulse is editorial and attention-focused
   "last_synced_at": "2026-06-15T10:35:00+06:00",
   "focus_stock_ids": ["uuid", "uuid"],
   "scores": { "uuid": 82 },
-  "recommendations": { "uuid": "BUY" },
+  "score_version": "pulse-attention-v2",
+  "recommendations": { "uuid": "POTENTIAL_BUY" },
+  "decision_taxonomy_version": "v2",
   "alert_ids": ["alert-volume-uuid"]
 }
 ```
@@ -68,8 +70,8 @@ The compatibility `money_flow.inflows` / `money_flow.outflows` arrays contain on
 
 | Key | Contents |
 |-----|----------|
-| `pulse:response:{exchange}:{strategy_version}:{threshold_version}:{input_schema_version}:{pulse_score_version}` | Full `MarketPulseRead` |
-| `pulse:summary:{exchange}:{strategy_version}:{threshold_version}:{input_schema_version}:{pulse_score_version}` | `MarketPulseSummaryRead` (includes `last_synced_at` generation identity) |
+| `pulse:response:{exchange}:{strategy_version}:{threshold_version}:{input_schema_version}:{pulse_score_version}:{decision_taxonomy_version}` | Full `MarketPulseRead` |
+| `pulse:summary:{exchange}:{strategy_version}:{threshold_version}:{input_schema_version}:{pulse_score_version}:{decision_taxonomy_version}` | `MarketPulseSummaryRead` (includes `last_synced_at` generation identity) |
 
 Both are invalidated with exchange-wide keys on sync via `invalidate_market_caches()`.
 
@@ -109,9 +111,13 @@ Constants live in `backend/app/core/constants/trading_constants.py`.
 
 Each focus stock receives one editorial label. `Volume Breakout` requires a current price crossing of canonical resistance plus expanded relative volume; unusual volume alone does not qualify.
 
-Client `previous_snapshot` payloads may include additive `score_version`. Score/focus deltas are emitted only when that value matches the current Pulse version; older snapshots remain accepted but are treated as non-comparable until the browser stores one current-version response.
+Client `previous_snapshot` payloads may include additive `score_version` and
+`decision_taxonomy_version`. Score/focus/action deltas are emitted only when
+both match the current versions; older snapshots remain accepted but are
+treated as non-comparable until the browser stores one current-version response.
 
-- `New BUY Setup` (compatibility enum; not emitted without like-for-like change evidence)
+- `Potential Buy Setup`
+- `New BUY Setup` (legacy read compatibility only; not newly emitted)
 - `Momentum Building`
 - `Volume Breakout`
 - `Watch Closely`

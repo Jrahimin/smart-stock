@@ -6,11 +6,20 @@ from typing import Annotated
 from fastapi import Depends
 
 from app.core.core_config import Settings, get_settings
-from app.jobs.market_session_schedule import current_cache_ttl_seconds
 from app.core.enums import ExchangeCode
 from app.core.exception_handlers import NotFoundError
 from app.core.redis_client import OptionalRedisClient, get_redis_client
+from app.jobs.market_session_schedule import current_cache_ttl_seconds
 from app.modules.market_data.market_data_schemas import DailyPriceRead
+from app.modules.stock_details.decision.display_metrics import build_display_metrics
+from app.modules.stock_details.decision.dividend_intelligence import build_dividend_intelligence
+from app.modules.stock_details.decision.financial_trends import build_financial_trends
+from app.modules.stock_details.decision.fundamentals_snapshot import (
+    FUNDAMENTALS_PERFORMANCE_METRIC_CODES,
+    FUNDAMENTALS_SNAPSHOT_QUERY_METRIC_CODES,
+    build_fundamentals_snapshot,
+)
+from app.modules.stock_details.decision.valuation_context import build_valuation_context
 from app.modules.stock_details.stock_details_cache import stock_workspace_cache_key
 from app.modules.stock_details.stock_details_decision_service import (
     StockDetailsDecisionService,
@@ -34,15 +43,6 @@ from app.modules.stock_details.stock_details_workspace_schemas import (
     ValuationMetricContextRead,
 )
 from app.modules.stocks.stocks_schemas import StockRead
-from app.modules.stock_details.decision.display_metrics import build_display_metrics
-from app.modules.stock_details.decision.dividend_intelligence import build_dividend_intelligence
-from app.modules.stock_details.decision.financial_trends import build_financial_trends
-from app.modules.stock_details.decision.fundamentals_snapshot import (
-    FUNDAMENTALS_PERFORMANCE_METRIC_CODES,
-    FUNDAMENTALS_SNAPSHOT_QUERY_METRIC_CODES,
-    build_fundamentals_snapshot,
-)
-from app.modules.stock_details.decision.valuation_context import build_valuation_context
 
 
 class StockDetailsWorkspaceService:
@@ -65,18 +65,37 @@ class StockDetailsWorkspaceService:
         ttl_seconds = current_cache_ttl_seconds(self.settings)
         await self.redis.set_json(cache_key, payload, ttl_seconds=ttl_seconds)
 
-    async def _resolve_latest_trade_date(self, *, exchange: ExchangeCode, symbol: str) -> tuple[str, StockRead]:
+    async def _resolve_latest_trade_date(
+        self,
+        *,
+        exchange: ExchangeCode,
+        symbol: str,
+    ) -> tuple[str, str, StockRead]:
         stock = await self.repository.get_stock_by_exchange_symbol(exchange=exchange, symbol=symbol)
         if stock is None:
             raise NotFoundError("Stock was not found")
 
         prices = await self.repository.list_daily_prices_window(stock_id=stock.id, limit=1)
         latest_trade_date = prices[-1].trade_date.isoformat() if prices else "unknown"
-        return latest_trade_date, StockRead.model_validate(stock)
+        decision_session_date = await self.repository.get_latest_finalized_session_date(
+            exchange=exchange
+        )
+        decision_session_key = (
+            decision_session_date.isoformat() if decision_session_date is not None else "none"
+        )
+        return latest_trade_date, decision_session_key, StockRead.model_validate(stock)
 
     async def get_workspace(self, *, exchange: ExchangeCode, symbol: str) -> StockWorkspaceRead:
-        latest_trade_date, stock_read = await self._resolve_latest_trade_date(exchange=exchange, symbol=symbol)
-        cache_key = stock_workspace_cache_key("core", exchange, symbol, latest_trade_date)
+        latest_trade_date, decision_session_key, stock_read = (
+            await self._resolve_latest_trade_date(exchange=exchange, symbol=symbol)
+        )
+        cache_key = stock_workspace_cache_key(
+            "core",
+            exchange,
+            symbol,
+            latest_trade_date,
+            decision_session_key,
+        )
         cached = await self._cache_get(cache_key)
         if cached is not None:
             return StockWorkspaceRead.model_validate(cached)
@@ -268,7 +287,13 @@ class StockDetailsWorkspaceService:
     async def get_workspace_patterns(self, *, exchange: ExchangeCode, symbol: str) -> StockWorkspacePatternsRead:
         workspace = await self.get_workspace(exchange=exchange, symbol=symbol)
         latest_trade_date = workspace.latest_trade_date
-        cache_key = stock_workspace_cache_key("patterns", exchange, symbol, latest_trade_date)
+        cache_key = stock_workspace_cache_key(
+            "patterns",
+            exchange,
+            symbol,
+            latest_trade_date,
+            workspace.decision_support.decision_session_date.isoformat(),
+        )
         cached = await self._cache_get(cache_key)
         if cached is not None:
             return StockWorkspacePatternsRead.model_validate(cached)
@@ -286,7 +311,13 @@ class StockDetailsWorkspaceService:
     async def get_workspace_events(self, *, exchange: ExchangeCode, symbol: str) -> StockWorkspaceEventsRead:
         workspace = await self.get_workspace(exchange=exchange, symbol=symbol)
         latest_trade_date = workspace.latest_trade_date
-        cache_key = stock_workspace_cache_key("events", exchange, symbol, latest_trade_date)
+        cache_key = stock_workspace_cache_key(
+            "events",
+            exchange,
+            symbol,
+            latest_trade_date,
+            workspace.decision_support.decision_session_date.isoformat(),
+        )
         cached = await self._cache_get(cache_key)
         if cached is not None:
             return StockWorkspaceEventsRead.model_validate(cached)

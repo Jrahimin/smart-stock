@@ -10,6 +10,7 @@ from fastapi import Depends
 from pydantic import ValidationError
 
 from app.core.constants.trading_constants import (
+    DECISION_TAXONOMY_VERSION,
     PULSE_FOCUS_SECTOR_EXCEPTION_LIMIT,
     PULSE_FOCUS_SECTOR_EXCEPTION_SCORE_GAP,
     PULSE_FOCUS_SECTOR_LIMIT,
@@ -23,11 +24,11 @@ from app.core.constants.trading_constants import (
 from app.core.core_config import Settings, get_settings
 from app.core.enums import (
     DataQualityFlag,
+    DecisionDisplayAction,
     EligibilityStatus,
     ExchangeCode,
     MarketAlertType,
     PulseFocusLabel,
-    TraderRecommendation,
     TrendDirection,
 )
 from app.core.market_cache import pulse_cache_key
@@ -105,13 +106,20 @@ def is_eligible_pulse_candidate(
 def _comparable_previous_snapshot(
     previous: MarketPulsePreviousSnapshot | None,
 ) -> MarketPulsePreviousSnapshot | None:
-    if previous is None or previous.score_version != PULSE_SCORE_VERSION:
+    if (
+        previous is None
+        or previous.score_version != PULSE_SCORE_VERSION
+        or previous.decision_taxonomy_version != DECISION_TAXONOMY_VERSION
+    ):
         return None
     return previous
 
 
 def _label_tone(label: PulseFocusLabel) -> str:
-    if label in {PulseFocusLabel.NEW_BUY_SETUP, PulseFocusLabel.SIGNAL_UPGRADE}:
+    if label in {
+        PulseFocusLabel.POTENTIAL_BUY_SETUP,
+        PulseFocusLabel.SIGNAL_UPGRADE,
+    }:
         return "positive"
     if label == PulseFocusLabel.VOLUME_BREAKOUT:
         return "info"
@@ -286,7 +294,7 @@ def _to_focus_stock_read(row: PulsePresentationRow, rank: int) -> FocusStockRead
         price_change_percent=_format_percent(change),
         price_tone=_price_tone(change),
         sparkline_points=_sparkline_points(row.snapshot),
-        recommendation=row.decision.recommendation.value,
+        recommendation=row.decision.display_action.value,
     )
 
 
@@ -542,10 +550,10 @@ class MarketPulseService:
             decision = universe_row.decision
             score = compute_pulse_score(snapshot, decision)
             prev_rec = previous_recommendations.get(str(universe_row.stock.id))
-            previous_enum: TraderRecommendation | None = None
+            previous_enum: DecisionDisplayAction | None = None
             if prev_rec:
                 try:
-                    previous_enum = TraderRecommendation(prev_rec)
+                    previous_enum = DecisionDisplayAction(prev_rec)
                 except ValueError:
                     previous_enum = None
 
@@ -824,7 +832,7 @@ class MarketPulseService:
                 )
 
             previous_rec = previous.recommendations.get(stock_id)
-            current_rec = row.decision.recommendation.value
+            current_rec = row.decision.display_action.value
             if previous_rec and previous_rec != current_rec:
                 changes.append(
                     PulseChangeRead(
@@ -833,8 +841,14 @@ class MarketPulseService:
                         change_type="recommendation-shift",
                         title=f"{row.stock.symbol} {previous_rec} → {current_rec}",
                         description=row.decision.reason,
-                        badge="Signal Upgrade" if current_rec == "BUY" else "New Signal",
-                        badge_tone="positive" if current_rec == "BUY" else "info",
+                        badge=(
+                            "Potential Buy"
+                            if current_rec == "POTENTIAL_BUY"
+                            else "New Decision"
+                        ),
+                        badge_tone=(
+                            "positive" if current_rec == "POTENTIAL_BUY" else "info"
+                        ),
                         symbol=row.stock.symbol,
                         exchange=row.stock.exchange,
                     )

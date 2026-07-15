@@ -82,7 +82,7 @@ export function SignalCenterView({ locale = DEFAULT_LOCALE }: SignalCenterViewPr
         <div className="explorer-controls">
           <select value={filter} onChange={(event) => setFilter(event.target.value)}>
             <option value="ALL">{language.filters.allActions}</option>
-            <option value="BUY">BUY</option>
+            <option value="POTENTIAL_BUY">POTENTIAL BUY</option>
             <option value="WAIT">WAIT</option>
             <option value="HOLD">HOLD</option>
             <option value="SELL">SELL</option>
@@ -131,7 +131,11 @@ export function SignalCenterView({ locale = DEFAULT_LOCALE }: SignalCenterViewPr
                     </div>
                     <SignalBadge signal={decision.recommendation} />
                   </div>
-                  <p>{localizedReason}</p>
+                  <p>
+                    {decision.recommendation === "POTENTIAL_BUY" && decision.entryCondition
+                      ? decision.entryCondition
+                      : localizedReason}
+                  </p>
                   <div className="signal-visual-row">
                     <div className="signal-confidence-meter" aria-label={language.row.confidenceAria(decision.confidence)}>
                       <span style={{ width: `${decision.confidence}%` }} />

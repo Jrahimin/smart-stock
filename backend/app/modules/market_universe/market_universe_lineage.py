@@ -18,6 +18,12 @@ def compute_universe_payload_revision(rows: list[ScoredUniverseRow]) -> str:
                 "shared_decision_id": canonical.shared_decision_id if canonical else None,
                 "input_hash": canonical.input_hash if canonical else None,
                 "recommendation": canonical.recommendation if canonical else None,
+                "internal_action": canonical.internal_action if canonical else None,
+                "display_action": canonical.display_action if canonical else None,
+                "decision_taxonomy_version": (
+                    canonical.decision_taxonomy_version if canonical else None
+                ),
+                "entry_timing": canonical.entry_timing if canonical else None,
                 "eligibility_status": canonical.eligibility_status if canonical else None,
             }
         )

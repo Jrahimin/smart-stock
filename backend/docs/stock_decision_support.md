@@ -23,16 +23,19 @@ GET /api/v1/stock-details/DSE/ACMEPL/decision-support
 ## Current Outputs
 
 - **Canonical decision identity** — `strategy_version`, `threshold_version`,
-  `action_taxonomy`, exchange/session `as_of_date`, `previous_session_date`,
+  `action_taxonomy=TRADER_DECISION_V2`, `decision_taxonomy_version=v2`,
+  exchange/session `as_of_date`, `previous_session_date`,
   `calculated_at`, deterministic `shared_decision_id`, `input_schema_version`,
   `data_revision`, `event_revision`, `input_hash`, replay status/limitations,
-  result semantics, primary reason, contextual actions, eligibility and plan
-  status.
+  result semantics, primary reason, contextual actions, eligibility, ordered
+  blocker codes, opportunity quality, entry readiness/timing, regime result,
+  and plan status.
 - **Technical snapshot** — the same authoritative scalar technical projection
   supplied to universe/list consumers; clients use raw candles only for charts.
-- **Trader decision** — compatibility `BUY`, `HOLD`, `WAIT`, or `SELL`, plus
-  portfolio-neutral `stance`, `non_holder_action`, `holder_action`, an explicit
-  `primary_reason`, and authoritative constraints.
+- **Trader decision** — internal compatibility `recommendation` plus an explicit
+  public `display_action` (`POTENTIAL_BUY`, `WAIT`, or `SELL`), entry timing and
+  condition, portfolio-neutral `stance`, contextual holder/non-holder actions,
+  an explicit `primary_reason`, and authoritative constraints.
 - **Evidence strength** — direction-aware technical agreement and coverage. The
   legacy `confidence` field remains equal-valued and tagged
   `confidence_semantics=HEURISTIC_EVIDENCE`; neither value is probability.
@@ -41,11 +44,15 @@ GET /api/v1/stock-details/DSE/ACMEPL/decision-support
 - **Data reliability** — freshness, valid-history coverage, source/window
   quality, atomic-row validity, and corporate-action resolution.
 - **Trading risk** — volatility/gap, category, and overextension only.
-- **Opportunity score** — backward-compatible long-setup composite.
+- **Opportunity score** — backward-compatible long-setup composite, paired with
+  typed `WEAK` / `CONSTRUCTIVE` / `STRONG` completed-session quality.
 - **Risk score** — backward-compatible legacy composite; new decisions use the
   separate `trading_risk`, `liquidity`, and `data_reliability` results.
 - **Price position** — distance to support/resistance and moving averages
-- **Trade plan** — entry zone, structural stop, target zone, conservative risk/reward, `status`, and machine-readable `reasons`
+- **Trade plan** — entry zone, structural invalidation, optional target zone,
+  conservative risk/reward, `READY` / `PULLBACK` / `BREAKOUT` / `CONTINUATION`
+  timing, readiness, condition/confirmation/expiry fields, management mode,
+  `status`, and machine-readable `reasons`.
 - **Liquidity analysis** — robust traded-session volume baseline, median turnover, provenance, coverage, and label
 - **Eligibility** — `ELIGIBLE`, `LIMITED`, `REVIEW_ONLY`, or `INELIGIBLE` with machine-readable reasons
 - **Smart warnings** — deterministic warning cards with severity
@@ -106,7 +113,76 @@ Included in the same API response without breaking Phase 1 fields:
 - Flags and triangles remain `Forming` until price crosses a pre-trigger boundary with volume confirmation. A symmetrical triangle remains neutral until an upside or downside trigger.
 - Pattern match and breakout evidence values are deterministic point scores, not calibrated confidence or probability.
 
-## Phase 3 Decision-Model Coherence
+## Decision Model Evolution Phase 2 — Conditional Opportunity
+
+Phase 2 is additive and keeps `TraderRecommendation.BUY` as the internal
+compatibility action. Phase 3 now projects it through the public taxonomy below.
+The canonical result and compact decision summaries now expose:
+
+- `opportunity_quality`: completed-session `WEAK`, `CONSTRUCTIVE`, or `STRONG`;
+- `entry_readiness`: `NOT_READY`, `CONDITIONAL`, or `READY`;
+- `entry_timing`: `READY`, `PULLBACK`, `BREAKOUT`, `CONTINUATION`, or `null`;
+- ordered `blocker_codes`; and
+- one capped regime result: score, label, phase, and confidence.
+
+Only a strong bullish completed-session opportunity with a valid condition and
+invalidation can retain the internal `BUY`. Strong evidence without a safe plan
+is `WAIT`. Data eligibility, corporate-action uncertainty, liquidity, high or
+speculative trading risk, extension, structure, and invalidation remain
+authoritative.
+
+Plan policies:
+
+- `READY` means the completed-session entry range is currently actionable.
+- `PULLBACK` requires a precise support or moving-average zone and expiry.
+- `BREAKOUT` requires a completed-session close/participation confirmation,
+  trigger, invalidation, objective/management rule, and expiry.
+- `CONTINUATION` is deliberately narrow: a completed breakout in price discovery
+  with no reliable overhead resistance. It uses structural/ATR invalidation,
+  trailing management, and a reassessment stop. It never fabricates a fixed
+  reward ratio.
+
+`STRUCTURAL`, `ATR_PROJECTION`, `MEASURED_MOVE`, and `TRAILING` are the supported
+management modes. The initial implementation uses structural targets for ready
+and pullback plans, an ATR projection for breakout when ATR is available (with
+measured-move fallback), and trailing management for target-less continuation.
+
+## Decision Model Evolution Phase 3 — Public Taxonomy And Replay
+
+Phase 3 separates engine state from trader-facing language. New canonical
+results use `TRADER_DECISION_V2` / `decision_taxonomy_version=v2`, retain
+`recommendation` and `internal_action` for deterministic compatibility, and
+expose `display_action` as the only public action source.
+
+`POTENTIAL_BUY` is fail-closed. It requires all of the following from the same
+completed session: internal `BUY`, `STRONG` opportunity quality,
+`READY`/`CONDITIONAL` readiness, one of the four typed entry timings, a valid
+entry plan, and a non-empty actionable condition. Any incomplete or legacy
+combination renders `WAIT`; internal `SELL` renders `SELL`. Generic screens do
+not render `HOLD`. The stock detail, Explorer, Scanner, Signals, Dashboard,
+Market Pulse, and non-holder Watchlist projections all use this mapping and
+show the entry condition within their existing UI structures.
+
+Holdings remain contextual: a canonical holder `HOLD` renders `HOLD`, `REVIEW`
+renders `WAIT`, and `SELL`/`REDUCE` renders `SELL`. This prevents a neutral
+non-holder watchlist item from looking like portfolio advice while preserving
+meaningful holder guidance.
+
+The v2 taxonomy is part of canonical shared identity, Redis keys/envelopes,
+Pulse comparison identity, immutable snapshot payloads, monitoring, and replay
+manifests. Prior v1 identities and persisted records remain readable and
+unchanged, but are not compared or relabeled as v2. Phase 3 requires no database
+migration because the additive fields live in existing versioned payloads.
+
+Replay now treats each timing as an execution policy: `READY` and
+`CONTINUATION` fill at the next eligible session; `PULLBACK` waits for its zone;
+`BREAKOUT` waits for completed close-and-volume confirmation and then fills on
+the following session. Conditional plans can expire or invalidate without an
+entry. Results cover 3, 5, 10, and 20 sessions and report timing, regime, and
+liquidity cohorts with activation, expectancy, MFE/MAE, and false-breakout
+diagnostics.
+
+## Trading-Intelligence Decision Coherence
 
 Decision precedence is fixed and explicit:
 
@@ -121,12 +197,12 @@ Context mapping:
 
 | Canonical state | Non-holder | Holder | Compatibility recommendation |
 |---|---|---|---|
-| Eligible bullish evidence + valid plan + no veto | `BUY` | `HOLD` | `BUY` |
+| Eligible bullish evidence + valid plan + no veto | `POTENTIAL_BUY` | `HOLD` | `BUY` |
 | Constructive but plan/downgrade constrained | `WAIT` | `HOLD` | `HOLD` |
 | Mixed/no directional edge | `WAIT` | `HOLD` | `WAIT` |
-| High/speculative risk or illiquid without bearish evidence | `AVOID` | `REVIEW` | `WAIT` |
-| Eligible support break or coherent bearish trend/momentum | `AVOID` | `SELL` | `SELL` |
-| Unreliable/ineligible/unresolved data | `WAIT` | `REVIEW` | `WAIT` |
+| High/speculative risk or illiquid without bearish evidence | `WAIT` | `WAIT` | `WAIT` |
+| Eligible support break or coherent bearish trend/momentum | `SELL` | `SELL` | `SELL` |
+| Unreliable/ineligible/unresolved data | `WAIT` | `WAIT` | `WAIT` |
 
 `SELL` is never inferred from risk alone. Each decision stores its primary
 reason separately, so compact-list reasoning cannot be replaced by a later
@@ -226,9 +302,10 @@ Data eligibility, corporate actions & regime:
   discontinuities become `REVIEW_ONLY`/`WAIT`; factors are never inferred. A
   continued genuine downtrend/crash is not reclassified as an adjustment.
 - **Market regime** (`market_regime.py`) — BULLISH/NEUTRAL/BEARISH from the
-  benchmark index trend and breadth; a bearish regime is an authoritative
-  downgrade constraint on fresh long exposure. It does not fabricate bearish
-  stock evidence. Resolved identically in universe and workspace paths.
+  benchmark index trend and breadth, returned as one score/label/phase/confidence
+  result. It may block an otherwise valid breakout/continuation policy but
+  cannot bypass a stock-level safeguard or fabricate bearish stock evidence.
+  Resolved identically in universe, workspace, and replay paths.
 
 ## Implementation Layout
 
@@ -239,6 +316,7 @@ Data eligibility, corporate actions & regime:
 - `backend/app/modules/stock_details/decision/constraints.py` — authoritative entry/exit/downgrade constraints
 - `backend/app/modules/stock_details/decision/recommendation.py` — contextual action matrix and primary reason
 - `backend/app/modules/stock_details/decision/scoring.py` — compatibility opportunity/risk projections and entry point
+- `backend/app/modules/stock_details/decision/conditional_opportunity.py` — typed quality and readiness policy
 - `backend/app/modules/stock_details/decision/trade_plan.py` — price position, liquidity, trade plan
 - `backend/app/modules/stock_details/decision/warnings.py` — smart warnings
 - `backend/app/modules/stock_details/decision/patterns.py` — pattern engine (validity filters + heuristic match score)

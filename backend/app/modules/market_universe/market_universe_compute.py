@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import date
 
 from app.models import DailyPrice, Stock
@@ -18,6 +19,7 @@ from app.modules.market_universe.market_universe_schemas import (
 )
 from app.modules.stock_details.decision.canonical import build_strategy_input
 from app.modules.stock_details.decision.engine import compute_trader_decision
+from app.modules.stock_details.decision.market_regime import MarketRegimeResult
 from app.modules.stock_details.decision.summary import build_trader_decision_summary
 from app.modules.stock_details.decision.technical import TechnicalSnapshot, build_technical_snapshot
 from app.modules.stock_details.stock_details_schemas import EligibilityResultRead
@@ -32,7 +34,9 @@ def group_price_window_rows(
         stock_id = str(stock.id)
         if stock_id not in grouped:
             grouped[stock_id] = {"stock": stock, "prices": []}
-        grouped[stock_id]["prices"].append(price)
+        prices = grouped[stock_id]["prices"]
+        if isinstance(prices, list):
+            prices.append(price)
     return grouped
 
 
@@ -138,11 +142,17 @@ def session_from_latest_price(price: DailyPrice) -> UniverseSessionRead:
 def build_scored_universe_rows(
     grouped: dict[str, dict[str, object]],
     *,
-    market_regime: str | None = None,
+    market_regime: MarketRegimeResult | str | None = None,
     exchange_session_dates: list[date] | tuple[date, ...] | None = None,
-    corporate_action_dates_by_stock: dict[object, set[date]] | None = None,
+    corporate_action_dates_by_stock: Mapping[object, set[date]] | None = None,
+    decision_session_date: date | None = None,
 ) -> list[ScoredUniverseRow]:
     scored: list[ScoredUniverseRow] = []
+    completed_session_dates = [
+        session_date
+        for session_date in exchange_session_dates or ()
+        if decision_session_date is None or session_date <= decision_session_date
+    ]
     scanner_matches_by_stock: dict[str, tuple[ScannerConditionMatch, ...]] = {}
     scanner_rank_candidates: list[ScannerRankCandidate] = []
     for entry in grouped.values():
@@ -151,7 +161,16 @@ def build_scored_universe_rows(
         if not isinstance(stock, Stock) or not isinstance(prices, list) or not prices:
             continue
 
-        sorted_prices = sorted(prices, key=lambda row: row.trade_date)
+        sorted_prices = sorted(
+            (
+                row
+                for row in prices
+                if decision_session_date is None or row.trade_date <= decision_session_date
+            ),
+            key=lambda row: row.trade_date,
+        )
+        if not sorted_prices:
+            continue
         snapshot = build_technical_snapshot(sorted_prices)
         if snapshot is None:
             continue
@@ -160,7 +179,7 @@ def build_scored_universe_rows(
             stock,
             sorted_prices,
             market_regime=market_regime,
-            exchange_session_dates=exchange_session_dates,
+            exchange_session_dates=completed_session_dates,
             known_corporate_action_dates=(corporate_action_dates_by_stock or {}).get(stock.id),
         )
         bundle = compute_trader_decision(strategy_input, snapshot=snapshot)

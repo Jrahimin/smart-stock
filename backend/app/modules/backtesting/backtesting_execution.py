@@ -3,6 +3,7 @@ from __future__ import annotations
 from bisect import bisect_right
 from datetime import date
 
+from app.core.enums import DecisionDisplayAction, EntryTiming
 from app.models import DailyMarketSummary
 from app.modules.backtesting.backtesting_models import (
     BacktestConfig,
@@ -36,39 +37,93 @@ def simulate_next_session_execution(
     session_dates: tuple[date, ...],
     config: BacktestConfig,
 ) -> ExecutionResult:
-    """Use exactly the next exchange session; never fill at the signal close or carry forward."""
+    """Execute READY immediately and activate conditional plans without look-ahead."""
     next_index = bisect_right(session_dates, observation.as_of_date)
     if next_index >= len(session_dates):
         return ExecutionResult(status="NO_NEXT_SESSION")
 
-    execution_date = session_dates[next_index]
     price_by_date = {price.trade_date: price for price in history.prices}
-    bar = price_by_date.get(execution_date)
-    if bar is None:
-        return ExecutionResult(status="NO_STOCK_BAR", execution_date=execution_date)
-    if execution_date in history.suspension_dates:
-        return ExecutionResult(status="SUSPENDED", execution_date=execution_date)
-    if execution_date in history.circuit_locked_dates:
-        return ExecutionResult(status="CIRCUIT_LOCKED", execution_date=execution_date)
-    if bar.volume <= 0:
-        return ExecutionResult(status="ZERO_VOLUME", execution_date=execution_date)
 
-    raw_price = float(bar.open_price if config.execution_price == "open" else bar.close_price)
-    if raw_price <= 0:
-        return ExecutionResult(status="INVALID_EXECUTION_PRICE", execution_date=execution_date)
+    def execute_on(execution_date: date, *, raw_price: float | None = None) -> ExecutionResult:
+        bar = price_by_date.get(execution_date)
+        if bar is None:
+            return ExecutionResult(status="NO_STOCK_BAR", execution_date=execution_date)
+        if execution_date in history.suspension_dates:
+            return ExecutionResult(status="SUSPENDED", execution_date=execution_date)
+        if execution_date in history.circuit_locked_dates:
+            return ExecutionResult(status="CIRCUIT_LOCKED", execution_date=execution_date)
+        if bar.volume <= 0:
+            return ExecutionResult(status="ZERO_VOLUME", execution_date=execution_date)
 
-    capacity = (observation.median_turnover or 0.0) * config.maximum_turnover_fraction
-    if capacity <= 0 or config.order_value_bdt > capacity:
-        return ExecutionResult(status="CAPACITY_EXCEEDED", execution_date=execution_date)
+        resolved_price = raw_price
+        if resolved_price is None:
+            resolved_price = float(
+                bar.open_price if config.execution_price == "open" else bar.close_price
+            )
+        if resolved_price <= 0:
+            return ExecutionResult(
+                status="INVALID_EXECUTION_PRICE",
+                execution_date=execution_date,
+            )
 
-    slippage = _slippage_bps(observation.median_turnover, config)
-    return ExecutionResult(
-        status="FILLED",
-        execution_date=execution_date,
-        raw_price=raw_price,
-        fill_price=raw_price * (1 + slippage / 10_000),
-        slippage_bps=slippage,
+        capacity = (observation.median_turnover or 0.0) * config.maximum_turnover_fraction
+        if capacity <= 0 or config.order_value_bdt > capacity:
+            return ExecutionResult(status="CAPACITY_EXCEEDED", execution_date=execution_date)
+
+        slippage = _slippage_bps(observation.median_turnover, config)
+        return ExecutionResult(
+            status="FILLED",
+            execution_date=execution_date,
+            raw_price=resolved_price,
+            fill_price=resolved_price * (1 + slippage / 10_000),
+            slippage_bps=slippage,
+        )
+
+    is_potential_buy = (
+        observation.display_action == DecisionDisplayAction.POTENTIAL_BUY
     )
+    timing = observation.entry_timing
+    if not is_potential_buy or timing in {None, EntryTiming.READY, EntryTiming.CONTINUATION}:
+        return execute_on(session_dates[next_index])
+
+    expiry = max(1, observation.expiry_sessions or 1)
+    activation_dates = session_dates[next_index : next_index + expiry]
+    for activation_date in activation_dates:
+        bar = price_by_date.get(activation_date)
+        if bar is None:
+            continue
+        if (
+            observation.invalidation_price is not None
+            and float(bar.low_price) <= observation.invalidation_price
+        ):
+            return ExecutionResult(
+                status="INVALIDATED_BEFORE_ENTRY",
+                execution_date=activation_date,
+            )
+
+        if timing == EntryTiming.PULLBACK:
+            zone_low = observation.preferred_entry_zone_low
+            zone_high = observation.preferred_entry_zone_high
+            if zone_low is None or zone_high is None:
+                return ExecutionResult(status="EXPIRED_WITHOUT_ENTRY")
+            if float(bar.low_price) <= zone_high and float(bar.high_price) >= zone_low:
+                raw_price = min(max(float(bar.open_price), zone_low), zone_high)
+                return execute_on(activation_date, raw_price=raw_price)
+
+        if timing == EntryTiming.BREAKOUT:
+            trigger = observation.trigger_price
+            volume_confirmed = (
+                observation.average_volume is not None
+                and observation.average_volume > 0
+                and bar.volume >= observation.average_volume
+            )
+            if trigger is not None and float(bar.close_price) > trigger and volume_confirmed:
+                confirmation_index = bisect_right(session_dates, activation_date)
+                if confirmation_index >= len(session_dates):
+                    return ExecutionResult(status="NO_NEXT_SESSION")
+                return execute_on(session_dates[confirmation_index])
+
+    return ExecutionResult(status="EXPIRED_WITHOUT_ENTRY")
 
 
 def _benchmark_close_by_date(
@@ -101,9 +156,13 @@ def compute_forward_outcome(
             execution_status=execution.status,
         )
 
-    signal_index = bisect_right(session_dates, observation.as_of_date) - 1
-    horizon_index = signal_index + horizon_sessions
-    if signal_index < 0 or horizon_index >= len(session_dates):
+    execution_index = (
+        bisect_right(session_dates, execution.execution_date) - 1
+        if execution.execution_date is not None
+        else -1
+    )
+    horizon_index = execution_index + horizon_sessions
+    if execution_index < 0 or horizon_index >= len(session_dates):
         return ForwardOutcome(
             stock_id=observation.stock_id,
             as_of_date=observation.as_of_date,
@@ -154,8 +213,8 @@ def compute_forward_outcome(
         )
 
     raw_close_return = (
-        (float(horizon_bar.close_price) / observation.close_price - 1) * 100
-        if observation.close_price > 0
+        (float(horizon_bar.close_price) / execution.raw_price - 1) * 100
+        if execution.raw_price is not None and execution.raw_price > 0
         else None
     )
     exit_price = float(horizon_bar.close_price) * (
@@ -166,9 +225,9 @@ def compute_forward_outcome(
 
     benchmark = _benchmark_close_by_date(market_summaries)
     benchmark_return: float | None = None
-    if observation.as_of_date in benchmark and horizon_date in benchmark:
+    if execution.execution_date in benchmark and horizon_date in benchmark:
         benchmark_return = (
-            benchmark[horizon_date] / benchmark[observation.as_of_date] - 1
+            benchmark[horizon_date] / benchmark[execution.execution_date] - 1
         ) * 100
 
     path = [

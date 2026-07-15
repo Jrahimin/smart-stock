@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from app.core.enums import DecisionDisplayAction
 from app.modules.stock_details.decision.engine import TraderDecisionBundle
 from app.modules.stock_details.stock_details_schemas import (
     DataReliabilityRead,
@@ -14,8 +15,12 @@ from app.modules.stock_details.stock_details_schemas import (
 def build_trader_decision_summary(bundle: TraderDecisionBundle) -> TraderDecisionSummaryRead:
     data_reliability = bundle.data_reliability
     trading_risk = bundle.trading_risk
+    canonical = bundle.canonical_result
     return TraderDecisionSummaryRead(
         recommendation=bundle.decision.recommendation,
+        internal_action=(canonical.internal_action if canonical else bundle.decision.recommendation),
+        display_action=(canonical.display_action if canonical else DecisionDisplayAction.WAIT),
+        decision_taxonomy_version=(canonical.decision_taxonomy_version if canonical else "v1"),
         confidence=bundle.decision.confidence,
         reason=bundle.decision.primary_reason,
         opportunity_score=bundle.opportunity.score,
@@ -64,6 +69,19 @@ def build_trader_decision_summary(bundle: TraderDecisionBundle) -> TraderDecisio
             )
             for constraint in bundle.decision.constraints
         ],
+        opportunity_quality=(
+            bundle.opportunity_quality.quality
+            if bundle.opportunity_quality is not None
+            else None
+        ),
+        entry_readiness=bundle.trade_plan.entry_readiness,
+        entry_timing=bundle.trade_plan.entry_timing,
+        entry_condition=(canonical.entry_condition if canonical else None),
+        blocker_codes=(
+            list(bundle.canonical_result.blocker_codes)
+            if bundle.canonical_result is not None
+            else []
+        ),
         canonical=(
             canonical_decision_to_read(bundle.canonical_result)
             if bundle.canonical_result is not None

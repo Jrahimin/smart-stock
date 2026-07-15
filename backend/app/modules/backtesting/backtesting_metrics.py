@@ -6,7 +6,12 @@ from datetime import date
 from statistics import mean, median
 from uuid import UUID
 
-from app.core.enums import EligibilityStatus, TraderRecommendation
+from app.core.enums import (
+    DecisionDisplayAction,
+    EligibilityStatus,
+    EntryTiming,
+    TraderRecommendation,
+)
 from app.modules.backtesting.backtesting_models import (
     BacktestConfig,
     ForwardOutcome,
@@ -28,6 +33,16 @@ def _outcome_index(
         for outcome in outcomes
         if outcome.horizon_sessions == horizon
     }
+
+
+def _display_action(item: ReplayObservation) -> DecisionDisplayAction:
+    if item.display_action is not None:
+        return item.display_action
+    if item.recommendation == TraderRecommendation.BUY:
+        return DecisionDisplayAction.POTENTIAL_BUY
+    if item.recommendation == TraderRecommendation.SELL:
+        return DecisionDisplayAction.SELL
+    return DecisionDisplayAction.WAIT
 
 
 def select_pulse_top_k(
@@ -91,13 +106,40 @@ def _strategy_summary(
         if outcome.maximum_adverse_excursion_percent is not None
     ]
     status_counts = Counter(outcome.status for outcome in candidate_outcomes)
+    expired_count = sum(
+        outcome.execution_status == "EXPIRED_WITHOUT_ENTRY"
+        for outcome in candidate_outcomes
+    )
+    invalidated_count = sum(
+        outcome.execution_status == "INVALIDATED_BEFORE_ENTRY"
+        for outcome in candidate_outcomes
+    )
+    breakout_returns = [
+        outcome.net_return_percent
+        for item in candidates
+        if item.entry_timing == EntryTiming.BREAKOUT
+        and (outcome := outcome_by_key.get((item.stock_id, item.as_of_date))) is not None
+        and outcome.status == "AVAILABLE"
+        and outcome.net_return_percent is not None
+    ]
     return {
         "candidate_count": len(candidates),
         "execution_fill_count": len(filled),
         "execution_fill_rate": _round(len(filled) / len(candidates) if candidates else None),
         "available_outcome_count": len(available),
+        "trigger_activation_rate": _round(
+            len(filled) / len(candidates) if candidates else None
+        ),
+        "expired_without_entry_rate": _round(
+            expired_count / len(candidates) if candidates else None
+        ),
+        "invalidated_before_entry_rate": _round(
+            invalidated_count / len(candidates) if candidates else None
+        ),
         "outcome_status_counts": dict(sorted(status_counts.items())),
         "median_net_return_percent": _round(median(net_returns) if net_returns else None),
+        "average_net_return_percent": _round(mean(net_returns) if net_returns else None),
+        "expectancy_percent": _round(mean(net_returns) if net_returns else None),
         "median_excess_return_percent": _round(
             median(excess_returns) if excess_returns else None
         ),
@@ -113,24 +155,46 @@ def _strategy_summary(
         ),
         "median_mfe_percent": _round(median(mfe) if mfe else None),
         "median_mae_percent": _round(median(mae) if mae else None),
+        "worst_mae_percent": _round(min(mae) if mae else None),
+        "maximum_drawdown_percent": _round(min(mae) if mae else None),
+        "false_breakout_rate": _round(
+            sum(value < 0 for value in breakout_returns) / len(breakout_returns)
+            if breakout_returns
+            else None
+        ),
     }
 
 
 def build_decision_metrics(
     observations: tuple[ReplayObservation, ...],
 ) -> dict[str, object]:
-    actions = Counter(item.recommendation.value for item in observations)
+    internal_actions = Counter(item.recommendation.value for item in observations)
+    display_actions = Counter(_display_action(item).value for item in observations)
+    timings = Counter(
+        item.entry_timing.value
+        for item in observations
+        if _display_action(item) == DecisionDisplayAction.POTENTIAL_BUY
+        and item.entry_timing is not None
+    )
     eligibility = Counter(item.eligibility_status.value for item in observations)
     eligibility_reasons = Counter(
         reason
         for item in observations
         for reason in item.eligibility_reason_codes
     )
+    blockers = Counter(
+        blocker
+        for item in observations
+        for blocker in item.blocker_codes
+    )
     eligible_count = eligibility.get(EligibilityStatus.ELIGIBLE.value, 0)
     return {
-        "action_counts": dict(sorted(actions.items())),
+        "action_counts": dict(sorted(display_actions.items())),
+        "internal_action_counts": dict(sorted(internal_actions.items())),
+        "entry_timing_counts": dict(sorted(timings.items())),
         "eligibility_counts": dict(sorted(eligibility.items())),
         "eligibility_reason_counts": dict(sorted(eligibility_reasons.items())),
+        "blocker_code_counts": dict(sorted(blockers.items())),
         "eligible_coverage": _round(
             eligible_count / len(observations) if observations else None
         ),
@@ -150,7 +214,18 @@ def build_strategy_metrics(
         if item.eligibility_status == EligibilityStatus.ELIGIBLE
     )
     strategies: dict[str, Callable[[ReplayObservation], bool]] = {
-        "canonical_buy": lambda item: item.recommendation == TraderRecommendation.BUY,
+        "potential_buy_all": lambda item: (
+            _display_action(item) == DecisionDisplayAction.POTENTIAL_BUY
+        ),
+        **{
+            f"potential_buy_{timing.value.lower()}": (
+                lambda item, resolved_timing=timing: (
+                    _display_action(item) == DecisionDisplayAction.POTENTIAL_BUY
+                    and item.entry_timing == resolved_timing
+                )
+            )
+            for timing in EntryTiming
+        },
         "price_above_sma20": lambda item: (
             item.sma20 is not None and item.close_price > item.sma20
         ),
@@ -174,19 +249,19 @@ def build_strategy_metrics(
         top_k=config.pulse_top_k,
     )
     metrics["pulse_top_k"] = _strategy_summary(pulse, outcome_by_key)
-    canonical_buy_outcomes = [
+    potential_buy_outcomes = [
         outcome_by_key[(item.stock_id, item.as_of_date)]
         for item in eligible
-        if item.recommendation == TraderRecommendation.BUY
+        if _display_action(item) == DecisionDisplayAction.POTENTIAL_BUY
         and (item.stock_id, item.as_of_date) in outcome_by_key
         and outcome_by_key[(item.stock_id, item.as_of_date)].status == "AVAILABLE"
         and outcome_by_key[(item.stock_id, item.as_of_date)].benchmark_return_percent is not None
     ]
     benchmark_returns: list[float] = []
-    for outcome in canonical_buy_outcomes:
+    for outcome in potential_buy_outcomes:
         if outcome.benchmark_return_percent is not None:
             benchmark_returns.append(outcome.benchmark_return_percent)
-    metrics["dsex_benchmark_on_canonical_buy_dates"] = {
+    metrics["dsex_benchmark_on_potential_buy_dates"] = {
         "sample_count": len(benchmark_returns),
         "median_return_percent": _round(
             median(benchmark_returns) if benchmark_returns else None
@@ -198,7 +273,26 @@ def build_strategy_metrics(
         "assumed_return_percent": 0.0,
         "description": "Predeclared no-exposure baseline.",
     }
-    return {"primary_horizon_sessions": horizon, "strategies": metrics}
+    entry_timing_cohorts: dict[str, object] = {}
+    for cohort_horizon in config.horizons:
+        cohort_outcomes = _outcome_index(outcomes, cohort_horizon)
+        entry_timing_cohorts[str(cohort_horizon)] = {
+            timing.value: _strategy_summary(
+                tuple(
+                    item
+                    for item in eligible
+                    if _display_action(item) == DecisionDisplayAction.POTENTIAL_BUY
+                    and item.entry_timing == timing
+                ),
+                cohort_outcomes,
+            )
+            for timing in EntryTiming
+        }
+    return {
+        "primary_horizon_sessions": horizon,
+        "strategies": metrics,
+        "entry_timing_cohorts": entry_timing_cohorts,
+    }
 
 
 def build_stratified_metrics(
@@ -206,14 +300,14 @@ def build_stratified_metrics(
     outcomes: tuple[ForwardOutcome, ...],
     config: BacktestConfig,
 ) -> dict[str, object]:
-    """Stratify canonical BUY outcomes with counts; current category is labeled as a snapshot."""
+    """Stratify v2 potential-buy outcomes; current category remains a snapshot proxy."""
     horizon = 10 if 10 in config.horizons else config.horizons[0]
     outcome_by_key = _outcome_index(outcomes, horizon)
-    buys = tuple(
+    potential_buys = tuple(
         item
         for item in observations
         if item.eligibility_status == EligibilityStatus.ELIGIBLE
-        and item.recommendation == TraderRecommendation.BUY
+        and _display_action(item) == DecisionDisplayAction.POTENTIAL_BUY
     )
 
     def liquidity_bucket(item: ReplayObservation) -> str:
@@ -238,20 +332,41 @@ def build_stratified_metrics(
 
     dimensions: dict[str, Callable[[ReplayObservation], str]] = {
         "market_regime": lambda item: item.market_regime,
+        "regime_phase": lambda item: item.regime_phase.value,
+        "entry_timing": lambda item: (
+            item.entry_timing.value if item.entry_timing is not None else "UNKNOWN"
+        ),
         "sector": lambda item: item.sector or "UNKNOWN",
         "liquidity_capacity": liquidity_bucket,
         "traded_session_coverage": traded_bucket,
         "current_category_snapshot": lambda item: item.category or "UNKNOWN",
     }
-    result: dict[str, object] = {"horizon_sessions": horizon}
+    grouped_dimensions: dict[str, dict[str, list[ReplayObservation]]] = {}
     for dimension, resolver in dimensions.items():
         grouped: dict[str, list[ReplayObservation]] = defaultdict(list)
-        for item in buys:
+        for item in potential_buys:
             grouped[resolver(item)].append(item)
-        result[dimension] = {
-            key: _strategy_summary(tuple(grouped[key]), outcome_by_key)
-            for key in sorted(grouped)
+        grouped_dimensions[dimension] = grouped
+
+    def summarize_horizon(cohort_horizon: int) -> dict[str, object]:
+        cohort_outcomes = _outcome_index(outcomes, cohort_horizon)
+        return {
+            dimension: {
+                key: _strategy_summary(tuple(grouped[key]), cohort_outcomes)
+                for key in sorted(grouped)
+            }
+            for dimension, grouped in grouped_dimensions.items()
         }
+
+    primary_summary = summarize_horizon(horizon)
+    result: dict[str, object] = {
+        "horizon_sessions": horizon,
+        **primary_summary,
+        "by_horizon": {
+            str(cohort_horizon): summarize_horizon(cohort_horizon)
+            for cohort_horizon in config.horizons
+        },
+    }
     return result
 
 
@@ -373,7 +488,7 @@ def build_calibration_diagnostic(
     for observation in observations:
         if not frozen_test.start <= observation.as_of_date <= frozen_test.end:
             continue
-        if observation.recommendation != TraderRecommendation.BUY:
+        if _display_action(observation) != DecisionDisplayAction.POTENTIAL_BUY:
             continue
         outcome = outcome_by_key.get((observation.stock_id, observation.as_of_date))
         if (
@@ -394,7 +509,7 @@ def build_calibration_diagnostic(
             "event_definition": event_definition,
             "sample_count": 0,
             "probability_exposed": False,
-            "reason": "No held-out canonical BUY outcome has complete benchmark coverage.",
+            "reason": "No held-out POTENTIAL_BUY outcome has complete benchmark coverage.",
         }
 
     base_rate = mean(label for _, label in samples)
@@ -453,15 +568,15 @@ def build_sensitivity_results(
 ) -> tuple[dict[str, object], ...]:
     horizon = 10 if 10 in config.horizons else config.horizons[0]
     outcome_by_key = _outcome_index(outcomes, horizon)
-    buys = tuple(
+    potential_buys = tuple(
         item
         for item in observations
         if item.eligibility_status == EligibilityStatus.ELIGIBLE
-        and item.recommendation == TraderRecommendation.BUY
+        and _display_action(item) == DecisionDisplayAction.POTENTIAL_BUY
     )
     available_buy_returns = [
         outcome.net_return_percent
-        for item in buys
+        for item in potential_buys
         if (outcome := outcome_by_key.get((item.stock_id, item.as_of_date))) is not None
         and outcome.status == "AVAILABLE"
         and outcome.net_return_percent is not None
@@ -475,7 +590,7 @@ def build_sensitivity_results(
                 "kind": "one_way_cost_bps",
                 "value": cost_bps,
                 "sample_count": len(adjusted),
-                "canonical_buy_median_net_return_percent": _round(
+                "potential_buy_median_net_return_percent": _round(
                     median(adjusted) if adjusted else None
                 ),
             }

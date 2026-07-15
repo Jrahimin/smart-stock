@@ -191,10 +191,15 @@ export function StockExplorerView() {
         cell: (info) => {
           const decision = decisionByStockId.get(info.row.original.stock.id)!;
           return (
-            <span className={`signal-chip signal-chip-${decision.recommendation.toLowerCase()}`} title={decision.reason}>
-              <span className={`signal-dot signal-dot-${decision.recommendation.toLowerCase()}`} />
-              {decision.recommendation}
-            </span>
+            <div className="signal-action-with-condition">
+              <span className={`signal-chip signal-chip-${decision.recommendation.toLowerCase()}`} title={decision.reason}>
+                <span className={`signal-dot signal-dot-${decision.recommendation.toLowerCase()}`} />
+                {decision.recommendation.replace("_", " ")}
+              </span>
+              {decision.recommendation === "POTENTIAL_BUY" && decision.entryCondition ? (
+                <small>{decision.entryCondition}</small>
+              ) : null}
+            </div>
           );
         },
       }),
@@ -256,7 +261,7 @@ export function StockExplorerView() {
         <div className="explorer-controls">
           <select value={signalFilter} onChange={(event) => setSignalFilter(event.target.value)}>
             <option value="ALL">All actions</option>
-            <option value="BUY">BUY</option>
+            <option value="POTENTIAL_BUY">POTENTIAL BUY</option>
             <option value="WAIT">WAIT</option>
             <option value="HOLD">HOLD</option>
             <option value="SELL">SELL</option>

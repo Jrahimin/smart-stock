@@ -3,14 +3,18 @@ from __future__ import annotations
 from app.core.constants.trading_constants import (
     DIRECTIONAL_EVIDENCE_ACTION_MIN,
     DIRECTIONAL_EVIDENCE_CONSTRUCTIVE_MIN,
+    MIN_RISK_REWARD_RATIO,
 )
 from app.core.enums import (
     DecisionConstraintKind,
     EligibilityStatus,
+    EntryReadiness,
+    EntryTiming,
     EvidenceDirection,
     HolderAction,
     LiquidityLabel,
     NonHolderAction,
+    OpportunityQuality,
     TradePlanStatus,
     TraderRecommendation,
     TraderStance,
@@ -27,6 +31,7 @@ from app.modules.stock_details.decision.evidence import (
     compute_evidence_strength,
     data_reliability_from_flags,
 )
+from app.modules.stock_details.decision.market_regime import MarketRegimeResult
 from app.modules.stock_details.decision.risk import TradingRiskResult
 from app.modules.stock_details.decision.scoring import (
     DecisionResult,
@@ -36,9 +41,6 @@ from app.modules.stock_details.decision.scoring import (
 from app.modules.stock_details.decision.technical import TechnicalSnapshot
 
 _DATA_BLOCK_CODES = {"data_eligibility", "corporate_action_review"}
-_FRESH_ENTRY_BLOCK_CODES = {"elevated_trading_risk", "illiquid"}
-
-
 def _has_kind(constraints: ConstraintResult, kind: DecisionConstraintKind) -> bool:
     return any(constraint.kind == kind for constraint in constraints.constraints)
 
@@ -55,7 +57,7 @@ def compute_recommendation(
     is_sparse: bool,
     liquidity_label: LiquidityLabel | None = None,
     suspected_adjustment: bool = False,
-    market_regime: str | None = None,
+    market_regime: MarketRegimeResult | str | None = None,
     trade_plan_status: TradePlanStatus | None = None,
     eligibility_status: EligibilityStatus | None = None,
     eligibility_reasons: tuple[str, ...] = (),
@@ -63,6 +65,9 @@ def compute_recommendation(
     data_reliability: DataReliabilityResult | None = None,
     trading_risk: TradingRiskResult | None = None,
     constraints: ConstraintResult | None = None,
+    opportunity_quality: OpportunityQuality | None = None,
+    entry_readiness: EntryReadiness | None = None,
+    entry_timing: EntryTiming | None = None,
 ) -> DecisionResult:
     """Apply one explicit portfolio-neutral stance and contextual action matrix."""
     evidence = directional_evidence or compute_directional_evidence(snapshot)
@@ -71,11 +76,14 @@ def compute_recommendation(
         is_sparse=is_sparse,
     )
     canonical_risk_label = trading_risk.label if trading_risk is not None else risk.label
+    resolved_trade_plan_status = trade_plan_status
+    if risk_reward is not None and risk_reward < MIN_RISK_REWARD_RATIO:
+        resolved_trade_plan_status = TradePlanStatus.WATCH_ONLY
     resolved_constraints = constraints or build_decision_constraints(
         snapshot,
         trading_risk_label=canonical_risk_label,
         liquidity_label=liquidity_label,
-        trade_plan_status=trade_plan_status,
+        trade_plan_status=resolved_trade_plan_status,
         eligibility_status=eligibility_status,
         eligibility_reasons=eligibility_reasons,
         is_stale=is_stale,
@@ -84,6 +92,7 @@ def compute_recommendation(
         below_support=below_support,
         near_resistance=near_resistance,
         market_regime=market_regime,
+        entry_timing=entry_timing,
     )
 
     reasoning = [
@@ -94,19 +103,42 @@ def compute_recommendation(
             f"(bullish {evidence.bullish_score}, bearish {evidence.bearish_score})."
         ),
         f"Opportunity compatibility score: {opportunity.score}/100.",
+        (
+            f"Opportunity quality: {opportunity_quality.value.lower()}."
+            if opportunity_quality is not None
+            else "Opportunity quality: legacy resolver input."
+        ),
         f"Trading risk: {canonical_risk_label.value}.",
         f"Data reliability: {reliability.label.value} ({reliability.score}/100).",
     ]
 
     data_blocked = resolved_constraints.has_code(*_DATA_BLOCK_CODES)
     exit_or_avoid = resolved_constraints.requires_exit_or_avoid
-    entry_risk_blocked = resolved_constraints.has_code(*_FRESH_ENTRY_BLOCK_CODES)
+    entry_risk_blocked = any(
+        constraint.kind == DecisionConstraintKind.BLOCK
+        and constraint.code
+        not in {*_DATA_BLOCK_CODES, "entry_plan_not_valid"}
+        for constraint in resolved_constraints.constraints
+    )
     plan_blocked = resolved_constraints.has_code("entry_plan_not_valid")
     downgraded = _has_kind(resolved_constraints, DecisionConstraintKind.DOWNGRADE)
     bullish_setup = (
         evidence.direction == EvidenceDirection.BULLISH
         and evidence.bullish_score >= DIRECTIONAL_EVIDENCE_ACTION_MIN
         and snapshot.trend == TrendDirection.UPTREND
+    )
+    strong_opportunity = (
+        opportunity_quality is None or opportunity_quality == OpportunityQuality.STRONG
+    )
+    actionable_readiness = entry_readiness in {
+        None,
+        EntryReadiness.READY,
+        EntryReadiness.CONDITIONAL,
+    }
+    has_phase_two_outputs = (
+        opportunity_quality is not None
+        or entry_readiness is not None
+        or entry_timing is not None
     )
     constructive_setup = (
         snapshot.trend == TrendDirection.UPTREND
@@ -152,13 +184,15 @@ def compute_recommendation(
             "wait rather than forcing a fresh entry."
         )
     elif bullish_setup and plan_blocked:
-        recommendation = TraderRecommendation.HOLD
+        recommendation = (
+            TraderRecommendation.WAIT if has_phase_two_outputs else TraderRecommendation.HOLD
+        )
         stance = TraderStance.CONSTRUCTIVE
         non_holder_action = NonHolderAction.WAIT
         holder_action = HolderAction.HOLD
         primary_reason_code = "entry_plan_not_valid"
         primary_reason = (
-            "A valid entry plan is unavailable; hold existing positions rather than buy."
+            "Bullish evidence lacks a safe actionable entry plan; non-holders should wait."
         )
     elif bullish_setup and downgraded:
         recommendation = TraderRecommendation.HOLD
@@ -191,13 +225,24 @@ def compute_recommendation(
                 "The bullish setup is constructive, but an authoritative constraint "
                 "blocks a fresh entry."
             )
-    elif bullish_setup and trade_plan_status == TradePlanStatus.VALID_ENTRY_PLAN:
+    elif (
+        bullish_setup
+        and strong_opportunity
+        and actionable_readiness
+        and resolved_trade_plan_status == TradePlanStatus.VALID_ENTRY_PLAN
+    ):
         recommendation = TraderRecommendation.BUY
         stance = TraderStance.BULLISH
         non_holder_action = NonHolderAction.BUY
         holder_action = HolderAction.HOLD
-        primary_reason_code = "bullish_setup_valid_entry"
-        primary_reason = "Uptrend and directional evidence align with a valid entry plan."
+        primary_reason_code = (
+            f"bullish_setup_{entry_timing.value.lower()}"
+            if entry_timing is not None
+            else "bullish_setup_valid_entry"
+        )
+        primary_reason = (
+            "Strong completed-session evidence aligns with a valid, meaningful entry condition."
+        )
     elif constructive_setup:
         recommendation = TraderRecommendation.HOLD
         stance = TraderStance.CONSTRUCTIVE

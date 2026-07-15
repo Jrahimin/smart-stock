@@ -7,6 +7,7 @@ from uuid import uuid4
 import pytest
 
 from app.core.constants.trading_constants import (
+    DECISION_TAXONOMY_VERSION,
     PULSE_SCORE_VERSION,
     TRADING_INPUT_SCHEMA_VERSION,
     TRADING_STRATEGY_VERSION,
@@ -134,14 +135,16 @@ def _decision(recommendation: TraderRecommendation, confidence: int = 72) -> Tra
 def test_invalidation_key_lists_cover_presentation_and_foundation() -> None:
     assert universe_cache_key("scored", ExchangeCode.DSE) == (
         f"universe:scored:DSE:{TRADING_STRATEGY_VERSION}:"
-        f"{TRADING_THRESHOLD_VERSION}:{TRADING_INPUT_SCHEMA_VERSION}"
+        f"{TRADING_THRESHOLD_VERSION}:{TRADING_INPUT_SCHEMA_VERSION}:"
+        f"{DECISION_TAXONOMY_VERSION}"
     )
     assert universe_cache_key("scored", ExchangeCode.DSE, "future-v2") != universe_cache_key(
         "scored", ExchangeCode.DSE
     )
     assert pulse_cache_key("response", ExchangeCode.DSE) == (
         f"pulse:response:DSE:{TRADING_STRATEGY_VERSION}:"
-        f"{TRADING_THRESHOLD_VERSION}:{TRADING_INPUT_SCHEMA_VERSION}:{PULSE_SCORE_VERSION}"
+        f"{TRADING_THRESHOLD_VERSION}:{TRADING_INPUT_SCHEMA_VERSION}:{PULSE_SCORE_VERSION}:"
+        f"{DECISION_TAXONOMY_VERSION}"
     )
     assert "overview" in DASHBOARD_CACHE_KEY_NAMES
     assert "response" in PULSE_CACHE_KEY_NAMES
@@ -236,6 +239,12 @@ async def test_scored_universe_redis_cache_payload_is_lightweight() -> None:
 
         async def get_market_price_freshness(self, **kwargs):
             return prices[-1].trade_date, freshness_time
+
+        async def get_decision_session_freshness(self, **kwargs):
+            return prices[-1].trade_date, freshness_time
+
+        async def get_latest_finalized_session_date(self, **kwargs):
+            return prices[-1].trade_date
 
         async def list_recent_exchange_session_dates(self, **kwargs):
             return [price.trade_date for price in prices[-10:]]
