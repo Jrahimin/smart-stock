@@ -341,6 +341,7 @@ def test_build_signal_feed_prioritizes_actionable_decisions() -> None:
 
     assert feed[0]["symbol"] == "HOLD"
     assert feed[1]["symbol"] == "BUYME"
+    assert "primary_reason_code" in feed[0]
 
 
 def test_derive_market_mood_bullish_when_breadth_supports() -> None:

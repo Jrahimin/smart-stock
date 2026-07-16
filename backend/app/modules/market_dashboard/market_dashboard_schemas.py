@@ -74,8 +74,8 @@ class DashboardSignalRead(BaseModel):
     signal: DecisionDisplayAction
     confidence: int
     confidence_semantics: str = "HEURISTIC_EVIDENCE"
-    confidence_semantics: str = "HEURISTIC_EVIDENCE"
     reason: str
+    primary_reason_code: str | None = None
     entry_condition: str | None = None
     risk: str
     priority: str

@@ -438,6 +438,7 @@ export type BackendDashboardSignalDto = {
   confidence: number;
   confidence_semantics?: "HEURISTIC_EVIDENCE";
   reason: string;
+  primary_reason_code?: string | null;
   entry_condition?: string | null;
   risk: string;
   priority: string;

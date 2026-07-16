@@ -260,6 +260,7 @@ def build_signal_feed(rows: list[ScoredUniverseRow], *, limit: int = DASHBOARD_S
                 "signal": decision.display_action,
                 "confidence": decision.confidence,
                 "reason": decision.reason,
+                "primary_reason_code": decision.primary_reason_code,
                 "entry_condition": decision.entry_condition,
                 "risk": decision.risk_label.value,
                 "priority": _decision_priority(decision.confidence),
