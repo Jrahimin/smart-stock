@@ -25,7 +25,9 @@ export type SmartWarningCode =
   | "bearish_pattern"
   | "near_support";
 
-type WarningTemplate = string | ((params: Record<string, string | number | boolean>) => string);
+type TemplateParams = Record<string, string | number | boolean>;
+
+type WarningTemplate = string | ((params: TemplateParams) => string);
 
 export type EntryConditionKey =
   | "breakout_continuation"
@@ -36,9 +38,7 @@ export type EntryConditionKey =
   | "close_above_price"
   | "close_above_trigger";
 
-type EntryConditionTemplate =
-  | string
-  | ((params: Record<string, string | number>) => string);
+type EntryConditionTemplate = string | ((params: TemplateParams) => string);
 
 export type StockDecisionLanguage = {
   signals: Record<Exclude<DecisionSignalKey, "warning_ref">, string>;
@@ -415,10 +415,7 @@ export function localizeEntryCondition(
   return resolveTemplate(template, resolved.params ?? {});
 }
 
-function resolveTemplate(
-  template: WarningTemplate,
-  params: Record<string, string | number | boolean>,
-): string {
+function resolveTemplate(template: WarningTemplate | EntryConditionTemplate, params: TemplateParams): string {
   return typeof template === "function" ? template(params) : template;
 }
 

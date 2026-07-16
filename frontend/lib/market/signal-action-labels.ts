@@ -7,7 +7,7 @@ type SignalActionLabelCopy = {
   compact: Partial<Record<DecisionDisplayAction, string>>;
 };
 
-const signalActionLabels = {
+const signalActionLabels: Record<AppLocale, SignalActionLabelCopy> = {
   en: {
     default: {
       POTENTIAL_BUY: "POTENTIAL BUY",
@@ -30,7 +30,7 @@ const signalActionLabels = {
       POTENTIAL_BUY: "P. BUY",
     },
   },
-} as const satisfies Record<AppLocale, SignalActionLabelCopy>;
+};
 
 export function getSignalActionLabel(
   signal: DecisionDisplayAction,

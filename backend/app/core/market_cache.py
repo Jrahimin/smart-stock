@@ -1,17 +1,13 @@
 from __future__ import annotations
 
 import logging
+from datetime import date
 
-from app.core.constants.trading_constants import (
-    DECISION_TAXONOMY_VERSION,
-    PULSE_SCORE_VERSION,
-    TRADING_INPUT_SCHEMA_VERSION,
-    TRADING_STRATEGY_VERSION,
-    TRADING_THRESHOLD_VERSION,
-)
+from app.core.constants.trading_constants import DECISION_TAXONOMY_VERSION
 from app.core.core_config import Settings, get_settings
 from app.core.enums import ExchangeCode
 from app.core.redis_client import OptionalRedisClient, build_redis_client
+from app.modules.market_pulse.market_pulse_cache import pulse_cache_invalidation_pattern
 from app.modules.market_universe.market_universe_cache import (
     UNIVERSE_CACHE_KEY_NAMES,
     legacy_universe_cache_key,
@@ -46,13 +42,11 @@ def dashboard_cache_key(section: str, exchange: ExchangeCode) -> str:
     return f"dashboard:{section}:{exchange.value}:{DECISION_TAXONOMY_VERSION}"
 
 
-def pulse_cache_key(section: str, exchange: ExchangeCode) -> str:
-    return (
-        f"pulse:{section}:{exchange.value}:"
-        f"{TRADING_STRATEGY_VERSION}:{TRADING_THRESHOLD_VERSION}:"
-        f"{TRADING_INPUT_SCHEMA_VERSION}:{PULSE_SCORE_VERSION}:"
-        f"{DECISION_TAXONOMY_VERSION}"
-    )
+def pulse_cache_key(section: str, exchange: ExchangeCode, decision_date: date | None = None) -> str:
+    """Backward-compatible wrapper; prefer market_pulse.market_pulse_cache.pulse_cache_key."""
+    from app.modules.market_pulse.market_pulse_cache import pulse_cache_key as _pulse_cache_key
+
+    return _pulse_cache_key(section, exchange, decision_date)
 
 
 def market_rebuild_lock_key(exchange: ExchangeCode) -> str:
@@ -77,12 +71,12 @@ async def invalidate_market_caches(
         except Exception:
             logger.warning("Failed to delete dashboard cache key %s", key, exc_info=True)
 
-    for section in PULSE_CACHE_KEY_NAMES:
-        key = pulse_cache_key(section, exchange)
-        try:
-            await redis.delete(key)
-        except Exception:
-            logger.warning("Failed to delete pulse cache key %s", key, exc_info=True)
+    try:
+        deleted = await redis.delete_by_pattern(pulse_cache_invalidation_pattern(exchange))
+        if deleted:
+            logger.info("Deleted %s pulse cache keys for %s", deleted, exchange.value)
+    except Exception:
+        logger.warning("Failed to delete pulse cache keys for %s", exchange.value, exc_info=True)
 
     for section in UNIVERSE_CACHE_KEY_NAMES:
         for key in (

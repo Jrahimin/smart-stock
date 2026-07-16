@@ -31,10 +31,14 @@ from app.core.enums import (
     PulseFocusLabel,
     TrendDirection,
 )
-from app.core.market_cache import pulse_cache_key
 from app.core.redis_client import OptionalRedisClient, get_redis_client
-from app.jobs.market_session_schedule import current_cache_ttl_seconds
+from app.modules.market_data.market_data_schemas import MarketFreshnessRead
 from app.modules.market_data.market_data_service import MarketDataService, get_market_data_service
+from app.modules.market_pulse.market_pulse_cache import (
+    pulse_cache_key,
+    pulse_cache_ttl_seconds,
+)
+from app.modules.market_pulse.market_pulse_session import resolve_pulse_decision_date
 from app.modules.market_data.market_mover_rules import is_eligible_session_mover
 from app.modules.market_pulse.market_pulse_briefing import PulseBriefingRow, build_market_briefing
 from app.modules.market_pulse.market_pulse_schemas import (
@@ -85,7 +89,7 @@ class PulsePresentationRow:
 
 def is_eligible_pulse_candidate(
     row: ScoredUniverseRow,
-    session_trade_date: date | None = None,
+    decision_date: date | None = None,
 ) -> bool:
     if (
         row.decision is None
@@ -93,7 +97,7 @@ def is_eligible_pulse_candidate(
         or row.eligibility.status != EligibilityStatus.ELIGIBLE
     ):
         return False
-    expected_session = session_trade_date or row.eligibility.exchange_session_date
+    expected_session = decision_date or row.eligibility.exchange_session_date
     return (
         expected_session is not None
         and row.eligibility.exchange_session_date == expected_session
@@ -383,18 +387,29 @@ class MarketPulseService:
     async def _cache_get(self, cache_key: str) -> dict | None:
         return await self.redis.get_json(cache_key)
 
-    async def _cache_set(self, cache_key: str, payload: dict) -> None:
-        ttl_seconds = current_cache_ttl_seconds(self.settings)
+    async def _cache_set(self, cache_key: str, payload: dict, *, empty_state: str) -> None:
+        ttl_seconds = pulse_cache_ttl_seconds(self.settings, empty_state=empty_state)
         await self.redis.set_json(cache_key, payload, ttl_seconds=ttl_seconds)
 
     async def _delete_cache_key(self, cache_key: str) -> None:
         await self.redis.delete(cache_key)
+
+    def _cached_decision_date_matches(
+        self,
+        *,
+        coverage: PulseCoverageRead | None,
+        decision_date: date | None,
+    ) -> bool:
+        if coverage is None:
+            return False
+        return coverage.decision_session_date == decision_date
 
     async def _load_cached_summary_if_valid(
         self,
         *,
         exchange: ExchangeCode,
         cache_key: str,
+        decision_date: date | None,
     ) -> MarketPulseSummaryRead | None:
         cached = await self._cache_get(cache_key)
         if cached is None:
@@ -414,6 +429,13 @@ class MarketPulseService:
         if freshness.last_synced_at is None or summary.last_synced_at != freshness.last_synced_at:
             return None
 
+        current_decision_date = resolve_pulse_decision_date(freshness)
+        if not self._cached_decision_date_matches(
+            coverage=summary.coverage,
+            decision_date=current_decision_date,
+        ):
+            return None
+
         return summary
 
     async def _load_cached_pulse_if_valid(
@@ -421,6 +443,7 @@ class MarketPulseService:
         *,
         exchange: ExchangeCode,
         cache_key: str,
+        decision_date: date | None,
     ) -> MarketPulseRead | None:
         cached = await self._cache_get(cache_key)
         if cached is None:
@@ -440,6 +463,13 @@ class MarketPulseService:
         if freshness.last_synced_at is None or pulse.last_synced_at != freshness.last_synced_at:
             return None
 
+        current_decision_date = resolve_pulse_decision_date(freshness)
+        if not self._cached_decision_date_matches(
+            coverage=pulse.coverage,
+            decision_date=current_decision_date,
+        ):
+            return None
+
         return pulse
 
     async def get_market_pulse(
@@ -449,11 +479,14 @@ class MarketPulseService:
         previous: MarketPulsePreviousSnapshot | None,
         display_name: str | None = None,
     ) -> MarketPulseRead:
-        cache_key = pulse_cache_key("response", exchange)
+        freshness = await self.market_data_service.get_market_freshness(exchange=exchange)
+        decision_date = resolve_pulse_decision_date(freshness)
+        cache_key = pulse_cache_key("response", exchange, decision_date)
         if uses_shared_pulse_cache(previous, display_name):
             cached_pulse = await self._load_cached_pulse_if_valid(
                 exchange=exchange,
                 cache_key=cache_key,
+                decision_date=decision_date,
             )
             if cached_pulse is not None:
                 return cached_pulse
@@ -462,11 +495,16 @@ class MarketPulseService:
             exchange=exchange,
             previous=previous,
             display_name=display_name,
+            freshness=freshness,
+            decision_date=decision_date,
         )
-        freshness = await self.market_data_service.get_market_freshness(exchange=exchange)
         stamped = payload.model_copy(update={"last_synced_at": freshness.last_synced_at})
         if uses_shared_pulse_cache(previous, display_name):
-            await self._cache_set(cache_key, stamped.model_dump(mode="json"))
+            await self._cache_set(
+                cache_key,
+                stamped.model_dump(mode="json"),
+                empty_state=stamped.empty_state,
+            )
         return stamped
 
     async def get_market_pulse_summary(
@@ -476,11 +514,14 @@ class MarketPulseService:
         previous: MarketPulsePreviousSnapshot | None,
         display_name: str | None = None,
     ) -> MarketPulseSummaryRead:
-        cache_key = pulse_cache_key("summary", exchange)
+        freshness = await self.market_data_service.get_market_freshness(exchange=exchange)
+        decision_date = resolve_pulse_decision_date(freshness)
+        cache_key = pulse_cache_key("summary", exchange, decision_date)
         if uses_shared_pulse_cache(previous, display_name):
             cached_summary = await self._load_cached_summary_if_valid(
                 exchange=exchange,
                 cache_key=cache_key,
+                decision_date=decision_date,
             )
             if cached_summary is not None:
                 return cached_summary
@@ -490,8 +531,9 @@ class MarketPulseService:
             exchange=exchange,
             previous=previous,
             display_name=display_name,
+            freshness=freshness,
+            decision_date=decision_date,
         )
-        freshness = await self.market_data_service.get_market_freshness(exchange=exchange)
         summary = MarketPulseSummaryRead(
             hero=pulse.hero,
             since_last_visit=pulse.since_last_visit,
@@ -505,7 +547,11 @@ class MarketPulseService:
             last_synced_at=freshness.last_synced_at,
         )
         if uses_shared_pulse_cache(previous, display_name):
-            await self._cache_set(cache_key, summary.model_dump(mode="json"))
+            await self._cache_set(
+                cache_key,
+                summary.model_dump(mode="json"),
+                empty_state=summary.empty_state,
+            )
         return summary
 
     async def get_market_pulse_briefing(
@@ -527,8 +573,13 @@ class MarketPulseService:
         exchange: ExchangeCode,
         previous: MarketPulsePreviousSnapshot | None,
         display_name: str | None = None,
+        freshness: MarketFreshnessRead | None = None,
+        decision_date: date | None = None,
     ) -> MarketPulseRead:
-        freshness = await self.market_data_service.get_market_freshness(exchange=exchange)
+        if freshness is None:
+            freshness = await self.market_data_service.get_market_freshness(exchange=exchange)
+        if decision_date is None:
+            decision_date = resolve_pulse_decision_date(freshness)
         universe_rows = await self.universe_service.get_scored_universe(exchange=exchange)
         summaries = await self.market_data_service.list_daily_market_summaries(
             exchange=exchange,
@@ -544,7 +595,7 @@ class MarketPulseService:
         previous_recommendations = previous.recommendations if previous else {}
 
         for universe_row in universe_rows:
-            if not is_eligible_pulse_candidate(universe_row, freshness.trade_date):
+            if not is_eligible_pulse_candidate(universe_row, decision_date):
                 continue
             snapshot = technical_snapshot_from_read(universe_row.technical_snapshot)
             decision = universe_row.decision
@@ -601,7 +652,7 @@ class MarketPulseService:
 
         since_last_visit = self._build_since_last_visit(previous, changes, new_focus_count, new_alerts_count)
         today_insight = self._build_today_insight(scored_rows, focus_reads)
-        market_movers = _build_market_movers(scored_rows, session_trade_date=freshness.trade_date)
+        market_movers = _build_market_movers(scored_rows, session_trade_date=decision_date)
         briefing_rows = [
             PulseBriefingRow(
                 stock=row.stock,
@@ -659,7 +710,9 @@ class MarketPulseService:
                 else None
             ),
             coverage=PulseCoverageRead(
-                session_trade_date=freshness.trade_date,
+                decision_session_date=decision_date,
+                trade_date=freshness.trade_date,
+                session_trade_date=decision_date,
                 universe_candidate_count=len(universe_rows),
                 eligible_candidate_count=len(scored_rows),
                 excluded_candidate_count=max(0, len(universe_rows) - len(scored_rows)),

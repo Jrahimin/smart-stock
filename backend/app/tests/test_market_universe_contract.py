@@ -21,6 +21,11 @@ from app.core.enums import (
     TraderRecommendation,
     TrendDirection,
 )
+from app.modules.market_pulse.market_pulse_cache import (
+    PULSE_CACHE_REVISION,
+    pulse_cache_invalidation_pattern,
+    pulse_cache_key as pulse_module_cache_key,
+)
 from app.core.market_cache import (
     DASHBOARD_CACHE_KEY_NAMES,
     PULSE_CACHE_KEY_NAMES,
@@ -141,10 +146,17 @@ def test_invalidation_key_lists_cover_presentation_and_foundation() -> None:
     assert universe_cache_key("scored", ExchangeCode.DSE, "future-v2") != universe_cache_key(
         "scored", ExchangeCode.DSE
     )
-    assert pulse_cache_key("response", ExchangeCode.DSE) == (
-        f"pulse:response:DSE:{TRADING_STRATEGY_VERSION}:"
-        f"{TRADING_THRESHOLD_VERSION}:{TRADING_INPUT_SCHEMA_VERSION}:{PULSE_SCORE_VERSION}:"
+    decision_date = date(2026, 7, 14)
+    assert pulse_module_cache_key("response", ExchangeCode.DSE, decision_date) == (
+        f"pulse:response:DSE:{decision_date.isoformat()}:{PULSE_CACHE_REVISION}:"
+        f"{TRADING_STRATEGY_VERSION}:{TRADING_THRESHOLD_VERSION}:"
+        f"{TRADING_INPUT_SCHEMA_VERSION}:{PULSE_SCORE_VERSION}:"
         f"{DECISION_TAXONOMY_VERSION}"
+    )
+    assert pulse_cache_key("response", ExchangeCode.DSE, decision_date) == pulse_module_cache_key(
+        "response",
+        ExchangeCode.DSE,
+        decision_date,
     )
     assert "overview" in DASHBOARD_CACHE_KEY_NAMES
     assert "response" in PULSE_CACHE_KEY_NAMES
@@ -171,8 +183,7 @@ async def test_invalidate_market_caches_deletes_all_registered_keys() -> None:
 
     for section in DASHBOARD_CACHE_KEY_NAMES:
         assert dashboard_cache_key(section, ExchangeCode.DSE) in redis.deleted
-    for section in PULSE_CACHE_KEY_NAMES:
-        assert pulse_cache_key(section, ExchangeCode.DSE) in redis.deleted
+    assert pulse_cache_invalidation_pattern(ExchangeCode.DSE) in redis.pattern_deletes
     for section in UNIVERSE_CACHE_KEY_NAMES:
         assert universe_cache_key(section, ExchangeCode.DSE) in redis.deleted
     assert universe_prev_cache_key(ExchangeCode.DSE) in redis.deleted

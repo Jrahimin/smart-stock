@@ -168,6 +168,8 @@ class OpportunityScoreRead(BaseModel):
 class PulseCoverageRead(BaseModel):
     score_version: str = PULSE_SCORE_VERSION
     decision_taxonomy_version: str = DECISION_TAXONOMY_VERSION
+    decision_session_date: date | None = None
+    trade_date: date | None = None
     session_trade_date: date | None = None
     universe_candidate_count: int = 0
     eligible_candidate_count: int = 0
