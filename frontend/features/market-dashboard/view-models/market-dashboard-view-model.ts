@@ -22,6 +22,7 @@ import {
   buildLocalizedSignalSupportingContext,
   resolveTraderDecisionReason,
 } from "@/lib/market/trader-decision-reason";
+import { localizeEntryCondition } from "@/features/stock-workspace/stock-decision-language";
 import type {
   BreadthModel,
   ExchangeMetricSource,
@@ -364,12 +365,18 @@ function applyDashboardLocalization(
       }),
     ),
     signals: model.signals.map((signal) => {
-      const resolvedReason = resolveTraderDecisionReason(signal.reasonSummary);
-      const localizedReason = buildLocalizedSignalReason(
-        signal.technicalContext,
-        resolvedReason,
-        language.signals,
+      const resolvedReason = resolveTraderDecisionReason(
+        signal.reasonSummary,
+        signal.reasonCode,
       );
+      const localizedReason =
+        signal.signal === "POTENTIAL_BUY" && signal.entryCondition
+          ? localizeEntryCondition(signal.entryCondition, locale) ?? signal.entryCondition
+          : buildLocalizedSignalReason(
+              signal.technicalContext,
+              resolvedReason,
+              language.signals,
+            );
       const localizedSupportingContext = buildLocalizedSignalSupportingContext(
         signal.technicalContext,
         language.signals,

@@ -211,6 +211,7 @@ async def test_scored_universe_redis_cache_payload_is_lightweight() -> None:
         def __init__(self) -> None:
             self.is_available = True
             self.storage: dict[str, dict] = {}
+            self.ttls: dict[str, int] = {}
             self.deleted: list[str] = []
 
         async def get_json(self, key: str) -> dict | None:
@@ -218,6 +219,7 @@ async def test_scored_universe_redis_cache_payload_is_lightweight() -> None:
 
         async def set_json(self, key: str, value: dict, *, ttl_seconds: int) -> None:
             self.storage[key] = value
+            self.ttls[key] = ttl_seconds
 
         async def delete(self, key: str) -> None:
             self.deleted.append(key)
@@ -281,7 +283,16 @@ async def test_scored_universe_redis_cache_payload_is_lightweight() -> None:
 
     cache_key = universe_cache_key("scored", ExchangeCode.DSE)
     cached = redis.storage[cache_key]
+    previous_cache_key = universe_prev_cache_key(ExchangeCode.DSE)
     assert_no_forbidden_universe_fields(cached)
+    assert redis.storage[previous_cache_key] == cached
+    assert redis.ttls[previous_cache_key] > redis.ttls[cache_key]
+    previous_payload = service._parse_cache_payload(redis.storage[previous_cache_key])
+    assert previous_payload is not None
+    assert service._previous_cache_can_bridge_rebuild(
+        previous_payload,
+        prices[-1].trade_date + timedelta(days=1),
+    )
     for row in cached["rows"]:
         assert_no_forbidden_universe_fields(row)
 

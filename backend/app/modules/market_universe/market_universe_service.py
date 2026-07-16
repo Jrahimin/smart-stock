@@ -59,6 +59,8 @@ from app.modules.trading_intelligence.monitoring import (
 
 logger = logging.getLogger(__name__)
 
+UNIVERSE_PREVIOUS_CACHE_TTL_MULTIPLIER = 2
+
 
 class UniverseCacheUnavailableError(RuntimeError):
     """Raised when scored universe is not cached and no stale fallback exists."""
@@ -87,8 +89,8 @@ class MarketUniverseService:
     async def _cache_get(self, cache_key: str) -> dict | None:
         return await self.redis.get_json(cache_key)
 
-    async def _cache_set(self, cache_key: str, payload: dict) -> None:
-        ttl_seconds = current_cache_ttl_seconds(self.settings)
+    async def _cache_set(self, cache_key: str, payload: dict, *, ttl_seconds: int | None = None) -> None:
+        ttl_seconds = ttl_seconds or current_cache_ttl_seconds(self.settings)
         await self.redis.set_json(cache_key, payload, ttl_seconds=ttl_seconds)
 
     async def get_scored_universe(self, *, exchange: ExchangeCode) -> list[ScoredUniverseRow]:
@@ -117,13 +119,11 @@ class MarketUniverseService:
             stale = await self._cache_get(prev_key)
             if stale is not None:
                 stale_payload = self._parse_cache_payload(stale)
-                if stale_payload is not None and self._cache_matches_identity(
-                    stale_payload,
-                    session_trade_date,
-                    source_last_synced_at,
+                if stale_payload is not None and self._previous_cache_can_bridge_rebuild(
+                    stale_payload, session_trade_date
                 ):
                     logger.info(
-                        "Serving universe:scored:prev for %s while rebuild runs",
+                        "Serving compatible universe:scored:prev for %s while rebuild runs",
                         exchange.value,
                     )
                     from app.jobs.market_cache_spawn import spawn_rebuild_universe_read_cache
@@ -186,6 +186,44 @@ class MarketUniverseService:
         if report.issues:
             log_monitoring_report(report, exchange="cache-read")
         return structural_match and not report.has_errors
+
+    @staticmethod
+    def _previous_cache_can_bridge_rebuild(
+        payload: ScoredUniverseCacheRead,
+        current_session_date: date | None,
+    ) -> bool:
+        """Allow a prior complete universe only while the canonical rebuild catches up.
+
+        The primary cache must match the current source revision exactly.  The
+        ``:prev`` key exists specifically to bridge that transition, so applying
+        the same revision check here turns normal rebuild windows into 503s.
+        """
+        previous_session_date = payload.decision_session_date
+        return (
+            current_session_date is not None
+            and previous_session_date is not None
+            and previous_session_date <= current_session_date
+            and bool(payload.rows)
+            and payload.session_trade_date == previous_session_date
+            and payload.strategy_version == TRADING_STRATEGY_VERSION
+            and payload.threshold_version == TRADING_THRESHOLD_VERSION
+            and payload.input_schema_version == TRADING_INPUT_SCHEMA_VERSION
+            and payload.decision_taxonomy_version == DECISION_TAXONOMY_VERSION
+            and payload.scanner_version == SCANNER_CONDITION_VERSION
+            and all(
+                row.eligibility is not None
+                and row.eligibility.exchange_session_date == previous_session_date
+                and row.decision is not None
+                and row.decision.canonical is not None
+                and row.decision.canonical.strategy_version == TRADING_STRATEGY_VERSION
+                and row.decision.canonical.threshold_version == TRADING_THRESHOLD_VERSION
+                and row.decision.canonical.decision_taxonomy_version
+                == DECISION_TAXONOMY_VERSION
+                and row.scanner is not None
+                and row.scanner.version == SCANNER_CONDITION_VERSION
+                for row in payload.rows
+            )
+        )
 
     async def recompute_scored_universe(self, exchange: ExchangeCode) -> list[ScoredUniverseRow]:
         perf = PerfReport("universe.rebuild")
@@ -327,11 +365,14 @@ class MarketUniverseService:
             funnel.reconciles,
         )
         serialized_payload = payload.model_dump(mode="json")
-        if current is not None:
-            prev_key = universe_prev_cache_key(exchange)
-            await self._cache_set(prev_key, current)
-
-        await self._cache_set(cache_key, serialized_payload)
+        ttl_seconds = current_cache_ttl_seconds(self.settings)
+        previous_payload = current or serialized_payload
+        await self._cache_set(
+            universe_prev_cache_key(exchange),
+            previous_payload,
+            ttl_seconds=ttl_seconds * UNIVERSE_PREVIOUS_CACHE_TTL_MULTIPLIER,
+        )
+        await self._cache_set(cache_key, serialized_payload, ttl_seconds=ttl_seconds)
 
     async def get_universe_rows(self, *, exchange: ExchangeCode) -> UniverseRowsRead:
         session_trade_date, source_last_synced_at = (

@@ -154,11 +154,13 @@ async def test_anonymous_summary_reads_and_writes_shared_cache() -> None:
     assert summary.hero.greeting == "Good morning"
     assert summary.last_synced_at == datetime(2026, 7, 9, 10, 0, tzinfo=timezone.utc)
     assert SUMMARY_CACHE_KEY in store
+    service.market_data_service.get_market_freshness.assert_awaited_once_with(exchange=ExchangeCode.DSE)
 
     service._compute_market_pulse.reset_mock()
     cached = await service.get_market_pulse_summary(exchange=ExchangeCode.DSE, previous=None)
     service._compute_market_pulse.assert_not_called()
     assert cached.hero.greeting == "Good morning"
+    assert service.market_data_service.get_market_freshness.await_count == 2
 
 
 @pytest.mark.asyncio

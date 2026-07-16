@@ -33,8 +33,33 @@ describe("resolveTraderDecisionReason", () => {
     "Confidence capped at 62 in a bearish market regime.",
     "confidence_capped_bearish_regime",
   ],
+  [
+    "No strong directional edge is present; patience is preferred.",
+    "no_directional_edge",
+  ],
 ] as const)("maps %s to %s", (reason, key) => {
     expect(resolveTraderDecisionReason(reason).key).toBe(key);
+  });
+
+  it("prefers primary_reason_code over prose matching", () => {
+    expect(
+      resolveTraderDecisionReason(
+        "No strong directional edge is present; patience is preferred.",
+        "constructive_watch",
+      ).key,
+    ).toBe("constructive_watch");
+  });
+
+  it.each([
+    ["support_break", "support_break"],
+    ["bearish_directional_evidence", "bearish_directional_evidence"],
+    ["fresh_entry_risk_block", "fresh_entry_risk_block"],
+    ["bearish_market_regime", "bearish_regime_hold"],
+    ["near_resistance", "near_resistance_constructive"],
+    ["bullish_setup_pullback", "bullish_setup_pullback"],
+    ["bullish_setup_valid_entry", "bullish_setup_valid_entry"],
+  ] as const)("maps primary_reason_code %s to %s", (code, key) => {
+    expect(resolveTraderDecisionReason("ignored prose", code).key).toBe(key);
   });
 
   it("preserves raw backend prose for unknown reasons", () => {
@@ -100,8 +125,23 @@ describe("buildLocalizedSignalReason", () => {
     );
 
     expect(reason).toContain("RSI 55.3");
-    expect(reason).toContain("নতুন দিকনির্দেশনামূলক সিদ্ধান্তের জন্য ডেটা পর্যাপ্ত নয়");
+    expect(reason).toContain("নতুন সিদ্ধান্ত নেওয়ার মতো ডেটা");
     expect(reason).not.toContain("Data is not eligible");
+  });
+
+  it("localizes canonical recommendation reasons via primary_reason_code", () => {
+    const language = getDashboardLanguage("bn");
+    const reason = buildLocalizedSignalReason(
+      {},
+      resolveTraderDecisionReason(
+        "Structure remains constructive; holders may hold while non-holders wait.",
+        "constructive_watch",
+      ),
+      language.signals,
+    );
+
+    expect(reason).toContain("গঠন এখনো ভালো");
+    expect(reason).not.toContain("holders may hold");
   });
 
   it("keeps unknown backend prose in english inside bangla cards", () => {

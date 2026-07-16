@@ -23,6 +23,7 @@ import {
   buildSignalTechnicalContext,
   resolveTraderDecisionReason,
 } from "@/lib/market/trader-decision-reason";
+import { localizeEntryCondition } from "@/features/stock-workspace/stock-decision-language";
 import { buildStockDetailPath } from "@/lib/seo/stock-page-seo";
 
 type SignalCenterViewProps = {
@@ -113,9 +114,13 @@ export function SignalCenterView({ locale = DEFAULT_LOCALE }: SignalCenterViewPr
               const supportingContext = buildLocalizedSignalSupportingContext(technicalContext, language.signalReasons);
               const localizedReason = buildLocalizedSignalReason(
                 technicalContext,
-                resolveTraderDecisionReason(decision.reason),
+                resolveTraderDecisionReason(decision.reason, decision.reasonCode),
                 language.signalReasons,
               );
+              const displayReason =
+                decision.recommendation === "POTENTIAL_BUY" && decision.entryCondition
+                  ? localizeEntryCondition(decision.entryCondition, locale) ?? decision.entryCondition
+                  : localizedReason;
 
               return (
                 <Link
@@ -131,11 +136,7 @@ export function SignalCenterView({ locale = DEFAULT_LOCALE }: SignalCenterViewPr
                     </div>
                     <SignalBadge signal={decision.recommendation} />
                   </div>
-                  <p>
-                    {decision.recommendation === "POTENTIAL_BUY" && decision.entryCondition
-                      ? decision.entryCondition
-                      : localizedReason}
-                  </p>
+                  <p>{displayReason}</p>
                   <div className="signal-visual-row">
                     <div className="signal-confidence-meter" aria-label={language.row.confidenceAria(decision.confidence)}>
                       <span style={{ width: `${decision.confidence}%` }} />

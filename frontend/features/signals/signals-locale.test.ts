@@ -17,11 +17,30 @@ describe("signals language", () => {
     const language = getSignalsLanguage("bn");
     const reason = buildLocalizedSignalReason(
       {},
-      resolveTraderDecisionReason("Uptrend with favorable opportunity and acceptable reward potential."),
+      resolveTraderDecisionReason(
+        "Uptrend with favorable opportunity and acceptable reward potential.",
+        "buy_uptrend_reward",
+      ),
       language.signalReasons,
     );
 
     expect(reason).toContain("Uptrend");
     expect(reason).toContain("সুযোগ");
+  });
+
+  it("localizes recommendation-engine reasons via primary_reason_code", () => {
+    const language = getSignalsLanguage("bn");
+    const reason = buildLocalizedSignalReason(
+      {},
+      resolveTraderDecisionReason(
+        "Reliable bearish trend and momentum evidence supports exit or avoidance.",
+        "bearish_directional_evidence",
+      ),
+      language.signalReasons,
+    );
+
+    expect(reason).toContain("bearish trend");
+    expect(reason).toContain("exit");
+    expect(reason).not.toContain("supports exit or avoidance");
   });
 });

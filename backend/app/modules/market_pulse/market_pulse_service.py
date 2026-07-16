@@ -407,8 +407,8 @@ class MarketPulseService:
     async def _load_cached_summary_if_valid(
         self,
         *,
-        exchange: ExchangeCode,
         cache_key: str,
+        freshness: MarketFreshnessRead,
         decision_date: date | None,
     ) -> MarketPulseSummaryRead | None:
         cached = await self._cache_get(cache_key)
@@ -425,14 +425,12 @@ class MarketPulseService:
             await self._delete_cache_key(cache_key)
             return None
 
-        freshness = await self.market_data_service.get_market_freshness(exchange=exchange)
         if freshness.last_synced_at is None or summary.last_synced_at != freshness.last_synced_at:
             return None
 
-        current_decision_date = resolve_pulse_decision_date(freshness)
         if not self._cached_decision_date_matches(
             coverage=summary.coverage,
-            decision_date=current_decision_date,
+            decision_date=decision_date,
         ):
             return None
 
@@ -441,8 +439,8 @@ class MarketPulseService:
     async def _load_cached_pulse_if_valid(
         self,
         *,
-        exchange: ExchangeCode,
         cache_key: str,
+        freshness: MarketFreshnessRead,
         decision_date: date | None,
     ) -> MarketPulseRead | None:
         cached = await self._cache_get(cache_key)
@@ -459,14 +457,12 @@ class MarketPulseService:
             await self._delete_cache_key(cache_key)
             return None
 
-        freshness = await self.market_data_service.get_market_freshness(exchange=exchange)
         if freshness.last_synced_at is None or pulse.last_synced_at != freshness.last_synced_at:
             return None
 
-        current_decision_date = resolve_pulse_decision_date(freshness)
         if not self._cached_decision_date_matches(
             coverage=pulse.coverage,
-            decision_date=current_decision_date,
+            decision_date=decision_date,
         ):
             return None
 
@@ -484,8 +480,8 @@ class MarketPulseService:
         cache_key = pulse_cache_key("response", exchange, decision_date)
         if uses_shared_pulse_cache(previous, display_name):
             cached_pulse = await self._load_cached_pulse_if_valid(
-                exchange=exchange,
                 cache_key=cache_key,
+                freshness=freshness,
                 decision_date=decision_date,
             )
             if cached_pulse is not None:
@@ -519,8 +515,8 @@ class MarketPulseService:
         cache_key = pulse_cache_key("summary", exchange, decision_date)
         if uses_shared_pulse_cache(previous, display_name):
             cached_summary = await self._load_cached_summary_if_valid(
-                exchange=exchange,
                 cache_key=cache_key,
+                freshness=freshness,
                 decision_date=decision_date,
             )
             if cached_summary is not None:

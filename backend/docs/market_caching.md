@@ -134,7 +134,7 @@ GET /dashboard/movers
   → miss: compute from DB / universe → SET EX ttl → return
 ```
 
-Universe rows: Redis GET `universe:scored` → on miss serve `universe:scored:prev` and spawn background rebuild; cold miss returns HTTP 503. Dashboard sections compute from lightweight snapshot only (no `get_scored_universe`).
+Universe rows: Redis GET `universe:scored` → on miss serve a schema-compatible `universe:scored:prev` from the same or an earlier decision session and spawn a background rebuild; the `:prev` copy is retained for twice the normal TTL so a normal key expiry can rebuild without a blank page. A true cold miss (no usable primary or previous entry) returns HTTP 503. Dashboard sections compute from lightweight snapshot only (no `get_scored_universe`).
 
 ### Background rebuild (`rebuild_market_read_cache`)
 

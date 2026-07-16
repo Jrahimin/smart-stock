@@ -8,6 +8,7 @@ export type ResolvedTraderDecision = {
   recommendation: DecisionDisplayAction;
   confidence: number;
   reason: string;
+  reasonCode: string | null;
   riskLabel: string;
   opportunityScore: number | null;
   entryTiming: string | null;
@@ -101,6 +102,7 @@ export function resolveTraderDecision(stock: StockIntelligenceModel): ResolvedTr
         (stock.traderDecision.recommendation === "SELL" ? "SELL" : "WAIT"),
       confidence: stock.traderDecision.confidence,
       reason: stock.traderDecision.reason,
+      reasonCode: stock.traderDecision.primary_reason_code ?? null,
       riskLabel: stock.traderDecision.risk_label,
       opportunityScore: stock.traderDecision.opportunity_score,
       entryTiming: stock.traderDecision.entry_timing ?? null,
@@ -113,6 +115,7 @@ export function resolveTraderDecision(stock: StockIntelligenceModel): ResolvedTr
     recommendation: "WAIT",
     confidence: Math.min(68, Math.max(45, stock.signal.confidence)),
     reason: "Decision engine unavailable for this row; defaulting to wait.",
+    reasonCode: null,
     riskLabel: stock.signal.risk,
     opportunityScore: null,
     entryTiming: null,

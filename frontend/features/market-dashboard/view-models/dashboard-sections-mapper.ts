@@ -89,7 +89,10 @@ export function mapUniverseRowsToSignalFeed(
     .map((stock) => {
       const decision = resolveTraderDecision(stock);
       const supportingContext = buildDecisionSupportingContext(stock);
-      const resolvedReason = resolveTraderDecisionReason(decision.reason);
+      const resolvedReason = resolveTraderDecisionReason(
+        decision.reason,
+        decision.reasonCode,
+      );
 
       return {
         symbol: stock.stock.symbol,
@@ -99,7 +102,9 @@ export function mapUniverseRowsToSignalFeed(
         reason: buildSignalFeedReason(stock),
         reasonSummary: decision.reason,
         reasonKey: resolvedReason.key,
+        reasonCode: decision.reasonCode,
         reasonParams: resolvedReason.params,
+        entryCondition: decision.entryCondition,
         technicalContext: buildSignalTechnicalContext(stock),
         risk: decision.riskLabel,
         priority: decisionPriority(decision.confidence),
@@ -131,7 +136,10 @@ export function mapTraderDecisionsToSignalFeed(
     .slice(0, limit);
 
   return ranked.map(({ stock, decision, latest_trade_date }) => {
-    const resolvedReason = resolveTraderDecisionReason(decision.reason);
+    const resolvedReason = resolveTraderDecisionReason(
+      decision.reason,
+      decision.primary_reason_code,
+    );
     const displayAction =
       decision.display_action ??
       (decision.recommendation === "SELL" ? "SELL" : "WAIT");
@@ -147,7 +155,9 @@ export function mapTraderDecisionsToSignalFeed(
           : decision.reason,
       reasonSummary: decision.reason,
       reasonKey: resolvedReason.key,
+      reasonCode: decision.primary_reason_code ?? null,
       reasonParams: resolvedReason.params,
+      entryCondition: decision.entry_condition ?? null,
       technicalContext: {},
       risk: decision.risk_label,
       priority: decisionPriority(decision.confidence),
@@ -160,7 +170,10 @@ export function mapTraderDecisionsToSignalFeed(
 
 export function mapDashboardSignalsDto(dto: BackendDashboardStocksInFocusDto): SignalFeedItemModel[] {
   return dto.signals.map((signal) => {
-    const resolvedReason = resolveTraderDecisionReason(signal.reason);
+    const resolvedReason = resolveTraderDecisionReason(
+      signal.reason,
+      signal.primary_reason_code,
+    );
 
     return {
       symbol: signal.symbol,
@@ -173,7 +186,9 @@ export function mapDashboardSignalsDto(dto: BackendDashboardStocksInFocusDto): S
           : signal.reason,
       reasonSummary: signal.reason,
       reasonKey: resolvedReason.key,
+      reasonCode: signal.primary_reason_code ?? null,
       reasonParams: resolvedReason.params,
+      entryCondition: signal.entry_condition ?? null,
       technicalContext: {},
       risk: signal.risk,
       priority: signal.priority as SignalFeedItemModel["priority"],

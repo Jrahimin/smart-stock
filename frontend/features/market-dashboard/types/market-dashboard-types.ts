@@ -83,7 +83,9 @@ export type SignalFeedItemModel = {
   reason: string;
   reasonSummary: string;
   reasonKey: ResolvedTraderDecisionReason["key"];
+  reasonCode?: string | null;
   reasonParams?: ResolvedTraderDecisionReason["params"];
+  entryCondition?: string | null;
   technicalContext: SignalTechnicalContext;
   risk: string;
   priority: "high" | "medium" | "low";

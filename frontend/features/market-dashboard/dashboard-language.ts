@@ -43,8 +43,9 @@ function buildEnglishDecisionReasons(): DecisionReasonCopy {
     corporate_action_adjustment:
       "Sharp single-session drop looks like a corporate-action/ex-date adjustment rather than a breakdown; wait for confirmation.",
     failed_support: "Price has failed recent support.",
+    support_break: "Price has failed recent support on eligible data.",
     data_not_eligible:
-      "Data is not sufficient to take a decision; wait for review.",
+      "Data is not eligible for a fresh directional decision; wait for review or refresh.",
     buy_uptrend_reward: "Uptrend with favorable opportunity and acceptable reward potential.",
     buy_uptrend_resistance_test:
       "Uptrend with favorable opportunity and resistance test participation.",
@@ -53,25 +54,51 @@ function buildEnglishDecisionReasons(): DecisionReasonCopy {
     high_risk_selective_setup:
       "High-risk name with strong trend and participation; treat as a selective setup.",
     bearish_structure: "Bearish structure dominates the setup.",
+    bearish_directional_evidence:
+      "Reliable bearish trend and momentum evidence supports exit or avoidance.",
     risk_wait_confirmation: ({ riskLabel = "elevated" }) =>
       `Risk level is ${riskLabel}; wait for cleaner confirmation rather than forcing a trade.`,
+    fresh_entry_risk_block: ({ riskLabel = "HIGH" }) =>
+      `Trading risk is ${riskLabel} or tradability is inadequate; wait rather than forcing a fresh entry.`,
+    entry_plan_not_valid:
+      "Bullish evidence lacks a safe actionable entry plan; non-holders should wait.",
     momentum_extended_wait_entry:
       "Momentum is extended near resistance; wait for a better entry.",
     momentum_elevated_hold:
       "Momentum is elevated but the uptrend remains intact; hold rather than chase.",
+    extended_momentum:
+      "Momentum is extended; holders may hold while non-holders wait for a better entry.",
     near_resistance_no_uptrend:
       "Price is near resistance without an uptrend; wait for confirmation.",
+    near_resistance_constructive:
+      "The setup is constructive near resistance; wait for a confirmed price break.",
     constructive_hold:
       "Structure remains constructive; hold existing positions or wait for cleaner entry.",
+    constructive_watch:
+      "Structure remains constructive; holders may hold while non-holders wait.",
     sideways_constructive_monitor:
       "Sideways base with constructive opportunity; monitor for directional confirmation.",
-    no_directional_edge: "No strong directional edge; patience is preferred.",
+    no_directional_edge: "No strong directional edge is present; patience is preferred.",
     reward_risk_below_minimum: ({ riskReward = 0, minRiskReward = 0 }) =>
       `Reward/risk ${riskReward.toFixed(2)} is below the ${minRiskReward.toFixed(1)} minimum; hold rather than buy at this price.`,
     lower_structure_hold:
       "Market structure shows lower highs and lower lows; hold rather than buy into weakness.",
+    lower_structure_conflict:
+      "Lower market structure conflicts with a fresh buy; hold rather than add exposure.",
     bearish_regime_hold:
       "Broad market regime is bearish; hold rather than open new long exposure.",
+    bullish_setup_downgraded:
+      "The bullish setup is constructive, but an authoritative constraint blocks a fresh entry.",
+    bullish_setup_valid_entry:
+      "Strong completed-session evidence aligns with a valid, meaningful entry condition.",
+    bullish_setup_ready:
+      "Strong completed-session evidence aligns with a valid, meaningful entry condition.",
+    bullish_setup_pullback:
+      "Strong completed-session evidence aligns with a valid, meaningful entry condition.",
+    bullish_setup_breakout:
+      "Strong completed-session evidence aligns with a valid, meaningful entry condition.",
+    bullish_setup_continuation:
+      "Strong completed-session evidence aligns with a valid, meaningful entry condition.",
     confidence_capped_bearish_regime: ({ confidenceCap = 0 }) =>
       `Evidence strength capped at ${confidenceCap} in a bearish market regime.`,
     decision_engine_unavailable:
@@ -86,8 +113,9 @@ function buildBanglaDecisionReasons(): DecisionReasonCopy {
     corporate_action_adjustment:
       "এক দিনের তীব্র পতনটি corporate action বা ex-date adjustment-এর কারণে হতে পারে; breakdown নিশ্চিত না হওয়া পর্যন্ত অপেক্ষা করুন।",
     failed_support: "দাম সাম্প্রতিক support-এর নিচে নেমে গেছে।",
+    support_break: "দাম সাম্প্রতিক support ভেঙে ফেলেছে।",
     data_not_eligible:
-      "সিদ্ধান্ত নেয়ার মতো পর্যাপ্ত তথ্য নেই; পর্যালোচনা বা আপডেটের জন্য অপেক্ষা করুন।",
+      "নতুন সিদ্ধান্ত নেওয়ার মতো ডেটা এখনো ঠিক নেই; একটু অপেক্ষা করুন বা আপডেট দেখুন।",
     buy_uptrend_reward: "Uptrend-এ ভালো সুযোগ আছে; লাভের সম্ভাবনাও ভালো।",
     buy_uptrend_resistance_test:
       "Uptrend-এ ভালো সুযোগ আছে; resistance-এর কাছে শেয়ারের আচরণও নজরে রাখার মতো।",
@@ -96,25 +124,51 @@ function buildBanglaDecisionReasons(): DecisionReasonCopy {
     high_risk_selective_setup:
       "ঝুঁকি বেশি, তবে trend ও participation শক্তিশালী; বেছে বেছে এগোনোর setup।",
     bearish_structure: "দামের গঠন bearish; এখনো চাপই বেশি।",
+    bearish_directional_evidence:
+      "bearish trend আর momentum দুটোই ঠিকমতো দেখাচ্ছে; exit বা avoid ভাবুন।",
     risk_wait_confirmation: ({ riskLabel = "elevated" }) =>
       `ঝুঁকির মাত্রা ${riskLabel}; জোর করে trade না নিয়ে পরিষ্কার confirmation-এর জন্য অপেক্ষা করুন।`,
+    fresh_entry_risk_block: ({ riskLabel = "HIGH" }) =>
+      `Trading risk ${riskLabel}, আর liquidity/tradability ঠিক নেই—জোর করে entry না নিয়ে অপেক্ষা করুন।`,
+    entry_plan_not_valid:
+      "bullish সিগন্যাল আছে, কিন্তু নিরাপদ entry plan নেই; এখন buy না করে wait করুন।",
     momentum_extended_wait_entry:
       "Resistance-এর কাছে momentum অনেকটা বেড়ে গেছে; ভালো entry-র জন্য অপেক্ষা করুন।",
     momentum_elevated_hold:
       "Momentum শক্তিশালী, Uptrend-ও ঠিক আছে; এখন chase না করে hold করুন।",
+    extended_momentum:
+      "momentum বেশি বেড়ে গেছে; holder থাকতে পারেন, নতুন buyer একটু wait করুন।",
     near_resistance_no_uptrend:
       "দাম resistance-এর কাছে, কিন্তু Uptrend নেই; confirmation না পাওয়া পর্যন্ত অপেক্ষা করুন।",
+    near_resistance_constructive:
+      "setup ভালো, কিন্তু resistance-এর কাছে; দাম ভালোভাবে ভাঙলে তখন দেখুন।",
     constructive_hold:
       "দামের গঠন ভালো আছে; আগের position hold করুন বা আরও ভালো entry-র অপেক্ষা করুন।",
+    constructive_watch:
+      "গঠন এখনো ভালো; holder hold করতে পারেন, নতুন buyer wait করুন।",
     sideways_constructive_monitor:
       "Sideways base তৈরি হচ্ছে; দিক পরিষ্কার হওয়া পর্যন্ত নজরে রাখুন।",
-    no_directional_edge: "বাজারের দিক এখনো পরিষ্কার নয়; ধৈর্য ধরাই ভালো।",
+    no_directional_edge: "এখন পরিষ্কার কোনো দিক নেই; ধৈর্য ধরাই ভালো।",
     reward_risk_below_minimum: ({ riskReward = 0, minRiskReward = 0 }) =>
       `লাভ-ঝুঁকির অনুপাত ${riskReward.toFixed(2)} ন্যূনতম ${minRiskReward.toFixed(1)}-এর নিচে; এই দামে buy না করে hold করাই ভালো।`,
     lower_structure_hold:
       "দামের গঠন দুর্বল—lower high আর lower low তৈরি হচ্ছে; এখন buy না করাই ভালো।",
+    lower_structure_conflict:
+      "market structure নিচের দিকে; নতুন long add না করাই ভালো।",
     bearish_regime_hold:
       "বাজারের সামগ্রিক trend bearish; নতুন long position না খুলে hold করুন।",
+    bullish_setup_downgraded:
+      "bullish setup আছে, কিন্তু কোনো গুরুত্বপূর্ণ constraint fresh entry বন্ধ করছে।",
+    bullish_setup_valid_entry:
+      "শক্তিশালী session evidence আছে; entry নেওয়ার মতো setup তৈরি হয়েছে।",
+    bullish_setup_ready:
+      "ভালো সিগন্যাল; এখনই entry নেওয়ার মতো setup দেখাচ্ছে।",
+    bullish_setup_pullback:
+      "ভালো সিগন্যাল; একটু পিছিয়ে (pullback) এলে entry ভাবতে পারেন।",
+    bullish_setup_breakout:
+      "ভালো সিগন্যাল; breakout confirm হলে entry ভাবুন।",
+    bullish_setup_continuation:
+      "ভালো সিগন্যাল; breakout ধরে রাখলে continue করার সুযোগ আছে।",
     confidence_capped_bearish_regime: ({ confidenceCap = 0 }) =>
       `বাজার bearish হওয়ায় evidence strength ${confidenceCap}-এ সীমিত রাখা হয়েছে।`,
     decision_engine_unavailable:
