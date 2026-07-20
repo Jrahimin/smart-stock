@@ -18,6 +18,7 @@ import {
   getDashboardSidebarGuideSteps,
 } from "@/features/guide/config/dashboard-sidebar-guide";
 import { getWealthDesktopGuideSteps } from "@/features/guide/config/wealth-overview-guide";
+import { getTaxPlannerDesktopGuideSteps } from "@/features/guide/config/tax-planner-guide";
 import { useDesktopGuideController, type ProductGuideJourney } from "@/features/guide/hooks/use-dashboard-sidebar-guide-controller";
 import { useGuideContentBounds } from "@/features/guide/hooks/use-guide-content-bounds";
 import {
@@ -40,6 +41,7 @@ import type { AppLocale } from "@/lib/locale/app-locale";
 import { DEFAULT_LOCALE } from "@/lib/locale/app-locale";
 import { useWorkspaceStore } from "@/stores/use-workspace-store";
 import { getWealthGuideControls, getWealthGuideNudgeCopy } from "@/features/guide/dialogs/wealth-dialogs";
+import { getTaxPlannerGuideControls, getTaxPlannerGuideNudgeCopy } from "@/features/guide/dialogs/tax-planner-dialogs";
 
 type GuideLayout = {
   bubble: GuideBox;
@@ -172,17 +174,28 @@ function buildGuideLayout(input: {
   };
 }
 
-export function DashboardDesktopGuide({ locale = DEFAULT_LOCALE, journey = "dashboard" }: { locale?: AppLocale; journey?: ProductGuideJourney }) {
+export type ProductGuideStepState = { active: boolean; stepId: string | null };
+
+export function DashboardDesktopGuide({
+  locale = DEFAULT_LOCALE,
+  journey = "dashboard",
+  onGuideStepChange,
+}: {
+  locale?: AppLocale;
+  journey?: ProductGuideJourney;
+  onGuideStepChange?: (state: ProductGuideStepState) => void;
+}) {
   const isWealthJourney = journey === "wealth";
+  const isTaxPlannerJourney = journey === "tax-planner";
   const reduceMotion = useReducedMotion();
   const viewport = useViewport();
   const contentBounds = useGuideContentBounds(true, false);
   const sidebarCollapsed = useWorkspaceStore((state) => state.sidebarCollapsed);
   const toggleSidebar = useWorkspaceStore((state) => state.toggleSidebar);
   const expandedSidebarForGuideRef = useRef(false);
-  const guideControls = useMemo(() => isWealthJourney ? getWealthGuideControls(locale) : getGuideControls(locale), [isWealthJourney, locale]);
-  const guideNudgeCopy = useMemo(() => isWealthJourney ? getWealthGuideNudgeCopy(locale) : getGuideNudgeCopy(locale), [isWealthJourney, locale]);
-  const dashboardSidebarGuideSteps = useMemo(() => isWealthJourney ? getWealthDesktopGuideSteps(locale) : getDashboardSidebarGuideSteps(locale), [isWealthJourney, locale]);
+  const guideControls = useMemo(() => isTaxPlannerJourney ? getTaxPlannerGuideControls(locale) : isWealthJourney ? getWealthGuideControls(locale) : getGuideControls(locale), [isTaxPlannerJourney, isWealthJourney, locale]);
+  const guideNudgeCopy = useMemo(() => isTaxPlannerJourney ? getTaxPlannerGuideNudgeCopy(locale) : isWealthJourney ? getWealthGuideNudgeCopy(locale) : getGuideNudgeCopy(locale), [isTaxPlannerJourney, isWealthJourney, locale]);
+  const dashboardSidebarGuideSteps = useMemo(() => isTaxPlannerJourney ? getTaxPlannerDesktopGuideSteps(locale) : isWealthJourney ? getWealthDesktopGuideSteps(locale) : getDashboardSidebarGuideSteps(locale), [isTaxPlannerJourney, isWealthJourney, locale]);
 
   const {
     acceptGuideNudge,
@@ -213,7 +226,7 @@ export function DashboardDesktopGuide({ locale = DEFAULT_LOCALE, journey = "dash
   const sidebarRight = targetSnapshot?.sidebarRight ?? null;
   const isLastStep = stepIndex === dashboardSidebarGuideSteps.length - 1;
   const isNavigationStep = currentStep?.highlightStyle === "navigation";
-  const phase = isWealthJourney
+  const phase = (isWealthJourney || isTaxPlannerJourney)
     ? { label: guideControls.introPhase, stepIndex, stepCount: dashboardSidebarGuideSteps.length }
     : getGuidePhase(stepIndex, guideControls, dashboardSidebarGuideSteps.length);
   const pulseTargetReady = useGuideTargetAvailable('[data-guide="market-pulse"]', { requireReady: true });
@@ -222,7 +235,7 @@ export function DashboardDesktopGuide({ locale = DEFAULT_LOCALE, journey = "dash
   const nextDisabled = isWaitingForPulse;
 
   useEffect(() => {
-    if (!isGuideActive || isWealthJourney) {
+    if (!isGuideActive || isWealthJourney || isTaxPlannerJourney) {
       expandedSidebarForGuideRef.current = false;
       return;
     }
@@ -235,7 +248,7 @@ export function DashboardDesktopGuide({ locale = DEFAULT_LOCALE, journey = "dash
       toggleSidebar();
       expandedSidebarForGuideRef.current = true;
     }
-  }, [isGuideActive, isWealthJourney, sidebarCollapsed, stepIndex, toggleSidebar]);
+  }, [isGuideActive, isTaxPlannerJourney, isWealthJourney, sidebarCollapsed, stepIndex, toggleSidebar]);
 
   useEffect(() => {
     if (!isWealthJourney) {
@@ -246,6 +259,10 @@ export function DashboardDesktopGuide({ locale = DEFAULT_LOCALE, journey = "dash
       window.dispatchEvent(new CustomEvent("wealth-overview-guide:calculators", { detail: { open: false } }));
     };
   }, [currentStep?.id, isGuideActive, isWealthJourney]);
+
+  useEffect(() => {
+    onGuideStepChange?.({ active: isGuideActive, stepId: isGuideActive ? currentStep?.id ?? null : null });
+  }, [currentStep?.id, isGuideActive, onGuideStepChange]);
 
   useLayoutEffect(() => {
     if (
@@ -309,7 +326,9 @@ export function DashboardDesktopGuide({ locale = DEFAULT_LOCALE, journey = "dash
           }
         : undefined);
     const bubbleWidth = Math.min(380, (bounds?.right ?? viewport.width) - (bounds?.left ?? 0) - 32);
-    const bubbleHeight = isLastStep ? 248 : 220;
+    // Tax Planner sheets retain their controls at shorter viewport heights; reserve the
+    // full dialog footprint so the placement helper never leaves the actions below view.
+    const bubbleHeight = isTaxPlannerJourney ? 280 : isLastStep ? 248 : 220;
     const characterHeight = isNavigationStep ? 250 : 280;
     const characterWidth = isNavigationStep ? 180 : 200;
 

@@ -30,9 +30,27 @@ The calculator menu is explicitly controlled by the guide. It must close on navi
 away from its step, Back, skip, completion, dismissal, unmount, and route exit. Do not
 simulate a user click.
 
+## Tax Planner
+
+The Tax Planner journey is version 1 and runs only at `/wealth/tools/tax-planner`.
+Desktop has a replay launcher in the potential-savings preview; mobile uses the app-header
+launcher. The same five steps render in the desktop bubble and mobile sheet:
+
+1. **Welcome** — reduce last-minute surprises with a first picture.
+2. **Quick Estimate** — reveal the existing three yearly-number form.
+3. **Detailed Planner** — reveal the existing profile-first detailed form.
+4. **Rebate Playground** — bring the existing rebate section into view after results are ready.
+5. **Ending note** — summarize the Quick → Detailed → Rebate path.
+
+Guide-owned mode changes only switch existing Quick/Detailed panels and reset the detailed
+wizard to its first stage. They never alter entered income, investments, or the rebate
+slider. The rebate step only scrolls to live, already-calculated outcomes; it does not
+recommend an investment or simulate an amount.
+
 ## Testing and troubleshooting
 
 Test both locales, route gating, separate desktop/mobile persistence, launcher replay,
 keyboard and skip behavior, reduced motion, and calculator cleanup. For a fresh local
-run, remove the relevant `smart-stock-guide-wealth-overview-*-v1` local-storage key and
-its matching session auto-start key, or use a fresh browser profile.
+run, remove the relevant `smart-stock-guide-wealth-overview-*-v1` or
+`smart-stock-guide-tax-planner-*-v1` local-storage key and its matching session auto-start
+key, or use a fresh browser profile.

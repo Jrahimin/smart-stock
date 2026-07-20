@@ -27,6 +27,8 @@ const STORAGE_KEY = getGuidePreferenceStorageKey(VERSION);
 const SESSION_KEY = "smart-stock-guide-dashboard-auto-started-v2";
 const WEALTH_DESKTOP_SCOPE = { journey: "wealth" as const, surface: "desktop" as const, version: 1 };
 const WEALTH_MOBILE_SCOPE = { journey: "wealth" as const, surface: "mobile" as const, version: 1 };
+const TAX_PLANNER_DESKTOP_SCOPE = { journey: "tax-planner" as const, surface: "desktop" as const, version: 1 };
+const TAX_PLANNER_MOBILE_SCOPE = { journey: "tax-planner" as const, surface: "mobile" as const, version: 1 };
 
 function createMemoryStorage() {
   const store = new Map<string, string>();
@@ -88,6 +90,14 @@ describe("guide preference storage", () => {
     writeGuidePreference(WEALTH_DESKTOP_SCOPE, { status: "completed", suppressContextualPrompts: false });
     expect(readGuidePreference(WEALTH_MOBILE_SCOPE)).toBeNull();
     clearGuidePreference(WEALTH_DESKTOP_SCOPE);
+  });
+
+  it("keeps Tax Planner desktop and mobile preferences in independent scopes", () => {
+    expect(getGuidePreferenceStorageKey(TAX_PLANNER_DESKTOP_SCOPE)).toBe("smart-stock-guide-tax-planner-desktop-v1");
+    expect(getGuidePreferenceStorageKey(TAX_PLANNER_MOBILE_SCOPE)).toBe("smart-stock-guide-tax-planner-mobile-v1");
+    writeGuidePreference(TAX_PLANNER_DESKTOP_SCOPE, { status: "completed", suppressContextualPrompts: false });
+    expect(readGuidePreference(TAX_PLANNER_MOBILE_SCOPE)).toBeNull();
+    clearGuidePreference(TAX_PLANNER_DESKTOP_SCOPE);
   });
 
   it("blocks auto-start after auto-start has been shown once", () => {

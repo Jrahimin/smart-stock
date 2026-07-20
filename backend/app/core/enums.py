@@ -324,6 +324,8 @@ class OnboardingGuideKey(StrEnum):
     DASHBOARD_MOBILE_INTRO = "dashboard_mobile_intro"
     WEALTH_OVERVIEW_DESKTOP_GUIDE = "wealth_overview_desktop_guide"
     WEALTH_OVERVIEW_MOBILE_GUIDE = "wealth_overview_mobile_guide"
+    TAX_PLANNER_DESKTOP_GUIDE = "tax_planner_desktop_guide"
+    TAX_PLANNER_MOBILE_GUIDE = "tax_planner_mobile_guide"
 
 
 class OnboardingGuideState(StrEnum):

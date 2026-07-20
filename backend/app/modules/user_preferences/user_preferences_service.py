@@ -15,6 +15,10 @@ from app.modules.user_preferences.user_preferences_schemas import (
     DashboardMobileGuidePreferenceWrite,
     DashboardSidebarGuidePreferenceRead,
     DashboardSidebarGuidePreferenceWrite,
+    TaxPlannerDesktopGuidePreferenceRead,
+    TaxPlannerDesktopGuidePreferenceWrite,
+    TaxPlannerMobileGuidePreferenceRead,
+    TaxPlannerMobileGuidePreferenceWrite,
     WealthDesktopGuidePreferenceRead,
     WealthDesktopGuidePreferenceWrite,
     WealthMobileGuidePreferenceRead,
@@ -25,6 +29,8 @@ DASHBOARD_SIDEBAR_GUIDE_KEY = OnboardingGuideKey.DASHBOARD_SIDEBAR_GUIDE
 DASHBOARD_MOBILE_GUIDE_KEY = OnboardingGuideKey.DASHBOARD_MOBILE_INTRO
 WEALTH_DESKTOP_GUIDE_KEY = OnboardingGuideKey.WEALTH_OVERVIEW_DESKTOP_GUIDE
 WEALTH_MOBILE_GUIDE_KEY = OnboardingGuideKey.WEALTH_OVERVIEW_MOBILE_GUIDE
+TAX_PLANNER_DESKTOP_GUIDE_KEY = OnboardingGuideKey.TAX_PLANNER_DESKTOP_GUIDE
+TAX_PLANNER_MOBILE_GUIDE_KEY = OnboardingGuideKey.TAX_PLANNER_MOBILE_GUIDE
 
 
 class UserPreferencesService:
@@ -145,6 +151,36 @@ class UserPreferencesService:
             WEALTH_MOBILE_GUIDE_KEY,
             payload.state,
             WealthMobileGuidePreferenceRead,
+        )
+
+    async def get_tax_planner_desktop_guide_preference(
+        self,
+    ) -> TaxPlannerDesktopGuidePreferenceRead:
+        return await self._get_guide_preference(
+            TAX_PLANNER_DESKTOP_GUIDE_KEY,
+            TaxPlannerDesktopGuidePreferenceRead,
+        )
+
+    async def save_tax_planner_desktop_guide_preference(
+        self, payload: TaxPlannerDesktopGuidePreferenceWrite
+    ) -> TaxPlannerDesktopGuidePreferenceRead:
+        return await self._save_guide_preference(
+            TAX_PLANNER_DESKTOP_GUIDE_KEY, payload.state, TaxPlannerDesktopGuidePreferenceRead
+        )
+
+    async def get_tax_planner_mobile_guide_preference(
+        self,
+    ) -> TaxPlannerMobileGuidePreferenceRead:
+        return await self._get_guide_preference(
+            TAX_PLANNER_MOBILE_GUIDE_KEY,
+            TaxPlannerMobileGuidePreferenceRead,
+        )
+
+    async def save_tax_planner_mobile_guide_preference(
+        self, payload: TaxPlannerMobileGuidePreferenceWrite
+    ) -> TaxPlannerMobileGuidePreferenceRead:
+        return await self._save_guide_preference(
+            TAX_PLANNER_MOBILE_GUIDE_KEY, payload.state, TaxPlannerMobileGuidePreferenceRead
         )
 
     async def _get_guide_preference(self, guide_key: OnboardingGuideKey, response_type):

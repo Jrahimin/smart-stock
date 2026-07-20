@@ -8,8 +8,11 @@ import { GuideMobileSheet } from "@/features/guide/components/guide-mobile-sheet
 import { GuideTourNudge } from "@/features/guide/components/guide-tour-nudge";
 import { getDashboardMobileGuideSteps } from "@/features/guide/config/mobile-intro-guide";
 import { getWealthMobileGuideSteps } from "@/features/guide/config/wealth-overview-guide";
+import { getTaxPlannerMobileGuideSteps } from "@/features/guide/config/tax-planner-guide";
 import { getGuideControls, getGuideNudgeCopy } from "@/features/guide/dialogs/dashboard-dialogs";
 import { getWealthGuideControls, getWealthGuideNudgeCopy } from "@/features/guide/dialogs/wealth-dialogs";
+import { getTaxPlannerGuideControls, getTaxPlannerGuideNudgeCopy } from "@/features/guide/dialogs/tax-planner-dialogs";
+import type { ProductGuideStepState } from "@/features/guide/components/dashboard-desktop-guide";
 import { useMobileGuideController, type ProductGuideJourney } from "@/features/guide/hooks/use-dashboard-sidebar-guide-controller";
 import { useGuideTargetLayout } from "@/features/guide/hooks/use-guide-target-layout";
 import type { AppLocale } from "@/lib/locale/app-locale";
@@ -22,14 +25,18 @@ type DashboardMobileGuideProps = {
   locale?: AppLocale;
   onMobileNavigationOpenChange: (isOpen: boolean) => void;
   journey?: ProductGuideJourney;
+  onGuideStepChange?: (state: ProductGuideStepState) => void;
 };
 
 export function DashboardMobileGuide({
   locale = DEFAULT_LOCALE,
   onMobileNavigationOpenChange,
   journey = "dashboard",
+  onGuideStepChange,
 }: DashboardMobileGuideProps) {
   const isWealthJourney = journey === "wealth";
+  const isTaxPlannerJourney = journey === "tax-planner";
+  const isProductJourney = isWealthJourney || isTaxPlannerJourney;
   const reduceMotion = useReducedMotion();
   const drawerTransitionTimeoutRef = useRef<number | null>(null);
   const [isDrawerTransitioning, setIsDrawerTransitioning] = useState(false);
@@ -52,9 +59,9 @@ export function DashboardMobileGuide({
     suppressContextualPrompts,
   } = useMobileGuideController(journey);
 
-  const guideControls = useMemo(() => isWealthJourney ? getWealthGuideControls(locale) : getGuideControls(locale), [isWealthJourney, locale]);
-  const guideNudgeCopy = useMemo(() => isWealthJourney ? getWealthGuideNudgeCopy(locale) : getGuideNudgeCopy(locale), [isWealthJourney, locale]);
-  const dashboardMobileGuideSteps = useMemo(() => isWealthJourney ? getWealthMobileGuideSteps(locale) : getDashboardMobileGuideSteps(locale), [isWealthJourney, locale]);
+  const guideControls = useMemo(() => isTaxPlannerJourney ? getTaxPlannerGuideControls(locale) : isWealthJourney ? getWealthGuideControls(locale) : getGuideControls(locale), [isTaxPlannerJourney, isWealthJourney, locale]);
+  const guideNudgeCopy = useMemo(() => isTaxPlannerJourney ? getTaxPlannerGuideNudgeCopy(locale) : isWealthJourney ? getWealthGuideNudgeCopy(locale) : getGuideNudgeCopy(locale), [isTaxPlannerJourney, isWealthJourney, locale]);
+  const dashboardMobileGuideSteps = useMemo(() => isTaxPlannerJourney ? getTaxPlannerMobileGuideSteps(locale) : isWealthJourney ? getWealthMobileGuideSteps(locale) : getDashboardMobileGuideSteps(locale), [isTaxPlannerJourney, isWealthJourney, locale]);
 
   const currentStep = dashboardMobileGuideSteps[stepIndex];
   const isLastStep = stepIndex === dashboardMobileGuideSteps.length - 1;
@@ -75,6 +82,10 @@ export function DashboardMobileGuide({
   }, [currentStep?.id, isGuideActive, isWealthJourney]);
 
   useEffect(() => {
+    onGuideStepChange?.({ active: isGuideActive, stepId: isGuideActive ? currentStep?.id ?? null : null });
+  }, [currentStep?.id, isGuideActive, onGuideStepChange]);
+
+  useEffect(() => {
     return () => {
       if (drawerTransitionTimeoutRef.current !== null) {
         window.clearTimeout(drawerTransitionTimeoutRef.current);
@@ -83,10 +94,10 @@ export function DashboardMobileGuide({
   }, []);
 
   useEffect(() => {
-    if (!isGuideActive && !isWealthJourney) {
+    if (!isGuideActive && !isProductJourney) {
       onMobileNavigationOpenChange(false);
     }
-  }, [isGuideActive, isWealthJourney, onMobileNavigationOpenChange]);
+  }, [isGuideActive, isProductJourney, onMobileNavigationOpenChange]);
 
   useEffect(() => {
     if (!isGuideActive) {
@@ -110,7 +121,7 @@ export function DashboardMobileGuide({
   }, [isDrawerTransitioning, isGuideActive, setSkipConfirmationOpen, skipConfirmationOpen, stepIndex]);
 
   function movePrevious() {
-    if (isWealthJourney) {
+    if (isProductJourney) {
       setStepIndex((index) => Math.max(0, index - 1));
       return;
     }
@@ -123,7 +134,7 @@ export function DashboardMobileGuide({
 
   function moveNext() {
     if (isLastStep) {
-      if (!isWealthJourney) onMobileNavigationOpenChange(false);
+      if (!isProductJourney) onMobileNavigationOpenChange(false);
       finishGuide({
         status: suppressContextualPrompts ? "dismissed" : "completed",
         suppressContextualPrompts,
@@ -131,7 +142,7 @@ export function DashboardMobileGuide({
       return;
     }
 
-    if (!isWealthJourney && stepIndex === 0) {
+    if (!isProductJourney && stepIndex === 0) {
       setIsDrawerTransitioning(true);
       drawerTransitionTimeoutRef.current = window.setTimeout(() => {
         onMobileNavigationOpenChange(true);
@@ -142,7 +153,7 @@ export function DashboardMobileGuide({
       return;
     }
 
-    if (!isWealthJourney && stepIndex === 3) {
+    if (!isProductJourney && stepIndex === 3) {
       onMobileNavigationOpenChange(false);
     }
 
@@ -150,7 +161,7 @@ export function DashboardMobileGuide({
   }
 
   function handleSkip() {
-    if (!isWealthJourney) onMobileNavigationOpenChange(false);
+    if (!isProductJourney) onMobileNavigationOpenChange(false);
     skipGuide();
   }
 

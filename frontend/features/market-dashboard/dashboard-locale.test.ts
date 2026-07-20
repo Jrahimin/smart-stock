@@ -131,9 +131,9 @@ describe("dashboard guide dialogs", () => {
     expect(getGuideNudgeCopy("en").title).toMatch(/tour/i);
   });
 
-  it("keeps unchanged bangla mascot copy in bn mode", () => {
+  it("keeps shared Bangla guide controls consistent", () => {
     expect(getDashboardGuideDialogs("bn").welcome.eyebrow).toBe("👋 স্বাগতম");
-    expect(getGuideControls("bn").next).toBe("তারপর");
+    expect(getGuideControls("bn").next).toBe("পরেরটা");
     expect(getMobileIntroDialogs("bn").welcome.eyebrow).toBe("👋 স্বাগতম");
     expect(getGuideNudgeCopy("bn").accept).toBe("হ্যাঁ, শুরু করি");
   });

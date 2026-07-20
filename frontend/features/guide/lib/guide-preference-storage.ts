@@ -8,7 +8,7 @@ import type { GuideCompletion, GuidePreference } from "@/features/guide/types/gu
 export type GuideServerState = "COMPLETED" | "DISMISSED";
 
 export type GuidePreferenceSurface = "desktop" | "mobile";
-export type GuideJourney = "dashboard" | "wealth";
+export type GuideJourney = "dashboard" | "wealth" | "tax-planner";
 
 export type GuidePreferenceScope = {
   journey?: GuideJourney;
@@ -32,6 +32,10 @@ function storageKeyForScope(scope: GuidePreferenceScope) {
     return `smart-stock-guide-wealth-overview-${scope.surface}-v${scope.version}`;
   }
 
+  if (scope.journey === "tax-planner") {
+    return `smart-stock-guide-tax-planner-${scope.surface}-v${scope.version}`;
+  }
+
   if (scope.surface === "desktop") {
     return `smart-stock-guide-dashboard-sidebar-v${scope.version}`;
   }
@@ -42,6 +46,10 @@ function storageKeyForScope(scope: GuidePreferenceScope) {
 function sessionAutoStartKeyForScope(scope: GuidePreferenceScope) {
   if (scope.journey === "wealth") {
     return `smart-stock-guide-wealth-overview-${scope.surface}-auto-started-v${scope.version}`;
+  }
+
+  if (scope.journey === "tax-planner") {
+    return `smart-stock-guide-tax-planner-${scope.surface}-auto-started-v${scope.version}`;
   }
 
   if (scope.surface === "desktop") {
@@ -224,9 +232,13 @@ function persistGuidePreference(preference: GuidePreference, scope: GuidePrefere
 
   try {
     window.localStorage.setItem(storageKeyForScope(scope), JSON.stringify(preference));
-    window.dispatchEvent(
-      new Event(scope.journey === "wealth" ? "wealth-overview-guide:preference-changed" : "dashboard-sidebar-guide:preference-changed"),
-    );
+    const preferenceEvent =
+      scope.journey === "wealth"
+        ? "wealth-overview-guide:preference-changed"
+        : scope.journey === "tax-planner"
+          ? "tax-planner-guide:preference-changed"
+          : "dashboard-sidebar-guide:preference-changed";
+    window.dispatchEvent(new Event(preferenceEvent));
   } catch {
     // Ignore storage failures.
   }

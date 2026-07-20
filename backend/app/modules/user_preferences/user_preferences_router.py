@@ -8,6 +8,10 @@ from app.modules.user_preferences.user_preferences_schemas import (
     DashboardMobileGuidePreferenceWrite,
     DashboardSidebarGuidePreferenceRead,
     DashboardSidebarGuidePreferenceWrite,
+    TaxPlannerDesktopGuidePreferenceRead,
+    TaxPlannerDesktopGuidePreferenceWrite,
+    TaxPlannerMobileGuidePreferenceRead,
+    TaxPlannerMobileGuidePreferenceWrite,
     WealthDesktopGuidePreferenceRead,
     WealthDesktopGuidePreferenceWrite,
     WealthMobileGuidePreferenceRead,
@@ -111,3 +115,55 @@ async def save_wealth_mobile_guide_preference(
 ) -> ApiResponse[WealthMobileGuidePreferenceRead]:
     preference = await service.save_wealth_mobile_guide_preference(payload)
     return success_response(data=preference, message="Wealth mobile guide preference saved")
+
+
+@router.get(
+    "/tax-planner-desktop-guide",
+    response_model=ApiResponse[TaxPlannerDesktopGuidePreferenceRead],
+)
+async def get_tax_planner_desktop_guide_preference(
+    service: Annotated[UserPreferencesService, Depends(get_user_preferences_service)],
+) -> ApiResponse[TaxPlannerDesktopGuidePreferenceRead]:
+    preference = await service.get_tax_planner_desktop_guide_preference()
+    return success_response(
+        data=preference,
+        message="Tax Planner desktop guide preference retrieved",
+    )
+
+
+@router.put(
+    "/tax-planner-desktop-guide",
+    response_model=ApiResponse[TaxPlannerDesktopGuidePreferenceRead],
+)
+async def save_tax_planner_desktop_guide_preference(
+    payload: TaxPlannerDesktopGuidePreferenceWrite,
+    service: Annotated[UserPreferencesService, Depends(get_user_preferences_service)],
+) -> ApiResponse[TaxPlannerDesktopGuidePreferenceRead]:
+    preference = await service.save_tax_planner_desktop_guide_preference(payload)
+    return success_response(data=preference, message="Tax Planner desktop guide preference saved")
+
+
+@router.get(
+    "/tax-planner-mobile-guide",
+    response_model=ApiResponse[TaxPlannerMobileGuidePreferenceRead],
+)
+async def get_tax_planner_mobile_guide_preference(
+    service: Annotated[UserPreferencesService, Depends(get_user_preferences_service)],
+) -> ApiResponse[TaxPlannerMobileGuidePreferenceRead]:
+    preference = await service.get_tax_planner_mobile_guide_preference()
+    return success_response(
+        data=preference,
+        message="Tax Planner mobile guide preference retrieved",
+    )
+
+
+@router.put(
+    "/tax-planner-mobile-guide",
+    response_model=ApiResponse[TaxPlannerMobileGuidePreferenceRead],
+)
+async def save_tax_planner_mobile_guide_preference(
+    payload: TaxPlannerMobileGuidePreferenceWrite,
+    service: Annotated[UserPreferencesService, Depends(get_user_preferences_service)],
+) -> ApiResponse[TaxPlannerMobileGuidePreferenceRead]:
+    preference = await service.save_tax_planner_mobile_guide_preference(payload)
+    return success_response(data=preference, message="Tax Planner mobile guide preference saved")

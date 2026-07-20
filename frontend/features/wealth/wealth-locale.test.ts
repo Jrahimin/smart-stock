@@ -8,6 +8,7 @@ import {
 import { getWealthSnapshotLanguage } from "@/features/wealth/wealth-snapshot-language";
 import { getWealthToolsLanguage } from "@/features/wealth/wealth-tools-language";
 import { getWealthDesktopGuideSteps, getWealthMobileGuideSteps } from "@/features/guide/config/wealth-overview-guide";
+import { getTaxPlannerDesktopGuideSteps, getTaxPlannerMobileGuideSteps } from "@/features/guide/config/tax-planner-guide";
 import type { WealthInsightCard, WealthSeasonalContext } from "@/features/wealth/types/wealth-types";
 
 describe("wealth landing language", () => {
@@ -90,6 +91,18 @@ describe("wealth landing language", () => {
     expect(desktop[2]?.dialog.message).toContain("FDR");
     expect(desktop[2]?.dialog.message).toContain("Zakat");
     expect(mobile).toHaveLength(5);
-    expect(mobile[0]?.dialog.message).toContain("টাকার সিদ্ধান্ত");
+    expect(mobile[0]?.dialog.message).toContain("সম্পদের কোনো সিদ্ধান্ত");
+  });
+
+  it("provides the five-step Tax Planner journey in the requested order and voice", () => {
+    const desktop = getTaxPlannerDesktopGuideSteps("en");
+    const mobile = getTaxPlannerMobileGuideSteps("bn");
+    expect(desktop.map((step) => step.id)).toEqual(["welcome", "quick", "detailed", "rebate", "finish"]);
+    expect(desktop[1]?.dialog.message).toContain("three yearly numbers");
+    expect(desktop[2]?.dialog.message).toContain("match your year more closely");
+    expect(mobile).toHaveLength(5);
+    expect(mobile[1]?.dialog.message).toContain("এক ঝলক");
+    expect(mobile[3]?.dialog.message).toContain("rebate আর final tax");
+    expect(mobile[4]?.dialog.message).toContain("নিজের মতো করে explore করুন");
   });
 });

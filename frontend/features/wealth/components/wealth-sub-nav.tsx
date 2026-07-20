@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { DashboardLocaleSwitcher } from "@/features/market-dashboard/components/dashboard-locale-switcher";
 import { WealthGuideLauncher } from "@/features/guide/components/wealth-guide-launcher";
+import { TaxPlannerGuideLauncher } from "@/features/guide/components/tax-planner-guide-launcher";
 import { WEALTH_CALCULATOR_NAV_ITEMS } from "@/features/wealth/catalog/wealth-catalog";
 import { getWealthLandingLanguage, type WealthLandingLanguage } from "@/features/wealth/wealth-language";
 import type { AppLocale } from "@/lib/locale/app-locale";
@@ -76,7 +77,8 @@ export function WealthSubNav({ locale }: { locale?: AppLocale }) {
         <>
           <span aria-hidden="true" className="wealth-sub-nav-divider wealth-sub-nav-utilities-divider" />
           <div className="wealth-sub-nav-utilities">
-            {pathname === "/wealth" ? <WealthGuideLauncher className="wealth-sub-nav-guide-button" locale={locale} /> : null}
+            {pathname === "/wealth" ? <WealthGuideLauncher className="market-dashboard-guide-button wealth-sub-nav-guide-button" locale={locale} /> : null}
+            {pathname === "/wealth/tools/tax-planner" ? <TaxPlannerGuideLauncher className="market-dashboard-guide-button wealth-sub-nav-guide-button" locale={locale} /> : null}
             <DashboardLocaleSwitcher ariaLabel={language.nav.localeSwitcherAria} locale={locale} variant="compact" />
           </div>
         </>

@@ -1,7 +1,10 @@
 "use client";
 
 import { Banknote, CircleMinus, Coins, FileText, Percent, Shield, Sprout, Target, Wallet } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+
+import { TaxPlannerGuide } from "@/features/guide/components/tax-planner-guide";
+import type { ProductGuideStepState } from "@/features/guide/components/dashboard-desktop-guide";
 
 import { TaxInfoTooltip } from "@/features/wealth/components/tax-info-tooltip";
 import { WealthSubNav } from "@/features/wealth/components/wealth-sub-nav";
@@ -137,28 +140,28 @@ const TAXPAYER_CATEGORY_CARDS = [
     id: "woman",
     title: "Woman",
     subtitle: "Higher tax-free allowance",
-    icon: "👩",
+    iconSrc: "/images/wealth/taxpayer-categories/woman.png",
     ariaLabel: "Woman",
   },
   {
     id: "senior_citizen",
     title: "Senior Citizen",
     subtitle: "Aged 65 or above",
-    icon: "🧓",
+    iconSrc: "/images/wealth/taxpayer-categories/senior.png",
     ariaLabel: "Senior Citizen age 65 or above",
   },
   {
     id: "person_with_disability",
     title: "Person with Disability",
     subtitle: "Higher tax-free allowance",
-    icon: "♿",
+    iconSrc: "/images/wealth/taxpayer-categories/disability.png",
     ariaLabel: "Person with Disability",
   },
   {
     id: "freedom_fighter",
     title: "Freedom Fighter",
     subtitle: "Gazetted freedom fighter",
-    icon: "🎖",
+    iconSrc: "/images/wealth/taxpayer-categories/freedom-fighter.png",
     ariaLabel: "Freedom Fighter",
   },
 ] as const;
@@ -366,6 +369,41 @@ export function TaxPlannerWorkspace({ locale }: { locale: AppLocale }) {
     setSimulatedAdditionalInvestment(0);
   }
 
+  const handleGuideStepChange = useCallback((state: ProductGuideStepState) => {
+    if (!state.active) {
+      return;
+    }
+
+    if (state.stepId === "welcome" || state.stepId === "finish") {
+      window.scrollTo({ behavior: "smooth", top: 0 });
+      return;
+    }
+
+    if (state.stepId === "quick") {
+      setMode("QUICK");
+      setActiveStep("about");
+      window.requestAnimationFrame(() => {
+        workspaceRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+      return;
+    }
+
+    if (state.stepId === "detailed") {
+      setMode("DETAILED");
+      setActiveStep("about");
+      window.requestAnimationFrame(() => {
+        workspaceRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+      return;
+    }
+
+    if (state.stepId === "rebate") {
+      window.requestAnimationFrame(() => {
+        playExploreRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    }
+  }, []);
+
   function scrollToPlay() {
     resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
@@ -446,6 +484,7 @@ export function TaxPlannerWorkspace({ locale }: { locale: AppLocale }) {
           </div>
         ) : null}
       </div>
+      <TaxPlannerGuide locale={locale} onGuideStepChange={handleGuideStepChange} />
     </section>
   );
 }
@@ -511,7 +550,7 @@ function TaxModeSegment({
 }) {
   const copy = getWealthToolsLanguage(locale).tax;
   return (
-    <div className="wealth-tax-mode-segment">
+    <div className="wealth-tax-mode-segment" data-guide="tax-planner-mode">
       <span className="wealth-tax-mode-segment-label" id="tax-planner-mode-label">
         {locale === "bn" ? "হিসাবের ধরন" : "Estimate mode"}
       </span>
@@ -577,7 +616,7 @@ function QuickEstimateForm({
 }) {
   const isBangla = locale === "bn";
   return (
-    <div aria-labelledby="tax-planner-tab-quick" className="wealth-tax-quick" id="tax-planner-panel" role="tabpanel">
+    <div aria-labelledby="tax-planner-tab-quick" className="wealth-tax-quick" data-guide="tax-planner-quick" id="tax-planner-panel" role="tabpanel">
       <div className="wealth-tax-workspace-head">
         <h2>{isBangla ? "তিনটি বার্ষিক তথ্য, এক নজরে হিসাব" : "Three yearly numbers, one quick picture"}</h2>
         <p className="wealth-muted-copy">{isBangla ? "তথ্য বদলালেই নিচের estimate update হবে।" : "Your estimate updates live below as you type."}</p>
@@ -679,7 +718,7 @@ function DetailedWizard({
   }
 
   return (
-    <div aria-labelledby="tax-planner-tab-detailed" className="wealth-tax-wizard" id="tax-planner-panel" role="tabpanel">
+    <div aria-labelledby="tax-planner-tab-detailed" className="wealth-tax-wizard" data-guide="tax-planner-detailed" id="tax-planner-panel" role="tabpanel">
       <ol className="wealth-tax-stepper">
         {WIZARD_STEPS.map((step, index) => {
           const state = index === currentIndex ? "active" : index < currentIndex ? "done" : "todo";
@@ -876,7 +915,7 @@ function AboutYouStep({
                   type="button"
                 >
                   <span aria-hidden="true" className="wealth-tax-taxpayer-card-icon-box">
-                    {category.icon}
+                    <img alt="" className="wealth-tax-taxpayer-card-icon" src={category.iconSrc} />
                   </span>
                   <span className="wealth-tax-taxpayer-card-copy">
                     <span className="wealth-tax-taxpayer-card-title">{category.title}</span>
@@ -1289,6 +1328,8 @@ function PlayAndExplore({
   return (
     <section
       className="wealth-tax-play wealth-tax-play-compact wealth-panel"
+      data-guide="tax-planner-rebate"
+      data-guide-ready="true"
       id="tax-planner-play-explore"
       ref={sectionRef}
       tabIndex={-1}

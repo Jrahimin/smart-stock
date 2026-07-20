@@ -8,6 +8,7 @@ import type { RefObject } from "react";
 
 import { DashboardGuideLauncher } from "@/features/guide/components/dashboard-guide-launcher";
 import { WealthGuideLauncher } from "@/features/guide/components/wealth-guide-launcher";
+import { TaxPlannerGuideLauncher } from "@/features/guide/components/tax-planner-guide-launcher";
 import type { AppLocale } from "@/lib/locale/app-locale";
 import { DEFAULT_LOCALE } from "@/lib/locale/app-locale";
 
@@ -19,7 +20,7 @@ type MobileAppHeaderProps = {
   isMenuOpen: boolean;
   menuButtonRef?: RefObject<HTMLButtonElement | null>;
   onMenuToggle: () => void;
-  guideLauncher?: "dashboard" | "wealth" | null;
+  guideLauncher?: "dashboard" | "wealth" | "tax-planner" | null;
 };
 
 export function MobileAppHeader({
@@ -63,7 +64,7 @@ export function MobileAppHeader({
       <div className="mobile-app-header-actions">
         {guideLauncher === "dashboard" ? (
           <DashboardGuideLauncher className="mobile-app-header-guide-button" locale={guideLocale} />
-        ) : guideLauncher === "wealth" ? <WealthGuideLauncher className="mobile-app-header-guide-button" locale={guideLocale} /> : null}
+        ) : guideLauncher === "wealth" ? <WealthGuideLauncher className="mobile-app-header-guide-button" locale={guideLocale} /> : guideLauncher === "tax-planner" ? <TaxPlannerGuideLauncher className="mobile-app-header-guide-button" locale={guideLocale} /> : null}
         <button
           aria-label="Search stocks and symbols"
           className="mobile-app-header-search-button"

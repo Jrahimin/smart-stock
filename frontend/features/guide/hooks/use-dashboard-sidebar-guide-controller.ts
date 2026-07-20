@@ -10,6 +10,10 @@ import {
   WEALTH_OVERVIEW_MOBILE_GUIDE_VERSION,
 } from "@/features/guide/config/wealth-overview-guide";
 import {
+  TAX_PLANNER_DESKTOP_GUIDE_VERSION,
+  TAX_PLANNER_MOBILE_GUIDE_VERSION,
+} from "@/features/guide/config/tax-planner-guide";
+import {
   GUIDE_AUTO_START_DELAY_MS,
   GUIDE_SERVER_SYNC_TIMEOUT_MS,
   GUIDE_USER_ACTIVITY_GUARD_MS,
@@ -40,10 +44,14 @@ import {
   getWealthMobileGuidePreference,
   saveWealthDesktopGuidePreference,
   saveWealthMobileGuidePreference,
+  getTaxPlannerDesktopGuidePreference,
+  getTaxPlannerMobileGuidePreference,
+  saveTaxPlannerDesktopGuidePreference,
+  saveTaxPlannerMobileGuidePreference,
 } from "@/features/guide/services/guide-preference-api";
 import type { GuideCompletion } from "@/features/guide/types/guide-types";
 import { useAuth } from "@/features/auth/context/auth-context";
-import { isDashboardGuideRoute, isWealthOverviewGuideRoute } from "@/features/guide/lib/guide-route";
+import { isDashboardGuideRoute, isTaxPlannerGuideRoute, isWealthOverviewGuideRoute } from "@/features/guide/lib/guide-route";
 import { useGuideTargetAvailable } from "@/features/guide/hooks/use-guide-target-layout";
 
 export type GuideRunTrigger = "auto" | "manual" | "nudge";
@@ -80,6 +88,16 @@ const WEALTH_MOBILE_GUIDE_SCOPE: GuidePreferenceScope = {
   journey: "wealth",
   surface: "mobile",
   version: WEALTH_OVERVIEW_MOBILE_GUIDE_VERSION,
+};
+const TAX_PLANNER_DESKTOP_GUIDE_SCOPE: GuidePreferenceScope = {
+  journey: "tax-planner",
+  surface: "desktop",
+  version: TAX_PLANNER_DESKTOP_GUIDE_VERSION,
+};
+const TAX_PLANNER_MOBILE_GUIDE_SCOPE: GuidePreferenceScope = {
+  journey: "tax-planner",
+  surface: "mobile",
+  version: TAX_PLANNER_MOBILE_GUIDE_VERSION,
 };
 
 function createGuideRun(trigger: GuideRunTrigger): GuideRun {
@@ -483,13 +501,23 @@ export function useWealthMobileGuideController() {
   return useMobileGuideController("wealth");
 }
 
-export type ProductGuideJourney = "dashboard" | "wealth";
+export function useTaxPlannerDesktopGuideController() {
+  return useDesktopGuideController("tax-planner");
+}
+
+export function useTaxPlannerMobileGuideController() {
+  return useMobileGuideController("tax-planner");
+}
+
+export type ProductGuideJourney = "dashboard" | "wealth" | "tax-planner";
 
 export function useDesktopGuideController(journey: ProductGuideJourney = "dashboard") {
   return useDashboardGuideController(
     journey === "wealth"
       ? { scope: WEALTH_DESKTOP_GUIDE_SCOPE, requirePulseTarget: false, isGuideRoute: isWealthOverviewGuideRoute, openEvent: "wealth-overview-guide:open", getServerPreference: getWealthDesktopGuidePreference, saveServerPreference: saveWealthDesktopGuidePreference }
-      : { scope: DESKTOP_GUIDE_SCOPE, requirePulseTarget: false, isGuideRoute: isDashboardGuideRoute, openEvent: "dashboard-sidebar-guide:open", getServerPreference: getDashboardSidebarGuidePreference, saveServerPreference: saveDashboardSidebarGuidePreference },
+      : journey === "tax-planner"
+        ? { scope: TAX_PLANNER_DESKTOP_GUIDE_SCOPE, requirePulseTarget: false, isGuideRoute: isTaxPlannerGuideRoute, openEvent: "tax-planner-guide:open", getServerPreference: getTaxPlannerDesktopGuidePreference, saveServerPreference: saveTaxPlannerDesktopGuidePreference }
+        : { scope: DESKTOP_GUIDE_SCOPE, requirePulseTarget: false, isGuideRoute: isDashboardGuideRoute, openEvent: "dashboard-sidebar-guide:open", getServerPreference: getDashboardSidebarGuidePreference, saveServerPreference: saveDashboardSidebarGuidePreference },
   );
 }
 
@@ -497,7 +525,9 @@ export function useMobileGuideController(journey: ProductGuideJourney = "dashboa
   return useDashboardGuideController(
     journey === "wealth"
       ? { scope: WEALTH_MOBILE_GUIDE_SCOPE, requirePulseTarget: false, isGuideRoute: isWealthOverviewGuideRoute, openEvent: "wealth-overview-guide:open", getServerPreference: getWealthMobileGuidePreference, saveServerPreference: saveWealthMobileGuidePreference }
-      : { scope: MOBILE_GUIDE_SCOPE, requirePulseTarget: false, isGuideRoute: isDashboardGuideRoute, openEvent: "dashboard-sidebar-guide:open", getServerPreference: getDashboardMobileGuidePreference, saveServerPreference: saveDashboardMobileGuidePreference },
+      : journey === "tax-planner"
+        ? { scope: TAX_PLANNER_MOBILE_GUIDE_SCOPE, requirePulseTarget: false, isGuideRoute: isTaxPlannerGuideRoute, openEvent: "tax-planner-guide:open", getServerPreference: getTaxPlannerMobileGuidePreference, saveServerPreference: saveTaxPlannerMobileGuidePreference }
+        : { scope: MOBILE_GUIDE_SCOPE, requirePulseTarget: false, isGuideRoute: isDashboardGuideRoute, openEvent: "dashboard-sidebar-guide:open", getServerPreference: getDashboardMobileGuidePreference, saveServerPreference: saveDashboardMobileGuidePreference },
   );
 }
 
@@ -564,5 +594,43 @@ export function useWealthGuideLauncherProminent() {
     window.addEventListener("storage", onStorage);
     return () => { window.removeEventListener("wealth-overview-guide:preference-changed", refresh); window.removeEventListener("storage", onStorage); };
   }, [pathname, scope, storageKey]);
+  return prominent;
+}
+
+export function useTaxPlannerGuideLauncherProminent() {
+  const pathname = usePathname();
+  const isMobile = useIsMobileViewport();
+  const scope = isMobile ? TAX_PLANNER_MOBILE_GUIDE_SCOPE : TAX_PLANNER_DESKTOP_GUIDE_SCOPE;
+  const [prominent, setProminent] = useState(false);
+  const storageKey = getGuidePreferenceStorageKey(scope);
+
+  useEffect(() => {
+    if (!isTaxPlannerGuideRoute(pathname)) {
+      setProminent(false);
+      return;
+    }
+    setProminent(isGuideLauncherProminent(scope));
+  }, [pathname, scope]);
+
+  useEffect(() => {
+    const refresh = () => {
+      if (isTaxPlannerGuideRoute(pathname)) {
+        setProminent(isGuideLauncherProminent(scope));
+      }
+    };
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === storageKey) {
+        refresh();
+      }
+    };
+
+    window.addEventListener("tax-planner-guide:preference-changed", refresh);
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener("tax-planner-guide:preference-changed", refresh);
+      window.removeEventListener("storage", onStorage);
+    };
+  }, [pathname, scope, storageKey]);
+
   return prominent;
 }

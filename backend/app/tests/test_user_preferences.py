@@ -7,6 +7,8 @@ from app.core.enums import OnboardingGuideKey, OnboardingGuideState
 from app.core.security_config import UserContext
 from app.modules.user_preferences.user_preferences_schemas import (
     DashboardSidebarGuidePreferenceWrite,
+    TaxPlannerDesktopGuidePreferenceWrite,
+    TaxPlannerMobileGuidePreferenceWrite,
     WealthDesktopGuidePreferenceWrite,
     WealthMobileGuidePreferenceWrite,
 )
@@ -148,6 +150,29 @@ def test_wealth_guide_preferences_are_independent_per_surface():
         )
         dismissed = await service.save_wealth_mobile_guide_preference(
             WealthMobileGuidePreferenceWrite(state=OnboardingGuideState.DISMISSED)
+        )
+        assert dismissed.state == OnboardingGuideState.DISMISSED
+        assert len(repository.preferences) == 2
+
+    asyncio.run(run())
+
+
+def test_tax_planner_guide_preferences_are_independent_per_surface():
+    repository = FakeUserPreferencesRepository()
+    service = _service(repository, uuid4())
+
+    async def run():
+        desktop = await service.get_tax_planner_desktop_guide_preference()
+        mobile = await service.get_tax_planner_mobile_guide_preference()
+        assert desktop.key == OnboardingGuideKey.TAX_PLANNER_DESKTOP_GUIDE
+        assert mobile.key == OnboardingGuideKey.TAX_PLANNER_MOBILE_GUIDE
+        assert desktop.state is None and mobile.state is None
+
+        await service.save_tax_planner_desktop_guide_preference(
+            TaxPlannerDesktopGuidePreferenceWrite(state=OnboardingGuideState.COMPLETED)
+        )
+        dismissed = await service.save_tax_planner_mobile_guide_preference(
+            TaxPlannerMobileGuidePreferenceWrite(state=OnboardingGuideState.DISMISSED)
         )
         assert dismissed.state == OnboardingGuideState.DISMISSED
         assert len(repository.preferences) == 2

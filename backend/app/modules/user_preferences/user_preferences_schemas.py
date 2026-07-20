@@ -43,3 +43,23 @@ class WealthMobileGuidePreferenceRead(BaseModel):
 
 class WealthMobileGuidePreferenceWrite(BaseModel):
     state: OnboardingGuideState
+
+
+class TaxPlannerDesktopGuidePreferenceRead(BaseModel):
+    key: OnboardingGuideKey = OnboardingGuideKey.TAX_PLANNER_DESKTOP_GUIDE
+    state: OnboardingGuideState | None
+    updated_at: datetime | None
+
+
+class TaxPlannerDesktopGuidePreferenceWrite(BaseModel):
+    state: OnboardingGuideState
+
+
+class TaxPlannerMobileGuidePreferenceRead(BaseModel):
+    key: OnboardingGuideKey = OnboardingGuideKey.TAX_PLANNER_MOBILE_GUIDE
+    state: OnboardingGuideState | None
+    updated_at: datetime | None
+
+
+class TaxPlannerMobileGuidePreferenceWrite(BaseModel):
+    state: OnboardingGuideState

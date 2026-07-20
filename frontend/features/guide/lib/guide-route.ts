@@ -7,3 +7,8 @@ export function isDashboardGuideRoute(pathname: string) {
 export function isWealthOverviewGuideRoute(pathname: string) {
   return pathname === "/wealth";
 }
+
+/** The Tax Planner guide only runs on the planner workspace, not other Wealth tools. */
+export function isTaxPlannerGuideRoute(pathname: string) {
+  return pathname === "/wealth/tools/tax-planner";
+}

@@ -15725,13 +15725,21 @@ button {
   border-radius: 10px;
   display: inline-flex;
   flex-shrink: 0;
-  font-size: 1.35rem;
+  overflow: hidden;
   grid-column: 1;
   grid-row: 1 / span 2;
   height: 2.65rem;
   justify-content: center;
   line-height: 1;
   width: 2.4rem;
+}
+
+.wealth-tax-taxpayer-card-icon {
+  display: block;
+  height: 100%;
+  object-fit: contain;
+  transform: scale(1.28);
+  width: 100%;
 }
 
 .wealth-tax-taxpayer-card-copy {
