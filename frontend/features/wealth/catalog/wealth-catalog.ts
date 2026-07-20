@@ -80,6 +80,21 @@ export const WEALTH_SCENARIO_LAUNCHERS: WealthScenarioLauncher[] = [
   },
 ];
 
+/** The six high-confidence starting points shown on the Wealth Workspace overview. */
+export const WEALTH_OVERVIEW_SCENARIO_LAUNCHERS: WealthScenarioLauncher[] = [
+  WEALTH_SCENARIO_LAUNCHERS[0],
+  WEALTH_SCENARIO_LAUNCHERS[1],
+  WEALTH_SCENARIO_LAUNCHERS[2],
+  {
+    id: "retire-earlier",
+    href: "/wealth/tools/dps",
+    cue: "habit",
+    productLabel: "DPS",
+  },
+  WEALTH_SCENARIO_LAUNCHERS[5],
+  WEALTH_SCENARIO_LAUNCHERS[6],
+];
+
 /** Bangladesh-oriented default rates (user can override in each tool). */
 export const WEALTH_DEFAULT_RATES = {
   fdr: "9",

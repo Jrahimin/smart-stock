@@ -79,5 +79,6 @@ describe("wealth landing language", () => {
     expect(tools.dps.milestone10Lakh).toContain("10");
     expect(snapshot.hero.title).toBe("Money Snapshot");
     expect(snapshot.upcoming.next30Days).toContain("30");
+    expect(getWealthLandingLanguage("bn").snapshot.growthHint).toContain("picture");
   });
 });

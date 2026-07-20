@@ -30,6 +30,13 @@ type WealthLandingLanguage = {
     eyebrow: string;
     title: string;
     description: string;
+    cta: string;
+    timeline: {
+      today: string;
+      oneYear: string;
+      fiveYears: string;
+      tenYears: string;
+    };
     intentLabels: Record<WealthIntentHref, string>;
   };
   seasonal: {
@@ -90,11 +97,15 @@ type WealthLandingLanguage = {
     clarity: string;
     clarityTitle: string;
     clarityDescription: string;
+    growthHint: string;
+    guideSteps: string[];
   };
   insights: {
     cardEyebrow: string;
     eyebrow: string;
     title: string;
+    principlesEyebrow: string;
+    principlesTitle: string;
     cards: Record<
       WealthLandingInsightId,
       {
@@ -126,9 +137,16 @@ const wealthLanguage = {
     },
     hero: {
       eyebrow: "My Money",
-      title: "Explore your money decisions before you make them",
+      title: "Understand your money decisions before you make them.",
       description:
-        "Understand today's choice. See tomorrow's impact. No forms. No accounting. Just clarity.",
+        "Understand today's choice. See tomorrow's impact.\nNo forms. No accounting. Just clarity.",
+      cta: "Explore a decision",
+      timeline: {
+        today: "Today",
+        oneYear: "1 year",
+        fiveYears: "5 years",
+        tenYears: "10 years",
+      },
       intentLabels: {
         "/wealth/tools/tax-planner": "Tax Planner",
         "/wealth/tools/dps": "DPS — save monthly",
@@ -166,7 +184,7 @@ const wealthLanguage = {
       items: {
         "tax-planning": {
           eyebrow: "I want to plan taxes",
-          title: "Estimate yearly tax",
+          title: "Reduce my tax",
           description:
             "Explore how income and tax saving investments may affect your estimate.",
           cue: "planning",
@@ -180,7 +198,7 @@ const wealthLanguage = {
         },
         "passive-income": {
           eyebrow: "I want passive income",
-          title: "Plan government savings income",
+          title: "Plan Sanchaypatra income",
           description:
             "Explore how today's savings could provide steady family income and future maturity.",
           cue: "income",
@@ -201,14 +219,14 @@ const wealthLanguage = {
         },
         zakat: {
           eyebrow: "I need to calculate Zakat",
-          title: "Prepare Zakat calmly",
+          title: "Prepare my Zakat",
           description:
             "Estimate eligible wealth with space for care and context.",
           cue: "care",
         },
         compare: {
           eyebrow: "I want to compare my options",
-          title: "Choose between two paths",
+          title: "Compare my options",
           description:
             "Turn a money decision into a side-by-side story.",
           cue: "choice",
@@ -263,7 +281,7 @@ const wealthLanguage = {
       guestEyebrow: "My Financial Picture",
       guestTitle: "Build your Money Snapshot over time",
       guestDescription:
-        "A read-only preview until you add your picture. Start with a scenario, then save cash, deposits, loans, and goals when they feel relevant.",
+        "Start small—save a scenario, asset, or goal when it matters.",
       localScenarioSingular:
         "You already have {count} saved scenario locally.",
       localScenarioPlural:
@@ -272,8 +290,7 @@ const wealthLanguage = {
       signInToSync: "Sign in to sync later",
       eyebrow: "Money Snapshot",
       title: "Your financial picture",
-      description:
-        "A live summary from saved assets, liabilities, and scenarios—not a full accounting setup.",
+      description: "A simple view of what you’ve saved so far.",
       netWorth: "Net worth",
       monthlySavings: "Monthly savings",
       passiveIncome: "Passive income",
@@ -284,11 +301,15 @@ const wealthLanguage = {
       clarityTitle: "Based on useful context, not wealth size",
       clarityDescription:
         "Clarity grows as you save context—monthly savings, assets, liabilities, goals, and scenarios.",
+      growthHint: "Your picture grows one useful detail at a time.",
+      guideSteps: ["Save what matters", "See the full picture", "Choose your next step"],
     },
     insights: {
       cardEyebrow: "Insight",
       eyebrow: "Gentle observations",
       title: "What your picture suggests so far",
+      principlesEyebrow: "A few ideas worth keeping in mind",
+      principlesTitle: "Small choices can create more room tomorrow",
       cards: {
         "snapshot-empty": {
           title: "Your picture can grow over time",
@@ -346,7 +367,14 @@ const wealthLanguage = {
       eyebrow: "My Money",
       title: "সিদ্ধান্ত নেওয়ার আগে ভবিষ্যৎটা দেখে নিন",
       description:
-        "আজ কী করবেন, আর তাতে সামনে কী বদলাতে পারে—সহজভাবে বুঝে নিন। লম্বা form নয়, জটিল হিসাবও নয়।",
+        "আজকের সিদ্ধান্তে আগামীকাল কী বদলাবে—দেখুন।\nকোনো form নয়, জটিল হিসাবও নয়।",
+      cta: "একটা সিদ্ধান্ত দেখুন",
+      timeline: {
+        today: "আজ",
+        oneYear: "1 বছর",
+        fiveYears: "5 বছর",
+        tenYears: "10 বছর",
+      },
       intentLabels: {
         "/wealth/tools/tax-planner": "Tax Planner",
         "/wealth/tools/dps": "DPS — মাসে মাসে savings",
@@ -386,7 +414,7 @@ const wealthLanguage = {
       items: {
         "tax-planning": {
           eyebrow: "Tax নিয়ে আগে থেকে গুছাতে চাই",
-          title: "বছরের tax কত হতে পারে?",
+          title: "Tax কীভাবে কমানো যায়?",
           description:
             "Income আর tax-saving investment বদলালে হিসাবটা কীভাবে বদলায়, আগে দেখে নিন।",
           cue: "পরিকল্পনা",
@@ -394,7 +422,7 @@ const wealthLanguage = {
 
         "extra-savings": {
           eyebrow: "হাতে কিছু extra savings আছে",
-          title: "FDR-এ রাখলে কী হতে পারে?",
+          title: "FDR-এ টাকা রাখুন",
           description:
             "Return কত হতে পারে, টাকা কতদিন আটকে থাকবে, আর flexibility কতটা থাকবে—একসঙ্গে দেখুন।",
           cue: "স্থিরতা",
@@ -402,7 +430,7 @@ const wealthLanguage = {
 
         "passive-income": {
           eyebrow: "নিয়মিত income চাই",
-          title: "Sanchayapatra থেকে income কেমন হতে পারে?",
+          title: "Sanchayapatra income প্ল্যান করুন",
           description:
             "আজকের savings থেকে নিয়মিত income আর maturity-তে কত পাওয়া যেতে পারে, দেখে নিন।",
           cue: "আয়",
@@ -410,7 +438,7 @@ const wealthLanguage = {
 
         "retire-earlier": {
           eyebrow: "Future আগে থেকেই গুছাতে চাই",
-          title: "মাসে মাসে savings কতদূর নিয়ে যাবে?",
+          title: "নিয়মিত savings habit গড়ুন",
           description:
             "ছোট একটা নিয়মিত অভ্যাস কয়েক বছর পর কত বড় হতে পারে, দেখে নিন।",
           cue: "অভ্যাস",
@@ -426,7 +454,7 @@ const wealthLanguage = {
 
         zakat: {
           eyebrow: "Zakat হিসাব করতে চাই",
-          title: "Zakat-এর প্রস্তুতি সহজ করুন",
+          title: "নিজের Zakat প্রস্তুত করুন",
           description:
             "কোন সম্পদ ধরা হবে আর আনুমানিক কত হতে পারে, ধাপে ধাপে বুঝে নিন।",
           cue: "যত্ন",
@@ -434,7 +462,7 @@ const wealthLanguage = {
 
         compare: {
           eyebrow: "দুইটা option পাশাপাশি দেখতে চাই",
-          title: "কোন পথে কী পাওয়া যাবে?",
+          title: "দুইটা option তুলনা করুন",
           description:
             "দুই সিদ্ধান্ত পাশাপাশি রেখে লাভ, সীমাবদ্ধতা আর ভবিষ্যৎ ফল তুলনা করুন।",
           cue: "পছন্দ",
@@ -496,7 +524,7 @@ const wealthLanguage = {
       guestEyebrow: "My Financial Picture",
       guestTitle: "ধীরে ধীরে নিজের Money Snapshot বানান",
       guestDescription:
-        "সব তথ্য একসঙ্গে দিতে হবে না। একটা scenario দিয়ে শুরু করুন, তারপর দরকার হলে cash, deposit, loan আর goal যোগ করুন।",
+        "ছোট করে শুরু করুন—scenario, asset বা goal দরকারমতো save করুন।",
       localScenarioSingular:
         "এই device-এ {count}টি scenario save করা আছে।",
       localScenarioPlural:
@@ -505,8 +533,7 @@ const wealthLanguage = {
       signInToSync: "Sync করতে Sign in করুন",
       eyebrow: "Money Snapshot",
       title: "আপনার টাকার পুরো ছবি",
-      description:
-        "Saved assets, liabilities আর scenarios মিলিয়ে তৈরি সহজ summary—পুরো accounting setup নয়।",
+      description: "এখন পর্যন্ত save করা তথ্যের সহজ ছবি।",
       netWorth: "Net Worth",
       monthlySavings: "Monthly Savings",
       passiveIncome: "Passive Income",
@@ -517,12 +544,16 @@ const wealthLanguage = {
       clarityTitle: "টাকার size নয়, context-টাই আসল",
       clarityDescription:
         "Savings, assets, liabilities, goals আর scenarios যোগ করলে আপনার financial picture আরও পরিষ্কার হবে।",
+      growthHint: "একবারে একটি দরকারি তথ্য যোগ করুন—picture ধীরে পরিষ্কার হবে।",
+      guideSteps: ["দরকারি তথ্য save করুন", "পুরো picture দেখুন", "পরের সিদ্ধান্ত নিন"],
     },
 
     insights: {
       cardEyebrow: "Insight",
       eyebrow: "আপনার টাকার গল্প",
       title: "এখন পর্যন্ত কী বোঝা যাচ্ছে",
+      principlesEyebrow: "মনে রাখার মতো কয়েকটি কথা",
+      principlesTitle: "ছোট সিদ্ধান্তই আগামীকালকে একটু বেশি স্বচ্ছন্দ করে",
       cards: {
         "snapshot-empty": {
           title: "শুরুটা ছোট হতে পারে",

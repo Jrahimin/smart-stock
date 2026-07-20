@@ -1,9 +1,10 @@
 import Link from "next/link";
+import { ArrowRight, Eye, Layers3, Sparkles } from "lucide-react";
 
-import { CircularProgressRing } from "@/components/ui/circular-progress-ring";
-import type { WealthDashboard } from "@/features/wealth/types/wealth-types";
+import { MoneySnapshotProjectionCue } from "@/features/wealth/components/money-snapshot-projection-cue";
+import type { WealthDashboard, WealthInsightCard as WealthInsightCardType } from "@/features/wealth/types/wealth-types";
 import { formatWealthCurrency } from "@/features/wealth/view-models/wealth-view-model";
-import { getWealthLandingLanguage, getWealthSavedScenarioNote } from "@/features/wealth/wealth-language";
+import { getWealthInsightCopy, getWealthLandingLanguage, getWealthSavedScenarioNote } from "@/features/wealth/wealth-language";
 import { DEFAULT_LOCALE, type AppLocale } from "@/lib/locale/app-locale";
 
 type MoneySnapshotCardProps = {
@@ -12,6 +13,7 @@ type MoneySnapshotCardProps = {
   localScenarioCount?: number;
   isLoading?: boolean;
   isError?: boolean;
+  insights?: WealthInsightCardType[];
   locale?: AppLocale;
 };
 
@@ -21,15 +23,17 @@ export function MoneySnapshotCard({
   localScenarioCount = 0,
   isLoading = false,
   isError = false,
+  insights = [],
   locale = DEFAULT_LOCALE,
 }: MoneySnapshotCardProps) {
   const language = getWealthLandingLanguage(locale);
   const copy = language.snapshot;
+  const snapshotInsight = insights[0] ? getWealthInsightCopy(insights[0], locale) : null;
 
   if (!isAuthenticated) {
     return (
       <section className="wealth-snapshot-card wealth-snapshot-empty">
-        <div>
+        <div className="wealth-snapshot-empty-copy">
           <p className="eyebrow">{copy.guestEyebrow}</p>
           <h2>{copy.guestTitle}</h2>
           <p>{copy.guestDescription}</p>
@@ -37,6 +41,7 @@ export function MoneySnapshotCard({
             <p className="wealth-local-note">{getWealthSavedScenarioNote(localScenarioCount, locale)}</p>
           ) : null}
         </div>
+        <SnapshotGuide steps={copy.guideSteps} />
         <div className="wealth-snapshot-empty-actions">
           <Link className="wealth-primary-button" href="/wealth/snapshot">
             {copy.addAssets}
@@ -52,11 +57,13 @@ export function MoneySnapshotCard({
   if (!dashboard) {
     return (
       <section className="wealth-snapshot-card wealth-snapshot-empty">
-        <div>
+        <div className="wealth-snapshot-empty-copy">
           <p className="eyebrow">{copy.eyebrow}</p>
           <h2>{copy.title}</h2>
           <p>{isError ? language.states.error : isLoading ? language.states.loading : language.states.empty}</p>
+          <p className="wealth-snapshot-growth-hint">{copy.growthHint}</p>
         </div>
+        <SnapshotGuide steps={copy.guideSteps} />
         <div className="wealth-snapshot-empty-actions">
           <Link className="wealth-primary-button" href="/wealth/snapshot">
             {copy.updateAssets}
@@ -73,6 +80,13 @@ export function MoneySnapshotCard({
           <p className="eyebrow">{copy.eyebrow}</p>
           <h2>{copy.title}</h2>
           <p className="wealth-muted-copy">{copy.description}</p>
+          <p className="wealth-snapshot-growth-hint">{copy.growthHint}</p>
+          {snapshotInsight?.action_label && snapshotInsight.action_href ? (
+            <Link className="wealth-snapshot-next-step" href={snapshotInsight.action_href}>
+              {snapshotInsight.action_label}
+              <ArrowRight aria-hidden="true" size={14} strokeWidth={2} />
+            </Link>
+          ) : null}
         </div>
 
         <div className="wealth-snapshot-widget-grid">
@@ -80,6 +94,7 @@ export function MoneySnapshotCard({
             <span>{copy.netWorth}</span>
             <strong>{formatWealthCurrency(dashboard?.net_worth)}</strong>
             <small>{copy.netWorthHint}</small>
+            <MoneySnapshotProjectionCue />
           </div>
           <div className="wealth-snapshot-widget-stat">
             <span>{copy.monthlySavings}</span>
@@ -100,15 +115,27 @@ export function MoneySnapshotCard({
         </Link>
       </div>
 
-      <aside className="wealth-snapshot-clarity-panel">
-        <CircularProgressRing
-          label={copy.clarity}
-          score={dashboard?.clarity_score ?? 0}
-          size={132}
-          title={copy.clarityTitle}
-        />
-        <p>{copy.clarityDescription}</p>
-      </aside>
     </section>
+  );
+}
+
+function SnapshotGuide({ steps }: { steps: string[] }) {
+  const icons = [Layers3, Eye, Sparkles];
+
+  return (
+    <div className="wealth-snapshot-guide" aria-label="Money Snapshot guide">
+      {steps.map((step, index) => {
+        const Icon = icons[index] ?? Sparkles;
+
+        return (
+          <div className="wealth-snapshot-guide-step" key={step}>
+            <span aria-hidden="true" className="wealth-snapshot-guide-icon">
+              <Icon size={15} strokeWidth={1.8} />
+            </span>
+            <span>{step}</span>
+          </div>
+        );
+      })}
+    </div>
   );
 }
