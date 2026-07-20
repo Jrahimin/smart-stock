@@ -8,6 +8,7 @@ import { MoneySnapshotCard } from "@/features/wealth/components/money-snapshot-c
 import { ScenarioLauncher } from "@/features/wealth/components/scenario-launcher";
 import { WealthFuturePath } from "@/features/wealth/components/wealth-future-path";
 import { WealthSubNav } from "@/features/wealth/components/wealth-sub-nav";
+import { WealthOverviewGuide } from "@/features/guide/components/wealth-overview-guide";
 import {
   WEALTH_OVERVIEW_SCENARIO_LAUNCHERS,
 } from "@/features/wealth/catalog/wealth-catalog";
@@ -35,6 +36,7 @@ export function WealthWorkspaceView({ locale = DEFAULT_LOCALE }: { locale?: AppL
   return (
     <div className="wealth-workspace-view">
       <WealthSubNav locale={locale} />
+      <WealthOverviewGuide locale={locale} />
 
       {isLoading ? (
         <p className="wealth-muted-copy" role="status">

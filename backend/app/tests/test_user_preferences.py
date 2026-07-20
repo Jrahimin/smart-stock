@@ -7,6 +7,8 @@ from app.core.enums import OnboardingGuideKey, OnboardingGuideState
 from app.core.security_config import UserContext
 from app.modules.user_preferences.user_preferences_schemas import (
     DashboardSidebarGuidePreferenceWrite,
+    WealthDesktopGuidePreferenceWrite,
+    WealthMobileGuidePreferenceWrite,
 )
 from app.modules.user_preferences.user_preferences_service import UserPreferencesService
 
@@ -126,5 +128,28 @@ def test_dashboard_mobile_guide_preference_saves_and_replaces_state():
         assert completed.state == OnboardingGuideState.COMPLETED
         assert dismissed.state == OnboardingGuideState.DISMISSED
         assert len(repository.preferences) == 1
+
+    asyncio.run(run())
+
+
+def test_wealth_guide_preferences_are_independent_per_surface():
+    repository = FakeUserPreferencesRepository()
+    service = _service(repository, uuid4())
+
+    async def run():
+        desktop = await service.get_wealth_desktop_guide_preference()
+        mobile = await service.get_wealth_mobile_guide_preference()
+        assert desktop.key == OnboardingGuideKey.WEALTH_OVERVIEW_DESKTOP_GUIDE
+        assert mobile.key == OnboardingGuideKey.WEALTH_OVERVIEW_MOBILE_GUIDE
+        assert desktop.state is None and mobile.state is None
+
+        await service.save_wealth_desktop_guide_preference(
+            WealthDesktopGuidePreferenceWrite(state=OnboardingGuideState.COMPLETED)
+        )
+        dismissed = await service.save_wealth_mobile_guide_preference(
+            WealthMobileGuidePreferenceWrite(state=OnboardingGuideState.DISMISSED)
+        )
+        assert dismissed.state == OnboardingGuideState.DISMISSED
+        assert len(repository.preferences) == 2
 
     asyncio.run(run())

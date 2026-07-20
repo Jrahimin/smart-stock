@@ -17,7 +17,8 @@ import {
   DASHBOARD_GUIDE_SIDEBAR_EXPAND_STEP_INDEX,
   getDashboardSidebarGuideSteps,
 } from "@/features/guide/config/dashboard-sidebar-guide";
-import { useDashboardDesktopGuideController } from "@/features/guide/hooks/use-dashboard-sidebar-guide-controller";
+import { getWealthDesktopGuideSteps } from "@/features/guide/config/wealth-overview-guide";
+import { useDesktopGuideController, type ProductGuideJourney } from "@/features/guide/hooks/use-dashboard-sidebar-guide-controller";
 import { useGuideContentBounds } from "@/features/guide/hooks/use-guide-content-bounds";
 import {
   isGuideTargetVisibleInViewport,
@@ -38,6 +39,7 @@ import type { GuideStep } from "@/features/guide/types/guide-types";
 import type { AppLocale } from "@/lib/locale/app-locale";
 import { DEFAULT_LOCALE } from "@/lib/locale/app-locale";
 import { useWorkspaceStore } from "@/stores/use-workspace-store";
+import { getWealthGuideControls, getWealthGuideNudgeCopy } from "@/features/guide/dialogs/wealth-dialogs";
 
 type GuideLayout = {
   bubble: GuideBox;
@@ -170,16 +172,17 @@ function buildGuideLayout(input: {
   };
 }
 
-export function DashboardDesktopGuide({ locale = DEFAULT_LOCALE }: { locale?: AppLocale }) {
+export function DashboardDesktopGuide({ locale = DEFAULT_LOCALE, journey = "dashboard" }: { locale?: AppLocale; journey?: ProductGuideJourney }) {
+  const isWealthJourney = journey === "wealth";
   const reduceMotion = useReducedMotion();
   const viewport = useViewport();
   const contentBounds = useGuideContentBounds(true, false);
   const sidebarCollapsed = useWorkspaceStore((state) => state.sidebarCollapsed);
   const toggleSidebar = useWorkspaceStore((state) => state.toggleSidebar);
   const expandedSidebarForGuideRef = useRef(false);
-  const guideControls = useMemo(() => getGuideControls(locale), [locale]);
-  const guideNudgeCopy = useMemo(() => getGuideNudgeCopy(locale), [locale]);
-  const dashboardSidebarGuideSteps = useMemo(() => getDashboardSidebarGuideSteps(locale), [locale]);
+  const guideControls = useMemo(() => isWealthJourney ? getWealthGuideControls(locale) : getGuideControls(locale), [isWealthJourney, locale]);
+  const guideNudgeCopy = useMemo(() => isWealthJourney ? getWealthGuideNudgeCopy(locale) : getGuideNudgeCopy(locale), [isWealthJourney, locale]);
+  const dashboardSidebarGuideSteps = useMemo(() => isWealthJourney ? getWealthDesktopGuideSteps(locale) : getDashboardSidebarGuideSteps(locale), [isWealthJourney, locale]);
 
   const {
     acceptGuideNudge,
@@ -197,7 +200,7 @@ export function DashboardDesktopGuide({ locale = DEFAULT_LOCALE }: { locale?: Ap
     snoozeGuideNudge,
     stepIndex,
     suppressContextualPrompts,
-  } = useDashboardDesktopGuideController();
+  } = useDesktopGuideController(journey);
 
   const currentStep = dashboardSidebarGuideSteps[stepIndex];
   const isDimOnlyStep = !currentStep?.target;
@@ -210,14 +213,16 @@ export function DashboardDesktopGuide({ locale = DEFAULT_LOCALE }: { locale?: Ap
   const sidebarRight = targetSnapshot?.sidebarRight ?? null;
   const isLastStep = stepIndex === dashboardSidebarGuideSteps.length - 1;
   const isNavigationStep = currentStep?.highlightStyle === "navigation";
-  const phase = getGuidePhase(stepIndex, guideControls, dashboardSidebarGuideSteps.length);
+  const phase = isWealthJourney
+    ? { label: guideControls.introPhase, stepIndex, stepCount: dashboardSidebarGuideSteps.length }
+    : getGuidePhase(stepIndex, guideControls, dashboardSidebarGuideSteps.length);
   const pulseTargetReady = useGuideTargetAvailable('[data-guide="market-pulse"]', { requireReady: true });
   const isWaitingForPulse = currentStep?.id === "market-pulse" && !pulseTargetReady;
   const showFullDim = isDimOnlyStep || isWaitingForPulse;
   const nextDisabled = isWaitingForPulse;
 
   useEffect(() => {
-    if (!isGuideActive) {
+    if (!isGuideActive || isWealthJourney) {
       expandedSidebarForGuideRef.current = false;
       return;
     }
@@ -230,7 +235,17 @@ export function DashboardDesktopGuide({ locale = DEFAULT_LOCALE }: { locale?: Ap
       toggleSidebar();
       expandedSidebarForGuideRef.current = true;
     }
-  }, [isGuideActive, sidebarCollapsed, stepIndex, toggleSidebar]);
+  }, [isGuideActive, isWealthJourney, sidebarCollapsed, stepIndex, toggleSidebar]);
+
+  useEffect(() => {
+    if (!isWealthJourney) {
+      return;
+    }
+    window.dispatchEvent(new CustomEvent("wealth-overview-guide:calculators", { detail: { open: isGuideActive && currentStep?.id === "calculators" } }));
+    return () => {
+      window.dispatchEvent(new CustomEvent("wealth-overview-guide:calculators", { detail: { open: false } }));
+    };
+  }, [currentStep?.id, isGuideActive, isWealthJourney]);
 
   useLayoutEffect(() => {
     if (

@@ -23,3 +23,23 @@ class DashboardMobileGuidePreferenceRead(BaseModel):
 
 class DashboardMobileGuidePreferenceWrite(BaseModel):
     state: OnboardingGuideState
+
+
+class WealthDesktopGuidePreferenceRead(BaseModel):
+    key: OnboardingGuideKey = OnboardingGuideKey.WEALTH_OVERVIEW_DESKTOP_GUIDE
+    state: OnboardingGuideState | None
+    updated_at: datetime | None
+
+
+class WealthDesktopGuidePreferenceWrite(BaseModel):
+    state: OnboardingGuideState
+
+
+class WealthMobileGuidePreferenceRead(BaseModel):
+    key: OnboardingGuideKey = OnboardingGuideKey.WEALTH_OVERVIEW_MOBILE_GUIDE
+    state: OnboardingGuideState | None
+    updated_at: datetime | None
+
+
+class WealthMobileGuidePreferenceWrite(BaseModel):
+    state: OnboardingGuideState

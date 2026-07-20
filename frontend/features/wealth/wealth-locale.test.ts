@@ -7,6 +7,7 @@ import {
 } from "@/features/wealth/wealth-language";
 import { getWealthSnapshotLanguage } from "@/features/wealth/wealth-snapshot-language";
 import { getWealthToolsLanguage } from "@/features/wealth/wealth-tools-language";
+import { getWealthDesktopGuideSteps, getWealthMobileGuideSteps } from "@/features/guide/config/wealth-overview-guide";
 import type { WealthInsightCard, WealthSeasonalContext } from "@/features/wealth/types/wealth-types";
 
 describe("wealth landing language", () => {
@@ -80,5 +81,15 @@ describe("wealth landing language", () => {
     expect(snapshot.hero.title).toBe("Money Snapshot");
     expect(snapshot.upcoming.next30Days).toContain("30");
     expect(getWealthLandingLanguage("bn").snapshot.growthHint).toContain("picture");
+  });
+
+  it("provides the short localized Wealth mascot journey on both surfaces", () => {
+    const desktop = getWealthDesktopGuideSteps("en");
+    const mobile = getWealthMobileGuideSteps("bn");
+    expect(desktop.map((step) => step.id)).toEqual(["welcome", "menu", "calculators", "tax-planner", "other-tools"]);
+    expect(desktop[2]?.dialog.message).toContain("FDR");
+    expect(desktop[2]?.dialog.message).toContain("Zakat");
+    expect(mobile).toHaveLength(5);
+    expect(mobile[0]?.dialog.message).toContain("টাকার সিদ্ধান্ত");
   });
 });

@@ -15,10 +15,16 @@ from app.modules.user_preferences.user_preferences_schemas import (
     DashboardMobileGuidePreferenceWrite,
     DashboardSidebarGuidePreferenceRead,
     DashboardSidebarGuidePreferenceWrite,
+    WealthDesktopGuidePreferenceRead,
+    WealthDesktopGuidePreferenceWrite,
+    WealthMobileGuidePreferenceRead,
+    WealthMobileGuidePreferenceWrite,
 )
 
 DASHBOARD_SIDEBAR_GUIDE_KEY = OnboardingGuideKey.DASHBOARD_SIDEBAR_GUIDE
 DASHBOARD_MOBILE_GUIDE_KEY = OnboardingGuideKey.DASHBOARD_MOBILE_INTRO
+WEALTH_DESKTOP_GUIDE_KEY = OnboardingGuideKey.WEALTH_OVERVIEW_DESKTOP_GUIDE
+WEALTH_MOBILE_GUIDE_KEY = OnboardingGuideKey.WEALTH_OVERVIEW_MOBILE_GUIDE
 
 
 class UserPreferencesService:
@@ -110,6 +116,59 @@ class UserPreferencesService:
             state=preference.state,
             updated_at=preference.updated_at,
         )
+
+    async def get_wealth_desktop_guide_preference(self) -> WealthDesktopGuidePreferenceRead:
+        return await self._get_guide_preference(
+            WEALTH_DESKTOP_GUIDE_KEY,
+            WealthDesktopGuidePreferenceRead,
+        )
+
+    async def save_wealth_desktop_guide_preference(
+        self, payload: WealthDesktopGuidePreferenceWrite
+    ) -> WealthDesktopGuidePreferenceRead:
+        return await self._save_guide_preference(
+            WEALTH_DESKTOP_GUIDE_KEY,
+            payload.state,
+            WealthDesktopGuidePreferenceRead,
+        )
+
+    async def get_wealth_mobile_guide_preference(self) -> WealthMobileGuidePreferenceRead:
+        return await self._get_guide_preference(
+            WEALTH_MOBILE_GUIDE_KEY,
+            WealthMobileGuidePreferenceRead,
+        )
+
+    async def save_wealth_mobile_guide_preference(
+        self, payload: WealthMobileGuidePreferenceWrite
+    ) -> WealthMobileGuidePreferenceRead:
+        return await self._save_guide_preference(
+            WEALTH_MOBILE_GUIDE_KEY,
+            payload.state,
+            WealthMobileGuidePreferenceRead,
+        )
+
+    async def _get_guide_preference(self, guide_key: OnboardingGuideKey, response_type):
+        preference = await self.repository.get_onboarding_guide_preference(
+            user_id=self._user_id(), guide_key=guide_key
+        )
+        return response_type(
+            state=preference.state if preference else None,
+            updated_at=preference.updated_at if preference else None,
+        )
+
+    async def _save_guide_preference(self, guide_key: OnboardingGuideKey, state, response_type):
+        preference = await self.repository.get_onboarding_guide_preference(
+            user_id=self._user_id(), guide_key=guide_key
+        )
+        if preference is None:
+            preference = await self.repository.create(
+                {"user_id": self._user_id(), "guide_key": guide_key, "state": state}
+            )
+        else:
+            preference = await self.repository.update(preference, {"state": state})
+        await self.repository.commit()
+        await self.repository.refresh(preference)
+        return response_type(state=preference.state, updated_at=preference.updated_at)
 
 
 def get_user_preferences_service(

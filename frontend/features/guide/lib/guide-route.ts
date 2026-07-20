@@ -2,3 +2,8 @@
 export function isDashboardGuideRoute(pathname: string) {
   return pathname === "/";
 }
+
+/** The Wealth onboarding guide is intentionally limited to its overview route. */
+export function isWealthOverviewGuideRoute(pathname: string) {
+  return pathname === "/wealth";
+}

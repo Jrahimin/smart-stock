@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import { DashboardLocaleSwitcher } from "@/features/market-dashboard/components/dashboard-locale-switcher";
+import { WealthGuideLauncher } from "@/features/guide/components/wealth-guide-launcher";
 import { WEALTH_CALCULATOR_NAV_ITEMS } from "@/features/wealth/catalog/wealth-catalog";
 import { getWealthLandingLanguage, type WealthLandingLanguage } from "@/features/wealth/wealth-language";
 import type { AppLocale } from "@/lib/locale/app-locale";
@@ -60,19 +61,22 @@ export function WealthSubNav({ locale }: { locale?: AppLocale }) {
 
       <span aria-hidden="true" className="wealth-sub-nav-divider" />
 
-      <nav aria-label={language.nav.ariaLabel} className="wealth-sub-nav">
+      <nav aria-label={language.nav.ariaLabel} className="wealth-sub-nav" data-guide="wealth-menu">
         <WealthSubNavLink item={overview} label={language.nav[overview.key]} pathname={pathname} />
         <WealthCalculatorsNavItem copy={language.nav} pathname={pathname} />
-        <WealthSubNavLink item={taxPlanner} label={language.nav[taxPlanner.key]} pathname={pathname} />
-        <WealthSubNavLink item={snapshot} label={language.nav[snapshot.key]} pathname={pathname} />
-        <WealthSubNavLink item={calendar} label={language.nav[calendar.key]} pathname={pathname} />
-        <WealthSubNavLink item={compare} label={language.nav[compare.key]} pathname={pathname} />
+        <WealthSubNavLink item={taxPlanner} label={language.nav[taxPlanner.key]} pathname={pathname} guideId="wealth-tax-planner" />
+        <span data-guide="wealth-other-tools" className="wealth-sub-nav-guide-group">
+          <WealthSubNavLink item={snapshot} label={language.nav[snapshot.key]} pathname={pathname} />
+          <WealthSubNavLink item={calendar} label={language.nav[calendar.key]} pathname={pathname} />
+          <WealthSubNavLink item={compare} label={language.nav[compare.key]} pathname={pathname} />
+        </span>
       </nav>
 
       {locale ? (
         <>
           <span aria-hidden="true" className="wealth-sub-nav-divider wealth-sub-nav-utilities-divider" />
           <div className="wealth-sub-nav-utilities">
+            {pathname === "/wealth" ? <WealthGuideLauncher className="wealth-sub-nav-guide-button" locale={locale} /> : null}
             <DashboardLocaleSwitcher ariaLabel={language.nav.localeSwitcherAria} locale={locale} variant="compact" />
           </div>
         </>
@@ -85,10 +89,12 @@ function WealthSubNavLink({
   item,
   label,
   pathname,
+  guideId,
 }: {
   item: (typeof WEALTH_SUB_NAV_ITEMS)[number];
   label: string;
   pathname: string;
+  guideId?: string;
 }) {
   const isActive = item.match(pathname);
 
@@ -97,6 +103,7 @@ function WealthSubNavLink({
       aria-current={isActive ? "page" : undefined}
       className={`wealth-sub-nav-item ${isActive ? "wealth-sub-nav-item-active" : ""}`}
       href={item.href}
+      data-guide={guideId}
     >
       <span aria-hidden="true" className="wealth-sub-nav-inline-icon">
         {item.icon}
@@ -108,6 +115,7 @@ function WealthSubNavLink({
 
 function WealthCalculatorsNavItem({ pathname, copy }: { pathname: string; copy: WealthLandingLanguage["nav"] }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [guideForcedOpen, setGuideForcedOpen] = useState(false);
   const shellRef = useRef<HTMLDivElement>(null);
   const isActive = pathname.startsWith("/wealth/tools") && !pathname.startsWith("/wealth/tools/tax-planner");
   const activeCalculator =
@@ -117,13 +125,13 @@ function WealthCalculatorsNavItem({ pathname, copy }: { pathname: string; copy: 
   useEffect(() => {
     function handlePointerDown(event: MouseEvent) {
       if (!shellRef.current?.contains(event.target as Node)) {
-        setIsOpen(false);
+        setIsOpen((current) => (guideForcedOpen ? current : false));
       }
     }
 
     function handleEscape(event: KeyboardEvent) {
       if (event.key === "Escape") {
-        setIsOpen(false);
+        setIsOpen((current) => (guideForcedOpen ? current : false));
       }
     }
 
@@ -133,17 +141,27 @@ function WealthCalculatorsNavItem({ pathname, copy }: { pathname: string; copy: 
       document.removeEventListener("mousedown", handlePointerDown);
       document.removeEventListener("keydown", handleEscape);
     };
+  }, [guideForcedOpen]);
+
+  useEffect(() => {
+    const handleGuideMenu = (event: Event) => {
+      const open = (event as CustomEvent<{ open?: boolean }>).detail?.open === true;
+      setGuideForcedOpen(open);
+      setIsOpen(open);
+    };
+    window.addEventListener("wealth-overview-guide:calculators", handleGuideMenu);
+    return () => window.removeEventListener("wealth-overview-guide:calculators", handleGuideMenu);
   }, []);
 
   return (
-    <div className={`wealth-sub-nav-dropdown ${isOpen ? "wealth-sub-nav-dropdown-open" : ""}`} ref={shellRef}>
+    <div className={`wealth-sub-nav-dropdown ${isOpen ? "wealth-sub-nav-dropdown-open" : ""}`} data-guide="wealth-calculators-menu" ref={shellRef}>
       <button
         aria-current={isActive ? "page" : undefined}
         aria-expanded={isOpen}
         aria-haspopup="menu"
         className={`wealth-sub-nav-item wealth-sub-nav-item-trigger ${isActive ? "wealth-sub-nav-item-active" : ""}`}
-        onClick={() => setIsOpen((current) => !current)}
-        onMouseEnter={() => setIsOpen(true)}
+        onClick={() => { if (!guideForcedOpen) setIsOpen((current) => !current); }}
+        onMouseEnter={() => { if (!guideForcedOpen) setIsOpen(true); }}
         type="button"
       >
         <span aria-hidden="true" className="wealth-sub-nav-inline-icon">
@@ -158,7 +176,7 @@ function WealthCalculatorsNavItem({ pathname, copy }: { pathname: string; copy: 
       </button>
 
       {isOpen ? (
-        <div className="wealth-sub-nav-menu-shell" onMouseLeave={() => setIsOpen(false)}>
+        <div className="wealth-sub-nav-menu-shell" onMouseLeave={() => { if (!guideForcedOpen) setIsOpen(false); }}>
           <div className="wealth-sub-nav-menu" role="menu">
             {WEALTH_CALCULATOR_NAV_ITEMS.map((item) => {
               const isItemActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
@@ -168,7 +186,7 @@ function WealthCalculatorsNavItem({ pathname, copy }: { pathname: string; copy: 
                   className={`wealth-sub-nav-menu-item ${isItemActive ? "wealth-sub-nav-menu-item-active" : ""}`}
                   href={item.href}
                   key={item.href}
-                  onClick={() => setIsOpen(false)}
+                  onClick={() => { if (!guideForcedOpen) setIsOpen(false); }}
                   role="menuitem"
                 >
                   <span className="wealth-sub-nav-menu-label">{item.label}</span>

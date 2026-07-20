@@ -8,8 +8,10 @@ import type { GuideCompletion, GuidePreference } from "@/features/guide/types/gu
 export type GuideServerState = "COMPLETED" | "DISMISSED";
 
 export type GuidePreferenceSurface = "desktop" | "mobile";
+export type GuideJourney = "dashboard" | "wealth";
 
 export type GuidePreferenceScope = {
+  journey?: GuideJourney;
   surface: GuidePreferenceSurface;
   version: number;
 };
@@ -19,13 +21,17 @@ const SESSION_AUTO_START_KEY = "smart-stock-guide-dashboard-auto-started";
 
 function normalizeScope(versionOrScope: number | GuidePreferenceScope): GuidePreferenceScope {
   if (typeof versionOrScope === "number") {
-    return { surface: "desktop", version: versionOrScope };
+    return { journey: "dashboard", surface: "desktop", version: versionOrScope };
   }
 
-  return versionOrScope;
+  return { journey: "dashboard", ...versionOrScope };
 }
 
 function storageKeyForScope(scope: GuidePreferenceScope) {
+  if (scope.journey === "wealth") {
+    return `smart-stock-guide-wealth-overview-${scope.surface}-v${scope.version}`;
+  }
+
   if (scope.surface === "desktop") {
     return `smart-stock-guide-dashboard-sidebar-v${scope.version}`;
   }
@@ -34,6 +40,10 @@ function storageKeyForScope(scope: GuidePreferenceScope) {
 }
 
 function sessionAutoStartKeyForScope(scope: GuidePreferenceScope) {
+  if (scope.journey === "wealth") {
+    return `smart-stock-guide-wealth-overview-${scope.surface}-auto-started-v${scope.version}`;
+  }
+
   if (scope.surface === "desktop") {
     return `${SESSION_AUTO_START_KEY}-v${scope.version}`;
   }
@@ -214,7 +224,9 @@ function persistGuidePreference(preference: GuidePreference, scope: GuidePrefere
 
   try {
     window.localStorage.setItem(storageKeyForScope(scope), JSON.stringify(preference));
-    window.dispatchEvent(new Event("dashboard-sidebar-guide:preference-changed"));
+    window.dispatchEvent(
+      new Event(scope.journey === "wealth" ? "wealth-overview-guide:preference-changed" : "dashboard-sidebar-guide:preference-changed"),
+    );
   } catch {
     // Ignore storage failures.
   }

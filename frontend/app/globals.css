@@ -19565,6 +19565,17 @@ button {
   padding-right: 2px;
 }
 
+.wealth-sub-nav-guide-group {
+  align-items: center;
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+.wealth-sub-nav-guide-button {
+  margin-right: 2px;
+}
+
 .wealth-sub-nav-utilities-divider {
   margin-left: 4px;
 }

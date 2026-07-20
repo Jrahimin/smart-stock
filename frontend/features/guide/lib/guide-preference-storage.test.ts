@@ -25,6 +25,8 @@ import {
 const VERSION = 2;
 const STORAGE_KEY = getGuidePreferenceStorageKey(VERSION);
 const SESSION_KEY = "smart-stock-guide-dashboard-auto-started-v2";
+const WEALTH_DESKTOP_SCOPE = { journey: "wealth" as const, surface: "desktop" as const, version: 1 };
+const WEALTH_MOBILE_SCOPE = { journey: "wealth" as const, surface: "mobile" as const, version: 1 };
 
 function createMemoryStorage() {
   const store = new Map<string, string>();
@@ -60,7 +62,7 @@ describe("guide preference storage", () => {
     vi.stubGlobal("localStorage", localStorageMock);
     vi.stubGlobal("sessionStorage", sessionStorageMock);
     vi.stubGlobal("window", {
-      ...window,
+      ...(globalThis.window ?? {}),
       localStorage: localStorageMock,
       sessionStorage: sessionStorageMock,
       dispatchEvent: vi.fn(),
@@ -78,6 +80,14 @@ describe("guide preference storage", () => {
     expect(isGuideAutoStartEligible(VERSION)).toBe(true);
     expect(isGuideNudgeEligible(VERSION)).toBe(false);
     expect(isGuideLauncherProminent(VERSION)).toBe(true);
+  });
+
+  it("keeps Wealth desktop and mobile preferences in independent scopes", () => {
+    expect(getGuidePreferenceStorageKey(WEALTH_DESKTOP_SCOPE)).toBe("smart-stock-guide-wealth-overview-desktop-v1");
+    expect(getGuidePreferenceStorageKey(WEALTH_MOBILE_SCOPE)).toBe("smart-stock-guide-wealth-overview-mobile-v1");
+    writeGuidePreference(WEALTH_DESKTOP_SCOPE, { status: "completed", suppressContextualPrompts: false });
+    expect(readGuidePreference(WEALTH_MOBILE_SCOPE)).toBeNull();
+    clearGuidePreference(WEALTH_DESKTOP_SCOPE);
   });
 
   it("blocks auto-start after auto-start has been shown once", () => {

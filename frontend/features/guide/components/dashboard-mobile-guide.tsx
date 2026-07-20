@@ -7,8 +7,10 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { GuideMobileSheet } from "@/features/guide/components/guide-mobile-sheet";
 import { GuideTourNudge } from "@/features/guide/components/guide-tour-nudge";
 import { getDashboardMobileGuideSteps } from "@/features/guide/config/mobile-intro-guide";
+import { getWealthMobileGuideSteps } from "@/features/guide/config/wealth-overview-guide";
 import { getGuideControls, getGuideNudgeCopy } from "@/features/guide/dialogs/dashboard-dialogs";
-import { useDashboardMobileGuideController } from "@/features/guide/hooks/use-dashboard-sidebar-guide-controller";
+import { getWealthGuideControls, getWealthGuideNudgeCopy } from "@/features/guide/dialogs/wealth-dialogs";
+import { useMobileGuideController, type ProductGuideJourney } from "@/features/guide/hooks/use-dashboard-sidebar-guide-controller";
 import { useGuideTargetLayout } from "@/features/guide/hooks/use-guide-target-layout";
 import type { AppLocale } from "@/lib/locale/app-locale";
 import { DEFAULT_LOCALE } from "@/lib/locale/app-locale";
@@ -19,12 +21,15 @@ const guideMotionEase = [0.22, 1, 0.36, 1] as const;
 type DashboardMobileGuideProps = {
   locale?: AppLocale;
   onMobileNavigationOpenChange: (isOpen: boolean) => void;
+  journey?: ProductGuideJourney;
 };
 
 export function DashboardMobileGuide({
   locale = DEFAULT_LOCALE,
   onMobileNavigationOpenChange,
+  journey = "dashboard",
 }: DashboardMobileGuideProps) {
+  const isWealthJourney = journey === "wealth";
   const reduceMotion = useReducedMotion();
   const drawerTransitionTimeoutRef = useRef<number | null>(null);
   const [isDrawerTransitioning, setIsDrawerTransitioning] = useState(false);
@@ -45,11 +50,11 @@ export function DashboardMobileGuide({
     snoozeGuideNudge,
     stepIndex,
     suppressContextualPrompts,
-  } = useDashboardMobileGuideController();
+  } = useMobileGuideController(journey);
 
-  const guideControls = useMemo(() => getGuideControls(locale), [locale]);
-  const guideNudgeCopy = useMemo(() => getGuideNudgeCopy(locale), [locale]);
-  const dashboardMobileGuideSteps = useMemo(() => getDashboardMobileGuideSteps(locale), [locale]);
+  const guideControls = useMemo(() => isWealthJourney ? getWealthGuideControls(locale) : getGuideControls(locale), [isWealthJourney, locale]);
+  const guideNudgeCopy = useMemo(() => isWealthJourney ? getWealthGuideNudgeCopy(locale) : getGuideNudgeCopy(locale), [isWealthJourney, locale]);
+  const dashboardMobileGuideSteps = useMemo(() => isWealthJourney ? getWealthMobileGuideSteps(locale) : getDashboardMobileGuideSteps(locale), [isWealthJourney, locale]);
 
   const currentStep = dashboardMobileGuideSteps[stepIndex];
   const isLastStep = stepIndex === dashboardMobileGuideSteps.length - 1;
@@ -59,7 +64,15 @@ export function DashboardMobileGuide({
     preferSidebar,
   });
   const spotlightRect = targetSnapshot?.spotlightRect ?? null;
-  const isNavigationStep = stepIndex >= 1 && stepIndex <= 3;
+  const isNavigationStep = stepIndex > 0;
+
+  useEffect(() => {
+    if (!isWealthJourney) return;
+    window.dispatchEvent(new CustomEvent("wealth-overview-guide:calculators", { detail: { open: isGuideActive && currentStep?.id === "calculators" } }));
+    return () => {
+      window.dispatchEvent(new CustomEvent("wealth-overview-guide:calculators", { detail: { open: false } }));
+    };
+  }, [currentStep?.id, isGuideActive, isWealthJourney]);
 
   useEffect(() => {
     return () => {
@@ -70,10 +83,10 @@ export function DashboardMobileGuide({
   }, []);
 
   useEffect(() => {
-    if (!isGuideActive) {
+    if (!isGuideActive && !isWealthJourney) {
       onMobileNavigationOpenChange(false);
     }
-  }, [isGuideActive, onMobileNavigationOpenChange]);
+  }, [isGuideActive, isWealthJourney, onMobileNavigationOpenChange]);
 
   useEffect(() => {
     if (!isGuideActive) {
@@ -97,6 +110,10 @@ export function DashboardMobileGuide({
   }, [isDrawerTransitioning, isGuideActive, setSkipConfirmationOpen, skipConfirmationOpen, stepIndex]);
 
   function movePrevious() {
+    if (isWealthJourney) {
+      setStepIndex((index) => Math.max(0, index - 1));
+      return;
+    }
     if (stepIndex === 1) {
       onMobileNavigationOpenChange(false);
     }
@@ -106,7 +123,7 @@ export function DashboardMobileGuide({
 
   function moveNext() {
     if (isLastStep) {
-      onMobileNavigationOpenChange(false);
+      if (!isWealthJourney) onMobileNavigationOpenChange(false);
       finishGuide({
         status: suppressContextualPrompts ? "dismissed" : "completed",
         suppressContextualPrompts,
@@ -114,7 +131,7 @@ export function DashboardMobileGuide({
       return;
     }
 
-    if (stepIndex === 0) {
+    if (!isWealthJourney && stepIndex === 0) {
       setIsDrawerTransitioning(true);
       drawerTransitionTimeoutRef.current = window.setTimeout(() => {
         onMobileNavigationOpenChange(true);
@@ -125,7 +142,7 @@ export function DashboardMobileGuide({
       return;
     }
 
-    if (stepIndex === 3) {
+    if (!isWealthJourney && stepIndex === 3) {
       onMobileNavigationOpenChange(false);
     }
 
@@ -133,7 +150,7 @@ export function DashboardMobileGuide({
   }
 
   function handleSkip() {
-    onMobileNavigationOpenChange(false);
+    if (!isWealthJourney) onMobileNavigationOpenChange(false);
     skipGuide();
   }
 

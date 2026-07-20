@@ -1,109 +1,22 @@
 # User onboarding guide preferences
 
-## Purpose
+This document defines the persisted preference contract. For frontend journey behavior,
+copy, accessibility, and troubleshooting, see [maskot_journey_guide.md](maskot_journey_guide.md).
 
-`/api/v1/preferences/dashboard-sidebar-guide` persists the authenticated user's
-completion state for the desktop dashboard onboarding guide (mascot tour). The route is
-intentionally narrow: it supports only the canonical `dashboard_sidebar_guide` key and is
-not a general key/value preference API.
+## Contract
 
-`/api/v1/preferences/dashboard-mobile-guide` mirrors the same contract for the mobile
-dashboard introduction (`dashboard_mobile_intro`). Desktop and mobile guide completion
-states are stored independently.
+Authenticated guide completion is stored in `user_onboarding_guide_preferences`, keyed
+by authenticated `user_id` and `guide_key`. `GET` returns `state: null` before a user has
+acted; `PUT` accepts `COMPLETED` or `DISMISSED` and upserts that user's row. Guests use
+browser storage only.
 
-## API behavior
+| Surface | GET / PUT route | `guide_key` |
+|---|---|---|
+| Dashboard desktop | `/api/v1/preferences/dashboard-sidebar-guide` | `dashboard_sidebar_guide` |
+| Dashboard mobile | `/api/v1/preferences/dashboard-mobile-guide` | `dashboard_mobile_intro` |
+| Wealth overview desktop | `/api/v1/preferences/wealth-overview-desktop-guide` | `wealth_overview_desktop_guide` |
+| Wealth overview mobile | `/api/v1/preferences/wealth-overview-mobile-guide` | `wealth_overview_mobile_guide` |
 
-* `GET` returns `state: null` when the user has never acted on the guide. Consumers
-  should treat this as not completed or dismissed.
-* `PUT` accepts exactly one typed state: `COMPLETED` or `DISMISSED`.
-* A write creates the user/key row if absent and replaces its state if present.
-* The service derives `user_id` from the authenticated request context; no user id is
-  accepted in the URL, query, or body.
-
-## Frontend orchestration (desktop + mobile)
-
-Implementation lives under `frontend/features/guide/`. The backend only stores
-**completion/dismissal** for signed-in users; guests and all session-scoped behavior are
-handled in the browser. **Guide language** (Bangla/English mascot copy) is separate from
-preference state—see [frontend_localization.md](frontend_localization.md).
-
-### Surfaces and versions
-
-| Surface | Config version | Backend `guide_key` | Step count |
-|--------|----------------|---------------------|------------|
-| Desktop (`>1023px`) | `DASHBOARD_SIDEBAR_GUIDE_VERSION` = 2 | `dashboard_sidebar_guide` | 13 (welcome + 4 widgets + sidebar intro + 7 nav) |
-| Mobile (`≤1023px`) | `DASHBOARD_MOBILE_GUIDE_VERSION` = 1 | `dashboard_mobile_intro` | 5 |
-
-Completing or dismissing one surface does not affect the other.
-
-### Local persistence
-
-* **localStorage** — per-surface preference records (`smart-stock-guide-dashboard-sidebar-v2`,
-  `smart-stock-guide-mobile-intro-v1`): `autoStartShown`, skip/complete/dismiss status,
-  nudge counts, launcher prominence window.
-* **sessionStorage** — per-surface auto-start attempt flag
-  (`smart-stock-guide-dashboard-auto-started-v2`, `smart-stock-guide-mobile-auto-started-v1`):
-  prevents scheduling another auto-start in the same tab session after a successful auto-start
-  or after the user interacts during the pre-show delay (see below).
-
-### Auto-start rules (`use-dashboard-sidebar-guide-controller.ts`)
-
-1. Only on the dashboard route (`/`), after preference `gate.ready` (guest: immediate; authenticated:
-   after server sync or timeout).
-2. Desktop auto-start does **not** wait for market-pulse data. The welcome step is dim-only
-   and shows immediately; pulse readiness is enforced only on the `market-pulse` step (Next
-   disabled until the target has `data-guide-ready="true"`).
-3. When auto-start is scheduled, a **500ms activity guard** runs immediately before show.
-   Only trusted `pointerdown` / `keydown` events count (not scroll/wheel). Interaction during
-   that window:
-   * Skips auto-start for this visit.
-   * Calls `markGuideAutoStartedThisSession` so revisiting `/` in the same session
-     does not retrigger auto-start.
-   * Does **not** call `markGuideAutoStartShown`, so the header mascot launcher remains
-     prominent and the user can start the tour manually.
-4. Successful auto-start marks both session and `autoStartShown` in local storage.
-
-### Desktop sidebar expansion
-
-When the desktop tour reaches `sidebar-introduction` (index
-`DASHBOARD_GUIDE_SIDEBAR_EXPAND_STEP_INDEX`, last dashboard-phase step), a collapsed
-sidebar is expanded so the guide highlights the full navigation menu, not the minimized
-rail.
-
-### Phase 1 UX fixes (2026-07)
-
-* Mobile overlay interaction blocker (mirrors desktop `product-guide-interaction-layer`).
-* Mobile welcome sheet: flex layout with sticky actions and safe-area padding.
-* Drawer lifecycle during mobile tour: `guideActive` disables backdrop/Escape close; shell
-  `onClose` clears both manual and guide-owned drawer flags.
-
-Deferred to a later phase: config-driven mobile `openDrawer`, desktop mid-tour skeleton
-hold for all widget steps, controller integration tests.
-
-### Troubleshooting (tour does not auto-start)
-
-Auto-start is intentionally one-shot per surface. It will **not** fire when:
-
-* `localStorage` already has `autoStartShown: true` or any `status` (skipped/completed/dismissed)
-  for that surface — common after prior dev testing. Clear keys
-  `smart-stock-guide-dashboard-sidebar-v2` and/or `smart-stock-guide-mobile-intro-v1`, or use a
-  fresh incognito window.
-* `sessionStorage` has the per-session auto-start flag after a suppressed or completed attempt in
-  the same tab.
-* The authenticated API returns `COMPLETED` or `DISMISSED` for that guide key.
-
-Manual replay always works via the header mascot button (`গাইড ট্যুর শুরু করুন`) unless the guide
-was hard-dismissed with “do not show again” checked.
-
-## Persistence
-
-`user_onboarding_guide_preferences` has one row per `user_id` plus `guide_key`.
-Both the guide key and state use PostgreSQL enums, and the unique constraint prevents
-duplicate state rows for a user and guide. Deleting a user cascades to their saved guide
-preferences.
-
-Apply the schema change from `backend/`:
-
-```bash
-alembic upgrade head
-```
+All routes derive the user from authentication; callers never supply a user ID. Desktop
+and mobile preferences remain independent, and the unique database constraint prevents
+duplicate user/key rows. Apply changes with `cd backend && alembic upgrade head`.

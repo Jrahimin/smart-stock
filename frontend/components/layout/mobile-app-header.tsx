@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import type { RefObject } from "react";
 
 import { DashboardGuideLauncher } from "@/features/guide/components/dashboard-guide-launcher";
+import { WealthGuideLauncher } from "@/features/guide/components/wealth-guide-launcher";
 import type { AppLocale } from "@/lib/locale/app-locale";
 import { DEFAULT_LOCALE } from "@/lib/locale/app-locale";
 
@@ -18,7 +19,7 @@ type MobileAppHeaderProps = {
   isMenuOpen: boolean;
   menuButtonRef?: RefObject<HTMLButtonElement | null>;
   onMenuToggle: () => void;
-  showGuideLauncher?: boolean;
+  guideLauncher?: "dashboard" | "wealth" | null;
 };
 
 export function MobileAppHeader({
@@ -26,7 +27,7 @@ export function MobileAppHeader({
   isMenuOpen,
   menuButtonRef,
   onMenuToggle,
-  showGuideLauncher = false,
+  guideLauncher = null,
 }: MobileAppHeaderProps) {
   const router = useRouter();
 
@@ -60,9 +61,9 @@ export function MobileAppHeader({
         <span className="mobile-app-header-brand-text">Stock Intelligence</span>
       </Link>
       <div className="mobile-app-header-actions">
-        {showGuideLauncher ? (
+        {guideLauncher === "dashboard" ? (
           <DashboardGuideLauncher className="mobile-app-header-guide-button" locale={guideLocale} />
-        ) : null}
+        ) : guideLauncher === "wealth" ? <WealthGuideLauncher className="mobile-app-header-guide-button" locale={guideLocale} /> : null}
         <button
           aria-label="Search stocks and symbols"
           className="mobile-app-header-search-button"

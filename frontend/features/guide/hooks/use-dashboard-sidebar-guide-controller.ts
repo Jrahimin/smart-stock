@@ -6,6 +6,10 @@ import { usePathname } from "next/navigation";
 import { DASHBOARD_SIDEBAR_GUIDE_VERSION } from "@/features/guide/config/dashboard-sidebar-guide";
 import { DASHBOARD_MOBILE_GUIDE_VERSION } from "@/features/guide/config/mobile-intro-guide";
 import {
+  WEALTH_OVERVIEW_DESKTOP_GUIDE_VERSION,
+  WEALTH_OVERVIEW_MOBILE_GUIDE_VERSION,
+} from "@/features/guide/config/wealth-overview-guide";
+import {
   GUIDE_AUTO_START_DELAY_MS,
   GUIDE_SERVER_SYNC_TIMEOUT_MS,
   GUIDE_USER_ACTIVITY_GUARD_MS,
@@ -32,10 +36,14 @@ import {
   getDashboardSidebarGuidePreference,
   saveDashboardMobileGuidePreference,
   saveDashboardSidebarGuidePreference,
+  getWealthDesktopGuidePreference,
+  getWealthMobileGuidePreference,
+  saveWealthDesktopGuidePreference,
+  saveWealthMobileGuidePreference,
 } from "@/features/guide/services/guide-preference-api";
 import type { GuideCompletion } from "@/features/guide/types/guide-types";
 import { useAuth } from "@/features/auth/context/auth-context";
-import { isDashboardGuideRoute } from "@/features/guide/lib/guide-route";
+import { isDashboardGuideRoute, isWealthOverviewGuideRoute } from "@/features/guide/lib/guide-route";
 import { useGuideTargetAvailable } from "@/features/guide/hooks/use-guide-target-layout";
 
 export type GuideRunTrigger = "auto" | "manual" | "nudge";
@@ -55,12 +63,24 @@ type GuideGate = {
 type GuideControllerConfig = {
   scope: GuidePreferenceScope;
   requirePulseTarget: boolean;
+  isGuideRoute: (pathname: string) => boolean;
+  openEvent: string;
   getServerPreference: () => Promise<{ state: GuideServerState | null }>;
   saveServerPreference: (state: GuideServerState) => Promise<unknown>;
 };
 
 const DESKTOP_GUIDE_SCOPE: GuidePreferenceScope = { surface: "desktop", version: DASHBOARD_SIDEBAR_GUIDE_VERSION };
 const MOBILE_GUIDE_SCOPE: GuidePreferenceScope = { surface: "mobile", version: DASHBOARD_MOBILE_GUIDE_VERSION };
+const WEALTH_DESKTOP_GUIDE_SCOPE: GuidePreferenceScope = {
+  journey: "wealth",
+  surface: "desktop",
+  version: WEALTH_OVERVIEW_DESKTOP_GUIDE_VERSION,
+};
+const WEALTH_MOBILE_GUIDE_SCOPE: GuidePreferenceScope = {
+  journey: "wealth",
+  surface: "mobile",
+  version: WEALTH_OVERVIEW_MOBILE_GUIDE_VERSION,
+};
 
 function createGuideRun(trigger: GuideRunTrigger): GuideRun {
   return { id: Date.now(), trigger };
@@ -97,7 +117,7 @@ function useIsMobileViewport() {
 }
 
 function useDashboardGuideController(config: GuideControllerConfig) {
-  const { scope, requirePulseTarget, getServerPreference, saveServerPreference } = config;
+  const { scope, requirePulseTarget, getServerPreference, saveServerPreference, isGuideRoute, openEvent } = config;
   const pathname = usePathname();
   const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
   const pulseTargetReady = useGuideTargetAvailable('[data-guide="market-pulse"]', { requireReady: true });
@@ -119,7 +139,7 @@ function useDashboardGuideController(config: GuideControllerConfig) {
   const [suppressContextualPrompts, setSuppressContextualPrompts] = useState(false);
   const [skipConfirmationOpen, setSkipConfirmationOpen] = useState(false);
 
-  const isDashboard = isDashboardGuideRoute(pathname);
+  const isDashboard = isGuideRoute(pathname);
   const isGuideActive = guideRun !== null;
 
   guideRunRef.current = guideRun;
@@ -242,7 +262,7 @@ function useDashboardGuideController(config: GuideControllerConfig) {
     autoStartTimerRef.current = window.setTimeout(() => {
       autoStartTimerRef.current = null;
 
-      if (!isDashboardGuideRoute(pathname)) {
+      if (!isGuideRoute(pathname)) {
         return;
       }
 
@@ -338,7 +358,7 @@ function useDashboardGuideController(config: GuideControllerConfig) {
 
   useEffect(() => {
     const openManualGuide = () => {
-      if (!isDashboardGuideRoute(pathname)) {
+      if (!isGuideRoute(pathname)) {
         return;
       }
 
@@ -346,13 +366,13 @@ function useDashboardGuideController(config: GuideControllerConfig) {
       startGuideRun("manual");
     };
 
-    window.addEventListener("dashboard-sidebar-guide:open", openManualGuide);
-    window.addEventListener("dashboard-sidebar-guide:replay", openManualGuide);
+    window.addEventListener(openEvent, openManualGuide);
+    window.addEventListener(`${openEvent}:replay`, openManualGuide);
     return () => {
-      window.removeEventListener("dashboard-sidebar-guide:open", openManualGuide);
-      window.removeEventListener("dashboard-sidebar-guide:replay", openManualGuide);
+      window.removeEventListener(openEvent, openManualGuide);
+      window.removeEventListener(`${openEvent}:replay`, openManualGuide);
     };
-  }, [pathname, startGuideRun]);
+  }, [isGuideRoute, openEvent, pathname, startGuideRun]);
 
   const persistGuideOutcome = useCallback(
     (completion: GuideCompletion) => {
@@ -437,6 +457,8 @@ export function useDashboardDesktopGuideController() {
   return useDashboardGuideController({
     scope: DESKTOP_GUIDE_SCOPE,
     requirePulseTarget: false,
+    isGuideRoute: isDashboardGuideRoute,
+    openEvent: "dashboard-sidebar-guide:open",
     getServerPreference: getDashboardSidebarGuidePreference,
     saveServerPreference: saveDashboardSidebarGuidePreference,
   });
@@ -446,9 +468,37 @@ export function useDashboardMobileGuideController() {
   return useDashboardGuideController({
     scope: MOBILE_GUIDE_SCOPE,
     requirePulseTarget: false,
+    isGuideRoute: isDashboardGuideRoute,
+    openEvent: "dashboard-sidebar-guide:open",
     getServerPreference: getDashboardMobileGuidePreference,
     saveServerPreference: saveDashboardMobileGuidePreference,
   });
+}
+
+export function useWealthDesktopGuideController() {
+  return useDesktopGuideController("wealth");
+}
+
+export function useWealthMobileGuideController() {
+  return useMobileGuideController("wealth");
+}
+
+export type ProductGuideJourney = "dashboard" | "wealth";
+
+export function useDesktopGuideController(journey: ProductGuideJourney = "dashboard") {
+  return useDashboardGuideController(
+    journey === "wealth"
+      ? { scope: WEALTH_DESKTOP_GUIDE_SCOPE, requirePulseTarget: false, isGuideRoute: isWealthOverviewGuideRoute, openEvent: "wealth-overview-guide:open", getServerPreference: getWealthDesktopGuidePreference, saveServerPreference: saveWealthDesktopGuidePreference }
+      : { scope: DESKTOP_GUIDE_SCOPE, requirePulseTarget: false, isGuideRoute: isDashboardGuideRoute, openEvent: "dashboard-sidebar-guide:open", getServerPreference: getDashboardSidebarGuidePreference, saveServerPreference: saveDashboardSidebarGuidePreference },
+  );
+}
+
+export function useMobileGuideController(journey: ProductGuideJourney = "dashboard") {
+  return useDashboardGuideController(
+    journey === "wealth"
+      ? { scope: WEALTH_MOBILE_GUIDE_SCOPE, requirePulseTarget: false, isGuideRoute: isWealthOverviewGuideRoute, openEvent: "wealth-overview-guide:open", getServerPreference: getWealthMobileGuidePreference, saveServerPreference: saveWealthMobileGuidePreference }
+      : { scope: MOBILE_GUIDE_SCOPE, requirePulseTarget: false, isGuideRoute: isDashboardGuideRoute, openEvent: "dashboard-sidebar-guide:open", getServerPreference: getDashboardMobileGuidePreference, saveServerPreference: saveDashboardMobileGuidePreference },
+  );
 }
 
 export function useDashboardSidebarGuideController() {
@@ -494,5 +544,25 @@ export function useDashboardGuideLauncherProminent() {
     };
   }, [pathname, scope, storageKey]);
 
+  return prominent;
+}
+
+export function useWealthGuideLauncherProminent() {
+  const pathname = usePathname();
+  const isMobile = useIsMobileViewport();
+  const scope = isMobile ? WEALTH_MOBILE_GUIDE_SCOPE : WEALTH_DESKTOP_GUIDE_SCOPE;
+  const [prominent, setProminent] = useState(false);
+  const storageKey = getGuidePreferenceStorageKey(scope);
+  useEffect(() => {
+    if (!isWealthOverviewGuideRoute(pathname)) { setProminent(false); return; }
+    setProminent(isGuideLauncherProminent(scope));
+  }, [pathname, scope]);
+  useEffect(() => {
+    const refresh = () => { if (isWealthOverviewGuideRoute(pathname)) setProminent(isGuideLauncherProminent(scope)); };
+    const onStorage = (event: StorageEvent) => { if (event.key === storageKey) refresh(); };
+    window.addEventListener("wealth-overview-guide:preference-changed", refresh);
+    window.addEventListener("storage", onStorage);
+    return () => { window.removeEventListener("wealth-overview-guide:preference-changed", refresh); window.removeEventListener("storage", onStorage); };
+  }, [pathname, scope, storageKey]);
   return prominent;
 }

@@ -8,6 +8,10 @@ from app.modules.user_preferences.user_preferences_schemas import (
     DashboardMobileGuidePreferenceWrite,
     DashboardSidebarGuidePreferenceRead,
     DashboardSidebarGuidePreferenceWrite,
+    WealthDesktopGuidePreferenceRead,
+    WealthDesktopGuidePreferenceWrite,
+    WealthMobileGuidePreferenceRead,
+    WealthMobileGuidePreferenceWrite,
 )
 from app.modules.user_preferences.user_preferences_service import (
     UserPreferencesService,
@@ -61,3 +65,49 @@ async def save_dashboard_mobile_guide_preference(
 ) -> ApiResponse[DashboardMobileGuidePreferenceRead]:
     preference = await service.save_dashboard_mobile_guide_preference(payload)
     return success_response(data=preference, message="Dashboard mobile guide preference saved")
+
+
+@router.get(
+    "/wealth-overview-desktop-guide",
+    response_model=ApiResponse[WealthDesktopGuidePreferenceRead],
+)
+async def get_wealth_desktop_guide_preference(
+    service: Annotated[UserPreferencesService, Depends(get_user_preferences_service)],
+) -> ApiResponse[WealthDesktopGuidePreferenceRead]:
+    preference = await service.get_wealth_desktop_guide_preference()
+    return success_response(data=preference, message="Wealth desktop guide preference retrieved")
+
+
+@router.put(
+    "/wealth-overview-desktop-guide",
+    response_model=ApiResponse[WealthDesktopGuidePreferenceRead],
+)
+async def save_wealth_desktop_guide_preference(
+    payload: WealthDesktopGuidePreferenceWrite,
+    service: Annotated[UserPreferencesService, Depends(get_user_preferences_service)],
+) -> ApiResponse[WealthDesktopGuidePreferenceRead]:
+    preference = await service.save_wealth_desktop_guide_preference(payload)
+    return success_response(data=preference, message="Wealth desktop guide preference saved")
+
+
+@router.get(
+    "/wealth-overview-mobile-guide",
+    response_model=ApiResponse[WealthMobileGuidePreferenceRead],
+)
+async def get_wealth_mobile_guide_preference(
+    service: Annotated[UserPreferencesService, Depends(get_user_preferences_service)],
+) -> ApiResponse[WealthMobileGuidePreferenceRead]:
+    preference = await service.get_wealth_mobile_guide_preference()
+    return success_response(data=preference, message="Wealth mobile guide preference retrieved")
+
+
+@router.put(
+    "/wealth-overview-mobile-guide",
+    response_model=ApiResponse[WealthMobileGuidePreferenceRead],
+)
+async def save_wealth_mobile_guide_preference(
+    payload: WealthMobileGuidePreferenceWrite,
+    service: Annotated[UserPreferencesService, Depends(get_user_preferences_service)],
+) -> ApiResponse[WealthMobileGuidePreferenceRead]:
+    preference = await service.save_wealth_mobile_guide_preference(payload)
+    return success_response(data=preference, message="Wealth mobile guide preference saved")

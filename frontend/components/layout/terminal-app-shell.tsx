@@ -14,7 +14,7 @@ import { SidebarThemeToggle } from "@/components/layout/sidebar-theme-toggle";
 import { TerminalSidebarNav } from "@/components/layout/terminal-sidebar-nav";
 import { useAuth } from "@/features/auth/context/auth-context";
 import { DashboardSidebarGuide } from "@/features/guide/components/dashboard-sidebar-guide";
-import { isDashboardGuideRoute } from "@/features/guide/lib/guide-route";
+import { isDashboardGuideRoute, isWealthOverviewGuideRoute } from "@/features/guide/lib/guide-route";
 import { useWorkspaceStore } from "@/stores/use-workspace-store";
 import type { AppLocale } from "@/lib/locale/app-locale";
 import { DEFAULT_LOCALE } from "@/lib/locale/app-locale";
@@ -54,7 +54,7 @@ export function TerminalAppShell({ children, dashboardLocale = DEFAULT_LOCALE }:
 
   const isSidebarCollapsed = (storeHydrated ? sidebarCollapsed : true) && !isSidebarHoverExpanded;
   const isMobileNavigationOpen = mobileNavOpen || guideMobileNavigationOpen;
-  const showMobileGuideLauncher = isDashboardGuideRoute(pathname);
+  const mobileGuideLauncher = isDashboardGuideRoute(pathname) ? "dashboard" : isWealthOverviewGuideRoute(pathname) ? "wealth" : null;
 
   const handleMobileNavClose = () => {
     setMobileNavOpen(false);
@@ -68,7 +68,7 @@ export function TerminalAppShell({ children, dashboardLocale = DEFAULT_LOCALE }:
         isMenuOpen={isMobileNavigationOpen}
         menuButtonRef={menuButtonRef}
         onMenuToggle={() => setMobileNavOpen((open) => !open)}
-        showGuideLauncher={showMobileGuideLauncher}
+        guideLauncher={mobileGuideLauncher}
       />
       <MobileNavigationDrawer
         guideActive={guideMobileNavigationOpen}
