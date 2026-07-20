@@ -129,7 +129,9 @@ describe("stock decision localization", () => {
       "bn",
     );
 
-    expect(model.entryCondition).toContain("Breakout সম্পন্ন");
+    expect(model.entryCondition).toBe(
+      "দাম উপরের range ভেঙে উঠে সেখানে টিকে থাকলে entry ভাবতে পারেন। তবে কেনাবেচা দুর্বল হলে বা দাম আবার নিচে নেমে গেলে একটু অপেক্ষা করুন।",
+    );
     expect(model.entryCondition).not.toContain("Enter only while");
   });
 
@@ -139,6 +141,6 @@ describe("stock decision localization", () => {
       "bn",
     );
 
-    expect(localized).toBe("126.50-এর উপরে completed close ও confirming volume হলে entry নিন।");
+    expect(localized).toBe("126.50-এর উপরে দিন শেষ হলে এবং কেনার চাপ ভালো থাকলে entry ভাবতে পারেন।");
   });
 });

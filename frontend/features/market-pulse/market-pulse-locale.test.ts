@@ -156,4 +156,34 @@ describe("market pulse language", () => {
     expect(language.briefing.storyHeadline("positive", 4)).toBe("দামের শক্তি ছড়াচ্ছে\n4টি সেক্টরে");
     expect(language.briefing.storyHeadline("warning", 1)).toBe("মিশ্র বাজার, বেছে বেছে price leadership");
   });
+
+  it("localizes focus stock entry-condition triggers in bn", () => {
+    const model = {
+      hero: { attentionSubline: "Market context" },
+      sinceLastVisit: {
+        newChangesCount: 0,
+        newFocusCount: 0,
+        newAlertsCount: 0,
+        summaryLabel: "No new changes",
+      },
+      briefing: null,
+      focusStocks: [{
+        whyHere: [],
+        focusLabel: "Potential Buy Setup",
+        trigger:
+          "Enter only after a completed-session close confirms the trigger with acceptable participation.",
+        actionSummary: "Monitor for confirmation",
+      }],
+      monitorCandidates: [],
+      alerts: [],
+      emptyState: "none",
+      emptyMessage: null,
+      dataQualityNote: null,
+    } as unknown as MarketPulseModel;
+
+    const localized = applyMarketPulseLocalization(model, "bn");
+    expect(localized.focusStocks[0]?.trigger).toBe(
+      "দাম trigger-এর উপরে দিন শেষ করলে এবং কেনার চাপ ভালো থাকলে entry ভাবতে পারেন।",
+    );
+  });
 });

@@ -8,6 +8,7 @@ type WorkspaceState = {
   chartTimeframe: "1M" | "3M" | "6M" | "1Y";
   visibleIndicators: string[];
   toggleSidebar: () => void;
+  collapseSidebar: () => void;
   setTheme: (theme: WorkspaceState["theme"]) => void;
   setActiveWatchlistId: (watchlistId: string) => void;
   setChartTimeframe: (timeframe: WorkspaceState["chartTimeframe"]) => void;
@@ -17,12 +18,13 @@ type WorkspaceState = {
 export const useWorkspaceStore = create<WorkspaceState>()(
   persist(
     (set) => ({
-      sidebarCollapsed: false,
+      sidebarCollapsed: true,
       theme: "dark",
       activeWatchlistId: "default",
       chartTimeframe: "3M",
       visibleIndicators: ["SMA", "EMA", "RSI"],
       toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
+      collapseSidebar: () => set({ sidebarCollapsed: true }),
       setTheme: (theme) => set({ theme }),
       setActiveWatchlistId: (watchlistId) => set({ activeWatchlistId: watchlistId }),
       setChartTimeframe: (timeframe) => set({ chartTimeframe: timeframe }),
@@ -30,6 +32,19 @@ export const useWorkspaceStore = create<WorkspaceState>()(
     }),
     {
       name: "smart-stock-workspace",
+      version: 2,
+      migrate: (persistedState) => {
+        const previous = persistedState as Partial<WorkspaceState>;
+
+        return {
+          // The compact rail is now the default, including for existing workspaces.
+          sidebarCollapsed: true,
+          theme: previous.theme ?? "dark",
+          activeWatchlistId: previous.activeWatchlistId ?? "default",
+          chartTimeframe: previous.chartTimeframe ?? "3M",
+          visibleIndicators: previous.visibleIndicators ?? ["SMA", "EMA", "RSI"],
+        };
+      },
       partialize: (state) => ({
         sidebarCollapsed: state.sidebarCollapsed,
         theme: state.theme,

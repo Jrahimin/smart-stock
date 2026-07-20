@@ -87,12 +87,12 @@ export function ScannerWorkspaceView({ locale = DEFAULT_LOCALE }: ScannerWorkspa
 
     return [
       {
-        id: "volume_breakouts" as const,
-        items: buildScannerCategoryItems(filteredUniverse, "volume_breakouts"),
-      },
-      {
         id: "momentum_continuation" as const,
         items: buildScannerCategoryItems(filteredUniverse, "momentum_continuation"),
+      },
+      {
+        id: "volume_breakouts" as const,
+        items: buildScannerCategoryItems(filteredUniverse, "volume_breakouts"),
       },
       {
         id: "breakdown_risk" as const,

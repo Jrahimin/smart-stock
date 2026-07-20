@@ -96,7 +96,9 @@ function OpportunityGauge({
       <div className="pulse-opportunity-history-wrap">
         <span className="pulse-opportunity-history-label">{copy.lastFiveSessions}</span>
         <div className="pulse-opportunity-history" aria-label={copy.lastFiveSessions}>
-          {Array.from({ length: 5 }, (_, slotIndex) => {
+          {history.length === 0 ? (
+            <span className="pulse-opportunity-history-pending">{copy.historyPending}</span>
+          ) : Array.from({ length: 5 }, (_, slotIndex) => {
             const historyIndex = slotIndex - Math.max(0, 5 - history.length);
             const value = historyIndex >= 0 ? history[historyIndex] : undefined;
             const isCurrent = historyIndex === history.length - 1 && value !== undefined;

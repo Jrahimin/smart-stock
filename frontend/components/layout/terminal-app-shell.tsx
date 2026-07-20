@@ -28,11 +28,12 @@ export function TerminalAppShell({ children, dashboardLocale = DEFAULT_LOCALE }:
   const pathname = usePathname();
   const { user, isAuthenticated, isLoading, logout } = useAuth();
   const sidebarCollapsed = useWorkspaceStore((state) => state.sidebarCollapsed);
-  const toggleSidebar = useWorkspaceStore((state) => state.toggleSidebar);
+  const collapseSidebar = useWorkspaceStore((state) => state.collapseSidebar);
   const theme = useWorkspaceStore((state) => state.theme);
   const [storeHydrated, setStoreHydrated] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [guideMobileNavigationOpen, setGuideMobileNavigationOpen] = useState(false);
+  const [isSidebarHoverExpanded, setSidebarHoverExpanded] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -51,7 +52,7 @@ export function TerminalAppShell({ children, dashboardLocale = DEFAULT_LOCALE }:
     setMobileNavOpen(false);
   }, [pathname]);
 
-  const isSidebarCollapsed = storeHydrated ? sidebarCollapsed : false;
+  const isSidebarCollapsed = (storeHydrated ? sidebarCollapsed : true) && !isSidebarHoverExpanded;
   const isMobileNavigationOpen = mobileNavOpen || guideMobileNavigationOpen;
   const showMobileGuideLauncher = isDashboardGuideRoute(pathname);
 
@@ -76,7 +77,11 @@ export function TerminalAppShell({ children, dashboardLocale = DEFAULT_LOCALE }:
         onClose={handleMobileNavClose}
         storeHydrated={storeHydrated}
       />
-      <aside className="terminal-sidebar terminal-sidebar-desktop">
+      <aside
+        className="terminal-sidebar terminal-sidebar-desktop"
+        onMouseEnter={() => setSidebarHoverExpanded(true)}
+        onMouseLeave={() => setSidebarHoverExpanded(false)}
+      >
         <div className="terminal-sidebar-top">
           <Link aria-label="Smart Stock home" className="terminal-brand" href="/">
             <Image
@@ -99,7 +104,15 @@ export function TerminalAppShell({ children, dashboardLocale = DEFAULT_LOCALE }:
           <button
             aria-label={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
             className="sidebar-toggle-button"
-            onClick={toggleSidebar}
+            onClick={() => {
+              if (isSidebarCollapsed) {
+                setSidebarHoverExpanded(true);
+                return;
+              }
+
+              collapseSidebar();
+              setSidebarHoverExpanded(false);
+            }}
             type="button"
           >
             {isSidebarCollapsed ? <ChevronsRight size={18} /> : <ChevronsLeft size={18} />}

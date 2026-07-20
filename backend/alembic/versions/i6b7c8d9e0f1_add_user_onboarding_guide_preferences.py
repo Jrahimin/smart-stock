@@ -15,7 +15,7 @@ branch_labels = None
 depends_on = None
 
 onboarding_guide_key = postgresql.ENUM(
-    "dashboard_sidebar_guide",
+    "DASHBOARD_SIDEBAR_GUIDE",
     name="onboardingguidekey",
     create_type=False,
 )

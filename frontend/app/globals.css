@@ -99,6 +99,7 @@ button {
   max-width: 100%;
   min-height: 100vh;
   overflow-x: clip;
+  transition: grid-template-columns 0.26s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .terminal-shell-collapsed {
@@ -117,6 +118,7 @@ button {
   padding: 16px;
   position: sticky;
   top: 0;
+  transition: padding 0.26s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .terminal-sidebar-primary {
@@ -702,8 +704,9 @@ button {
   pointer-events: none;
   position: absolute;
   top: 12px;
-  transition: box-shadow 0.28s ease;
-  width: 3px;
+  opacity: 0.28;
+  transition: box-shadow 0.28s ease, opacity 0.2s ease, width 0.2s ease;
+  width: 2px;
   z-index: 1;
 }
 
@@ -722,6 +725,7 @@ button {
 }
 
 .wealth-workspace-nav-tile:hover::after {
+  opacity: 0.6;
   box-shadow: 0 0 10px color-mix(in srgb, var(--wealth-accent) 42%, transparent);
 }
 
@@ -744,7 +748,9 @@ button {
 }
 
 .wealth-workspace-nav-tile.is-active::after {
+  opacity: 1;
   box-shadow: 0 0 10px color-mix(in srgb, var(--wealth-accent) 45%, transparent);
+  width: 3px;
 }
 
 .wealth-workspace-nav-tile-icon-wrap {
@@ -3975,7 +3981,8 @@ button {
   background: var(--positive);
 }
 
-.insight-category-momentum::before {
+.insight-category-momentum::before,
+.insight-category-valuation::before {
   background: var(--primary);
 }
 
@@ -9237,21 +9244,26 @@ button {
 
 .watchlist-add-buy-price {
   align-items: center;
-  background: none;
-  border: none;
+  background: color-mix(in srgb, var(--primary) 12%, var(--panel));
+  border: 1px solid color-mix(in srgb, var(--primary) 36%, var(--border));
+  border-radius: 999px;
   color: color-mix(in srgb, var(--accent) 82%, var(--foreground));
   cursor: pointer;
   display: inline-flex;
-  font-size: 0.7rem;
-  justify-content: flex-end;
+  font-size: 0.68rem;
+  font-weight: 700;
+  gap: 4px;
+  justify-content: center;
   line-height: 1;
   min-height: 18px;
-  padding: 0;
+  padding: 4px 8px;
   transition: color 0.15s ease;
-  width: 100%;
+  width: fit-content;
 }
 
 .watchlist-add-buy-price:hover {
+  background: color-mix(in srgb, var(--primary) 20%, var(--panel));
+  border-color: color-mix(in srgb, var(--primary) 58%, var(--border));
   color: #9ec8ff;
 }
 
@@ -9802,6 +9814,24 @@ button {
   display: flex;
   gap: 16px;
   justify-content: space-between;
+}
+
+.wealth-seasonal-heading {
+  align-items: center;
+  display: flex;
+  gap: 7px;
+}
+
+.wealth-seasonal-icon {
+  align-items: center;
+  background: color-mix(in srgb, var(--wealth-accent) 16%, var(--panel));
+  border: 1px solid color-mix(in srgb, var(--wealth-accent) 38%, var(--border));
+  border-radius: 9px;
+  color: var(--wealth-accent);
+  display: inline-flex;
+  height: 28px;
+  justify-content: center;
+  width: 28px;
 }
 
 .wealth-snapshot-card {
@@ -25252,6 +25282,414 @@ button {
 
 .pulse-focus-change-neutral {
   color: var(--muted);
+}
+
+/* Refinement pass: compact desktop rail, resilient market workspaces, and phone layouts. */
+.terminal-shell,
+.terminal-sidebar,
+.terminal-sidebar nav a,
+.wealth-workspace-nav-tile,
+.wealth-workspace-nav-tile-body,
+.wealth-workspace-nav-compact-label {
+  will-change: width, grid-template-columns, padding, opacity, transform;
+}
+
+.terminal-sidebar nav a:not(.wealth-workspace-nav-tile) {
+  width: 100%;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease,
+    gap 0.26s cubic-bezier(0.22, 1, 0.36, 1),
+    height 0.26s cubic-bezier(0.22, 1, 0.36, 1),
+    padding 0.26s cubic-bezier(0.22, 1, 0.36, 1),
+    width 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.terminal-sidebar nav a.wealth-workspace-nav-tile {
+  transition:
+    background 0.22s ease,
+    border-color 0.22s ease,
+    box-shadow 0.22s ease,
+    gap 0.26s cubic-bezier(0.22, 1, 0.36, 1),
+    height 0.26s cubic-bezier(0.22, 1, 0.36, 1),
+    padding 0.26s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.18s cubic-bezier(0.22, 1, 0.36, 1),
+    width 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.wealth-workspace-nav-compact-label {
+  flex: 0 0 0;
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+  transform: translateY(-3px);
+  transition:
+    max-height 0.2s ease,
+    opacity 0.16s ease,
+    transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.wealth-workspace-nav-tile-body {
+  opacity: 1;
+  transform: translateX(0);
+  transition: opacity 0.16s ease, transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.terminal-shell-collapsed .terminal-sidebar nav a:not(.wealth-workspace-nav-tile) {
+  flex-direction: column;
+  gap: 3px;
+  height: 54px;
+  min-height: 54px;
+  min-width: 58px;
+  padding: 4px 2px;
+  width: 58px;
+}
+
+.terminal-shell-collapsed .terminal-sidebar nav {
+  gap: 4px;
+}
+
+.terminal-shell-collapsed .terminal-sidebar nav a:not(.wealth-workspace-nav-tile) > span {
+  color: var(--muted);
+  display: block;
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  line-height: 1.05;
+  max-width: 64px;
+  overflow: hidden;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.terminal-shell-collapsed .terminal-sidebar nav a.wealth-workspace-nav-tile {
+  flex-direction: column;
+  gap: 3px;
+  height: 58px;
+  min-height: 58px;
+  padding: 4px 2px;
+}
+
+.terminal-shell-collapsed .terminal-sidebar .wealth-workspace-nav-tile {
+  width: 58px;
+}
+
+.terminal-shell-collapsed .terminal-sidebar .wealth-workspace-nav-compact-label {
+  color: color-mix(in srgb, var(--wealth-accent) 72%, var(--foreground));
+  display: block;
+  flex-basis: auto;
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  max-height: 0.8rem;
+  max-width: 54px;
+  opacity: 1;
+  overflow: hidden;
+  text-align: center;
+  text-overflow: ellipsis;
+  transform: translateY(0);
+  white-space: nowrap;
+}
+
+.terminal-shell-collapsed .terminal-nav-wealth-module {
+  margin-top: 12px;
+  padding-top: 8px;
+  transition: margin 0.26s cubic-bezier(0.22, 1, 0.36, 1), padding 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.terminal-shell-collapsed .terminal-sidebar .wealth-workspace-nav-tile-body {
+  display: flex;
+  flex: 0 0 0;
+  height: 0;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+  transform: translateX(-6px);
+}
+
+.terminal-shell-collapsed .terminal-sidebar nav a.active:not(.wealth-workspace-nav-tile) > span,
+.terminal-shell-collapsed .terminal-sidebar nav a:hover:not(.wealth-workspace-nav-tile) > span {
+  color: var(--foreground);
+}
+
+.pulse-opportunity-history-pending {
+  align-items: center;
+  background: color-mix(in srgb, var(--soft-surface) 76%, transparent);
+  border: 1px dashed color-mix(in srgb, var(--border) 84%, transparent);
+  border-radius: 8px;
+  color: var(--muted);
+  display: flex;
+  font-size: 0.66rem;
+  justify-content: center;
+  line-height: 1.35;
+  min-height: 34px;
+  padding: 4px 8px;
+  text-align: center;
+  width: 100%;
+}
+
+.watchlist-table {
+  --watchlist-columns:
+    minmax(100px, 0.62fr) minmax(168px, 1.45fr) minmax(126px, 0.95fr) minmax(84px, 0.7fr)
+    minmax(176px, 1.45fr) minmax(70px, 0.58fr) minmax(96px, 0.78fr) minmax(82px, 0.68fr);
+
+  min-width: 930px;
+}
+
+.watchlist-action-badges {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+  justify-content: center;
+  max-width: 100%;
+  min-height: 24px;
+  white-space: normal;
+}
+
+.watchlist-action-signal-cell {
+  align-content: center !important;
+  text-align: center;
+}
+
+.watchlist-entry-condition-info {
+  align-items: center;
+  background: color-mix(in srgb, var(--primary) 8%, var(--panel));
+  border: 1px solid color-mix(in srgb, var(--primary) 35%, var(--border));
+  border-radius: 999px;
+  color: var(--primary);
+  cursor: help;
+  display: inline-flex;
+  height: 22px;
+  justify-content: center;
+  outline: none;
+  position: relative;
+  width: 22px;
+}
+
+.watchlist-entry-condition-info:focus-visible {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent);
+}
+
+.watchlist-entry-condition-tooltip {
+  background: var(--panel-strong);
+  border: 1px solid color-mix(in srgb, var(--primary) 30%, var(--border));
+  border-radius: 10px;
+  box-shadow: 0 10px 24px rgb(0 0 0 / 22%);
+  color: var(--foreground);
+  font-size: 0.74rem;
+  font-weight: 500;
+  line-height: 1.35;
+  opacity: 0;
+  padding: 8px 10px;
+  pointer-events: none;
+  position: absolute;
+  right: 0;
+  text-align: left;
+  top: calc(100% + 7px);
+  transform: translateY(-3px);
+  transition: opacity 0.16s ease, transform 0.16s ease;
+  visibility: hidden;
+  width: min(260px, 52vw);
+  z-index: 12;
+}
+
+.watchlist-entry-condition-info:hover .watchlist-entry-condition-tooltip,
+.watchlist-entry-condition-info:focus .watchlist-entry-condition-tooltip {
+  opacity: 1;
+  transform: translateY(0);
+  visibility: visible;
+}
+
+.watchlist-trend-cell {
+  align-items: flex-start;
+  display: flex;
+  justify-content: center;
+}
+
+.trader-workspace-main {
+  order: 1;
+}
+
+.trader-decision-rail {
+  order: 2;
+}
+
+@media (max-width: 1200px) {
+  .dashboard-primary-column,
+  .dashboard-secondary-column,
+  .dashboard-tertiary-column {
+    display: contents;
+  }
+
+  .dashboard-primary-column > :nth-child(1) {
+    order: 1;
+  }
+
+  .dashboard-tertiary-column > :nth-child(1) {
+    order: 2;
+  }
+
+  .dashboard-primary-column > :nth-child(2) {
+    order: 3;
+  }
+
+  .dashboard-primary-column > :nth-child(n + 3) {
+    order: 4;
+  }
+
+  .dashboard-secondary-column > * {
+    order: 5;
+  }
+
+  .dashboard-tertiary-column > :nth-child(2) {
+    order: 6;
+  }
+}
+
+@media (max-width: 640px) {
+  .watchlist-header.explorer-hero {
+    gap: 10px;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto auto;
+    padding: 12px;
+  }
+
+  .watchlist-header .market-freshness-bar-status {
+    grid-column: 1;
+    grid-row: 1;
+    justify-self: end;
+    margin: 0;
+    position: static;
+  }
+
+  .watchlist-header .explorer-hero-head {
+    grid-column: 1;
+    grid-row: 2;
+    padding-right: 0;
+  }
+
+  .watchlist-header .explorer-hero-controls {
+    grid-column: 1;
+    grid-row: 3;
+  }
+
+  .watchlist-table-shell {
+    max-height: none;
+    overflow: visible;
+  }
+
+  .watchlist-table {
+    min-width: 0;
+  }
+
+  .watchlist-table-head {
+    display: none;
+  }
+
+  .watchlist-row:not(.watchlist-header-row) {
+    display: grid;
+    gap: 0;
+    grid-template-areas:
+      "actions symbol price"
+      "actions action action"
+      "actions change rsi"
+      "actions trend updated";
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    padding: 8px;
+  }
+
+  .watchlist-row:not(.watchlist-header-row) .watchlist-cell {
+    background: transparent;
+    min-height: 0;
+    padding: 4px 6px;
+  }
+
+  .watchlist-row:not(.watchlist-header-row):hover .watchlist-cell,
+  .watchlist-row.is-alt .watchlist-cell {
+    background: transparent;
+  }
+
+  .watchlist-actions-cell { grid-area: actions; }
+  .watchlist-symbol-cell { grid-area: symbol; }
+  .watchlist-price-column { grid-area: price; }
+  .watchlist-row:not(.watchlist-header-row) > :nth-child(4) { grid-area: change; }
+  .watchlist-action-signal-cell { grid-area: action; }
+  .watchlist-row:not(.watchlist-header-row) > :nth-child(6) { grid-area: rsi; }
+  .watchlist-trend-cell { grid-area: trend; }
+  .watchlist-updated-cell { grid-area: updated; }
+
+  .watchlist-row:not(.watchlist-header-row) > :nth-child(4)::before,
+  .watchlist-row:not(.watchlist-header-row) > :nth-child(6)::before,
+  .watchlist-trend-cell::before,
+  .watchlist-updated-cell::before {
+    color: var(--muted);
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    margin-right: 5px;
+    text-transform: uppercase;
+  }
+
+  .watchlist-row:not(.watchlist-header-row) > :nth-child(4)::before { content: "Change"; }
+  .watchlist-row:not(.watchlist-header-row) > :nth-child(6)::before { content: "RSI"; }
+  .watchlist-trend-cell::before { content: "Trend"; }
+  .watchlist-updated-cell::before { content: "Updated"; }
+
+  .watchlist-trend-cell,
+  .watchlist-updated-cell {
+    align-items: center;
+    justify-content: flex-start;
+    text-align: left;
+  }
+
+  .watchlist-updated-cell {
+    padding-right: 6px;
+  }
+
+  .watchlist-action-badges {
+    justify-content: flex-start;
+  }
+
+  .watchlist-action-signal-cell {
+    text-align: left;
+  }
+
+  .watchlist-entry-condition-tooltip {
+    left: 0;
+    right: auto;
+    width: min(260px, 68vw);
+  }
+
+  .trader-decision-rail {
+    order: 1;
+  }
+
+  .trader-workspace-main {
+    order: 2;
+  }
+
+  .related-stock-card .signal-badge {
+    flex-shrink: 1;
+    font-size: 0.54rem;
+    gap: 3px;
+    padding: 3px 6px;
+  }
+
+  .signal-center-view > .explorer-hero,
+  .scanner-workspace-view > .explorer-hero {
+    gap: 10px;
+    padding: 14px;
+  }
+
+  .signal-center-view > .explorer-hero .explorer-hero-copy h1,
+  .scanner-workspace-view > .explorer-hero .explorer-hero-copy h1 {
+    line-height: 1.18;
+    margin-top: 6px;
+  }
 }
 
 .pulse-sparkline {

@@ -32,16 +32,15 @@ export function WealthWorkspaceNavPill({ collapsed, isActive, onNavigate }: Weal
             <WealthWorkspaceNavIcon className="wealth-workspace-nav-tile-icon" />
           </span>
         </span>
-        {!collapsed ? (
-          <span className="wealth-workspace-nav-tile-body">
-            <span className="wealth-workspace-nav-tile-title">Wealth Workspace</span>
-            <span className="wealth-workspace-nav-tile-subtitle">Goals • Income • Future</span>
-            <span className="wealth-workspace-nav-tile-action">
-              <span>Open workspace</span>
-              <ChevronRight aria-hidden="true" className="wealth-workspace-nav-tile-chevron" size={13} strokeWidth={2.25} />
-            </span>
+        <span className="wealth-workspace-nav-compact-label">Wealth</span>
+        <span className="wealth-workspace-nav-tile-body">
+          <span className="wealth-workspace-nav-tile-title">Wealth Workspace</span>
+          <span className="wealth-workspace-nav-tile-subtitle">Goals • Income • Future</span>
+          <span className="wealth-workspace-nav-tile-action">
+            <span>Open workspace</span>
+            <ChevronRight aria-hidden="true" className="wealth-workspace-nav-tile-chevron" size={13} strokeWidth={2.25} />
           </span>
-        ) : null}
+        </span>
         {showInsightDot ? <span aria-label="New wealth insight" className="wealth-workspace-nav-insight-dot" /> : null}
       </Link>
     </div>

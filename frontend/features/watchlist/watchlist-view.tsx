@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Info } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { WorkspacePageHero } from "@/components/layout/workspace-page-hero";
@@ -261,9 +262,16 @@ export function WatchlistView() {
                       <div className="watchlist-action-badges">
                         <SignalBadge signal={row.actionLabel} />
                         {row.entryCondition ? (
-                          <small className="watchlist-entry-condition">
-                            {row.entryCondition}
-                          </small>
+                          <span
+                            aria-label={`Entry condition: ${row.entryCondition}`}
+                            className="watchlist-entry-condition-info"
+                            tabIndex={0}
+                          >
+                            <Info aria-hidden="true" size={14} />
+                            <span className="watchlist-entry-condition-tooltip" role="tooltip">
+                              {row.entryCondition}
+                            </span>
+                          </span>
                         ) : null}
                         {row.isNewSignal ? (
                           <span

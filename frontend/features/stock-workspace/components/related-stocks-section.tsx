@@ -87,7 +87,7 @@ export function RelatedStocksSection({
                       <Link className="scanner-result-card related-stock-card" href={item.href} key={item.stockId}>
                         <div className="scanner-card-topline">
                           <strong>{item.symbol}</strong>
-                          <SignalBadge signal={item.recommendation} />
+                          <SignalBadge density="compact" signal={item.recommendation} />
                         </div>
                         <div className={`related-stock-quote related-stock-quote-${changeTone}`}>
                           <strong className="related-stock-quote-price">{item.price}</strong>

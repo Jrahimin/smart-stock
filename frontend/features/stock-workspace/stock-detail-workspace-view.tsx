@@ -238,6 +238,11 @@ export function StockDetailWorkspaceView({
       <p className="sr-only">{semanticSummary}</p>
 
       <div className="trader-workspace-layout">
+        <aside className="trader-decision-rail">
+          <TraderDecisionCard copy={language.decision} decision={decisionModel} />
+          <DecisionScoresPanel copy={language.decision} decision={decisionModel} />
+          {isDecisionLoading ? <div className="data-warning data-warning-compact">{language.states.decisionUpdating}</div> : null}
+        </aside>
         <main className="trader-workspace-main">
           <StockResearchSection id="overview">
             <section className="chart-hero-card chart-hero-card-compact">
@@ -303,11 +308,6 @@ export function StockDetailWorkspaceView({
           </StockResearchSection>
         </main>
 
-        <aside className="trader-decision-rail">
-          <TraderDecisionCard copy={language.decision} decision={decisionModel} />
-          <DecisionScoresPanel copy={language.decision} decision={decisionModel} />
-          {isDecisionLoading ? <div className="data-warning data-warning-compact">{language.states.decisionUpdating}</div> : null}
-        </aside>
       </div>
     </div>
   );

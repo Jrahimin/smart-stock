@@ -141,7 +141,7 @@ const wealthLanguage = {
       },
     },
     seasonal: {
-      eyebrow: "আজকের Money Lens",
+      eyebrow: "Today's Money Lens",
       bySeason: {
         income_tax_season: {
           title: "Income tax season — get your estimate in order",

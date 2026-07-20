@@ -75,6 +75,7 @@ export type MarketPulseLanguage = {
     outflowing: string;
     opportunityScore: string;
     lastFiveSessions: string;
+    historyPending: string;
     yesterday: (value: number) => string;
     fiveDayAvg: (value: number) => string;
     trend: (label: string) => string;
@@ -207,7 +208,8 @@ const marketPulseLanguage = {
       inflowing: "Leading",
       outflowing: "Lagging",
       opportunityScore: "Current Attention Score",
-      lastFiveSessions: "Comparable history pending",
+      lastFiveSessions: "Comparable score history is not collected yet",
+      historyPending: "This score is calculated now. Historical comparison will appear after matching session snapshots are stored.",
       yesterday: (value) => `Yesterday: ${value}`,
       fiveDayAvg: (value) => `5-Day Avg: ${value}`,
       trend: (label) => `Trend: ${label}`,
@@ -385,7 +387,8 @@ const marketPulseLanguage = {
       inflowing: "দামে এগিয়ে",
       outflowing: "দামে পিছিয়ে",
       opportunityScore: "Current Attention Score",
-      lastFiveSessions: "Comparable history এখনো নেই",
+      lastFiveSessions: "তুলনামূলক স্কোরের ইতিহাস এখনো সংগ্রহ করা হয়নি",
+      historyPending: "এই স্কোরটি এখন হিসাব করা হয়েছে। একই ধরনের সেশনের snapshot জমা হলে তুলনামূলক ইতিহাস দেখা যাবে।",
       yesterday: (value) => `গতকাল: ${value}`,
       fiveDayAvg: (value) => `5 দিনের গড়: ${value}`,
       trend: (label) => `Trend: ${label}`,

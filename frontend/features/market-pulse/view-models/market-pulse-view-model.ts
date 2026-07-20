@@ -6,6 +6,7 @@ import {
   getMarketPulseLanguage,
   type MarketPulseLeadershipCardKind,
 } from "@/features/market-pulse/market-pulse-language";
+import { localizeEntryCondition } from "@/features/stock-workspace/stock-decision-language";
 
 import type {
   FocusStockModel,
@@ -386,7 +387,7 @@ export function applyMarketPulseLocalization(model: MarketPulseModel, locale: Ap
   const localizeFocusStock = (stock: FocusStockModel): FocusStockModel => ({
     ...stock,
     whyHere: stock.whyHere.map((reason) => language.focus.reason(reason, stock.focusLabel)),
-    trigger: language.focus.trigger(stock.trigger),
+    trigger: language.focus.trigger(localizeEntryCondition(stock.trigger, locale) ?? stock.trigger),
     actionSummary: language.focus.actionSummary(stock.actionSummary),
   });
 

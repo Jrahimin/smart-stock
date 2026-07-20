@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Pencil, X } from "lucide-react";
+import { Check, CirclePlus, Pencil, X } from "lucide-react";
 
 import type { WatchlistRowViewModel } from "@/features/watchlist/types/watchlist-types";
 
@@ -90,8 +90,9 @@ export function WatchlistPriceCell({
                 </button>
               </div>
             ) : (
-              <button className="watchlist-add-buy-price" onClick={onStartEditBuyPrice} type="button">
-                Add buy price
+              <button aria-label="Set average buy price" className="watchlist-add-buy-price" onClick={onStartEditBuyPrice} type="button">
+                <CirclePlus aria-hidden="true" size={13} />
+                <span>Set avg. buy</span>
               </button>
             )}
 

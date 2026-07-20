@@ -1,15 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { Sparkles } from "lucide-react";
 import { useMemo } from "react";
 
-import { ComparisonCard } from "@/features/wealth/components/comparison-card";
 import { MoneySnapshotCard } from "@/features/wealth/components/money-snapshot-card";
 import { ScenarioLauncher } from "@/features/wealth/components/scenario-launcher";
 import { WealthInsightCard } from "@/features/wealth/components/wealth-insight-card";
 import { WealthSubNav } from "@/features/wealth/components/wealth-sub-nav";
 import {
-  WEALTH_COMPARISON_CARDS,
   WEALTH_INTENT_OPTIONS,
   WEALTH_SCENARIO_LAUNCHERS,
 } from "@/features/wealth/catalog/wealth-catalog";
@@ -62,7 +61,12 @@ export function WealthWorkspaceView({ locale = DEFAULT_LOCALE }: { locale?: AppL
       {localizedSeasonalContext ? (
         <section className="wealth-seasonal-card">
           <div>
-            <p className="eyebrow">{language.seasonal.eyebrow}</p>
+            <div className="wealth-seasonal-heading">
+              <span aria-hidden="true" className="wealth-seasonal-icon">
+                <Sparkles size={16} strokeWidth={2.2} />
+              </span>
+              <p className="eyebrow">{language.seasonal.eyebrow}</p>
+            </div>
             <h2>{localizedSeasonalContext.title}</h2>
             <p>{localizedSeasonalContext.description}</p>
           </div>
@@ -73,23 +77,6 @@ export function WealthWorkspaceView({ locale = DEFAULT_LOCALE }: { locale?: AppL
       ) : null}
 
       <ScenarioLauncher locale={locale} scenarios={WEALTH_SCENARIO_LAUNCHERS} />
-
-      <section className="wealth-section">
-        <div className="wealth-section-heading">
-          <p className="eyebrow">{language.comparison.eyebrow}</p>
-          <h2>{language.comparison.title}</h2>
-        </div>
-        <div className="wealth-comparison-strip">
-          {WEALTH_COMPARISON_CARDS.map((comparison) => (
-            <ComparisonCard
-              accent={comparison.accent}
-              key={comparison.slug}
-              locale={locale}
-              slug={comparison.slug}
-            />
-          ))}
-        </div>
-      </section>
 
       <MoneySnapshotCard
         dashboard={dashboard}

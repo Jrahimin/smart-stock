@@ -1,13 +1,13 @@
-"""Add dashboard mobile intro guide preference key.
+"""Add the SQLAlchemy enum member name for the mobile dashboard guide.
 
-Revision ID: j7c8d9e0f1a2
-Revises: i6b7c8d9e0f1
+Revision ID: o2a3b4c5d6e7
+Revises: n1a2b3c4d5e6
 """
 
 from alembic import op
 
-revision = "j7c8d9e0f1a2"
-down_revision = "i6b7c8d9e0f1"
+revision = "o2a3b4c5d6e7"
+down_revision = "n1a2b3c4d5e6"
 branch_labels = None
 depends_on = None
 
