@@ -21,6 +21,7 @@ market_data_state = postgresql.ENUM(
     "FINALIZED",
     "STALE",
     name="marketdatastate",
+    create_type=False,
 )
 
 
