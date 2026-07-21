@@ -6,10 +6,12 @@ import {
   StickyNote, TrendingDown, TrendingUp, WalletCards, X,
 } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, memo, type ReactNode, type RefObject } from "react";
 
 import { MarketDataFreshnessBar } from "@/components/layout/market-data-freshness-bar";
 import { DashboardLocaleSwitcher } from "@/features/market-dashboard/components/dashboard-locale-switcher";
+import { PortfolioMutationsProvider, usePortfolioMutations } from "@/features/portfolio/hooks/portfolio-mutations-context";
+import { usePortfolioCompactLayout } from "@/features/portfolio/hooks/use-portfolio-compact-layout";
 import { usePortfolioEmailPreference } from "@/features/portfolio/hooks/use-portfolio-email-preference";
 import { usePortfolioWorkspace } from "@/features/portfolio/hooks/use-portfolio-workspace";
 import { portfolioLanguage } from "@/features/portfolio/portfolio-language";
@@ -30,8 +32,6 @@ import {
   sortPortfolioGroupRows,
   type PortfolioHoldingFilter,
 } from "@/features/portfolio/view-models/portfolio-view-model";
-import { useWatchlistItemRemove } from "@/features/watchlist/hooks/use-watchlist-item-remove";
-import { useWatchlistItemUpdate } from "@/features/watchlist/hooks/use-watchlist-item-update";
 import type {
   BackendPortfolioHoldingDto,
   BackendPortfolioPositionReferenceDto,
@@ -41,8 +41,16 @@ import type {
 } from "@/lib/api/backend-api-types";
 import type { AppLocale } from "@/lib/locale/app-locale";
 import { buildStockDetailPath } from "@/lib/seo/stock-page-seo";
+import type { UpdateWatchlistItemPayload } from "@/lib/api/watchlist-api";
 
 type PortfolioWorkspaceViewProps = { locale: AppLocale };
+
+function toWatchlistPayload(
+  field: "quantity" | "average_buy_price",
+  value: number,
+): UpdateWatchlistItemPayload {
+  return field === "quantity" ? { quantity: value } : { buy_price: value };
+}
 
 function Value({ value, locale, percent = false }: { value: string | null; locale: AppLocale; percent?: boolean }) {
   return <span className={`portfolio-financial is-${financialTone(value)}`}>{percent ? formatSignedPercent(value) : formatPortfolioMoney(value, locale)}</span>;
@@ -56,6 +64,8 @@ function StockSymbolTile({ exchange, symbol, name }: { exchange: ExchangeCode; s
     </Link>
   );
 }
+
+const MemoStockSymbolTile = memo(StockSymbolTile);
 
 function PortfolioHero({
   data,
@@ -271,56 +281,114 @@ function InlineNumber({
   compact?: boolean;
 }) {
   const t = portfolioLanguage[locale];
-  const update = useWatchlistItemUpdate();
+  const { update } = usePortfolioMutations();
   const initial = item[field];
-  const [open, setOpen] = useState(false);
-  const [value, setValue] = useState(initial ?? "");
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const skipBlurSaveRef = useRef(false);
   const label = field === "quantity" ? t.quantity : t.averagePrice;
   const emptyLabel = field === "quantity" ? t.addQuantityAction : t.addAveragePriceAction;
 
-  const save = () => {
-    const parsed = Number(value);
-    if (!Number.isFinite(parsed) || parsed <= 0) return;
-    update.mutate({ stockId: item.stock_id, payload: { [field]: parsed } }, { onSuccess: () => setOpen(false) });
+  useEffect(() => {
+    if (!editing) setDraft(initial ?? "");
+  }, [editing, initial]);
+
+  const formattedValue = initial == null
+    ? null
+    : field === "quantity"
+      ? formatPortfolioNumber(initial, 4)
+      : formatPortfolioMoney(initial, locale);
+
+  const save = useCallback(() => {
+    const parsed = Number(draft);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      setEditing(false);
+      setDraft(initial ?? "");
+      return;
+    }
+    if (initial != null && parsed === Number(initial)) {
+      setEditing(false);
+      return;
+    }
+    update.mutate(
+      { stockId: item.stock_id, payload: toWatchlistPayload(field, parsed) },
+      { onSuccess: () => setEditing(false) },
+    );
+  }, [draft, field, initial, item.stock_id, update]);
+
+  const openEditor = () => {
+    setDraft(initial ?? "");
+    setEditing(true);
   };
+
+  if (editing) {
+    return (
+      <span className={`portfolio-inline-edit portfolio-inline-field ${compact ? "is-compact" : ""}`}>
+        {!compact && <span className="portfolio-inline-label">{label}</span>}
+        <span className="portfolio-inline-input-wrap">
+          <input
+            aria-label={label}
+            autoFocus
+            className="portfolio-inline-input"
+            disabled={update.isPending}
+            inputMode="decimal"
+            min="0.0001"
+            onBlur={() => {
+              if (skipBlurSaveRef.current) {
+                skipBlurSaveRef.current = false;
+                return;
+              }
+              save();
+            }}
+            onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                save();
+              }
+              if (event.key === "Escape") {
+                skipBlurSaveRef.current = true;
+                setEditing(false);
+                setDraft(initial ?? "");
+              }
+            }}
+            step="0.0001"
+            type="number"
+            value={draft}
+          />
+          <button
+            aria-label={t.save}
+            className="portfolio-inline-confirm"
+            disabled={update.isPending}
+            onMouseDown={() => { skipBlurSaveRef.current = true; }}
+            onClick={save}
+            type="button"
+          >
+            {update.isPending ? "…" : "✓"}
+          </button>
+        </span>
+      </span>
+    );
+  }
 
   return (
     <span className={`portfolio-inline-edit ${compact ? "is-compact" : ""}`}>
       {!compact && <span className="portfolio-inline-label">{label}</span>}
       <button
         className={`portfolio-inline-value ${initial == null ? "is-empty" : ""}`}
-        onClick={() => { setValue(initial ?? ""); setOpen(true); }}
+        onClick={openEditor}
         type="button"
       >
-        {initial == null ? `+ ${emptyLabel}` : field === "quantity" ? formatPortfolioNumber(initial, 4) : formatPortfolioMoney(initial, locale)}
+        {formattedValue ?? `+ ${emptyLabel}`}
         {initial != null && <Pencil size={11} />}
       </button>
-      {open && (
-        <span className="portfolio-inline-popover">
-          <input
-            aria-label={label}
-            autoFocus
-            inputMode="decimal"
-            min="0.0001"
-            onChange={(event) => setValue(event.target.value)}
-            onKeyDown={(event) => { if (event.key === "Enter") save(); if (event.key === "Escape") setOpen(false); }}
-            step="0.0001"
-            type="number"
-            value={value}
-          />
-          <span>
-            <button disabled={update.isPending} onClick={save} type="button">{t.save}</button>
-            <button onClick={() => setOpen(false)} type="button">{t.cancel}</button>
-          </span>
-        </span>
-      )}
     </span>
   );
 }
 
 function NoteAction({ item, locale }: { item: BackendPortfolioHoldingDto; locale: AppLocale }) {
   const t = portfolioLanguage[locale];
-  const update = useWatchlistItemUpdate();
+  const { update } = usePortfolioMutations();
   const [open, setOpen] = useState(false);
   const [note, setNote] = useState(item.note ?? "");
 
@@ -358,7 +426,7 @@ function NoteAction({ item, locale }: { item: BackendPortfolioHoldingDto; locale
 
 function RowActions({ item, locale }: { item: BackendPortfolioHoldingDto; locale: AppLocale }) {
   const t = portfolioLanguage[locale];
-  const remove = useWatchlistItemRemove();
+  const { remove } = usePortfolioMutations();
 
   return (
     <div className="portfolio-row-actions portfolio-icon-rail">
@@ -378,7 +446,7 @@ function RowActions({ item, locale }: { item: BackendPortfolioHoldingDto; locale
 
 function HoldToggle({ item, locale }: { item: BackendPortfolioHoldingDto; locale: AppLocale }) {
   const t = portfolioLanguage[locale];
-  const update = useWatchlistItemUpdate();
+  const { update } = usePortfolioMutations();
 
   const toggleHolding = () => {
     if (item.is_holding) {
@@ -477,7 +545,7 @@ function Row({ item, locale }: { item: BackendPortfolioHoldingDto; locale: AppLo
     <tr className={`${item.is_holding ? "is-holding" : "is-watching"} ${item.requires_attention ? "needs-review" : ""}`}>
       <td className="portfolio-actions-cell"><RowActions item={item} locale={locale} /></td>
       <td className="portfolio-hold-cell"><HoldToggle item={item} locale={locale} /></td>
-      <td className="portfolio-stock-col"><StockSymbolTile exchange={item.exchange} name={item.name} symbol={item.symbol} /></td>
+      <td className="portfolio-stock-col"><MemoStockSymbolTile exchange={item.exchange} name={item.name} symbol={item.symbol} /></td>
       <td><QuantityCell item={item} locale={locale} /></td>
       <td><AveragePriceCell item={item} locale={locale} /></td>
       <td><MarketCell item={item} locale={locale} /></td>
@@ -487,6 +555,68 @@ function Row({ item, locale }: { item: BackendPortfolioHoldingDto; locale: AppLo
     </tr>
   );
 }
+
+const MemoRow = memo(Row);
+
+function MobileHoldingCard({ item, locale }: { item: BackendPortfolioHoldingDto; locale: AppLocale }) {
+  const t = portfolioLanguage[locale];
+  const guidance = getPortfolioWhatNextCopy(item, t);
+  const hasPositionValue = item.is_holding && item.quantity != null && item.average_buy_price != null;
+  const showGuidance = item.is_holding
+    ? hasPositionValue
+    : guidance !== t.watching;
+
+  return (
+    <article className={`portfolio-holding-card portfolio-mobile-card ${item.is_holding ? "is-holding" : "is-watching"} ${item.requires_attention ? "needs-review" : ""}`}>
+      <div className="portfolio-mobile-card-header">
+        <div className="portfolio-mobile-card-identity">
+          <MemoStockSymbolTile exchange={item.exchange} name={item.name} symbol={item.symbol} />
+          <span className={`portfolio-status portfolio-mobile-status action-${item.action.toLowerCase()}`}>
+            {item.action.replaceAll("_", " ")}
+          </span>
+        </div>
+        <div className="portfolio-mobile-card-actions">
+          <HoldToggle item={item} locale={locale} />
+          <RowActions item={item} locale={locale} />
+        </div>
+      </div>
+      {item.is_holding && (
+        <div className="portfolio-mobile-position">
+          <QuantityCell item={item} locale={locale} />
+          <AveragePriceCell item={item} locale={locale} />
+        </div>
+      )}
+      <div className={`portfolio-mobile-card-metrics ${hasPositionValue ? "has-pl" : "is-compact"}`}>
+        <div className="portfolio-mobile-metric">
+          <span>{t.market}</span>
+          <strong>{formatPortfolioMoney(item.current_price, locale)}</strong>
+        </div>
+        {item.is_holding && hasPositionValue && (
+          <div className="portfolio-mobile-metric">
+            <span>{t.valueAndPL}</span>
+            <strong>{formatPortfolioMoney(item.current_value, locale)}</strong>
+          </div>
+        )}
+        {hasPositionValue && (
+          <div className="portfolio-mobile-metric portfolio-mobile-metric-pl">
+            <span>{t.unrealized}</span>
+            <span className="portfolio-mobile-pl-value">
+              <Value locale={locale} value={item.unrealized_gain_amount} />
+              <small className={`is-${financialTone(item.unrealized_gain_percent)}`}>
+                {formatSignedPercent(item.unrealized_gain_percent)}
+              </small>
+            </span>
+          </div>
+        )}
+      </div>
+      {showGuidance && guidance ? (
+        <p className="portfolio-mobile-card-hint">{guidance}</p>
+      ) : null}
+    </article>
+  );
+}
+
+const MemoMobileHoldingCard = memo(MobileHoldingCard);
 
 function HoldingsWorkspace({
   items,
@@ -508,25 +638,37 @@ function HoldingsWorkspace({
   sectionRef: RefObject<HTMLElement | null>;
 }) {
   const t = portfolioLanguage[locale];
+  const compactLayout = usePortfolioCompactLayout();
   const [search, setSearch] = useState("");
+  const deferredSearch = useDeferredValue(search);
   const [action, setAction] = useState("ALL");
   const [trend, setTrend] = useState("ALL");
 
   const filtered = useMemo(
-    () => filterPortfolioHoldings(items, { search, filter, action, trend, selectedStockIds }),
-    [action, filter, items, search, selectedStockIds, trend],
+    () => filterPortfolioHoldings(items, { search: deferredSearch, filter, action, trend, selectedStockIds }),
+    [action, deferredSearch, filter, items, selectedStockIds, trend],
   );
-  const holdings = sortPortfolioGroupRows(filtered.filter((item) => item.is_holding));
-  const watching = sortPortfolioGroupRows(filtered.filter((item) => !item.is_holding));
-  const actions = [...new Set(items.map((item) => item.action))];
-  const trends = [...new Set(items.map((item) => item.trend))];
-  const options: Array<[PortfolioHoldingFilter, string]> = [
-    ["ALL", t.all], ["HOLDINGS", t.holdingsOnly], ["WATCHLIST", t.watchlistOnly],
-    ["REVIEW", t.review], ["STABLE", t.stable], ["INCOMPLETE", t.incomplete],
-  ];
+  const holdings = useMemo(
+    () => sortPortfolioGroupRows(filtered.filter((item) => item.is_holding)),
+    [filtered],
+  );
+  const watching = useMemo(
+    () => sortPortfolioGroupRows(filtered.filter((item) => !item.is_holding)),
+    [filtered],
+  );
+  const actions = useMemo(() => [...new Set(items.map((item) => item.action))], [items]);
+  const trends = useMemo(() => [...new Set(items.map((item) => item.trend))], [items]);
+  const options = useMemo<Array<[PortfolioHoldingFilter, string]>>(
+    () => [
+      ["ALL", t.all], ["HOLDINGS", t.holdingsOnly], ["WATCHLIST", t.watchlistOnly],
+      ["REVIEW", t.review], ["STABLE", t.stable], ["INCOMPLETE", t.incomplete],
+    ],
+    [t],
+  );
 
   return (
-    <section className="portfolio-panel portfolio-holdings portfolio-holdings-v2" aria-labelledby="portfolio-holdings-title" ref={sectionRef}>
+    <PortfolioMutationsProvider>
+      <section className={`portfolio-panel portfolio-holdings portfolio-holdings-v2${compactLayout ? " is-compact-layout" : ""}`} aria-labelledby="portfolio-holdings-title" ref={sectionRef}>
       <div className="portfolio-holdings-head">
         <div className="portfolio-section-heading">
           <div className="portfolio-section-icon"><WalletCards size={17} /></div>
@@ -545,8 +687,10 @@ function HoldingsWorkspace({
             </button>
           ))}
         </div>
-        <label className="portfolio-select">{t.action}<select onChange={(event) => setAction(event.target.value)} value={action}><option value="ALL">{t.all}</option>{actions.map((value) => <option key={value} value={value}>{value.replaceAll("_", " ")}</option>)}</select></label>
-        <label className="portfolio-select">{t.trend}<select onChange={(event) => setTrend(event.target.value)} value={trend}><option value="ALL">{t.all}</option>{trends.map((value) => <option key={value} value={value}>{value.replaceAll("_", " ")}</option>)}</select></label>
+        <div className="portfolio-toolbar-filters">
+          <label className="portfolio-select">{t.action}<select onChange={(event) => setAction(event.target.value)} value={action}><option value="ALL">{t.all}</option>{actions.map((value) => <option key={value} value={value}>{value.replaceAll("_", " ")}</option>)}</select></label>
+          <label className="portfolio-select">{t.trend}<select onChange={(event) => setTrend(event.target.value)} value={trend}><option value="ALL">{t.all}</option>{trends.map((value) => <option key={value} value={value}>{value.replaceAll("_", " ")}</option>)}</select></label>
+        </div>
         {selectedStockIds && (
           <button className="portfolio-filter-clear" onClick={onClearAttention} type="button">
             <X size={13} />
@@ -555,60 +699,38 @@ function HoldingsWorkspace({
         )}
       </div>
       <p aria-live="polite" className="sr-only">{t.filtersAnnouncement(filtered.length)}</p>
-      <div className="portfolio-table-wrap">
-        <table className="portfolio-table portfolio-unified-table portfolio-unified-table-v2">
-          <thead>
-            <tr>
-              <th className="portfolio-th-actions">{t.actionsColumn}</th>
-              <th className="portfolio-th-hold">{t.holding}</th>
-              <th>{t.stock}</th>
-              <th>{t.quantity}</th>
-              <th>{t.averagePrice}</th>
-              <th>{t.market}</th>
-              <th>{t.valueAndPL}</th>
-              <th>{t.signal}</th>
-              <th>{t.whatNext}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {holdings.length > 0 && <tr className="portfolio-group-row"><td colSpan={9}>{t.groupHoldings(holdings.length)}</td></tr>}
-            {holdings.map((item) => <Row item={item} key={item.stock_id} locale={locale} />)}
-            {watching.length > 0 && <tr className="portfolio-group-row"><td colSpan={9}>{t.groupWatching(watching.length)}</td></tr>}
-            {watching.map((item) => <Row item={item} key={item.stock_id} locale={locale} />)}
-          </tbody>
-        </table>
-      </div>
-      <div className="portfolio-mobile-holdings">
-        {filtered.map((item) => {
-          const guidance = getPortfolioWhatNextCopy(item, t);
-          return (
-            <article className={`portfolio-holding-card ${item.is_holding ? "is-holding" : "is-watching"} ${item.requires_attention ? "needs-review" : ""}`} key={item.stock_id}>
-              <div className="portfolio-holding-card-head">
-                <div className="portfolio-mobile-stock-row">
-                  <RowActions item={item} locale={locale} />
-                  <HoldToggle item={item} locale={locale} />
-                  <StockSymbolTile exchange={item.exchange} name={item.name} symbol={item.symbol} />
-                </div>
-                <span className={`portfolio-status action-${item.action.toLowerCase()}`}>{item.action.replaceAll("_", " ")}</span>
-              </div>
-              {item.is_holding && (
-                <div className="portfolio-mobile-position">
-                  <QuantityCell item={item} locale={locale} />
-                  <AveragePriceCell item={item} locale={locale} />
-                </div>
-              )}
-              <div className="portfolio-holding-card-value">
-                <span>{t.market}<strong>{formatPortfolioMoney(item.current_price, locale)}</strong></span>
-                <span>{t.valueAndPL}<strong>{item.is_holding ? formatPortfolioMoney(item.current_value, locale) : "—"}</strong></span>
-                <span>{t.unrealized}<Value locale={locale} value={item.is_holding ? item.unrealized_gain_amount : null} /></span>
-              </div>
-              <p>{guidance}</p>
-            </article>
-          );
-        })}
-      </div>
+      {!compactLayout ? (
+        <div className="portfolio-table-wrap">
+          <table className="portfolio-table portfolio-unified-table portfolio-unified-table-v2">
+            <thead>
+              <tr>
+                <th className="portfolio-th-actions">{t.actionsColumn}</th>
+                <th className="portfolio-th-hold">{t.holding}</th>
+                <th>{t.stock}</th>
+                <th>{t.quantity}</th>
+                <th>{t.averagePrice}</th>
+                <th>{t.market}</th>
+                <th>{t.valueAndPL}</th>
+                <th>{t.signal}</th>
+                <th>{t.whatNext}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {holdings.length > 0 && <tr className="portfolio-group-row"><td colSpan={9}>{t.groupHoldings(holdings.length)}</td></tr>}
+              {holdings.map((item) => <MemoRow item={item} key={item.stock_id} locale={locale} />)}
+              {watching.length > 0 && <tr className="portfolio-group-row"><td colSpan={9}>{t.groupWatching(watching.length)}</td></tr>}
+              {watching.map((item) => <MemoRow item={item} key={item.stock_id} locale={locale} />)}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="portfolio-mobile-holdings">
+          {filtered.map((item) => <MemoMobileHoldingCard item={item} key={item.stock_id} locale={locale} />)}
+        </div>
+      )}
       {!filtered.length && <div className="portfolio-table-empty">{t.emptyTitle}</div>}
-    </section>
+      </section>
+    </PortfolioMutationsProvider>
   );
 }
 
@@ -675,7 +797,7 @@ function ActionGroupBadges({
 
 function PortfolioEmailSummary({ locale }: { locale: AppLocale }) {
   const t = portfolioLanguage[locale];
-  const { enabled, ready, toggle } = usePortfolioEmailPreference();
+  const { enabled, ready, saving, toggle } = usePortfolioEmailPreference(locale);
 
   return (
     <section className="portfolio-panel portfolio-email-summary" aria-labelledby="portfolio-email-title">
@@ -690,7 +812,7 @@ function PortfolioEmailSummary({ locale }: { locale: AppLocale }) {
       <label className="portfolio-email-toggle">
         <input
           checked={ready ? enabled : false}
-          disabled={!ready}
+          disabled={!ready || saving}
           onChange={(event) => toggle(event.target.checked)}
           type="checkbox"
         />
@@ -925,6 +1047,12 @@ export function PortfolioWorkspaceContent({
     scrollToHoldings();
   }, [scrollToHoldings]);
 
+  const clearAttentionFilter = useCallback(() => {
+    setSelectedCode(null);
+    setSelectedStockIds(null);
+    setTableFilter("ALL");
+  }, []);
+
   return (
     <div className="portfolio-page portfolio-page-v2">
       <PortfolioHero
@@ -953,7 +1081,7 @@ export function PortfolioWorkspaceContent({
         filter={tableFilter}
         items={data.watchlist_items}
         locale={locale}
-        onClearAttention={() => { setSelectedCode(null); setSelectedStockIds(null); setTableFilter("ALL"); }}
+        onClearAttention={clearAttentionFilter}
         onFilterChange={setTableFilter}
         sectionRef={holdingsRef}
         selectedCode={selectedCode}

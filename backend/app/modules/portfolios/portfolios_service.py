@@ -41,6 +41,8 @@ from app.modules.portfolios.portfolios_repository import (
 from app.modules.portfolios.portfolios_schemas import (
     PortfolioActionGroupRead,
     PortfolioAttentionRead,
+    PortfolioEmailPreferenceRead,
+    PortfolioEmailPreferenceWrite,
     PortfolioEventRead,
     PortfolioExposureRead,
     PortfolioHoldingRead,
@@ -156,7 +158,25 @@ class PortfoliosService:
         return UUID(self.user_context.user_id)
 
     async def get_workspace(self, *, exchange: ExchangeCode) -> PortfolioWorkspaceRead:
-        items = await self.repository.list_items(user_id=self._user_id(), exchange=exchange)
+        return await self._build_workspace(user_id=self._user_id(), exchange=exchange)
+
+    async def get_email_preference(self) -> PortfolioEmailPreferenceRead:
+        enabled, locale = await self.repository.get_email_preference(user_id=self._user_id())
+        return PortfolioEmailPreferenceRead(enabled=enabled, locale=locale)
+
+    async def save_email_preference(
+        self,
+        payload: PortfolioEmailPreferenceWrite,
+    ) -> PortfolioEmailPreferenceRead:
+        enabled, locale = await self.repository.set_email_preference(
+            user_id=self._user_id(),
+            enabled=payload.enabled,
+            locale=payload.locale,
+        )
+        return PortfolioEmailPreferenceRead(enabled=enabled, locale=locale)
+
+    async def _build_workspace(self, *, user_id: UUID, exchange: ExchangeCode) -> PortfolioWorkspaceRead:
+        items = await self.repository.list_items(user_id=user_id, exchange=exchange)
         universe_rows: list[ScoredUniverseRow] = []
         try:
             universe = await self.universe_service.get_universe_rows(exchange=exchange)

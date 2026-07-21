@@ -238,7 +238,7 @@ const en: PortfolioLanguage = {
   emailSummaryDetail: "Get one concise email after the market close with your portfolio summary, P/L, and attention items.",
   emailSummaryEnabled: "Summary emails on",
   emailSummaryDisabled: "Summary emails off",
-  emailSummaryNote: "Delivered after finalized market close. Preference is saved on this device.",
+  emailSummaryNote: "Delivered after finalized market close on trading days. Preference is saved to your account.",
   viewStock: "View stock",
   groupHoldings: (count) => `Holdings · ${count}`,
   groupWatching: (count) => `Watching · ${count}`,
@@ -442,7 +442,7 @@ const bn: PortfolioLanguage = {
   emailSummaryDisabled: "Daily email বন্ধ",
 
   emailSummaryNote:
-    "Finalized market data তৈরি হওয়ার পর email পাঠানো হবে। এই preference শুধু এই device-এ save আছে।",
+    "market close-এর পর email পাঠানো হবে। Preference আপনার account-এ save থাকে।",
 
   viewStock: "শেয়ারটি দেখুন",
 

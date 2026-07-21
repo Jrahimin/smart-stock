@@ -5,25 +5,18 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
 import { useAuth } from "@/features/auth/context/auth-context";
-
-function AuthCheckingPlaceholder() {
-  return (
-    <section className="placeholder-panel">
-      <p className="eyebrow">Authentication</p>
-      <h1>Checking your session</h1>
-      <p>Please wait while Smart Stock verifies your account.</p>
-    </section>
-  );
-}
+import { getStoredRefreshToken } from "@/lib/api/backend-api-client";
 
 export function ProtectedRoute({ children }: Readonly<{ children: ReactNode }>) {
   const { isAuthenticated, isLoading } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
   const [hasMounted, setHasMounted] = useState(false);
+  const [hasSessionHint, setHasSessionHint] = useState(false);
 
   useEffect(() => {
     setHasMounted(true);
+    setHasSessionHint(Boolean(getStoredRefreshToken()));
   }, []);
 
   useEffect(() => {
@@ -31,8 +24,16 @@ export function ProtectedRoute({ children }: Readonly<{ children: ReactNode }>) 
     router.replace(`/login?redirect=${encodeURIComponent(pathname)}`);
   }, [hasMounted, isAuthenticated, isLoading, pathname, router]);
 
-  if (!hasMounted || isLoading || !isAuthenticated) {
-    return <AuthCheckingPlaceholder />;
+  if (!hasMounted) {
+    return null;
+  }
+
+  if (isLoading && hasSessionHint) {
+    return <>{children}</>;
+  }
+
+  if (!isAuthenticated) {
+    return hasSessionHint ? null : null;
   }
 
   return <>{children}</>;

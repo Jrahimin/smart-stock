@@ -157,3 +157,13 @@ class PortfolioWorkspaceRead(BaseModel):
     watchlist_items: list[PortfolioHoldingRead] = Field(default_factory=list)
     shape: PortfolioShapeRead = Field(default_factory=PortfolioShapeRead)
     watchlist_to_review: list[PortfolioWatchlistSuggestionRead] = Field(default_factory=list)
+
+
+class PortfolioEmailPreferenceRead(BaseModel):
+    enabled: bool = False
+    locale: str = "bn"
+
+
+class PortfolioEmailPreferenceWrite(BaseModel):
+    enabled: bool
+    locale: str | None = None

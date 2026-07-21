@@ -1,31 +1,66 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useEffect, useRef } from "react";
 
-const STORAGE_KEY = "portfolio-email-summary-enabled";
+import { useAuth } from "@/features/auth/context/auth-context";
+import {
+  getPortfolioEmailPreference,
+  savePortfolioEmailPreference,
+  type PortfolioEmailPreferenceDto,
+} from "@/lib/api/portfolio-api";
+import type { AppLocale } from "@/lib/locale/app-locale";
 
-export function usePortfolioEmailPreference() {
-  const [enabled, setEnabled] = useState(false);
-  const [ready, setReady] = useState(false);
+export function usePortfolioEmailPreference(locale: AppLocale) {
+  const { isAuthenticated, user } = useAuth();
+  const queryClient = useQueryClient();
+  const queryKey = ["portfolio", "email-preference", user?.id ?? "anonymous"] as const;
+  const syncedLocaleRef = useRef<AppLocale | null>(null);
+
+  const query = useQuery({
+    queryKey,
+    queryFn: getPortfolioEmailPreference,
+    enabled: isAuthenticated,
+    staleTime: 60_000,
+  });
+
+  const mutation = useMutation({
+    mutationFn: savePortfolioEmailPreference,
+    onMutate: async (payload) => {
+      await queryClient.cancelQueries({ queryKey });
+      const previous = queryClient.getQueryData<PortfolioEmailPreferenceDto>(queryKey);
+      queryClient.setQueryData<PortfolioEmailPreferenceDto>(queryKey, payload);
+      return { previous };
+    },
+    onError: (_error, _payload, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(queryKey, context.previous);
+      }
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey, refetchType: "inactive" });
+    },
+  });
 
   useEffect(() => {
-    try {
-      setEnabled(window.localStorage.getItem(STORAGE_KEY) === "true");
-    } catch {
-      setEnabled(false);
-    } finally {
-      setReady(true);
+    if (!isAuthenticated || !query.isSuccess || !query.data) return;
+    if (query.data.locale === locale) {
+      syncedLocaleRef.current = locale;
+      return;
     }
-  }, []);
+    if (syncedLocaleRef.current === locale) return;
+    syncedLocaleRef.current = locale;
+    mutation.mutate({ enabled: query.data.enabled, locale });
+  }, [isAuthenticated, locale, mutation, query.data, query.isSuccess]);
 
   const toggle = useCallback((next: boolean) => {
-    setEnabled(next);
-    try {
-      window.localStorage.setItem(STORAGE_KEY, String(next));
-    } catch {
-      // Preference stays in memory for this session.
-    }
-  }, []);
+    mutation.mutate({ enabled: next, locale });
+  }, [locale, mutation]);
 
-  return { enabled, ready, toggle };
+  return {
+    enabled: query.data?.enabled ?? false,
+    ready: query.isSuccess || query.isError,
+    saving: mutation.isPending,
+    toggle,
+  };
 }

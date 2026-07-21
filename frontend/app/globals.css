@@ -30134,6 +30134,57 @@ button {
 :root[data-theme="light"] .portfolio-email-summary {
   background: radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--primary) 8%, transparent), transparent 38%), linear-gradient(160deg, #fff, var(--panel-strong));
 }
+.portfolio-inline-field.is-compact .portfolio-inline-input-wrap {
+  align-items: center;
+  display: inline-flex;
+  gap: 4px;
+  max-width: 100%;
+}
+.portfolio-inline-input {
+  background: var(--panel);
+  border: 1px solid color-mix(in srgb, var(--primary) 42%, var(--border));
+  border-radius: 8px;
+  color: var(--foreground);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 650;
+  min-width: 0;
+  padding: 4px 7px;
+  width: 88px;
+}
+.portfolio-inline-input:focus {
+  border-color: var(--primary);
+  outline: 2px solid color-mix(in srgb, var(--primary) 18%, transparent);
+  outline-offset: 1px;
+}
+.portfolio-inline-confirm {
+  align-items: center;
+  background: color-mix(in srgb, var(--primary) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--primary) 34%, var(--border));
+  border-radius: 7px;
+  color: var(--primary);
+  cursor: pointer;
+  display: inline-flex;
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 800;
+  height: 28px;
+  justify-content: center;
+  width: 28px;
+}
+.portfolio-inline-confirm:disabled {
+  cursor: wait;
+  opacity: .7;
+}
+.portfolio-inline-edit.is-compact .portfolio-inline-value.is-empty {
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+  border: 1px dashed color-mix(in srgb, var(--primary) 40%, var(--border));
+  border-radius: 7px;
+  color: var(--primary);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 7px;
+}
 :root[data-theme="light"] .portfolio-inline-edit.is-compact .portfolio-inline-value.is-empty {
   background: color-mix(in srgb, var(--primary) 12%, #fff);
   border-color: color-mix(in srgb, var(--primary) 55%, var(--border));
@@ -30143,4 +30194,214 @@ button {
   background: color-mix(in srgb, var(--primary) 18%, #fff);
   border-color: var(--primary);
   color: var(--primary);
+}
+
+/* Portfolio mobile cards v6 ? compact layout, fixed status pill stretch, denser metrics */
+.portfolio-holdings-v2.is-compact-layout .portfolio-mobile-holdings {
+  display: grid;
+  gap: 10px;
+  padding: 0 12px 12px;
+}
+.portfolio-holdings-v2.is-compact-layout {
+  padding: 0;
+}
+.portfolio-holdings-v2.is-compact-layout .portfolio-holdings-head {
+  align-items: stretch;
+  display: grid;
+  gap: 10px;
+  padding: 16px 14px 10px;
+}
+.portfolio-holdings-v2.is-compact-layout .portfolio-toolbar {
+  align-items: stretch;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 1fr;
+  padding: 0 14px 12px;
+}
+.portfolio-holdings-v2.is-compact-layout .portfolio-select {
+  flex: 1;
+  min-width: 0;
+}
+.portfolio-holdings-v2.is-compact-layout .portfolio-select select {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+}
+.portfolio-toolbar-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.portfolio-holdings-v2.is-compact-layout .portfolio-toolbar-filters {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 1fr 1fr;
+  width: 100%;
+}
+.portfolio-holdings-v2.is-compact-layout .portfolio-search {
+  max-width: none;
+}
+.portfolio-holdings-v2.is-compact-layout .portfolio-segmented {
+  -webkit-overflow-scrolling: touch;
+  flex-wrap: nowrap;
+  mask-image: linear-gradient(90deg, #000 92%, transparent);
+  overflow-x: auto;
+  scrollbar-width: none;
+  width: 100%;
+}
+.portfolio-holdings-v2.is-compact-layout .portfolio-segmented::-webkit-scrollbar {
+  display: none;
+}
+.portfolio-holdings-v2.is-compact-layout .portfolio-segmented button {
+  flex: 0 0 auto;
+  padding-inline: 10px;
+  white-space: nowrap;
+}
+.portfolio-mobile-card {
+  background: color-mix(in srgb, var(--panel-strong) 58%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  border-radius: 12px;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+.portfolio-mobile-card.needs-review {
+  border-left: 3px solid var(--warning);
+}
+.portfolio-mobile-card-header {
+  align-items: flex-start;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+.portfolio-mobile-card-identity {
+  align-items: center;
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+.portfolio-mobile-card-identity .portfolio-symbol-tile {
+  flex: 1 1 180px;
+  max-width: 100%;
+  min-width: 0;
+}
+.portfolio-mobile-status {
+  align-self: center;
+  flex-shrink: 0;
+  height: auto;
+  line-height: 1.2;
+  max-height: none;
+  width: auto;
+}
+.portfolio-mobile-card-actions {
+  align-items: center;
+  display: flex;
+  flex-shrink: 0;
+  gap: 6px;
+}
+.portfolio-mobile-card-actions .portfolio-icon-rail {
+  flex-direction: row;
+  gap: 4px;
+}
+.portfolio-mobile-card-actions .portfolio-hold-toggle {
+  height: 32px;
+  width: 32px;
+}
+.portfolio-mobile-card .portfolio-mobile-position {
+  align-items: flex-start;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-top: 0;
+}
+.portfolio-mobile-card .portfolio-inline-edit.is-compact {
+  display: inline-flex;
+  margin: 0;
+}
+.portfolio-mobile-card-metrics {
+  border-top: 1px solid color-mix(in srgb, var(--border) 62%, transparent);
+  display: grid;
+  gap: 8px 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding-top: 10px;
+}
+.portfolio-mobile-card-metrics.is-compact {
+  grid-template-columns: 1fr;
+}
+.portfolio-mobile-metric {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.portfolio-mobile-metric > span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: .04em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+.portfolio-mobile-metric strong {
+  color: var(--foreground);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.portfolio-mobile-metric-pl {
+  grid-column: 1 / -1;
+}
+.portfolio-mobile-pl-value {
+  align-items: baseline;
+  display: inline-flex;
+  flex-wrap: wrap;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  gap: 6px;
+}
+.portfolio-mobile-pl-value small {
+  font-size: 11px;
+  font-weight: 700;
+}
+.portfolio-mobile-card-hint {
+  border-top: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.4;
+  margin: 0;
+  padding-top: 8px;
+}
+@media (max-width: 960px) {
+  .portfolio-page-v2 {
+    gap: 12px;
+  }
+  .portfolio-header-v2 {
+    padding: 16px;
+  }
+  .portfolio-header-v2 h1 {
+    font-size: 26px;
+  }
+  .portfolio-panel {
+    padding: 14px;
+  }
+  .portfolio-pulse-v2 {
+    padding: 12px 14px;
+  }
+  .portfolio-pulse-secondary {
+    grid-template-columns: 1fr 1fr;
+  }
+  .portfolio-support-grid {
+    gap: 12px;
+  }
+}
+@media (max-width: 640px) {
+  .portfolio-pulse-secondary {
+    grid-template-columns: 1fr;
+  }
+  .portfolio-header-v2 h1 {
+    font-size: 24px;
+  }
+  .portfolio-hero-chips {
+    gap: 6px;
+  }
 }

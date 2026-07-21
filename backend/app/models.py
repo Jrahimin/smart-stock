@@ -89,6 +89,12 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     last_seen_ip: Mapped[str | None] = mapped_column(String(64), nullable=True)
     last_seen_user_agent: Mapped[str | None] = mapped_column(String(500), nullable=True)
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    portfolio_daily_summary_email_enabled: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+    )
+    preferred_locale: Mapped[str] = mapped_column(String(8), default="bn", nullable=False)
 
     @property
     def has_password(self) -> bool:

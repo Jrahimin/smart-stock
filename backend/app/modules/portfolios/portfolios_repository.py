@@ -11,7 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database_session import get_db_session
 from app.core.enums import ExchangeCode, MarketEventType
-from app.models import CorporateAction, DailyPrice, DividendEvent, MarketEvent, Stock, UserWatchlist
+from app.modules.mail.portfolio_summary_email_language import parse_app_locale
+from app.models import CorporateAction, DailyPrice, DividendEvent, MarketEvent, Stock, User, UserWatchlist
 
 
 @dataclass(frozen=True)
@@ -158,6 +159,44 @@ class PortfoliosRepository:
         for record in sorted(records, key=lambda item: item.event_date, reverse=True):
             grouped.setdefault(record.stock_id, []).append(record)
         return grouped
+
+    async def get_email_preference(self, *, user_id: UUID) -> tuple[bool, str]:
+        statement = select(
+            User.portfolio_daily_summary_email_enabled,
+            User.preferred_locale,
+        ).where(User.id == user_id)
+        row = await self.session.execute(statement)
+        result = row.one_or_none()
+        if result is None:
+            return False, parse_app_locale(None)
+        enabled, locale = result
+        return bool(enabled), parse_app_locale(locale)
+
+    async def set_email_preference(
+        self,
+        *,
+        user_id: UUID,
+        enabled: bool,
+        locale: str | None = None,
+    ) -> tuple[bool, str]:
+        user = await self.session.get(User, user_id)
+        if user is None:
+            return False, parse_app_locale(None)
+        user.portfolio_daily_summary_email_enabled = enabled
+        if locale is not None:
+            user.preferred_locale = parse_app_locale(locale)
+        await self.session.commit()
+        return user.portfolio_daily_summary_email_enabled, parse_app_locale(user.preferred_locale)
+
+    async def list_users_with_daily_summary_enabled(self) -> list[User]:
+        rows = await self.session.scalars(
+            select(User).where(
+                User.portfolio_daily_summary_email_enabled.is_(True),
+                User.is_active.is_(True),
+                User.deleted_at.is_(None),
+            )
+        )
+        return list(rows.all())
 
 
 def get_portfolios_repository(

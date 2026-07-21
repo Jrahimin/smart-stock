@@ -127,7 +127,7 @@ describe("portfolio holding filters", () => {
     }).map((row) => row.stock_id)).toEqual(["squr"]);
   });
 
-  it("keeps reviewed holdings ahead of stable holdings and watchlist-only rows", () => {
+  it("keeps holdings ahead of watchlist-only rows and sorts by symbol", () => {
     const unified = [
       holding("watch", { is_holding: false, action: "POTENTIAL_BUY", requires_attention: false }),
       holding("stable"),
@@ -138,7 +138,7 @@ describe("portfolio holding filters", () => {
     }).map((row) => row.stock_id)).toEqual(["review", "stable", "watch"]);
   });
 
-  it("orders incomplete holdings after review rows inside a group", () => {
+  it("keeps symbol order stable regardless of review or setup state", () => {
     const unified = [
       holding("stable"),
       holding("incomplete", { quantity: null, what_next_code: "DATA_INCOMPLETE", requires_attention: true }),
@@ -146,6 +146,6 @@ describe("portfolio holding filters", () => {
     ];
     expect(filterPortfolioHoldings(unified, {
       search: "", filter: "ALL", action: "ALL", trend: "ALL", selectedStockIds: null,
-    }).map((row) => row.stock_id)).toEqual(["review", "incomplete", "stable"]);
+    }).map((row) => row.stock_id)).toEqual(["incomplete", "review", "stable"]);
   });
 });

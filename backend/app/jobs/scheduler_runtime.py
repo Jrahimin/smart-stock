@@ -3,6 +3,10 @@ import logging
 from app.core.core_config import get_settings
 from app.jobs.email_campaign_scheduler import start_email_campaign_scheduler, stop_email_campaign_scheduler
 from app.jobs.market_data_scheduler import daily_market_sync_scheduler, market_snapshot_scheduler
+from app.jobs.portfolio_summary_scheduler import (
+    start_portfolio_summary_scheduler,
+    stop_portfolio_summary_scheduler,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -24,8 +28,17 @@ async def start_application_schedulers() -> None:
     start_email_campaign_scheduler()
     logger.info("Email campaign scheduler started")
 
+    if settings.portfolio_summary_email_scheduler_enabled:
+        start_portfolio_summary_scheduler()
+        logger.info("Portfolio summary email scheduler started")
+    else:
+        logger.info("Portfolio summary email scheduler disabled by configuration")
+
 
 async def stop_application_schedulers() -> None:
+    logger.info("Stopping portfolio summary email scheduler")
+    stop_portfolio_summary_scheduler()
+
     logger.info("Stopping email campaign scheduler")
     stop_email_campaign_scheduler()
 

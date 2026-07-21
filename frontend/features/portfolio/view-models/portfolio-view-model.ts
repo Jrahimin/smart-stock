@@ -20,18 +20,8 @@ export function isPortfolioReviewRow(item: BackendPortfolioHoldingDto) {
   return item.action !== "WAIT" || item.risk === "HIGH" || item.risk === "SPECULATIVE" || item.scanner_conditions.length > 0 || item.relevant_event != null;
 }
 
-export function portfolioRowSortTier(item: BackendPortfolioHoldingDto) {
-  if (isPortfolioReviewRow(item) && !isPortfolioHoldingIncomplete(item)) return 0;
-  if (isPortfolioHoldingIncomplete(item)) return 1;
-  return 2;
-}
-
 export function sortPortfolioGroupRows(items: BackendPortfolioHoldingDto[]) {
-  return [...items].sort((left, right) => {
-    const tier = portfolioRowSortTier(left) - portfolioRowSortTier(right);
-    if (tier) return tier;
-    return left.symbol.localeCompare(right.symbol);
-  });
+  return [...items].sort((left, right) => left.symbol.localeCompare(right.symbol));
 }
 
 export function countCompletedHoldings(items: BackendPortfolioHoldingDto[]) {
@@ -190,8 +180,6 @@ export function filterPortfolioHoldings(
   }).sort((left, right) => {
     const group = Number(right.is_holding) - Number(left.is_holding);
     if (group) return group;
-    const tier = portfolioRowSortTier(left) - portfolioRowSortTier(right);
-    if (tier) return tier;
     return left.symbol.localeCompare(right.symbol);
   });
 }

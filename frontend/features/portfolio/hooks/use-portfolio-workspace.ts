@@ -15,5 +15,6 @@ export function usePortfolioWorkspace(exchange: ExchangeCode = "DSE") {
     queryFn: () => getPortfolioWorkspace(exchange),
     enabled: isAuthenticated,
     staleTime: 30_000,
+    placeholderData: (previousData) => previousData,
   });
 }
