@@ -341,6 +341,7 @@ def build_market_briefing(
                 else "Limited Attention Environment"
             ),
         )
+    opportunity = opportunity_score.score
 
     aggressive_count = sum(
         1
