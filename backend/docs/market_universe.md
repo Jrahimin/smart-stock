@@ -88,6 +88,8 @@ pulse:{section}:{exchange}:{strategy_version}:{threshold_version}:{input_schema_
 
 Background rebuild (`rebuild_market_read_cache`) writes `universe:scored` as step 4 after dashboard overview, sectors, and movers. Indicator/signal jobs spawn universe-only rebuild. See [market_caching.md](market_caching.md).
 
+After successful daily DSEX finalization, Market Pulse builds its aggregate snapshot directly from a fresh, session-capped universe computation rather than a Redis payload. This avoids stale `:prev` fallback data and records the resulting universe payload revision as lineage.
+
 ## Historical price windows
 
 Consumer modules (pulse, explorer, scanner, signals, watchlist) **must not** call `GET /market/price-windows` or `list_market_price_windows` directly. **Dashboard** uses `market_snapshot` instead — it is not a universe consumer.

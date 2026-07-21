@@ -161,6 +161,8 @@ Spawned fire-and-forget after `sync_market_snapshot` commit via `spawn_rebuild_m
 
 `invalidate_market_caches_for_exchange()` remains for admin/manual use but is no longer the default sync path.
 
+When a new finalized-session Pulse aggregate is persisted, only `pulse:*:{exchange}:*` keys are invalidated. PostgreSQL remains the history source of truth; browser Pulse entries continue to age out under the existing market TTL and refresh on the next freshness generation.
+
 ### Freshness metadata (not cached in Redis)
 
 `GET /market/freshness` reads PostgreSQL only and exposes:

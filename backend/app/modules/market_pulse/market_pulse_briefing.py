@@ -152,6 +152,7 @@ def build_market_briefing(
     monitor_reads: list[FocusStockRead],
     alerts: list[MarketAlertRead],
     *,
+    opportunity_score: OpportunityScoreRead | None = None,
     market_summaries: list[DailyMarketSummary] | None = None,
     format_number,
     format_percent,
@@ -327,25 +328,19 @@ def build_market_briefing(
         outflows=[to_flow_sector(name, change, False) for name, change in outflow_sectors[:3]],
     )
 
-    pool_scores = [row.score.total for row in rows]
-    opportunity = int(round(sum(pool_scores) / len(pool_scores))) if pool_scores else 50
-
-    opportunity_score = OpportunityScoreRead(
-        score=opportunity,
-        label=(
-            "Broad Attention Environment"
-            if opportunity >= 68
-            else "Selective Attention Environment"
-            if opportunity >= 55
-            else "Limited Attention Environment"
-        ),
-        # Comparable history is intentionally absent until point-in-time Pulse
-        # snapshots with the same formula, population, and version are stored.
-        history=[],
-        previous_session=None,
-        weekly_average=None,
-        trend_label=None,
-    )
+    if opportunity_score is None:
+        pool_scores = [row.score.total for row in rows]
+        opportunity = int(round(sum(pool_scores) / len(pool_scores))) if pool_scores else 50
+        opportunity_score = OpportunityScoreRead(
+            score=opportunity,
+            label=(
+                "Broad Attention Environment"
+                if opportunity >= 68
+                else "Selective Attention Environment"
+                if opportunity >= 55
+                else "Limited Attention Environment"
+            ),
+        )
 
     aggressive_count = sum(
         1

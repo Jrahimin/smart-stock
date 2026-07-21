@@ -225,11 +225,26 @@ class MarketUniverseService:
             )
         )
 
-    async def recompute_scored_universe(self, exchange: ExchangeCode) -> list[ScoredUniverseRow]:
+    async def recompute_scored_universe(
+        self,
+        exchange: ExchangeCode,
+        *,
+        decision_session_date: date | None = None,
+    ) -> list[ScoredUniverseRow]:
         perf = PerfReport("universe.rebuild")
-        decision_session_date = await self.market_repository.get_latest_finalized_session_date(
+        latest_finalized_session_date = await self.market_repository.get_latest_finalized_session_date(
             exchange=exchange
         )
+        if decision_session_date is None:
+            decision_session_date = latest_finalized_session_date
+        elif decision_session_date != latest_finalized_session_date:
+            logger.warning(
+                "Skipping universe rebuild for %s session %s: latest finalized session is %s",
+                exchange.value,
+                decision_session_date,
+                latest_finalized_session_date,
+            )
+            return []
         if decision_session_date is None:
             logger.info(
                 "Skipping canonical universe rebuild for %s: no finalized session",
