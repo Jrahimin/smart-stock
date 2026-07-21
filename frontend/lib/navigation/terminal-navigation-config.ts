@@ -1,11 +1,11 @@
 import {
-  BarChart3,
   Bell,
   Calculator,
   Flame,
   LayoutDashboard,
   LineChart,
   Mail,
+  PieChart,
   ScanSearch,
   Settings,
   Users,
@@ -18,7 +18,7 @@ export const marketNavigationItems = [
   { label: "Stocks", href: "/stocks", guideId: "nav-stocks", icon: LineChart, tone: "blue" as const },
   { label: "Scanner", href: "/scanner", guideId: "nav-scanner", icon: ScanSearch, tone: "blue" as const },
   { label: "Signals", href: "/signals", guideId: "nav-signals", icon: Bell, tone: "blue" as const },
-  { label: "Watchlist", href: "/watchlist", guideId: "nav-watchlist", icon: BarChart3, tone: "blue" as const },
+  { label: "My Portfolio", href: "/portfolio", guideId: "nav-portfolio", icon: PieChart, tone: "blue" as const },
 ] as const;
 
 export const adminNavigationItems = [

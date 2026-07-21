@@ -14,6 +14,7 @@ export function useWatchlistToggle() {
     mutationFn: (stockId: string) => toggleWatchlistItem(stockId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["watchlist"] });
+      void queryClient.invalidateQueries({ queryKey: ["portfolio"] });
     },
     onMutate: async (stockId) => {
       await queryClient.cancelQueries({ queryKey: ["watchlist", "items", userId] });
@@ -35,6 +36,7 @@ export function useWatchlistToggle() {
                   stock_id: stockId,
                   stock_symbol: "",
                   is_holding: false,
+                  quantity: null,
                   buy_price: null,
                   note: null,
                   created_at: new Date().toISOString(),

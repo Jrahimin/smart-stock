@@ -18,7 +18,8 @@ Table: `user_watchlist`
 | `stock_id` | UUID | FK → `stocks.id`, CASCADE |
 | `stock_symbol` | string | Denormalized for fast UI |
 | `is_holding` | boolean | Default `false` |
-| `buy_price` | numeric | Optional, non-negative |
+| `quantity` | numeric(20,4) | Optional; positive when present |
+| `buy_price` | numeric(20,4) | Optional; positive when present |
 | `note` | text | Optional personal note |
 
 Unique: `(user_id, stock_id)`.
@@ -30,7 +31,7 @@ Unique: `(user_id, stock_id)`.
 | GET | `/watchlist/items` | List watchlist rows (`holding_only`, pagination) |
 | GET | `/watchlist/summary` | Total watchlisted + holdings counts |
 | POST | `/watchlist/items` | Add stock (idempotent) |
-| PATCH | `/watchlist/items/{stock_id}` | Update holding, buy price, note |
+| PATCH | `/watchlist/items/{stock_id}` | Update holding, quantity, buy price, note |
 | DELETE | `/watchlist/items/{stock_id}` | Remove stock |
 | POST | `/watchlist/items/{stock_id}/toggle` | Star UX: add if missing, remove if present |
 
@@ -52,12 +53,13 @@ There is no `filter=watchlisted` query param; all list results are already watch
 
 Gain percentage is computed on the backend only.
 
-## Holding and buy price rules
+## Holding quantity and buy price rules
 
-- `buy_price` may only be stored while `is_holding` is `true`.
-- Setting `is_holding` to `false` (via PATCH or the holding toggle) clears `buy_price` to `null` on the server.
-- PATCH requests that set `buy_price` without an active holding are ignored for `buy_price`.
-- Buy price remains optional; there is no transaction history or portfolio ledger in this module.
+- `quantity` and `buy_price` may only be stored while `is_holding` is `true`.
+- Both values must be positive when present; either can remain `null` so incomplete holdings stay visible.
+- Setting `is_holding` to `false` clears both values to `null` on the server.
+- PATCH requests that provide either value for a non-holding fail validation instead of silently dropping user input.
+- Quantity and buy price describe only the current position. There is no transaction history, lots, partial sales, realized P/L, cash accounting, or portfolio ledger.
 
 ## Action / signal consistency
 
@@ -67,7 +69,7 @@ User-facing **Action** badges use the shared trader decision engine (`BUY`, `HOL
 
 - Star control calls `POST .../toggle` only.
 - User-specific GETs use `cache: no-store`.
-- Watchlist page filters are client-side: **Holding** toggle (inactive = all, active = holdings only), **Action** dropdown (All / BUY / HOLD / WAIT / SELL / NEW), **Trend** dropdown (All / Bullish / Bearish / Sideways).
+- `/watchlist` redirects to the logged-in `/portfolio` workspace. Non-held rows appear separately under **Watchlist to Review** only when current intelligence provides a meaningful reason.
 - Action, RSI, and trend columns resolve through the shared frontend intelligence map built from `GET /market/universe-rows` plus legacy persisted signals for **NEW** badges (`frontend/lib/market/universe-intelligence.ts`, `frontend/lib/market/trader-decision.ts`). When a row is outside the universe payload, the API `technical_snapshot` + `trader_decision` fields provide the same fallback contract.
 - Price column shows market price plus inline holding context (bought price, unrealized P/L, or “Set buy price”). Notes and buy-price edits use compact popovers/inline controls—no full-row expansion panels.
 
@@ -75,6 +77,6 @@ User-facing **Action** badges use the shared trader decision engine (`BUY`, `HOL
 
 **NEW** means the trader decision **changed during the latest trading session** compared to the last persisted strategy signal on record (e.g. HOLD → BUY, WAIT → SELL). It is a temporary highlight, not a permanent action type. The UI compares `resolveTraderDecision()` with the mapped legacy `trading_signals` row (`persistedSignal`) for the same or prior session date.
 
-## Future extensions
+## Scope boundary
 
-Schema supports later AI watchlist analysis, smart alerts, portfolio modules, and RAG context without introducing multiple watchlists in this phase.
+The current-position module deliberately does not introduce snapshots, performance history, notification jobs, multiple portfolios, or accounting features.

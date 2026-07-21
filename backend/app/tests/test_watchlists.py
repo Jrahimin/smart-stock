@@ -283,11 +283,31 @@ def test_unset_holding_clears_buy_price():
         await service.add_item(UserWatchlistCreate(stock_id=stock_id))
         await service.update_item(
             stock_id,
-            UserWatchlistUpdate(is_holding=True, buy_price=Decimal("250")),
+            UserWatchlistUpdate(
+                is_holding=True,
+                buy_price=Decimal("250"),
+                quantity=Decimal("12.5"),
+            ),
         )
         updated = await service.update_item(stock_id, UserWatchlistUpdate(is_holding=False))
         assert updated.is_holding is False
         assert updated.buy_price is None
+        assert updated.quantity is None
+
+    asyncio.run(run())
+
+
+def test_quantity_and_buy_price_require_holding_status():
+    user_id = uuid4()
+    service, stock_id, _repository = _service(user_id)
+
+    async def run():
+        await service.add_item(UserWatchlistCreate(stock_id=stock_id))
+        with pytest.raises(Exception, match="require holding status"):
+            await service.update_item(
+                stock_id,
+                UserWatchlistUpdate(quantity=Decimal("10")),
+            )
 
     asyncio.run(run())
 

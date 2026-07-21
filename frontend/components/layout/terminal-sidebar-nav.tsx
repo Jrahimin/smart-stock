@@ -17,7 +17,7 @@ type TerminalSidebarNavProps = {
   pathname: string;
 };
 
-const TRADING_WORKSPACE_HREFS = new Set(["/stocks", "/scanner", "/signals", "/watchlist"]);
+const TRADING_WORKSPACE_HREFS = new Set(["/stocks", "/scanner", "/signals", "/portfolio"]);
 
 export function TerminalSidebarNav({ collapsed, pathname }: TerminalSidebarNavProps) {
   const { user, isLoading } = useAuth();

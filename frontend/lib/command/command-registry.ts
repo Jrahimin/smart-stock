@@ -42,12 +42,12 @@ export const coreCommandItems: CommandItem[] = [
     keywords: ["buy", "sell", "hold"],
   },
   {
-    id: "go-watchlist",
-    label: "Open Watchlist Intelligence",
-    description: "Review grouped watchlists, heatmaps, and alerts.",
+    id: "go-portfolio",
+    label: "Open My Portfolio",
+    description: "Review current holdings, value, risk, and what deserves attention.",
     category: "WATCHLIST",
-    href: "/watchlist",
-    keywords: ["alerts", "heatmap"],
+    href: "/portfolio",
+    keywords: ["holdings", "positions", "watchlist", "value"],
   },
   {
     id: "go-admin",

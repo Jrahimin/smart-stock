@@ -15,6 +15,7 @@ export type ListWatchlistItemsParams = {
 
 export type UpdateWatchlistItemPayload = {
   is_holding?: boolean;
+  quantity?: number | null;
   buy_price?: number | null;
   note?: string | null;
 };

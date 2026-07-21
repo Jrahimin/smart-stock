@@ -32,6 +32,7 @@ export const MARKET_TANSTACK_QUERY_ROOTS = [
   "signals",
   "stock-workspace",
   "stock-sector-context",
+  "portfolio",
 ] as const;
 
 /** Roots whose TanStack payloads may carry `last_synced_at` generation metadata. */

@@ -139,7 +139,18 @@ class UserWatchlist(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "user_watchlist"
     __table_args__ = (
         UniqueConstraint("user_id", "stock_id", name="uq_user_watchlist_user_stock"),
-        CheckConstraint("buy_price IS NULL OR buy_price >= 0", name="user_watchlist_buy_price_non_negative"),
+        CheckConstraint(
+            "buy_price IS NULL OR buy_price > 0",
+            name="user_watchlist_buy_price_positive",
+        ),
+        CheckConstraint(
+            "quantity IS NULL OR quantity > 0",
+            name="user_watchlist_quantity_positive",
+        ),
+        CheckConstraint(
+            "is_holding OR (quantity IS NULL AND buy_price IS NULL)",
+            name="user_watchlist_position_fields_require_holding",
+        ),
         Index("ix_user_watchlist_user_created", "user_id", "created_at"),
         Index("ix_user_watchlist_user_holding", "user_id", "is_holding"),
         Index("ix_user_watchlist_stock_id", "stock_id"),
@@ -158,6 +169,7 @@ class UserWatchlist(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     stock_symbol: Mapped[str] = mapped_column(String(32), nullable=False)
     is_holding: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     buy_price: Mapped[Decimal | None] = mapped_column(Numeric(20, 4), nullable=True)
+    quantity: Mapped[Decimal | None] = mapped_column(Numeric(20, 4), nullable=True)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     user = relationship("User", back_populates="watchlist_entries")

@@ -33,7 +33,7 @@ type MobileNavigationDrawerProps = {
   storeHydrated: boolean;
 };
 
-const TRADING_WORKSPACE_HREFS = new Set(["/stocks", "/scanner", "/signals", "/watchlist"]);
+const TRADING_WORKSPACE_HREFS = new Set(["/stocks", "/scanner", "/signals", "/portfolio"]);
 
 function renderMarketNavLink(
   item: (typeof marketNavigationItems)[number],

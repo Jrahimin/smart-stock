@@ -555,6 +555,7 @@ export type BackendUserWatchlistDto = {
   stock_id: string;
   stock_symbol: string;
   is_holding: boolean;
+  quantity: string | number | null;
   buy_price: string | number | null;
   note: string | null;
   created_at: string;
@@ -568,6 +569,154 @@ export type BackendUserWatchlistDto = {
   technical_snapshot: BackendTechnicalSnapshotDto | null;
   decision_source?: "CANONICAL_UNIVERSE" | "UNAVAILABLE";
   contextual_action?: DecisionDisplayAction;
+};
+
+export type PortfolioPriceStatus =
+  | "FINALIZED"
+  | "PROVISIONAL"
+  | "NON_TRADED"
+  | "STALE_LAST_KNOWN"
+  | "SUSPENDED"
+  | "SUSPICIOUS"
+  | "UNAVAILABLE";
+
+export type PortfolioWhatNextCode =
+  | "DATA_INCOMPLETE"
+  | "PRICE_STALE_OR_SUSPENDED"
+  | "REVIEW_SUPPORT_BREAK"
+  | "REVIEW_SELL_OR_REDUCE"
+  | "REVIEW_ELEVATED_RISK"
+  | "DO_NOT_AVERAGE_DOWN_FOR_COST_ONLY"
+  | "WATCH_RESISTANCE"
+  | "PROFITABLE_TREND_INTACT"
+  | "NO_ACTION_NEEDED";
+
+export type PortfolioAttentionCode =
+  | "SUPPORT_BREAK"
+  | "SELL_OR_REDUCE"
+  | "PRICE_QUALITY"
+  | "ELEVATED_RISK"
+  | "INCOMPLETE_HOLDING"
+  | "HIGH_CONCENTRATION"
+  | "WATCH_RESISTANCE"
+  | "UNUSUAL_VOLUME"
+  | "IMPORTANT_EVENT";
+
+export type BackendPortfolioEventDto = {
+  event_type: string;
+  event_date: string;
+  title: string;
+  summary: string | null;
+};
+
+export type BackendPortfolioHoldingDto = {
+  watchlist_item_id: string;
+  stock_id: string;
+  is_holding: boolean;
+  symbol: string;
+  name: string;
+  exchange: ExchangeCode;
+  sector: string | null;
+  quantity: string | null;
+  average_buy_price: string | null;
+  note: string | null;
+  current_price: string | null;
+  previous_close: string | null;
+  price_change: string | null;
+  price_change_percent: string | null;
+  price_status: PortfolioPriceStatus;
+  latest_trade_date: string | null;
+  invested_amount: string | null;
+  current_value: string | null;
+  unrealized_gain_amount: string | null;
+  unrealized_gain_percent: string | null;
+  portfolio_weight: string | null;
+  estimated_daily_change_amount: string | null;
+  estimated_daily_contribution_percent: string | null;
+  action: DecisionDisplayAction;
+  holder_action: HolderAction | null;
+  trend: string;
+  risk: "LOW" | "MEDIUM" | "HIGH" | "SPECULATIVE" | null;
+  rsi: string | null;
+  support: string | null;
+  resistance: string | null;
+  scanner_conditions: string[];
+  relevant_event: BackendPortfolioEventDto | null;
+  decision_reason: string | null;
+  what_next_code: PortfolioWhatNextCode;
+  requires_attention: boolean;
+};
+
+export type BackendPortfolioWorkspaceDto = {
+  meta: {
+    exchange: ExchangeCode;
+    published_market_date: string | null;
+    live_data_as_of: string | null;
+    data_state: MarketDataState;
+    is_provisional: boolean;
+    total_watchlisted: number;
+    holding_count: number;
+    valued_holding_count: number;
+    costed_holding_count: number;
+  };
+  pulse: {
+    known_current_value: string;
+    current_value_is_complete: boolean;
+    known_invested_amount: string;
+    invested_amount_is_complete: boolean;
+    known_unrealized_gain_amount: string;
+    known_unrealized_gain_percent: string | null;
+    unrealized_gain_is_complete: boolean;
+    estimated_daily_change_amount: string;
+    estimated_daily_change_percent: string | null;
+    daily_change_is_complete: boolean;
+    holding_count: number;
+    valued_holding_count: number;
+  };
+  attention: Array<{
+    code: PortfolioAttentionCode;
+    severity: "HIGH" | "MEDIUM" | "LOW" | "INFO";
+    stock_ids: string[];
+    symbols: string[];
+    count: number;
+  }>;
+  holdings: BackendPortfolioHoldingDto[];
+  watchlist_items: BackendPortfolioHoldingDto[];
+  shape: {
+    position_exposure: Array<{ label: string; current_value: string; weight_percent: string }>;
+    sector_exposure: Array<{ label: string; current_value: string; weight_percent: string }>;
+    action_groups: Array<{ action: DecisionDisplayAction; count: number; current_value: string }>;
+    largest_holding: BackendPortfolioPositionReferenceDto | null;
+    strongest_position: BackendPortfolioPositionReferenceDto | null;
+    weakest_position: BackendPortfolioPositionReferenceDto | null;
+    best_daily_contributor: BackendPortfolioPositionReferenceDto | null;
+    worst_daily_contributor: BackendPortfolioPositionReferenceDto | null;
+  };
+  watchlist_to_review: BackendPortfolioWatchlistSuggestionDto[];
+};
+
+export type BackendPortfolioPositionReferenceDto = {
+  stock_id: string;
+  symbol: string;
+  name: string;
+  amount: string | null;
+  percent: string | null;
+};
+
+export type BackendPortfolioWatchlistSuggestionDto = {
+  stock_id: string;
+  symbol: string;
+  name: string;
+  exchange: ExchangeCode;
+  sector: string | null;
+  current_price: string | null;
+  price_change_percent: string | null;
+  action: DecisionDisplayAction;
+  trend: string;
+  risk: "LOW" | "MEDIUM" | "HIGH" | "SPECULATIVE" | null;
+  reason_code: string;
+  scanner_condition: string | null;
+  relevant_event: BackendPortfolioEventDto | null;
 };
 
 export type BackendUserWatchlistSummaryDto = {

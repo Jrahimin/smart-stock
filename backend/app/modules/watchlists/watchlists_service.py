@@ -6,7 +6,7 @@ from uuid import UUID
 from fastapi import Depends
 
 from app.api.dependencies.auth_dependencies import get_current_user
-from app.core.exception_handlers import NotFoundError
+from app.core.exception_handlers import AppError, NotFoundError
 from app.core.security_config import UserContext
 from app.models import UserWatchlist
 from app.modules.market_data.market_data_service import MarketDataService, get_market_data_service
@@ -102,6 +102,7 @@ class WatchlistsService:
                 "stock_symbol": stock.symbol,
                 "is_holding": False,
                 "buy_price": None,
+                "quantity": None,
                 "note": None,
             }
         )
@@ -118,8 +119,11 @@ class WatchlistsService:
         next_is_holding = values["is_holding"] if "is_holding" in values else entry.is_holding
         if "is_holding" in values and values["is_holding"] is False:
             values["buy_price"] = None
-        if "buy_price" in values and values.get("buy_price") is not None and not next_is_holding:
-            values.pop("buy_price")
+            values["quantity"] = None
+        if not next_is_holding and any(
+            values.get(field) is not None for field in ("buy_price", "quantity")
+        ):
+            raise AppError("Quantity and average buy price require holding status")
 
         updated = await self.repository.update(entry, values)
         await self.repository.commit()
@@ -250,6 +254,7 @@ class WatchlistsService:
                     stock_symbol=entry.stock_symbol,
                     is_holding=entry.is_holding,
                     buy_price=entry.buy_price,
+                    quantity=entry.quantity,
                     note=entry.note,
                     created_at=entry.created_at,
                     updated_at=entry.updated_at,

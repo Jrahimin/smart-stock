@@ -15,7 +15,8 @@ class UserWatchlistCreate(BaseModel):
 
 class UserWatchlistUpdate(BaseModel):
     is_holding: bool | None = None
-    buy_price: Decimal | None = Field(default=None, ge=0)
+    buy_price: Decimal | None = Field(default=None, gt=0)
+    quantity: Decimal | None = Field(default=None, gt=0)
     note: str | None = Field(default=None, max_length=2000)
 
 
@@ -28,6 +29,7 @@ class UserWatchlistRead(BaseModel):
     stock_symbol: str
     is_holding: bool
     buy_price: Decimal | None
+    quantity: Decimal | None
     note: str | None
     created_at: datetime
     updated_at: datetime

@@ -1741,6 +1741,7 @@ List the authenticated user's watchlist rows with optional market enrichment.
       "stock_id": "30e7d280-0b42-44c2-8f42-a8c9b0ff5c91",
       "stock_symbol": "GP",
       "is_holding": true,
+      "quantity": "2000.0000",
       "buy_price": "250.0000",
       "note": "Waiting for breakout.",
       "created_at": "2026-01-18T10:00:00Z",
@@ -1816,13 +1817,14 @@ Add a stock to the watchlist. Returns the existing row if already present.
 ### PATCH /api/v1/watchlist/items/{stock_id}
 
 **Description**
-Update holding flag, buy price, and/or personal note.
+Update holding flag, current quantity, average buy price, and/or personal note.
 
 **Body**
 
 ```json
 {
   "is_holding": true,
+  "quantity": 2000,
   "buy_price": 250,
   "note": "Accumulate below 245."
 }
@@ -1860,6 +1862,98 @@ Primary star-toggle endpoint. Removes the row if it exists; otherwise adds it. N
 ```
 
 When removed, `item` is `null` and `added` is `false`.
+
+---
+
+## Portfolio
+
+All portfolio routes require authentication. The module exposes one current-position workspace per user and does not persist portfolio aggregates or history.
+
+### GET /api/v1/portfolio/workspace
+
+**Description**
+
+Returns the authenticated user's holdings-first current-position intelligence workspace. It combines the user's existing watchlist rows with the already-published canonical scored universe, latest-positive fallback prices, stock metadata, and relevant current events. The request never recomputes trading decisions.
+
+**Query Params**
+
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| `exchange` | `DSE` or `CSE` | `DSE` | Limits holdings and non-held candidates to one exchange |
+
+**Response shape**
+
+```json
+{
+  "success": true,
+  "message": "Portfolio workspace retrieved",
+  "data": {
+    "meta": {
+      "exchange": "DSE",
+      "published_market_date": "2026-07-20",
+      "live_data_as_of": null,
+      "data_state": "FINALIZED",
+      "is_provisional": false,
+      "total_watchlisted": 8,
+      "holding_count": 3,
+      "valued_holding_count": 2,
+      "costed_holding_count": 2
+    },
+    "pulse": {
+      "known_current_value": "350000.00",
+      "current_value_is_complete": false,
+      "known_invested_amount": "320000.00",
+      "invested_amount_is_complete": false,
+      "known_unrealized_gain_amount": "30000.00",
+      "known_unrealized_gain_percent": "9.38",
+      "unrealized_gain_is_complete": false,
+      "estimated_daily_change_amount": "4200.00",
+      "estimated_daily_change_percent": "1.22",
+      "daily_change_is_complete": false,
+      "holding_count": 3,
+      "valued_holding_count": 2
+    },
+    "attention": [],
+    "holdings": [],
+    "watchlist_items": [
+      {
+        "stock_id": "uuid",
+        "is_holding": true,
+        "quantity": "100.0000",
+        "average_buy_price": "250.0000"
+      }
+    ],
+    "shape": {
+      "position_exposure": [],
+      "sector_exposure": [],
+      "action_groups": [],
+      "largest_holding": null,
+      "strongest_position": null,
+      "weakest_position": null,
+      "best_daily_contributor": null,
+      "worst_daily_contributor": null
+    },
+    "watchlist_to_review": []
+  }
+}
+```
+
+`holdings` remains the calculated holding-only collection. `watchlist_items` is
+the authenticated user's complete current watchlist and is intended for the
+unified portfolio table: each item includes `is_holding`, current market and
+decision fields, and holding calculations when applicable. Watchlist-only rows
+do not gain portfolio amounts until they are marked as holdings.
+
+**Notes**
+
+* Quantities, prices, money, and percentages are Decimal strings.
+* `average_buy_price` maps the watchlist's existing `buy_price` into portfolio terminology.
+* Each holding contains one localized-client semantic `what_next_code`, price-quality state, current calculations, canonical holder action/trend/risk, and drawer evidence.
+* Missing inputs reduce the relevant coverage flags instead of hiding a holding or presenting unknown totals as complete.
+* Non-held suggestions are limited to five rows with a meaningful canonical action, scanner, event, or caution reason.
+* Response header is `Cache-Control: private, no-store` and the payload must never enter a shared cache.
+
+See `backend/docs/portfolio.md` for calculation, completeness, privacy, and scope rules.
 
 ---
 

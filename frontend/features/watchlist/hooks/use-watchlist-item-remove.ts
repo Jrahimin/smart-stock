@@ -2,14 +2,13 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { updateWatchlistItem, type UpdateWatchlistItemPayload } from "@/lib/api/watchlist-api";
+import { removeWatchlistItem } from "@/lib/api/watchlist-api";
 
-export function useWatchlistItemUpdate() {
+export function useWatchlistItemRemove() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ stockId, payload }: { stockId: string; payload: UpdateWatchlistItemPayload }) =>
-      updateWatchlistItem(stockId, payload),
+    mutationFn: (stockId: string) => removeWatchlistItem(stockId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["watchlist"] });
       void queryClient.invalidateQueries({ queryKey: ["portfolio"] });
