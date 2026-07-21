@@ -10,7 +10,7 @@ Related module docs: [market_universe.md](market_universe.md), [market_dashboard
 
 1. **PostgreSQL is the source of truth.** Caches are performance layers only.
 2. **Sync-driven freshness on the backend.** Scheduled data writes spawn background cache rebuilds; TTL is a safety net. Keys are overwritten on success — not deleted before rebuild.
-3. **Sync-aligned freshness in the browser.** `MarketCacheSyncCoordinator` polls `/market/freshness` and, when `last_synced_at` advances, clears **market-related IndexedDB entries** then invalidates TanStack market queries. Between syncs, **generation-aware IndexedDB validation** rejects legacy or mismatched market entries per URL (see [Browser generation hardening](#browser-generation-hardening)). Manual refresh still clears all IndexedDB.
+3. **Published-generation freshness in the browser.** `MarketCacheSyncCoordinator` polls `/market/freshness` and, when `market_sync_id` changes (with `last_synced_at` as a rolling-deploy fallback), clears **market-related IndexedDB entries** then invalidates TanStack market queries. Between syncs, generation-aware validation rejects mismatched market entries per URL.
 4. **Background rebuild, compute-on-miss fallback.** After sync, `spawn_rebuild_market_read_cache()` warms overview → sectors → movers → universe in priority order. HTTP misses compute inline for dashboard; universe serves stale `universe:scored:prev` or returns 503.
 5. **Redis is optional.** Unset `REDIS_URL` → backend always computes; behavior is correct, only slower.
 6. **Browser fetches the API directly.** Next.js does not proxy or server-cache market JSON for client-side hooks; all client caching happens in the browser.
@@ -29,8 +29,8 @@ Related module docs: [market_universe.md](market_universe.md), [market_dashboard
 │                                                                         │
 │  MarketCacheSyncCoordinator (app/providers.tsx)                         │
 │    → polls GET /market/freshness every ~2 min                           │
-│    → on last_synced_at change → market-cache-coordinator                │
-│         → on last_synced_at change → clear market IndexedDB entries     │
+│    → on market_sync_id change → market-cache-coordinator                │
+│         → clear market IndexedDB entries                                │
 │         → then invalidate TanStack market query roots                   │
 │                                                                         │
 │  UI → TanStack Query (in-memory)                                        │
@@ -94,9 +94,9 @@ Storage format: `SET key JSON EX=<ttl_seconds>` (not `SETEX` by name, same effec
 universe:scored:{exchange}:{strategy_version}:{threshold_version}:{input_schema_version}:{decision_taxonomy_version}
 universe:scored:prev:{exchange}:{strategy_version}:{threshold_version}:{input_schema_version}:{decision_taxonomy_version}
 dashboard:{section}:{exchange}:{decision_taxonomy_version}
-pulse:{response|summary}:{exchange}:{strategy_version}:{threshold_version}:{input_schema_version}:{pulse_score_version}:{decision_taxonomy_version}
+pulse:{response|summary}:{exchange}:{date}:{market_sync_id}:{versions...}
                                                        ← presentation
-stock-workspace:{section}:{ex}:{sym}:live-{trade_date}:decision-{decision_date}:{strategy_version}:{threshold_version}:{input_schema_version}:{decision_taxonomy_version}
+stock-workspace:{section}:{ex}:{sym}:live-{trade_date}:generation-{market_sync_id}:decision-{decision_date}:{versions...}
                                                       ← per-symbol page aggregate
 ```
 
@@ -106,7 +106,7 @@ stock-workspace:{section}:{ex}:{sym}:live-{trade_date}:decision-{decision_date}:
   `strategy_version`, `threshold_version`, `input_schema_version`, and
   `decision_taxonomy_version` in the key prevent reuse after
   the session or any approved calculation-contract change.
-* **Same-day intraday:** snapshot upserts rewrite the same trade date; Redis TTL (`current_cache_ttl_seconds` / dashboard TTL) is the same-day safety net. There is no per-symbol fan-out on `sync_market_snapshot`.
+* **Same-day intraday:** a successful snapshot publish creates a new `market_sync_id`; it is part of workspace, dashboard, and Pulse cache identity. There is no per-symbol fan-out and older keys expire normally.
 * Frontend stock-detail ISR / TanStack staleTime should follow that TTL (default 600s), not a shorter unrelated interval that fights IndexedDB.
 
 **Dashboard vs universe (split)**
@@ -163,12 +163,14 @@ Spawned fire-and-forget after `sync_market_snapshot` commit via `spawn_rebuild_m
 
 When a new finalized-session Pulse aggregate is persisted, only `pulse:*:{exchange}:*` keys are invalidated. PostgreSQL remains the history source of truth; browser Pulse entries continue to age out under the existing market TTL and refresh on the next freshness generation.
 
-### Freshness metadata (not cached in Redis)
+### Published market session and freshness metadata (not cached in Redis)
 
-`GET /market/freshness` reads PostgreSQL only and exposes:
+`market_data_generations` is a compact PostgreSQL publication manifest. `daily_prices` remains the raw source of truth, while the manifest declares the one completed exchange-wide dataset that readers may expose. `GET /market/freshness` reads it and exposes:
 
-- `last_synced_at`, `next_sync_at`, `market_status`
+- `trade_date`, `market_sync_id`, `data_state`, `last_synced_at`, `next_sync_at`, `market_status`
 - `dashboard_cache_ttl_seconds` — shared contract for backend Redis TTL and frontend TanStack `staleTime`
+
+The snapshot job writes daily prices, DSEX enrichment, and the `LIVE` manifest in one transaction. The shared state rule is: pre-open/weekend/holiday use the latest `FINALIZED` generation; `OPEN` uses the latest published `LIVE` generation; post-close uses that generation as `FINALIZATION_PENDING` until verified DSEX finalization publishes `FINALIZED`. Failed or unavailable syncs roll back rather than invent a partial generation; readers retain the last published generation and expose `STALE` when applicable.
 
 ---
 

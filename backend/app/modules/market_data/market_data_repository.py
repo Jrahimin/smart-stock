@@ -9,8 +9,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.base_repository import BaseRepository
 from app.core.database_session import get_db_session
-from app.core.enums import DataQualityFlag, ExchangeCode, TurnoverProvenance
-from app.models import CorporateAction, DailyMarketSummary, DailyPrice, DividendEvent, Stock
+from app.core.enums import DataQualityFlag, ExchangeCode, MarketDataState, TurnoverProvenance
+from app.models import (
+    CorporateAction,
+    DailyMarketSummary,
+    DailyPrice,
+    DividendEvent,
+    MarketDataGeneration,
+    Stock,
+)
 
 
 class MarketDataRepository(BaseRepository[DailyPrice]):
@@ -65,15 +72,20 @@ class MarketDataRepository(BaseRepository[DailyPrice]):
         exchange: ExchangeCode | None,
         limit: int,
         offset: int,
+        end_date: date | None = None,
     ) -> list[tuple[Stock, DailyPrice]]:
-        latest_price_dates = (
+        latest_price_dates_statement = (
             select(
                 DailyPrice.stock_id.label("stock_id"),
                 func.max(DailyPrice.trade_date).label("latest_trade_date"),
             )
             .group_by(DailyPrice.stock_id)
-            .subquery()
         )
+        if end_date is not None:
+            latest_price_dates_statement = latest_price_dates_statement.where(
+                DailyPrice.trade_date <= end_date
+            )
+        latest_price_dates = latest_price_dates_statement.subquery()
         statement = (
             select(Stock, DailyPrice)
             .join(latest_price_dates, latest_price_dates.c.stock_id == Stock.id)
@@ -388,6 +400,52 @@ class MarketDataRepository(BaseRepository[DailyPrice]):
         )
         last_synced_at = await self.session.scalar(last_synced_stmt)
         return latest_trade_date, last_synced_at
+
+    async def create_market_data_generation(
+        self,
+        *,
+        exchange: ExchangeCode,
+        trade_date: date,
+        sync_id: str,
+        state: MarketDataState,
+        source: str,
+        source_last_synced_at: datetime,
+        fetched_count: int,
+        accepted_count: int,
+        suspicious_count: int,
+    ) -> MarketDataGeneration:
+        generation = MarketDataGeneration(
+            exchange=exchange,
+            trade_date=trade_date,
+            sync_id=sync_id,
+            state=state,
+            source=source,
+            source_last_synced_at=source_last_synced_at,
+            fetched_count=fetched_count,
+            accepted_count=accepted_count,
+            suspicious_count=suspicious_count,
+        )
+        self.session.add(generation)
+        await self.session.flush()
+        return generation
+
+    async def get_latest_market_data_generation(
+        self,
+        *,
+        exchange: ExchangeCode,
+        state: MarketDataState | None = None,
+        trade_date: date | None = None,
+    ) -> MarketDataGeneration | None:
+        statement = select(MarketDataGeneration).where(MarketDataGeneration.exchange == exchange)
+        if state is not None:
+            statement = statement.where(MarketDataGeneration.state == state)
+        if trade_date is not None:
+            statement = statement.where(MarketDataGeneration.trade_date == trade_date)
+        statement = statement.order_by(
+            MarketDataGeneration.published_at.desc(),
+            MarketDataGeneration.id.desc(),
+        ).limit(1)
+        return await self.session.scalar(statement)
 
     async def get_latest_finalized_session_date(
         self,

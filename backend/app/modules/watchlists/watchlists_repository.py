@@ -1,3 +1,4 @@
+from datetime import date
 from uuid import UUID
 
 from fastapi import Depends
@@ -65,19 +66,28 @@ class WatchlistsRepository(BaseRepository[UserWatchlist]):
         await self.delete(entry)
         return True
 
-    async def list_latest_prices_for_stocks(self, stock_ids: list[UUID]) -> dict[UUID, DailyPrice]:
+    async def list_latest_prices_for_stocks(
+        self,
+        stock_ids: list[UUID],
+        *,
+        end_date: date | None = None,
+    ) -> dict[UUID, DailyPrice]:
         if not stock_ids:
             return {}
 
-        latest_price_dates = (
+        latest_price_dates_statement = (
             select(
                 DailyPrice.stock_id.label("stock_id"),
                 func.max(DailyPrice.trade_date).label("latest_trade_date"),
             )
             .where(DailyPrice.stock_id.in_(stock_ids))
             .group_by(DailyPrice.stock_id)
-            .subquery()
         )
+        if end_date is not None:
+            latest_price_dates_statement = latest_price_dates_statement.where(
+                DailyPrice.trade_date <= end_date
+            )
+        latest_price_dates = latest_price_dates_statement.subquery()
         statement = select(DailyPrice).join(
             latest_price_dates,
             (DailyPrice.stock_id == latest_price_dates.c.stock_id)

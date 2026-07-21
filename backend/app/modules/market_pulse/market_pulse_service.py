@@ -32,6 +32,7 @@ from app.core.enums import (
     EligibilityStatus,
     ExchangeCode,
     MarketAlertType,
+    MarketDataState,
     PulseFocusLabel,
     TrendDirection,
 )
@@ -415,13 +416,16 @@ class MarketPulseService:
         exchange: ExchangeCode,
         decision_date: date | None,
         briefing_rows: list[PulseBriefingRow],
+        is_finalized: bool,
     ) -> OpportunityScoreRead:
         aggregate = compute_pulse_opportunity_aggregate(briefing_rows)
         result = OpportunityScoreRead(
             score=aggregate.score,
             label=self._opportunity_label(aggregate.score),
         )
-        if self.snapshot_repository is None or decision_date is None:
+        # History is an end-of-day observation.  A live/provisional score is useful
+        # for the current screen, but must never be appended to the daily series.
+        if not is_finalized or self.snapshot_repository is None or decision_date is None:
             return result
 
         identity = PulseSnapshotIdentity(
@@ -474,6 +478,16 @@ class MarketPulseService:
     async def _cache_get(self, cache_key: str) -> dict | None:
         return await self.redis.get_json(cache_key)
 
+    @staticmethod
+    def _freshness_market_sync_id(freshness: MarketFreshnessRead) -> str | None:
+        value = getattr(freshness, "market_sync_id", None)
+        return value if isinstance(value, str) else None
+
+    @staticmethod
+    def _freshness_data_state(freshness: MarketFreshnessRead) -> MarketDataState:
+        value = getattr(freshness, "data_state", None)
+        return value if isinstance(value, MarketDataState) else MarketDataState.STALE
+
     async def _cache_set(self, cache_key: str, payload: dict, *, empty_state: str) -> None:
         ttl_seconds = pulse_cache_ttl_seconds(self.settings, empty_state=empty_state)
         await self.redis.set_json(cache_key, payload, ttl_seconds=ttl_seconds)
@@ -490,6 +504,18 @@ class MarketPulseService:
         if coverage is None:
             return False
         return coverage.decision_session_date == decision_date
+
+    @staticmethod
+    def _cached_generation_matches(
+        *,
+        market_sync_id: str | None,
+        data_state,
+        freshness: MarketFreshnessRead,
+    ) -> bool:
+        return (
+            market_sync_id == MarketPulseService._freshness_market_sync_id(freshness)
+            and data_state == MarketPulseService._freshness_data_state(freshness)
+        )
 
     async def _load_cached_summary_if_valid(
         self,
@@ -513,6 +539,13 @@ class MarketPulseService:
             return None
 
         if freshness.last_synced_at is None or summary.last_synced_at != freshness.last_synced_at:
+            return None
+
+        if not self._cached_generation_matches(
+            market_sync_id=summary.market_sync_id,
+            data_state=summary.data_state,
+            freshness=freshness,
+        ):
             return None
 
         if not self._cached_decision_date_matches(
@@ -547,6 +580,13 @@ class MarketPulseService:
         if freshness.last_synced_at is None or pulse.last_synced_at != freshness.last_synced_at:
             return None
 
+        if not self._cached_generation_matches(
+            market_sync_id=pulse.market_sync_id,
+            data_state=pulse.data_state,
+            freshness=freshness,
+        ):
+            return None
+
         if not self._cached_decision_date_matches(
             coverage=pulse.coverage,
             decision_date=decision_date,
@@ -564,7 +604,9 @@ class MarketPulseService:
     ) -> MarketPulseRead:
         freshness = await self.market_data_service.get_market_freshness(exchange=exchange)
         decision_date = resolve_pulse_decision_date(freshness)
-        cache_key = pulse_cache_key("response", exchange, decision_date)
+        market_sync_id = self._freshness_market_sync_id(freshness)
+        data_state = self._freshness_data_state(freshness)
+        cache_key = pulse_cache_key("response", exchange, decision_date, market_sync_id)
         if uses_shared_pulse_cache(previous, display_name):
             cached_pulse = await self._load_cached_pulse_if_valid(
                 cache_key=cache_key,
@@ -581,7 +623,13 @@ class MarketPulseService:
             freshness=freshness,
             decision_date=decision_date,
         )
-        stamped = payload.model_copy(update={"last_synced_at": freshness.last_synced_at})
+        stamped = payload.model_copy(
+            update={
+                "last_synced_at": freshness.last_synced_at,
+                "market_sync_id": market_sync_id,
+                "data_state": data_state,
+            }
+        )
         if uses_shared_pulse_cache(previous, display_name):
             await self._cache_set(
                 cache_key,
@@ -599,7 +647,9 @@ class MarketPulseService:
     ) -> MarketPulseSummaryRead:
         freshness = await self.market_data_service.get_market_freshness(exchange=exchange)
         decision_date = resolve_pulse_decision_date(freshness)
-        cache_key = pulse_cache_key("summary", exchange, decision_date)
+        market_sync_id = self._freshness_market_sync_id(freshness)
+        data_state = self._freshness_data_state(freshness)
+        cache_key = pulse_cache_key("summary", exchange, decision_date, market_sync_id)
         if uses_shared_pulse_cache(previous, display_name):
             cached_summary = await self._load_cached_summary_if_valid(
                 cache_key=cache_key,
@@ -628,6 +678,8 @@ class MarketPulseService:
             data_quality_note=pulse.data_quality_note,
             coverage=pulse.coverage,
             last_synced_at=freshness.last_synced_at,
+            market_sync_id=market_sync_id,
+            data_state=data_state,
         )
         if uses_shared_pulse_cache(previous, display_name):
             await self._cache_set(
@@ -749,6 +801,7 @@ class MarketPulseService:
             exchange=exchange,
             decision_date=decision_date,
             briefing_rows=briefing_rows,
+            is_finalized=freshness.data_state.value == "FINALIZED",
         )
         briefing = build_market_briefing(
             briefing_rows,
@@ -805,7 +858,11 @@ class MarketPulseService:
                 universe_candidate_count=len(universe_rows),
                 eligible_candidate_count=len(scored_rows),
                 excluded_candidate_count=max(0, len(universe_rows) - len(scored_rows)),
+                market_sync_id=freshness.market_sync_id,
+                data_state=freshness.data_state,
             ),
+            market_sync_id=freshness.market_sync_id,
+            data_state=freshness.data_state,
         )
 
     def _build_since_last_visit(

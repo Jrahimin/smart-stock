@@ -2,14 +2,14 @@ import asyncio
 import logging
 from datetime import date, datetime
 from decimal import Decimal
-from uuid import UUID
+from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
 from fastapi import Depends
 
 from app.api.dependencies.auth_dependencies import get_current_user_context
 from app.core.core_config import get_settings
-from app.core.enums import DataQualityFlag, ExchangeCode, TurnoverProvenance
+from app.core.enums import DataQualityFlag, ExchangeCode, MarketDataState, TurnoverProvenance
 from app.core.exception_handlers import NotFoundError
 from app.core.perf_timing import PerfReport, async_perf_stage
 from app.core.security_config import UserContext
@@ -132,6 +132,7 @@ class MarketDataService:
         validation_source: MarketDataSource | None = None,
         insert_only: bool = False,
         invalidate_market_cache: bool = True,
+        commit: bool = True,
     ) -> DailyPriceIngestionResult:
         ingested_prices, validation_prices = await self._fetch_ingestion_prices(
             source=source,
@@ -199,7 +200,8 @@ class MarketDataService:
                 suspicious_count=suspicious_count,
             )
 
-        await self.repository.commit()
+        if commit:
+            await self.repository.commit()
         logger.info(
             "Daily market ingestion completed: exchange=%s trade_date=%s source=%s total_rows=%s "
             "success=%s failed_rows=%s suspicious_rows=%s",
@@ -229,6 +231,7 @@ class MarketDataService:
         *,
         exchange: ExchangeCode,
         trade_date: date,
+        commit: bool = True,
     ) -> PostDailyAmarstockStats:
         try:
             stats = await run_snapshot_market_enrichment(
@@ -237,7 +240,8 @@ class MarketDataService:
                 trade_date=trade_date,
                 settings=get_settings(),
             )
-            await self.repository.commit()
+            if commit:
+                await self.repository.commit()
             return stats
         except Exception as exc:
             await self.repository.rollback()
@@ -711,12 +715,16 @@ class MarketDataService:
         settings = get_settings()
         now = datetime.now(ZoneInfo("Asia/Dhaka"))
         status = resolve_market_status(now, settings)
+        published = await self._resolve_published_market_generation(
+            exchange=exchange,
+            market_status=status,
+            today=now.date(),
+            now=now,
+            stale_after_seconds=settings.market_sync_interval_seconds * 2,
+        )
         trade_date, last_synced_at = await self.repository.get_market_price_freshness(exchange=exchange)
         decision_session_date, _ = await self.repository.get_decision_session_freshness(
             exchange=exchange
-        )
-        is_live_session = trade_date is not None and (
-            decision_session_date is None or trade_date > decision_session_date
         )
         from app.core.enums import MarketSessionStatus
 
@@ -727,11 +735,30 @@ class MarketDataService:
 
         return MarketFreshnessRead(
             exchange=exchange,
-            trade_date=trade_date,
-            last_synced_at=last_synced_at,
+            trade_date=published[0] if published is not None else trade_date,
+            last_synced_at=published[3] if published is not None else last_synced_at,
+            market_sync_id=published[1] if published is not None else None,
+            data_state=published[2] if published is not None else MarketDataState.STALE,
+            published_at=published[4] if published is not None else None,
             decision_session_date=decision_session_date,
-            live_data_as_of=last_synced_at if is_live_session else None,
-            is_live_session=is_live_session,
+            live_data_as_of=(
+                published[3]
+                if published is not None and published[2] in {
+                    MarketDataState.LIVE,
+                    MarketDataState.FINALIZATION_PENDING,
+                    MarketDataState.STALE,
+                }
+                else None
+            ),
+            is_live_session=(
+                published is not None
+                and published[2]
+                in {
+                    MarketDataState.LIVE,
+                    MarketDataState.FINALIZATION_PENDING,
+                    MarketDataState.STALE,
+                }
+            ),
             next_sync_at=next_sync,
             snapshot_interval_minutes=interval,
             market_sync_interval_seconds=settings.market_sync_interval_seconds,
@@ -741,6 +768,141 @@ class MarketDataService:
             market_close_time=settings.market_close_time,
             market_status=status,
             freshness_label=build_freshness_label(settings, status),
+        )
+
+    async def publish_market_generation(
+        self,
+        *,
+        exchange: ExchangeCode,
+        trade_date: date,
+        state: MarketDataState,
+        source: str,
+        fetched_count: int,
+        accepted_count: int,
+        suspicious_count: int,
+    ) -> str:
+        """Publish one completed source run after prices and DSEX enrichment commit."""
+
+        _, source_last_synced_at = await self.repository.get_market_price_freshness(exchange=exchange)
+        if source_last_synced_at is None:
+            raise RuntimeError("Cannot publish market generation without persisted market prices")
+        sync_id = uuid4().hex
+        await self.repository.create_market_data_generation(
+            exchange=exchange,
+            trade_date=trade_date,
+            sync_id=sync_id,
+            state=state,
+            source=source,
+            source_last_synced_at=source_last_synced_at,
+            fetched_count=fetched_count,
+            accepted_count=accepted_count,
+            suspicious_count=suspicious_count,
+        )
+        await self.repository.commit()
+        return sync_id
+
+    async def publish_finalized_market_generation(
+        self,
+        *,
+        exchange: ExchangeCode,
+        trade_date: date,
+    ) -> str:
+        existing = await self.repository.get_latest_market_data_generation(
+            exchange=exchange,
+            state=MarketDataState.FINALIZED,
+            trade_date=trade_date,
+        )
+        if existing is not None:
+            return existing.sync_id
+        live = await self.repository.get_latest_market_data_generation(
+            exchange=exchange,
+            state=MarketDataState.LIVE,
+            trade_date=trade_date,
+        )
+        if live is None:
+            # Safe deployment/retry fallback: the finalizer already verified the
+            # price and DSEX inputs.  Older deployments have no LIVE manifest to
+            # promote, but must not leave a verified session permanently hidden.
+            logger.warning(
+                "Finalizing %s %s without a prior LIVE generation; publishing a verified fallback",
+                exchange.value,
+                trade_date,
+            )
+            return await self.publish_market_generation(
+                exchange=exchange,
+                trade_date=trade_date,
+                state=MarketDataState.FINALIZED,
+                source="verified-finalization-fallback",
+                fetched_count=0,
+                accepted_count=0,
+                suspicious_count=0,
+            )
+        return await self.publish_market_generation(
+            exchange=exchange,
+            trade_date=trade_date,
+            state=MarketDataState.FINALIZED,
+            source=live.source,
+            fetched_count=live.fetched_count,
+            accepted_count=live.accepted_count,
+            suspicious_count=live.suspicious_count,
+        )
+
+    async def _resolve_published_market_generation(
+        self,
+        *,
+        exchange: ExchangeCode,
+        market_status,
+        today: date,
+        now: datetime,
+        stale_after_seconds: int,
+    ) -> tuple[date, str, MarketDataState, datetime, datetime] | None:
+        """Resolve the only dataset readers may expose for the current session state."""
+
+        finalized = await self.repository.get_latest_market_data_generation(
+            exchange=exchange,
+            state=MarketDataState.FINALIZED,
+        )
+        today_finalized = (
+            finalized if finalized is not None and finalized.trade_date == today else None
+        )
+        today_live = await self.repository.get_latest_market_data_generation(
+            exchange=exchange,
+            state=MarketDataState.LIVE,
+            trade_date=today,
+        )
+
+        from app.core.enums import MarketSessionStatus
+
+        selected = None
+        data_state = MarketDataState.STALE
+        if market_status == MarketSessionStatus.OPEN:
+            selected = today_live or today_finalized or finalized
+            data_state = MarketDataState.LIVE if selected is today_live else MarketDataState.FINALIZED
+        elif market_status == MarketSessionStatus.POST_CLOSE:
+            selected = today_finalized or today_live or finalized
+            data_state = (
+                MarketDataState.FINALIZED
+                if selected is today_finalized or selected is finalized
+                else MarketDataState.FINALIZATION_PENDING
+            )
+        else:
+            selected = finalized
+            data_state = MarketDataState.FINALIZED if selected is not None else MarketDataState.STALE
+
+        if selected is None:
+            return None
+        if selected is today_live:
+            synced_at = selected.source_last_synced_at
+            if synced_at.tzinfo is None:
+                synced_at = synced_at.replace(tzinfo=now.tzinfo)
+            if (now - synced_at).total_seconds() > stale_after_seconds:
+                data_state = MarketDataState.STALE
+        return (
+            selected.trade_date,
+            selected.sync_id,
+            data_state,
+            selected.source_last_synced_at,
+            selected.published_at,
         )
 
     async def list_recent_finalized_session_dates(

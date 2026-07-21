@@ -24,6 +24,8 @@ export type BackendMarketPulseSummaryDto = Pick<
   | "data_quality_note"
 > & {
   last_synced_at: string | null;
+  market_sync_id?: string | null;
+  data_state?: "LIVE" | "FINALIZATION_PENDING" | "FINALIZED" | "STALE";
 };
 
 export function getMarketPulse(params: GetMarketPulseParams = {}) {

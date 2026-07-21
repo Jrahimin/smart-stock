@@ -26,11 +26,14 @@ export type TradePlanManagementMode =
 export type MarketRegimePhase = "EARLY" | "HEALTHY" | "EXTENDED" | "REVERSAL_RISK";
 
 export type MarketSessionStatus = "PRE_OPEN" | "OPEN" | "POST_CLOSE" | "HOLIDAY";
+export type MarketDataState = "LIVE" | "FINALIZATION_PENDING" | "FINALIZED" | "STALE";
 
 export type BackendMarketFreshnessDto = {
   exchange: ExchangeCode;
   trade_date: string | null;
   last_synced_at: string | null;
+  market_sync_id?: string | null;
+  data_state?: MarketDataState;
   decision_session_date?: string | null;
   live_data_as_of?: string | null;
   is_live_session?: boolean;
@@ -855,6 +858,9 @@ export type BackendMarketPulseDto = {
   empty_message: string | null;
   data_quality_note: string | null;
   coverage?: BackendPulseCoverageDto | null;
+  last_synced_at?: string | null;
+  market_sync_id?: string | null;
+  data_state?: MarketDataState;
 };
 
 export type BackendMarketPulsePreviousSnapshotDto = {

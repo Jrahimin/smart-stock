@@ -158,11 +158,13 @@ class MarketDashboardService:
         await self.redis.set_json(cache_key, payload, ttl_seconds=ttl_seconds)
 
     async def cache_dashboard_payload(self, section: str, exchange: ExchangeCode, payload: BaseModel) -> None:
-        cache_key = dashboard_cache_key(section, exchange)
+        freshness = await self.market_data_service.get_market_freshness(exchange=exchange)
+        cache_key = dashboard_cache_key(section, exchange, freshness.market_sync_id)
         await self._cache_set(cache_key, payload.model_dump(mode="json"))
 
     async def _get_cached(self, section: str, exchange: ExchangeCode, model: type[T], compute) -> T:
-        cache_key = dashboard_cache_key(section, exchange)
+        freshness = await self.market_data_service.get_market_freshness(exchange=exchange)
+        cache_key = dashboard_cache_key(section, exchange, freshness.market_sync_id)
         cached = await self._cache_get(cache_key)
         if cached is not None:
             return model.model_validate(cached)
@@ -176,14 +178,17 @@ class MarketDashboardService:
         return data
 
     async def _load_snapshot(self, exchange: ExchangeCode, report: PerfReport | None = None) -> DashboardMarketSnapshot:
+        freshness = await self.market_data_service.get_market_freshness(exchange=exchange)
         return await load_dashboard_market_snapshot(
             self.market_repository,
             exchange=exchange,
+            session_trade_date=freshness.trade_date,
             report=report,
         )
 
     async def get_overview(self, *, exchange: ExchangeCode) -> DashboardOverviewRead:
-        cache_key = dashboard_cache_key("overview", exchange)
+        freshness = await self.market_data_service.get_market_freshness(exchange=exchange)
+        cache_key = dashboard_cache_key("overview", exchange, freshness.market_sync_id)
         cached = await self._cache_get(cache_key)
 
         if cached is not None:
@@ -270,7 +275,7 @@ class MarketDashboardService:
             )
 
         async with async_perf_stage(perf, "db.freshness"):
-            _, last_synced_at = await self.market_repository.get_market_price_freshness(exchange=exchange)
+            last_synced_at = (await self.market_data_service.get_market_freshness(exchange=exchange)).last_synced_at
 
         if report is None:
             perf.log_summary()
@@ -293,12 +298,13 @@ class MarketDashboardService:
     ) -> DashboardMoversRead:
         perf = report or PerfReport("dashboard.movers")
         async with async_perf_stage(perf, "db.freshness"):
-            session_trade_date, _ = await self.market_repository.get_market_price_freshness(exchange=exchange)
+            session_trade_date = (await self.market_data_service.get_market_freshness(exchange=exchange)).trade_date
         async with async_perf_stage(perf, "db.latest_prices"):
             latest_rows = await self.market_repository.list_latest_daily_prices(
                 exchange=exchange,
                 limit=DASHBOARD_LATEST_PRICES_LIMIT,
                 offset=0,
+                end_date=session_trade_date,
             )
 
         scored_rows: list[tuple[Stock, DailyPrice, TechnicalSnapshot]] = []
@@ -374,12 +380,13 @@ class MarketDashboardService:
     ) -> DashboardHeatmapRead:
         perf = report or PerfReport("dashboard.heatmap")
         async with async_perf_stage(perf, "db.freshness"):
-            session_trade_date, _ = await self.market_repository.get_market_price_freshness(exchange=exchange)
+            session_trade_date = (await self.market_data_service.get_market_freshness(exchange=exchange)).trade_date
         async with async_perf_stage(perf, "db.latest_prices"):
             latest_rows = await self.market_repository.list_latest_daily_prices(
                 exchange=exchange,
                 limit=DASHBOARD_HEATMAP_LIMIT,
                 offset=0,
+                end_date=session_trade_date,
             )
 
         heatmap_rows: list[tuple[Stock, TechnicalSnapshot]] = []

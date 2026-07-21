@@ -72,10 +72,10 @@ The compatibility `money_flow.inflows` / `money_flow.outflows` arrays contain on
 
 | Key | Contents |
 |-----|----------|
-| `pulse:response:{exchange}:{strategy_version}:{threshold_version}:{input_schema_version}:{pulse_score_version}:{decision_taxonomy_version}` | Full `MarketPulseRead` |
-| `pulse:summary:{exchange}:{strategy_version}:{threshold_version}:{input_schema_version}:{pulse_score_version}:{decision_taxonomy_version}` | `MarketPulseSummaryRead` (includes `last_synced_at` generation identity) |
+| `pulse:response:{exchange}:{date}:{market_sync_id}:{versions...}` | Full `MarketPulseRead` |
+| `pulse:summary:{exchange}:{date}:{market_sync_id}:{versions...}` | `MarketPulseSummaryRead` (includes `market_sync_id`, `data_state`, and `last_synced_at`) |
 
-Both are invalidated with exchange-wide keys on sync via `invalidate_market_caches()`.
+The published market generation is part of both cache keys, so a same-date intraday sync cannot reuse an older response. Pulse uses `LIVE`/`FINALIZATION_PENDING` universe rows while the market is open or pending finalization, labels those responses through `data_state`, and exposes attention-score history only for `FINALIZED` sessions. Persisted history is still invalidated selectively after a new final session snapshot.
 
 ### Module files
 

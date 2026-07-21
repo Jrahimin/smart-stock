@@ -40,7 +40,7 @@ function buildCorePayload(
 
   return {
     fetchedAt: Date.now(),
-    lastSyncedAt: freshness?.last_synced_at ?? null,
+    lastSyncedAt: freshness?.market_sync_id ?? freshness?.last_synced_at ?? null,
     freshness,
     summary: reconciledSummary,
     briefing: reconciledBriefing,

@@ -38,6 +38,7 @@ from app.core.enums import (
     ExchangeCode,
     IndicatorType,
     LiquidityTier,
+    MarketDataState,
     MarketEventType,
     MetricValueType,
     MoneySnapshotAssetCategory,
@@ -279,6 +280,35 @@ class Stock(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     market_events = relationship("MarketEvent", back_populates="stock")
     stock_details_sync_jobs = relationship("StockDetailsSyncJob", back_populates="stock")
     watchlist_entries = relationship("UserWatchlist", back_populates="stock")
+
+
+class MarketDataGeneration(UUIDPrimaryKeyMixin, Base):
+    """A fully published exchange-wide market dataset.
+
+    Daily prices remain the raw source of truth.  This compact manifest is the
+    publication barrier that tells read paths which completed source run they
+    may expose together.
+    """
+
+    __tablename__ = "market_data_generations"
+    __table_args__ = (
+        UniqueConstraint("exchange", "sync_id", name="uq_market_data_generations_exchange_sync"),
+        Index("ix_market_data_generations_exchange_published", "exchange", "published_at"),
+        Index("ix_market_data_generations_exchange_state", "exchange", "state", "trade_date"),
+    )
+
+    exchange: Mapped[ExchangeCode] = mapped_column(Enum(ExchangeCode), nullable=False)
+    trade_date: Mapped[date] = mapped_column(Date, nullable=False)
+    sync_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    state: Mapped[MarketDataState] = mapped_column(Enum(MarketDataState), nullable=False)
+    source: Mapped[str] = mapped_column(String(80), nullable=False)
+    source_last_synced_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    published_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    fetched_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    accepted_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    suspicious_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
 
 class DailyPrice(UUIDPrimaryKeyMixin, TimestampMixin, Base):

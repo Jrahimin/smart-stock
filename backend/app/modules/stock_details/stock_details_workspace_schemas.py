@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field
 
+from app.core.enums import MarketDataState
 from app.modules.market_data.market_data_schemas import DailyPriceRead
 from app.modules.stock_details.stock_details_schemas import (
     BreakoutAnalysisRead,
@@ -121,6 +122,10 @@ class StockWorkspaceRead(BaseModel):
     valuation_context: ValuationContextRead | None = None
     dividend_intelligence: DividendIntelligenceRead | None = None
     display_metrics: DisplayMetricsRead | None = None
+    # The market-data projection that supplied the quoted prices.  Decision
+    # support retains its own finalized-session lineage.
+    market_sync_id: str | None = None
+    data_state: MarketDataState = MarketDataState.STALE
 
 
 class StockWorkspacePatternsRead(BaseModel):

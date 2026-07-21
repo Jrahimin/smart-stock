@@ -14,7 +14,7 @@ import {
   unregisterMarketCacheQueryClient,
 } from "@/lib/market/market-cache-coordinator";
 
-/** Watches `/market/freshness` and busts client caches when `last_synced_at` advances. */
+/** Watches `/market/freshness` and busts client caches when a dataset is published. */
 export function useMarketCacheSyncCoordinator(exchange: ExchangeCode = "DSE") {
   const queryClient = useQueryClient();
   const previousLastSyncedAtRef = useRef<string | null>(null);
@@ -26,7 +26,7 @@ export function useMarketCacheSyncCoordinator(exchange: ExchangeCode = "DSE") {
   }, [queryClient]);
 
   useEffect(() => {
-    const current = data?.last_synced_at ?? null;
+    const current = data?.market_sync_id ?? data?.last_synced_at ?? null;
     if (!current) {
       return;
     }
@@ -41,7 +41,7 @@ export function useMarketCacheSyncCoordinator(exchange: ExchangeCode = "DSE") {
     }
 
     previousLastSyncedAtRef.current = current;
-  }, [data?.last_synced_at, queryClient]);
+  }, [data?.market_sync_id, data?.last_synced_at, queryClient]);
 }
 
 export function useMarketCacheRefresh() {

@@ -12,7 +12,7 @@ from app.core.constants.trading_constants import (
     TRADING_STRATEGY_VERSION,
     TRADING_THRESHOLD_VERSION,
 )
-from app.core.enums import DataQualityFlag, ExchangeCode, ScannerConditionId
+from app.core.enums import DataQualityFlag, ExchangeCode, MarketDataState, ScannerConditionId
 from app.modules.stock_details.stock_details_schemas import (
     EligibilityResultRead,
     TechnicalSnapshotRead,
@@ -70,6 +70,8 @@ class UniverseRowsMetaRead(BaseModel):
     decision_taxonomy_version: str = DECISION_TAXONOMY_VERSION
     scanner_version: str = SCANNER_CONDITION_VERSION
     source_last_synced_at: datetime | None = None
+    market_sync_id: str | None = None
+    data_state: MarketDataState = MarketDataState.STALE
     payload_revision: str | None = None
 
 
@@ -89,5 +91,7 @@ class ScoredUniverseCacheRead(BaseModel):
     live_data_as_of: datetime | None = None
     is_live_session: bool = False
     source_last_synced_at: datetime | None = None
+    market_sync_id: str | None = None
+    data_state: MarketDataState = MarketDataState.STALE
     payload_revision: str | None = None
     rows: list[ScoredUniverseRow] = Field(default_factory=list)

@@ -10,7 +10,8 @@ from app.core.enums import ExchangeCode
 from app.core.exception_handlers import NotFoundError
 from app.core.redis_client import OptionalRedisClient, get_redis_client
 from app.jobs.market_session_schedule import current_cache_ttl_seconds
-from app.modules.market_data.market_data_schemas import DailyPriceRead
+from app.modules.market_data.market_data_schemas import DailyPriceRead, MarketFreshnessRead
+from app.modules.market_data.market_data_service import MarketDataService, get_market_data_service
 from app.modules.stock_details.decision.display_metrics import build_display_metrics
 from app.modules.stock_details.decision.dividend_intelligence import build_dividend_intelligence
 from app.modules.stock_details.decision.financial_trends import build_financial_trends
@@ -50,11 +51,13 @@ class StockDetailsWorkspaceService:
         self,
         repository: StockDetailsRepository,
         decision_service: StockDetailsDecisionService,
+        market_data_service: MarketDataService,
         redis: OptionalRedisClient,
         settings: Settings,
     ) -> None:
         self.repository = repository
         self.decision_service = decision_service
+        self.market_data_service = market_data_service
         self.redis = redis
         self.settings = settings
 
@@ -70,12 +73,17 @@ class StockDetailsWorkspaceService:
         *,
         exchange: ExchangeCode,
         symbol: str,
-    ) -> tuple[str, str, StockRead]:
+    ) -> tuple[str, str, MarketFreshnessRead, StockRead]:
         stock = await self.repository.get_stock_by_exchange_symbol(exchange=exchange, symbol=symbol)
         if stock is None:
             raise NotFoundError("Stock was not found")
 
-        prices = await self.repository.list_daily_prices_window(stock_id=stock.id, limit=1)
+        freshness = await self.market_data_service.get_market_freshness(exchange=exchange)
+        prices = await self.repository.list_daily_prices_window(
+            stock_id=stock.id,
+            limit=1,
+            end_date=freshness.trade_date,
+        )
         latest_trade_date = prices[-1].trade_date.isoformat() if prices else "unknown"
         decision_session_date = await self.repository.get_latest_finalized_session_date(
             exchange=exchange
@@ -83,10 +91,15 @@ class StockDetailsWorkspaceService:
         decision_session_key = (
             decision_session_date.isoformat() if decision_session_date is not None else "none"
         )
-        return latest_trade_date, decision_session_key, StockRead.model_validate(stock)
+        return (
+            latest_trade_date,
+            decision_session_key,
+            freshness,
+            StockRead.model_validate(stock),
+        )
 
     async def get_workspace(self, *, exchange: ExchangeCode, symbol: str) -> StockWorkspaceRead:
-        latest_trade_date, decision_session_key, stock_read = (
+        latest_trade_date, decision_session_key, freshness, stock_read = (
             await self._resolve_latest_trade_date(exchange=exchange, symbol=symbol)
         )
         cache_key = stock_workspace_cache_key(
@@ -95,6 +108,7 @@ class StockDetailsWorkspaceService:
             symbol,
             latest_trade_date,
             decision_session_key,
+            freshness.market_sync_id,
         )
         cached = await self._cache_get(cache_key)
         if cached is not None:
@@ -104,7 +118,13 @@ class StockDetailsWorkspaceService:
         if stock is None:
             raise NotFoundError("Stock was not found")
 
-        prices = await self.repository.list_daily_prices_window(stock_id=stock.id)
+        # Cap every displayed price to the shared published market session.  This
+        # prevents a raw/unpublished row from leaking into Stock Details while
+        # Pulse, Dashboard and scanners still expose the prior generation.
+        prices = await self.repository.list_daily_prices_window(
+            stock_id=stock.id,
+            end_date=freshness.trade_date,
+        )
         (
             decision_support,
             metric_rows,
@@ -189,6 +209,8 @@ class StockDetailsWorkspaceService:
             valuation_context=valuation_context,
             dividend_intelligence=dividend_intelligence,
             display_metrics=display_metrics,
+            market_sync_id=freshness.market_sync_id,
+            data_state=freshness.data_state,
         )
         await self._cache_set(cache_key, payload.model_dump(mode="json"))
         return payload
@@ -293,6 +315,7 @@ class StockDetailsWorkspaceService:
             symbol,
             latest_trade_date,
             workspace.decision_support.decision_session_date.isoformat(),
+            workspace.market_sync_id,
         )
         cached = await self._cache_get(cache_key)
         if cached is not None:
@@ -317,6 +340,7 @@ class StockDetailsWorkspaceService:
             symbol,
             latest_trade_date,
             workspace.decision_support.decision_session_date.isoformat(),
+            workspace.market_sync_id,
         )
         cached = await self._cache_get(cache_key)
         if cached is not None:
@@ -336,7 +360,10 @@ class StockDetailsWorkspaceService:
 def get_stock_details_workspace_service(
     repository: Annotated[StockDetailsRepository, Depends(get_stock_details_repository)],
     decision_service: Annotated[StockDetailsDecisionService, Depends(get_stock_details_decision_service)],
+    market_data_service: Annotated[MarketDataService, Depends(get_market_data_service)],
     redis: Annotated[OptionalRedisClient, Depends(get_redis_client)],
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> StockDetailsWorkspaceService:
-    return StockDetailsWorkspaceService(repository, decision_service, redis, settings)
+    return StockDetailsWorkspaceService(
+        repository, decision_service, market_data_service, redis, settings
+    )
