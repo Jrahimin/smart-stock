@@ -35,12 +35,14 @@ async def load_dashboard_market_snapshot(
     exchange: ExchangeCode,
     summaries_limit: int = DASHBOARD_OVERVIEW_SUMMARIES_LIMIT,
     prices_limit: int = DASHBOARD_SNAPSHOT_PRICES_LIMIT,
+    session_trade_date: date | None = None,
     report: PerfReport | None = None,
 ) -> DashboardMarketSnapshot:
     perf = report or PerfReport("dashboard.snapshot.load")
 
     async with async_perf_stage(perf, "db.freshness"):
-        session_trade_date, _ = await repository.get_market_price_freshness(exchange=exchange)
+        if session_trade_date is None:
+            session_trade_date, _ = await repository.get_market_price_freshness(exchange=exchange)
 
     async with async_perf_stage(perf, "db.summaries"):
         summaries = await repository.list_daily_market_summaries(
@@ -54,6 +56,7 @@ async def load_dashboard_market_snapshot(
             exchange=exchange,
             limit=prices_limit,
             offset=0,
+            end_date=session_trade_date,
         )
 
     async with async_perf_stage(perf, "compute.snapshot_rows"):

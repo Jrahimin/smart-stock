@@ -9,7 +9,13 @@ from app.core.constants.trading_constants import (
     DECISION_TAXONOMY_VERSION,
     PULSE_SCORE_VERSION,
 )
-from app.core.enums import ExchangeCode, MarketAlertType, PulseFocusLabel, PulseScoreBand
+from app.core.enums import (
+    ExchangeCode,
+    MarketAlertType,
+    MarketDataState,
+    PulseFocusLabel,
+    PulseScoreBand,
+)
 
 
 class PulseScoreBreakdownRead(BaseModel):
@@ -174,6 +180,8 @@ class PulseCoverageRead(BaseModel):
     universe_candidate_count: int = 0
     eligible_candidate_count: int = 0
     excluded_candidate_count: int = 0
+    market_sync_id: str | None = None
+    data_state: MarketDataState = MarketDataState.STALE
 
 
 class PlaybookItemRead(BaseModel):
@@ -280,6 +288,8 @@ class MarketPulseRead(BaseModel):
     data_quality_note: str | None
     coverage: PulseCoverageRead | None = None
     last_synced_at: datetime | None = None
+    market_sync_id: str | None = None
+    data_state: MarketDataState = MarketDataState.STALE
 
 
 class MarketPulseSummaryRead(BaseModel):
@@ -293,3 +303,5 @@ class MarketPulseSummaryRead(BaseModel):
     data_quality_note: str | None
     coverage: PulseCoverageRead | None = None
     last_synced_at: datetime | None = None
+    market_sync_id: str | None = None
+    data_state: MarketDataState = MarketDataState.STALE

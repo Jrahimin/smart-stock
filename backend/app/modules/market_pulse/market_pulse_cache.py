@@ -16,16 +16,22 @@ from app.core.redis_client import OptionalRedisClient
 from app.jobs.market_session_schedule import current_cache_ttl_seconds
 from app.modules.market_pulse.market_pulse_session import is_pulse_degraded_empty_state
 
-PULSE_CACHE_REVISION = "decision-date-v1"
+PULSE_CACHE_REVISION = "market-generation-v1"
 PULSE_EMPTY_CACHE_TTL_SECONDS = 300
 PULSE_CACHE_KEY_NAMES: tuple[str, ...] = ("response", "summary")
 logger = logging.getLogger(__name__)
 
 
-def pulse_cache_key(section: str, exchange: ExchangeCode, decision_date: date | None) -> str:
+def pulse_cache_key(
+    section: str,
+    exchange: ExchangeCode,
+    decision_date: date | None,
+    market_sync_id: str | None = None,
+) -> str:
     date_token = decision_date.isoformat() if decision_date is not None else "none"
+    generation_prefix = f"{market_sync_id}:" if market_sync_id else ""
     return (
-        f"pulse:{section}:{exchange.value}:{date_token}:"
+        f"pulse:{section}:{exchange.value}:{date_token}:{generation_prefix}"
         f"{PULSE_CACHE_REVISION}:"
         f"{TRADING_STRATEGY_VERSION}:{TRADING_THRESHOLD_VERSION}:"
         f"{TRADING_INPUT_SCHEMA_VERSION}:{PULSE_SCORE_VERSION}:"

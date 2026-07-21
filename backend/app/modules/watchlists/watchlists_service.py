@@ -9,6 +9,7 @@ from app.api.dependencies.auth_dependencies import get_current_user
 from app.core.exception_handlers import NotFoundError
 from app.core.security_config import UserContext
 from app.models import UserWatchlist
+from app.modules.market_data.market_data_service import MarketDataService, get_market_data_service
 from app.modules.market_universe.market_universe_schemas import ScoredUniverseRow
 from app.modules.market_universe.market_universe_service import (
     MarketUniverseService,
@@ -56,10 +57,12 @@ class WatchlistsService:
         repository: WatchlistsRepository,
         user_context: UserContext,
         universe_service: MarketUniverseService | None = None,
+        market_data_service: MarketDataService | None = None,
     ) -> None:
         self.repository = repository
         self.user_context = user_context
         self.universe_service = universe_service
+        self.market_data_service = market_data_service
 
     def _user_id(self) -> UUID:
         return UUID(self.user_context.user_id)
@@ -165,12 +168,30 @@ class WatchlistsService:
         if not entries:
             return []
 
-        stock_ids = [entry.stock_id for entry in entries]
-        latest_prices = await self.repository.list_latest_prices_for_stocks(stock_ids)
         stocks = {
             entry.stock_id: await self.repository.get_stock(entry.stock_id)
             for entry in entries
         }
+        latest_prices = {}
+        if self.market_data_service is None:
+            latest_prices = await self.repository.list_latest_prices_for_stocks(
+                [entry.stock_id for entry in entries]
+            )
+        else:
+            # The fallback quote path (used only if the canonical universe is
+            # temporarily unavailable) follows the same publication boundary.
+            stock_ids_by_exchange: dict = {}
+            for stock in stocks.values():
+                if stock is not None:
+                    stock_ids_by_exchange.setdefault(stock.exchange, []).append(stock.id)
+            for exchange, stock_ids in stock_ids_by_exchange.items():
+                freshness = await self.market_data_service.get_market_freshness(exchange=exchange)
+                latest_prices.update(
+                    await self.repository.list_latest_prices_for_stocks(
+                        stock_ids,
+                        end_date=freshness.trade_date,
+                    )
+                )
         canonical_rows: dict[str, ScoredUniverseRow] = {}
         if self.universe_service is not None:
             exchanges = sorted(
@@ -259,5 +280,6 @@ def get_watchlists_service(
     repository: WatchlistsRepository = Depends(get_watchlists_repository),
     user_context: UserContext = Depends(get_current_user),
     universe_service: MarketUniverseService = Depends(get_market_universe_service),
+    market_data_service: MarketDataService = Depends(get_market_data_service),
 ) -> WatchlistsService:
-    return WatchlistsService(repository, user_context, universe_service)
+    return WatchlistsService(repository, user_context, universe_service, market_data_service)

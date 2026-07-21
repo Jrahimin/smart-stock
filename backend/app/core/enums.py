@@ -25,6 +25,15 @@ class MarketSessionStatus(StrEnum):
     HOLIDAY = "HOLIDAY"
 
 
+class MarketDataState(StrEnum):
+    """Publication state for the market dataset exposed to readers."""
+
+    LIVE = "LIVE"
+    FINALIZATION_PENDING = "FINALIZATION_PENDING"
+    FINALIZED = "FINALIZED"
+    STALE = "STALE"
+
+
 class DataQualityFlag(StrEnum):
     OK = "OK"
     PARTIAL = "PARTIAL"

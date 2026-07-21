@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 from app.core.core_config import Settings, get_settings
 from app.core.database_session import AsyncSessionLocal
 from app.core.enums import ExchangeCode
+from app.core.enums import MarketDataState
 from app.core.redis_client import build_redis_client
 from app.core.security_config import UserContext
 from app.jobs.ingestion.dse_market_data_source import DseMarketDataSource
@@ -101,6 +102,7 @@ async def _ingest_with_optional_fallback(
     source: MarketDataSource | None = None,
     validation_source: MarketDataSource | None = None,
     invalidate_market_cache: bool = False,
+    commit: bool = True,
 ) -> DailyPriceIngestionResult:
     primary = source or build_primary_market_data_source(settings)
     validation = (
@@ -117,9 +119,11 @@ async def _ingest_with_optional_fallback(
             source=primary,
             validation_source=validation,
             invalidate_market_cache=invalidate_market_cache,
+            commit=commit,
         )
     except BaseException as exc:
         primary_error = exc
+        await service.repository.rollback()
         result = DailyPriceIngestionResult(
             exchange=exchange,
             trade_date=trade_date,
@@ -148,6 +152,7 @@ async def _ingest_with_optional_fallback(
             source=fallback,
             validation_source=None,
             invalidate_market_cache=invalidate_market_cache,
+            commit=commit,
         )
     elif primary_error is not None:
         raise primary_error
@@ -224,11 +229,34 @@ async def sync_market_snapshot(
             settings=resolved_settings,
             validation_source=validation,
             invalidate_market_cache=False,
+            commit=False,
         )
         enrich = await service.run_snapshot_enrichment(
             exchange=exchange,
             trade_date=resolved_trade_date,
+            commit=False,
         )
+        if price_result.fetched_count > 0 and enrich.index_summary_upserted:
+            await service.publish_market_generation(
+                exchange=exchange,
+                trade_date=resolved_trade_date,
+                state=MarketDataState.LIVE,
+                source=price_result.source,
+                fetched_count=price_result.fetched_count,
+                accepted_count=price_result.created_count,
+                suspicious_count=price_result.suspicious_count,
+            )
+        else:
+            # Price rows and DSEX enrichment share this transaction.  If either
+            # side is incomplete, keep the prior published generation visible.
+            await service.repository.rollback()
+            logger.error(
+                "Market snapshot was not published: exchange=%s date=%s prices=%s dsex=%s",
+                exchange.value,
+                resolved_trade_date,
+                price_result.fetched_count,
+                enrich.index_summary_upserted,
+            )
 
     spawn_rebuild_market_read_cache(exchange, settings=resolved_settings)
 
@@ -296,11 +324,27 @@ async def run_daily_market_sync(
             resolved_trade_date,
         )
     else:
-        await _capture_market_pulse_session_snapshot(
-            exchange=exchange,
-            trade_date=resolved_trade_date,
-            settings=resolved_settings,
-        )
+        try:
+            async with AsyncSessionLocal() as session:
+                service = _build_service(session)
+                await service.publish_finalized_market_generation(
+                    exchange=exchange,
+                    trade_date=resolved_trade_date,
+                )
+        except Exception:
+            # Finalization is the durable market truth.  A generation manifest
+            # failure must be visible and retryable, but must never undo it.
+            logger.exception(
+                "Market session finalized but its publication manifest failed: exchange=%s date=%s",
+                exchange.value,
+                resolved_trade_date,
+            )
+        else:
+            await _capture_market_pulse_session_snapshot(
+                exchange=exchange,
+                trade_date=resolved_trade_date,
+                settings=resolved_settings,
+            )
 
     spawn_rebuild_market_read_cache(exchange, settings=resolved_settings)
 

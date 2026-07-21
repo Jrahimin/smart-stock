@@ -22,14 +22,18 @@ export function PulseSsrHydrationGuard({ initialCore }: PulseSsrHydrationGuardPr
 
   useEffect(() => {
     if (
-      !shouldInvalidatePulseSsrSeed(initialCore, freshness?.last_synced_at, hasInvalidatedRef.current)
+      !shouldInvalidatePulseSsrSeed(
+        initialCore,
+        freshness?.market_sync_id ?? freshness?.last_synced_at,
+        hasInvalidatedRef.current,
+      )
     ) {
       return;
     }
 
     hasInvalidatedRef.current = true;
     void syncMarketClientCachesOnBackendUpdate(queryClient);
-  }, [freshness?.last_synced_at, initialCore, queryClient]);
+  }, [freshness?.market_sync_id, freshness?.last_synced_at, initialCore, queryClient]);
 
   return null;
 }

@@ -5,7 +5,13 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.core.enums import DataQualityFlag, ExchangeCode, MarketSessionStatus, TurnoverProvenance
+from app.core.enums import (
+    DataQualityFlag,
+    ExchangeCode,
+    MarketDataState,
+    MarketSessionStatus,
+    TurnoverProvenance,
+)
 from app.modules.stock_details.stock_details_schemas import TraderDecisionSummaryRead
 from app.modules.stocks.stocks_schemas import StockRead
 
@@ -167,6 +173,9 @@ class MarketFreshnessRead(BaseModel):
     exchange: ExchangeCode
     trade_date: date | None
     last_synced_at: datetime | None
+    market_sync_id: str | None = None
+    data_state: MarketDataState = MarketDataState.STALE
+    published_at: datetime | None = None
     decision_session_date: date | None = None
     live_data_as_of: datetime | None = None
     is_live_session: bool = False

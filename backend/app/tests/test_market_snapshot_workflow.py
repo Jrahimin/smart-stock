@@ -33,6 +33,7 @@ async def test_sync_market_snapshot_runs_snapshot_enrichment_not_news(monkeypatc
     mock_service.ingest_daily_prices = AsyncMock(return_value=price_result)
     mock_service.run_snapshot_enrichment = AsyncMock(return_value=enrich_stats)
     mock_service.run_daily_news_sync = AsyncMock()
+    mock_service.publish_market_generation = AsyncMock(return_value="generation-1")
 
     mock_session = MagicMock()
     mock_session_cm = MagicMock()
@@ -77,6 +78,7 @@ async def test_sync_market_snapshot_spawns_rebuild_without_awaiting(monkeypatch:
     mock_service = MagicMock()
     mock_service.ingest_daily_prices = AsyncMock(return_value=price_result)
     mock_service.run_snapshot_enrichment = AsyncMock(return_value=enrich_stats)
+    mock_service.publish_market_generation = AsyncMock(return_value="generation-1")
 
     mock_session = MagicMock()
     mock_session_cm = MagicMock()
@@ -120,6 +122,7 @@ async def test_run_daily_market_sync_runs_news_not_snapshot_enrichment(monkeypat
     mock_service.run_daily_news_sync = AsyncMock(return_value=enrich_stats)
     mock_service.run_snapshot_enrichment = AsyncMock()
     mock_service.finalize_market_session = AsyncMock(return_value=True)
+    mock_service.publish_finalized_market_generation = AsyncMock(return_value="generation-1")
 
     mock_session = MagicMock()
     mock_session_cm = MagicMock()

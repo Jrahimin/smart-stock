@@ -93,6 +93,7 @@ export function useMarketPulse(options?: {
   const staleTime = getMarketStaleTimeMs(freshnessQuery.data);
   const refetchInterval = getMarketRefetchIntervalMs(freshnessQuery.data);
   const freshnessLastSyncedAt = freshnessQuery.data?.last_synced_at ?? null;
+  const freshnessGeneration = freshnessQuery.data?.market_sync_id ?? freshnessLastSyncedAt;
 
   const [storedSnapshot] = useState(readMarketPulseSnapshot);
   const previousSnapshot = useMemo(() => toApiPreviousSnapshot(storedSnapshot), [storedSnapshot]);
@@ -135,7 +136,7 @@ export function useMarketPulse(options?: {
     initialCore,
     anonymousSummaryQuery,
     personalizedSummaryQuery,
-    freshnessLastSyncedAt,
+    freshnessGeneration,
   );
 
   const anonymousBriefingQuery = useQuery({
@@ -202,7 +203,7 @@ export function useMarketPulse(options?: {
     resolvedSummary,
     anonymousSummaryQuery,
     personalizedSummaryQuery,
-    freshnessLastSyncedAt,
+    freshnessGeneration,
   );
 
   useEffect(() => {
@@ -214,7 +215,7 @@ export function useMarketPulse(options?: {
         anonymousSummary,
         personalizedSummaryQuerySuccess: personalizedSummaryQuery.isSuccess,
         personalizedSummary,
-        lastSyncedAt,
+        lastSyncedAt: freshnessGeneration,
         resolvedSummary,
       })
     ) {
@@ -235,6 +236,8 @@ export function useMarketPulse(options?: {
     anonymousSummary,
     resolvedBriefing,
     freshnessQuery.data?.last_synced_at,
+    freshnessQuery.data?.market_sync_id,
+    freshnessGeneration,
     hasPersonalizationInputs,
     personalizedSummary,
     personalizedSummaryQuery.isSuccess,
