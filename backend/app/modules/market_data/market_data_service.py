@@ -743,6 +743,19 @@ class MarketDataService:
             freshness_label=build_freshness_label(settings, status),
         )
 
+    async def list_recent_finalized_session_dates(
+        self,
+        *,
+        exchange: ExchangeCode,
+        end_date: date,
+        limit: int,
+    ) -> list[date]:
+        return await self.repository.list_recent_finalized_session_dates(
+            exchange=exchange,
+            end_date=end_date,
+            limit=limit,
+        )
+
     async def finalize_market_session(
         self,
         *,

@@ -62,7 +62,9 @@ market_pulse_router
 - Rebuild technical snapshots
 - Call `list_market_price_windows`
 
-Opportunity history is intentionally empty until comparable point-in-time Pulse snapshots exist. Historical points must use the same formula, candidate population, and strategy version before the API can publish a trend.
+Opportunity history is persisted once per qualified, finalized exchange session. It contains up to five contiguous comparable session points (oldest to current), including the current score only when its eligible-population fingerprint matches the stored aggregate. A missing or insufficient session breaks the series rather than borrowing an older value. `previous_session` and `trend_label` need two points; `weekly_average` needs five.
+
+Snapshots are created only after daily DSEX finalization, never by Pulse HTTP requests or intraday refreshes. They are keyed by exchange, session date, Pulse score, strategy, threshold, input-schema, and decision-taxonomy versions; they also retain candidate counts, an eligible-population fingerprint, source generation, and universe payload revision for audit. A version change starts a new visible series.
 
 The compatibility `money_flow.inflows` / `money_flow.outflows` arrays contain only observed positive/negative **average sector price changes** and declare `semantics=SECTOR_PRICE_CHANGE`. They are rendered as sector price leaders/laggards. Missing positive or negative sides remain empty; the backend never fabricates fallback signs. Institutional participation, accumulation, capital flow, and sector-rotation claims are not inferred from daily OHLCV.
 
@@ -178,7 +180,7 @@ Component layers:
 
 ## Future evolution
 
-- Persist pulse snapshots per refresh cycle server-side
+- Persisted finalized-session Pulse history (implemented); do not add refresh-cycle points to this daily series
 - Reuse Pulse Score in Scanner, Watchlist, and Stock Details from the same backend module
 - Watchlist-aware personalization
 - AI-generated narrative summaries on top of deterministic evidence

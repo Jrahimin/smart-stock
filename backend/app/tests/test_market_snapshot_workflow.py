@@ -138,6 +138,11 @@ async def test_run_daily_market_sync_runs_news_not_snapshot_enrichment(monkeypat
         "app.jobs.ingestion.ingest_daily_market_prices.sync_market_snapshot",
         AsyncMock(),
     )
+    capture_mock = AsyncMock()
+    monkeypatch.setattr(
+        "app.jobs.ingestion.ingest_daily_market_prices._capture_market_pulse_session_snapshot",
+        capture_mock,
+    )
 
     result = await run_daily_market_sync(
         date(2026, 6, 11),
@@ -154,6 +159,7 @@ async def test_run_daily_market_sync_runs_news_not_snapshot_enrichment(monkeypat
         exchange=ExchangeCode.DSE,
         trade_date=date(2026, 6, 11),
     )
+    capture_mock.assert_awaited_once()
 
 
 @pytest.mark.asyncio

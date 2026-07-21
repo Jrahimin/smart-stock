@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 from app.core.core_config import Settings, get_settings
 from app.core.database_session import AsyncSessionLocal
 from app.core.enums import ExchangeCode
+from app.core.redis_client import build_redis_client
 from app.core.security_config import UserContext
 from app.jobs.ingestion.dse_market_data_source import DseMarketDataSource
 from app.jobs.ingestion.ingestion_source_base import MarketDataSource
@@ -27,6 +28,11 @@ from app.modules.market_data.market_data_schemas import (
     MarketSnapshotSyncResult,
 )
 from app.modules.market_data.market_data_service import MarketDataService
+from app.modules.market_pulse.market_pulse_snapshot_repository import MarketPulseSnapshotRepository
+from app.modules.market_pulse.market_pulse_snapshot_service import MarketPulseSnapshotService
+from app.modules.market_universe.market_universe_service import MarketUniverseService
+from app.modules.stocks.stocks_repository import StocksRepository
+from app.modules.trading_intelligence.decision_snapshot_repository import DecisionSnapshotRepository
 
 logger = logging.getLogger(__name__)
 DHAKA_TIMEZONE = ZoneInfo("Asia/Dhaka")
@@ -42,6 +48,48 @@ def _build_service(session) -> MarketDataService:
             roles=["system"],
         ),
     )
+
+
+async def _capture_market_pulse_session_snapshot(
+    *,
+    exchange: ExchangeCode,
+    trade_date: date,
+    settings: Settings,
+) -> None:
+    """Capture after finalization in an isolated transaction; failures never undo finality."""
+
+    try:
+        async with AsyncSessionLocal() as session:
+            redis = build_redis_client(settings)
+            universe_service = MarketUniverseService(
+                market_repository=MarketDataRepository(session),
+                stocks_repository=StocksRepository(session),
+                redis=redis,
+                settings=settings,
+                decision_snapshot_repository=DecisionSnapshotRepository(session),
+            )
+            capture_service = MarketPulseSnapshotService(
+                universe_service=universe_service,
+                snapshot_repository=MarketPulseSnapshotRepository(session),
+                redis=redis,
+            )
+            result = await capture_service.capture_finalized_session(
+                exchange=exchange,
+                session_date=trade_date,
+            )
+            logger.info(
+                "Market Pulse session snapshot %s for %s %s (eligible=%s)",
+                result.status,
+                exchange.value,
+                trade_date,
+                result.eligible_candidate_count,
+            )
+    except Exception:
+        logger.exception(
+            "Market Pulse session snapshot failed after finalization: exchange=%s trade_date=%s",
+            exchange.value,
+            trade_date,
+        )
 
 
 async def _ingest_with_optional_fallback(
@@ -246,6 +294,12 @@ async def run_daily_market_sync(
             "exchange=%s trade_date=%s",
             exchange.value,
             resolved_trade_date,
+        )
+    else:
+        await _capture_market_pulse_session_snapshot(
+            exchange=exchange,
+            trade_date=resolved_trade_date,
+            settings=resolved_settings,
         )
 
     spawn_rebuild_market_read_cache(exchange, settings=resolved_settings)

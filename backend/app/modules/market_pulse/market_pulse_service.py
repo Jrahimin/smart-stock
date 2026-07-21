@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Annotated
@@ -19,6 +20,9 @@ from app.core.constants.trading_constants import (
     PULSE_SCORE_JUMP_THRESHOLD,
     PULSE_SCORE_MONITOR_THRESHOLD,
     PULSE_SCORE_VERSION,
+    TRADING_INPUT_SCHEMA_VERSION,
+    TRADING_STRATEGY_VERSION,
+    TRADING_THRESHOLD_VERSION,
     VOLUME_EXPANSION_RATIO,
 )
 from app.core.core_config import Settings, get_settings
@@ -39,6 +43,15 @@ from app.modules.market_pulse.market_pulse_cache import (
     pulse_cache_ttl_seconds,
 )
 from app.modules.market_pulse.market_pulse_session import resolve_pulse_decision_date
+from app.modules.market_pulse.market_pulse_history import (
+    compute_pulse_opportunity_aggregate,
+    pulse_history_trend_label,
+)
+from app.modules.market_pulse.market_pulse_snapshot_repository import (
+    MarketPulseSnapshotRepository,
+    PulseSnapshotIdentity,
+    get_market_pulse_snapshot_repository,
+)
 from app.modules.market_data.market_mover_rules import is_eligible_session_mover
 from app.modules.market_pulse.market_pulse_briefing import PulseBriefingRow, build_market_briefing
 from app.modules.market_pulse.market_pulse_schemas import (
@@ -51,6 +64,7 @@ from app.modules.market_pulse.market_pulse_schemas import (
     MarketPulsePreviousSnapshot,
     MarketPulseRead,
     MarketPulseSummaryRead,
+    OpportunityScoreRead,
     PulseChangeRead,
     PulseCoverageRead,
     PulseScoreBreakdownRead,
@@ -76,6 +90,7 @@ from app.modules.stock_details.decision.technical import TechnicalSnapshot
 from app.modules.stock_details.stock_details_schemas import TraderDecisionSummaryRead
 
 DHAKA = ZoneInfo("Asia/Dhaka")
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -378,11 +393,83 @@ class MarketPulseService:
         universe_service: MarketUniverseService,
         redis: OptionalRedisClient,
         settings: Settings,
+        snapshot_repository: MarketPulseSnapshotRepository | None = None,
     ) -> None:
         self.market_data_service = market_data_service
         self.universe_service = universe_service
         self.redis = redis
         self.settings = settings
+        self.snapshot_repository = snapshot_repository
+
+    @staticmethod
+    def _opportunity_label(score: int) -> str:
+        if score >= 68:
+            return "Broad Attention Environment"
+        if score >= 55:
+            return "Selective Attention Environment"
+        return "Limited Attention Environment"
+
+    async def _resolve_opportunity_score(
+        self,
+        *,
+        exchange: ExchangeCode,
+        decision_date: date | None,
+        briefing_rows: list[PulseBriefingRow],
+    ) -> OpportunityScoreRead:
+        aggregate = compute_pulse_opportunity_aggregate(briefing_rows)
+        result = OpportunityScoreRead(
+            score=aggregate.score,
+            label=self._opportunity_label(aggregate.score),
+        )
+        if self.snapshot_repository is None or decision_date is None:
+            return result
+
+        identity = PulseSnapshotIdentity(
+            exchange=exchange,
+            pulse_score_version=PULSE_SCORE_VERSION,
+            strategy_version=TRADING_STRATEGY_VERSION,
+            threshold_version=TRADING_THRESHOLD_VERSION,
+            input_schema_version=TRADING_INPUT_SCHEMA_VERSION,
+            decision_taxonomy_version=DECISION_TAXONOMY_VERSION,
+        )
+        finalized_dates = await self.market_data_service.list_recent_finalized_session_dates(
+            exchange=exchange,
+            end_date=decision_date,
+            limit=5,
+        )
+        snapshots = await self.snapshot_repository.list_for_sessions(
+            identity=identity,
+            session_dates=finalized_dates,
+        )
+        snapshots_by_date = {snapshot.session_date: snapshot for snapshot in snapshots}
+        current_snapshot = snapshots_by_date.get(decision_date)
+        if (
+            current_snapshot is None
+            or current_snapshot.eligible_population_fingerprint
+            != aggregate.eligible_population_fingerprint
+        ):
+            if current_snapshot is not None:
+                logger.warning(
+                    "Pulse history lineage mismatch for %s %s; hiding non-comparable history",
+                    exchange.value,
+                    decision_date,
+                )
+            return result
+
+        contiguous_desc = []
+        for session_date in finalized_dates:
+            snapshot = snapshots_by_date.get(session_date)
+            if snapshot is None:
+                break
+            contiguous_desc.append(snapshot)
+        history = [snapshot.opportunity_score for snapshot in reversed(contiguous_desc)]
+        result.history = history
+        if len(history) >= 2:
+            result.previous_session = history[-2]
+            result.trend_label = pulse_history_trend_label(history[-1], history[-2])
+        if len(history) == 5:
+            result.weekly_average = int(round(sum(history) / len(history)))
+        return result
 
     async def _cache_get(self, cache_key: str) -> dict | None:
         return await self.redis.get_json(cache_key)
@@ -658,11 +745,17 @@ class MarketPulseService:
             )
             for row in scored_rows
         ]
+        opportunity_score = await self._resolve_opportunity_score(
+            exchange=exchange,
+            decision_date=decision_date,
+            briefing_rows=briefing_rows,
+        )
         briefing = build_market_briefing(
             briefing_rows,
             focus_reads,
             monitor_reads,
             alerts,
+            opportunity_score=opportunity_score,
             market_summaries=summaries,
             format_number=_format_number,
             format_percent=_format_percent,
@@ -1068,8 +1161,17 @@ def get_market_pulse_service(
     universe_service: Annotated[MarketUniverseService, Depends(get_market_universe_service)],
     redis: Annotated[OptionalRedisClient, Depends(get_redis_client)],
     settings: Annotated[Settings, Depends(get_settings)],
+    snapshot_repository: Annotated[
+        MarketPulseSnapshotRepository, Depends(get_market_pulse_snapshot_repository)
+    ],
 ) -> MarketPulseService:
-    return MarketPulseService(market_data_service, universe_service, redis, settings)
+    return MarketPulseService(
+        market_data_service,
+        universe_service,
+        redis,
+        settings,
+        snapshot_repository=snapshot_repository,
+    )
 
 
 def parse_previous_snapshot(raw: str | None) -> MarketPulsePreviousSnapshot | None:

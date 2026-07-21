@@ -746,7 +746,7 @@ Return the curated Market Pulse briefing: hero attention summary, focus stocks, 
 **Notes**
 
 * Focus labels: `Potential Buy Setup`, `Momentum Building`, `Volume Breakout`, `Watch Closely`, `Signal Upgrade`. `New BUY Setup` is accepted only as a legacy value.
-* `briefing.opportunity_score.history`, `previous_session`, `weekly_average`, and `trend_label` remain empty/null until comparable point-in-time Pulse snapshots exist.
+* `briefing.opportunity_score.history` contains up to five contiguous, finalized comparable session scores in oldest-to-current order. `previous_session` and `trend_label` require two points; `weekly_average` requires five. These fields remain empty/null until matching server-side snapshots are available.
 * `briefing.money_flow` retains its compatibility field names, declares `semantics: "SECTOR_PRICE_CHANGE"`, and contains observed sector price leaders/laggards only. A missing positive or negative side is returned as an empty array.
 * See `backend/docs/market_pulse.md` for Pulse Score methodology and module architecture.
 

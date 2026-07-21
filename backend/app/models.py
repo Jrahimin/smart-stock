@@ -879,6 +879,61 @@ class CanonicalDecisionSnapshot(UUIDPrimaryKeyMixin, Base):
     stock = relationship("Stock", back_populates="canonical_decision_snapshots")
 
 
+class MarketPulseSessionSnapshot(UUIDPrimaryKeyMixin, Base):
+    """Immutable aggregate Pulse Score observation for one finalized session."""
+
+    __tablename__ = "market_pulse_session_snapshots"
+    __table_args__ = (
+        CheckConstraint("opportunity_score >= 0 AND opportunity_score <= 100", name="score_range"),
+        CheckConstraint("universe_candidate_count >= 0", name="universe_count_non_negative"),
+        CheckConstraint("eligible_candidate_count >= 0", name="eligible_count_non_negative"),
+        CheckConstraint("excluded_candidate_count >= 0", name="excluded_count_non_negative"),
+        UniqueConstraint(
+            "exchange",
+            "session_date",
+            "pulse_score_version",
+            "strategy_version",
+            "threshold_version",
+            "input_schema_version",
+            "decision_taxonomy_version",
+            name="uq_market_pulse_session_snapshot_identity",
+        ),
+        Index(
+            "ix_market_pulse_session_snapshot_history",
+            "exchange",
+            "pulse_score_version",
+            "strategy_version",
+            "threshold_version",
+            "input_schema_version",
+            "decision_taxonomy_version",
+            "session_date",
+        ),
+        Index(
+            "ix_market_pulse_session_snapshot_session",
+            "exchange",
+            "session_date",
+        ),
+    )
+
+    exchange: Mapped[ExchangeCode] = mapped_column(Enum(ExchangeCode), nullable=False)
+    session_date: Mapped[date] = mapped_column(Date, nullable=False)
+    captured_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    pulse_score_version: Mapped[str] = mapped_column(String(80), nullable=False)
+    strategy_version: Mapped[str] = mapped_column(String(80), nullable=False)
+    threshold_version: Mapped[str] = mapped_column(String(80), nullable=False)
+    input_schema_version: Mapped[str] = mapped_column(String(80), nullable=False)
+    decision_taxonomy_version: Mapped[str] = mapped_column(String(80), nullable=False)
+    opportunity_score: Mapped[int] = mapped_column(Integer, nullable=False)
+    universe_candidate_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    eligible_candidate_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    excluded_candidate_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    eligible_population_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_last_synced_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    universe_payload_revision: Mapped[str] = mapped_column(String(64), nullable=False)
+
+
 class MoneySnapshot(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "money_snapshots"
     __table_args__ = (
