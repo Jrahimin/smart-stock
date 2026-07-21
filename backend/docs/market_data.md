@@ -79,6 +79,10 @@ Factory: `market_data_source_factory.build_primary_market_data_source()`.
 
 Skip rows where `close <= 0`. `Value` turnover: unsuffixed = millions BDT; `K`/`M` suffixes supported.
 
+### No-trade / zero-price policy
+
+Source rows with zero in any OHLC field are retained when already persisted for audit and source reconciliation, but are treated as **non-tradable placeholders**. They are omitted from the detail chart, latest-price display, and all OHLC-derived calculations (returns, moving averages, RSI, ATR, volatility, levels, and patterns). The detail chart spaces supplied tradable sessions by observation order, so missing no-trade dates do not create calendar gaps. A valid positive OHLC row with zero volume remains a real session observation; it stays in the price series but is handled separately by liquidity and eligibility rules.
+
 `daily_prices.turnover_provenance` records `REPORTED`, `ESTIMATED`, `MIXED`, or
 `UNKNOWN`. Snapshot/archive values supplied by the source are reported; the
 per-stock historical fallback `close × volume` is estimated. Migration backfill

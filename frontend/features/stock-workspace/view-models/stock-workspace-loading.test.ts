@@ -11,6 +11,21 @@ import type { BackendDailyPriceDto, BackendStockDto } from "@/lib/api/backend-ap
 import type { StockDecisionSupportDto } from "@/lib/api/stock-decision-support-types";
 
 describe("stock workspace loading state", () => {
+  it("omits a zero-price no-trade row from chart candles without using it as the latest price", () => {
+    const stock = { symbol: "DHAKABANK", name: "Dhaka Bank", exchange: "DSE" } as BackendStockDto;
+    const prices = [
+      { trade_date: "2026-05-17", close_price: 20, open_price: 19.8, high_price: 20.2, low_price: 19.7, volume: 1000 },
+      { trade_date: "2026-05-18", close_price: 0, open_price: 0, high_price: 0, low_price: 0, volume: 0 },
+      { trade_date: "2026-05-21", close_price: 20.5, open_price: 20, high_price: 20.6, low_price: 19.9, volume: 1100 },
+    ] as BackendDailyPriceDto[];
+
+    const model = buildStockWorkspaceModel(stock, prices);
+
+    expect(model.intelligence?.candles.map((candle) => candle.time)).toEqual(["2026-05-17", "2026-05-21"]);
+    expect(model.intelligence?.volumeBars.map((bar) => bar.time)).toEqual(["2026-05-17", "2026-05-21"]);
+    expect(model.intelligence?.latestPrice).toBe(20.5);
+  });
+
   it("never renders not-found copy while loading", () => {
     const loadingModel = buildEmptyStockWorkspaceModel({
       symbol: "EGEN",

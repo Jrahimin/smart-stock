@@ -5,6 +5,7 @@ from typing import Annotated
 
 from fastapi import Depends
 
+from app.core.constants.trading_constants import DECISION_OHLCV_WINDOW
 from app.core.core_config import Settings, get_settings
 from app.core.enums import ExchangeCode
 from app.core.exception_handlers import NotFoundError
@@ -20,6 +21,7 @@ from app.modules.stock_details.decision.fundamentals_snapshot import (
     FUNDAMENTALS_SNAPSHOT_QUERY_METRIC_CODES,
     build_fundamentals_snapshot,
 )
+from app.modules.stock_details.decision.technical import select_valid_ohlc_rows
 from app.modules.stock_details.decision.valuation_context import build_valuation_context
 from app.modules.stock_details.stock_details_cache import stock_workspace_cache_key
 from app.modules.stock_details.stock_details_decision_service import (
@@ -81,9 +83,10 @@ class StockDetailsWorkspaceService:
         freshness = await self.market_data_service.get_market_freshness(exchange=exchange)
         prices = await self.repository.list_daily_prices_window(
             stock_id=stock.id,
-            limit=1,
+            limit=DECISION_OHLCV_WINDOW,
             end_date=freshness.trade_date,
         )
+        prices = select_valid_ohlc_rows(prices)
         latest_trade_date = prices[-1].trade_date.isoformat() if prices else "unknown"
         decision_session_date = await self.repository.get_latest_finalized_session_date(
             exchange=exchange
@@ -121,10 +124,14 @@ class StockDetailsWorkspaceService:
         # Cap every displayed price to the shared published market session.  This
         # prevents a raw/unpublished row from leaking into Stock Details while
         # Pulse, Dashboard and scanners still expose the prior generation.
-        prices = await self.repository.list_daily_prices_window(
+        raw_prices = await self.repository.list_daily_prices_window(
             stock_id=stock.id,
             end_date=freshness.trade_date,
         )
+        # Retain source rows in the workspace payload so the chart can show a
+        # flat, zero-volume no-trade session at the correct date.  Use only
+        # tradable rows for every displayed/calculated price metric.
+        tradable_prices = select_valid_ohlc_rows(raw_prices)
         (
             decision_support,
             metric_rows,
@@ -192,7 +199,7 @@ class StockDetailsWorkspaceService:
         )
 
         display_metrics = self._build_display_metrics(
-            prices=prices,
+            prices=tradable_prices,
             latest_trade_date=latest_trade_date,
             decision_support=decision_support,
             fundamentals_snapshot=fundamentals_snapshot,
@@ -201,7 +208,7 @@ class StockDetailsWorkspaceService:
 
         payload = StockWorkspaceRead(
             stock=stock_read,
-            prices=[DailyPriceRead.model_validate(price) for price in prices],
+            prices=[DailyPriceRead.model_validate(price) for price in raw_prices],
             latest_trade_date=latest_trade_date,
             decision_support=decision_support,
             fundamentals_snapshot=fundamentals_snapshot,

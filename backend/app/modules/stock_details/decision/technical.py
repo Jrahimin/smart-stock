@@ -127,7 +127,10 @@ def is_valid_ohlc_row(price: DailyPrice) -> bool:
     if None in {open_price, high, low, close}:
         return False
     assert open_price is not None and high is not None and low is not None and close is not None
-    if min(open_price, high, low, close) < 0 or close <= 0:
+    # A zero in any OHLC field is a source placeholder for a no-trade /
+    # unavailable observation, not a tradable price.  Keeping it in storage is
+    # useful for source auditing, but it must not enter an analytical series.
+    if min(open_price, high, low, close) <= 0:
         return False
     return high >= max(open_price, low, close) and low <= min(open_price, high, close)
 

@@ -25,6 +25,7 @@ from app.modules.stock_details.decision.technical import (
     calculate_ema,
     calculate_rsi,
     calculate_sma,
+    is_valid_ohlc_row,
 )
 
 
@@ -151,6 +152,22 @@ def test_out_of_order_input_and_malformed_ohlc_row_are_handled_atomically() -> N
     assert actual.latest_price == expected.latest_price
     assert actual.rsi == pytest.approx(expected.rsi)
     assert actual.atr14 == pytest.approx(expected.atr14)
+
+
+@pytest.mark.parametrize("field_name", ["open_price", "high_price", "low_price", "close_price"])
+def test_zero_ohlc_is_a_non_tradable_placeholder(field_name: str) -> None:
+    row = _price(date(2026, 5, 18), 100)
+    setattr(row, field_name, Decimal("0"))
+
+    assert is_valid_ohlc_row(row) is False
+
+    valid_prices = _prices()
+    expected = build_technical_snapshot(valid_prices)
+    actual = build_technical_snapshot([*valid_prices[:30], row, *valid_prices[30:]])
+
+    assert expected is not None and actual is not None
+    assert actual.invalid_ohlcv_row_count == 1
+    assert actual.rsi == pytest.approx(expected.rsi)
 
 
 def test_robust_volume_baseline_ignores_one_block_outlier() -> None:

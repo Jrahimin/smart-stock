@@ -14,6 +14,26 @@ function sortPricesAscending(prices: BackendDailyPriceDto[]) {
   return [...prices].sort((a, b) => a.trade_date.localeCompare(b.trade_date));
 }
 
+function isTradableOhlc(price: BackendDailyPriceDto) {
+  const open = toNumber(price.open_price);
+  const high = toNumber(price.high_price);
+  const low = toNumber(price.low_price);
+  const close = toNumber(price.close_price);
+
+  return (
+    open !== null &&
+    high !== null &&
+    low !== null &&
+    close !== null &&
+    open > 0 &&
+    high > 0 &&
+    low > 0 &&
+    close > 0 &&
+    high >= Math.max(open, low, close) &&
+    low <= Math.min(open, high, close)
+  );
+}
+
 function average(values: number[]) {
   if (values.length === 0) {
     return null;
@@ -23,39 +43,40 @@ function average(values: number[]) {
 }
 
 function buildCandles(prices: BackendDailyPriceDto[]): ChartCandleModel[] {
-  return sortPricesAscending(prices)
-    .map((price) => {
-      const open = toNumber(price.open_price);
-      const high = toNumber(price.high_price);
-      const low = toNumber(price.low_price);
-      const close = toNumber(price.close_price);
+  return sortPricesAscending(prices).flatMap((price) => {
+    if (!isTradableOhlc(price)) {
+      return [];
+    }
 
-      if (open === null || high === null || low === null || close === null) {
-        return null;
-      }
+    const open = toNumber(price.open_price);
+    const high = toNumber(price.high_price);
+    const low = toNumber(price.low_price);
+    const close = toNumber(price.close_price);
+    if (open === null || high === null || low === null || close === null) {
+      return [];
+    }
 
-      return {
-        time: price.trade_date,
-        open,
-        high,
-        low,
-        close,
-      };
-    })
-    .filter((price): price is ChartCandleModel => price !== null);
+    return [{ time: price.trade_date, open, high, low, close }];
+  });
 }
 
 function buildVolumeBars(prices: BackendDailyPriceDto[]): VolumeBarModel[] {
-  return sortPricesAscending(prices).map((price) => {
+  return sortPricesAscending(prices).flatMap((price) => {
+    if (!isTradableOhlc(price)) {
+      return [];
+    }
+
     const close = toNumber(price.close_price);
     const previousClose = toNumber(price.previous_close_price);
     const tone = close !== null && previousClose !== null ? (close > previousClose ? "positive" : close < previousClose ? "negative" : "neutral") : "neutral";
 
-    return {
-      time: price.trade_date,
-      value: price.volume,
-      tone,
-    };
+    return [
+      {
+        time: price.trade_date,
+        value: price.volume,
+        tone,
+      },
+    ];
   });
 }
 
@@ -120,7 +141,9 @@ export function buildChartStockIntelligence(
   stock: BackendStockDto,
   prices: BackendDailyPriceDto[],
 ): StockIntelligenceModel | null {
-  const sortedPrices = sortPricesAscending(prices);
+  // Match the backend analytical policy: zero-price placeholders are no-trade
+  // observations, so they are omitted rather than plotted or used as latest.
+  const sortedPrices = sortPricesAscending(prices).filter(isTradableOhlc);
   const latest = sortedPrices.at(-1);
 
   if (!latest) {

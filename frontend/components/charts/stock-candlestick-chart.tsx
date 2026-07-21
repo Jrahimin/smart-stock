@@ -1,6 +1,14 @@
 "use client";
 
-import { CandlestickSeries, createChart, createSeriesMarkers, HistogramSeries, LineSeries, LineStyle } from "lightweight-charts";
+import {
+  CandlestickSeries,
+  createChart,
+  createSeriesMarkers,
+  HistogramSeries,
+  LineSeries,
+  LineStyle,
+  type Time,
+} from "lightweight-charts";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { PatternDetailModal } from "@/features/stock-workspace/components/pattern-detail-modal";
@@ -58,6 +66,27 @@ export function StockCandlestickChart({
     () => buildChartEventMarkers(chartData.candles, chartData.volumeBars, support ?? null, resistance ?? null),
     [chartData.candles, chartData.volumeBars, resistance, support],
   );
+  // Use the observation index horizontally, like exchange charting tools do.
+  // String dates make Lightweight Charts reserve elapsed calendar days, which
+  // produces false gaps for a sparse/no-trade stock.
+  const displayData = useMemo(() => {
+    const timeByTradeDate = new Map(chartData.candles.map((candle, index) => [candle.time, index as Time]));
+    return {
+      candles: chartData.candles.map((candle, index) => ({ ...candle, time: index as Time })),
+      volumeBars: chartData.volumeBars.flatMap((bar) => {
+        const time = timeByTradeDate.get(bar.time);
+        return time === undefined ? [] : [{ ...bar, time }];
+      }),
+      smaLine: smaLine.flatMap((point) => {
+        const time = timeByTradeDate.get(point.time);
+        return time === undefined ? [] : [{ ...point, time }];
+      }),
+      eventMarkers: eventMarkers.flatMap((marker) => {
+        const time = timeByTradeDate.get(marker.time);
+        return time === undefined ? [] : [{ ...marker, time }];
+      }),
+    };
+  }, [chartData.candles, chartData.volumeBars, eventMarkers, smaLine]);
   const visiblePatterns = patterns.slice(0, 2);
   const selectedPattern = selectedPatternIndex !== null ? visiblePatterns[selectedPatternIndex] ?? null : null;
 
@@ -74,16 +103,16 @@ export function StockCandlestickChart({
       chartRef.current &&
       candleSeriesRef.current &&
       volumeSeriesRef.current &&
-      chartData.candles.length >= previousCandleCountRef.current &&
+      displayData.candles.length >= previousCandleCountRef.current &&
       previousCandleCountRef.current > 0;
 
-    if (canIncrementallyUpdate && chartData.candles.length === previousCandleCountRef.current) {
+    if (canIncrementallyUpdate && displayData.candles.length === previousCandleCountRef.current) {
       return;
     }
 
-    if (canIncrementallyUpdate && chartData.candles.length > previousCandleCountRef.current) {
-      const newCandles = chartData.candles.slice(previousCandleCountRef.current);
-      const newVolume = chartData.volumeBars.slice(previousCandleCountRef.current);
+    if (canIncrementallyUpdate && displayData.candles.length > previousCandleCountRef.current) {
+      const newCandles = displayData.candles.slice(previousCandleCountRef.current);
+      const newVolume = displayData.volumeBars.slice(previousCandleCountRef.current);
       for (const candle of newCandles) {
         candleSeriesRef.current?.update(candle);
       }
@@ -99,7 +128,7 @@ export function StockCandlestickChart({
                 : "rgba(174, 181, 197, 0.26)",
         });
       }
-      previousCandleCountRef.current = chartData.candles.length;
+      previousCandleCountRef.current = displayData.candles.length;
       chartRef.current?.timeScale().fitContent();
       return;
     }
@@ -125,6 +154,8 @@ export function StockCandlestickChart({
       timeScale: {
         borderColor,
         timeVisible: true,
+        tickMarkFormatter: (time: Time) =>
+          typeof time === "number" ? chartData.candles[time]?.time ?? "" : "",
       },
     });
 
@@ -135,7 +166,7 @@ export function StockCandlestickChart({
       wickUpColor: "#4bd6a4",
       wickDownColor: "#ff7777",
     });
-    candleSeries.setData(chartData.candles);
+    candleSeries.setData(displayData.candles);
 
     if (overlaysEnabled) {
       if (support !== null && support !== undefined) {
@@ -178,11 +209,11 @@ export function StockCandlestickChart({
           lineWidth: 1,
           priceLineVisible: false,
         });
-        smaSeries.setData(smaLine);
+        smaSeries.setData(displayData.smaLine);
       }
 
-      if (eventMarkers.length) {
-        createSeriesMarkers(candleSeries, eventMarkers);
+      if (displayData.eventMarkers.length) {
+        createSeriesMarkers(candleSeries, displayData.eventMarkers);
       }
     }
 
@@ -198,7 +229,7 @@ export function StockCandlestickChart({
       },
     });
     volumeSeries.setData(
-      chartData.volumeBars.map((bar) => ({
+      displayData.volumeBars.map((bar) => ({
         time: bar.time,
         value: bar.value,
         color:
@@ -213,12 +244,12 @@ export function StockCandlestickChart({
     chartRef.current = chart;
     candleSeriesRef.current = candleSeries;
     volumeSeriesRef.current = volumeSeries;
-    previousCandleCountRef.current = chartData.candles.length;
+    previousCandleCountRef.current = displayData.candles.length;
 
     chart.timeScale().fitContent();
     chart.subscribeCrosshairMove((param) => {
-      const time = typeof param.time === "string" ? param.time : null;
-      const candle = time ? chartData.candles.find((item) => item.time === time) : null;
+      const time = typeof param.time === "number" ? param.time : null;
+      const candle = time !== null ? chartData.candles[time] : null;
       setHoveredCandle(candle ?? chartData.candles.at(-1) ?? null);
     });
 
@@ -237,7 +268,7 @@ export function StockCandlestickChart({
       volumeSeriesRef.current = null;
       previousCandleCountRef.current = 0;
     };
-  }, [chartData.candles, chartData.volumeBars, ema20, eventMarkers, overlaysEnabled, resistance, smaLine, support, theme]);
+  }, [chartData.candles, displayData, ema20, overlaysEnabled, resistance, support, theme]);
 
   if (candles.length === 0) {
     return <div className="empty-state chart-empty-state">{chartCopy.empty}</div>;
