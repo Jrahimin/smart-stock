@@ -32,7 +32,7 @@ def start_portfolio_summary_scheduler() -> None:
         trigger="cron",
         hour=16,
         minute=15,
-        day_of_week="sun-thu",
+        day_of_week="sun,mon,tue,wed,thu",
         id="portfolio-summary-email",
         replace_existing=True,
         max_instances=1,
