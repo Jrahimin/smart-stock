@@ -302,6 +302,7 @@ export function StockDetailWorkspaceView({
               hasResults={relatedStocks.hasResults}
               isError={relatedStocks.isError}
               isLoading={relatedStocks.isLoading}
+              isWarmingUp={relatedStocks.isWarmingUp}
               loadEnabled={relatedLoadEnabled}
               onRequestLoad={requestRelatedLoad}
             />

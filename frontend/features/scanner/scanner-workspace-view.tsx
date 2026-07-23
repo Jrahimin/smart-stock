@@ -37,7 +37,7 @@ type ScannerWorkspaceViewProps = {
 export function ScannerWorkspaceView({ locale = DEFAULT_LOCALE }: ScannerWorkspaceViewProps) {
   const language = getScannerLanguage(locale);
   const advancedScanners = frontendConfig.features.advancedScanners;
-  const { universe, isLoading, isError } = useMarketUniverse({ stockLimit: 500 });
+  const { universe, isLoading, isError, isWarmingUp } = useMarketUniverse({ stockLimit: 500 });
   const { watchedStockIds, holdingStockIds } = useUserWatchlist();
   const [symbolFilter, setSymbolFilter] = useState("");
   const [watchlistFilter, setWatchlistFilter] = useState<WatchlistFilterMode>("ALL");
@@ -134,9 +134,10 @@ export function ScannerWorkspaceView({ locale = DEFAULT_LOCALE }: ScannerWorkspa
           </div>
         </div>
       </WorkspacePageHero>
+      {isWarmingUp ? <div className="data-warning">Market view is warming up.</div> : null}
       {isError ? <div className="data-warning">{language.states.loadError}</div> : null}
       {isLoading ? <MarketActivityLoader label={language.states.loading} /> : null}
-      {!isLoading ? (
+      {!isLoading && !isWarmingUp ? (
         <div className="scanner-category-grid">
           {categories.map((category) => {
             const copy = language.categories[category.id];

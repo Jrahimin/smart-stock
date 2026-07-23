@@ -31,7 +31,7 @@ type MarketDashboardViewProps = {
 
 export function MarketDashboardView({ initialCore = null, locale = DEFAULT_LOCALE }: MarketDashboardViewProps) {
   const language = getDashboardLanguage(locale);
-  const { model, isError, sectionLoading, signalsSectionError } = useMarketDashboard({
+  const { model, isError, sectionLoading, signalsSectionError, signalsSectionWarmingUp } = useMarketDashboard({
     initialCore,
     locale,
   });
@@ -141,7 +141,15 @@ export function MarketDashboardView({ initialCore = null, locale = DEFAULT_LOCAL
           )}
         </div>
         <div className="dashboard-secondary-column">
-          {sectionLoading.signals ? (
+          {signalsSectionWarmingUp ? (
+            <section className="workspace-card">
+              <div className="section-heading">
+                <p className="eyebrow">{language.signals.eyebrow}</p>
+                <h2>{language.signals.title}</h2>
+              </div>
+              <div className="empty-state">{language.signals.warmup}</div>
+            </section>
+          ) : sectionLoading.signals ? (
             <SmartSignalFeedSkeleton eyebrow={language.signals.eyebrow} title={language.signals.title} />
           ) : signalsSectionError ? (
             <section className="workspace-card">

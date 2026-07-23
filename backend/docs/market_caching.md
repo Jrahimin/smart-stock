@@ -11,7 +11,7 @@ Related module docs: [market_universe.md](market_universe.md), [market_dashboard
 1. **PostgreSQL is the source of truth.** Caches are performance layers only.
 2. **Sync-driven freshness on the backend.** Scheduled data writes spawn background cache rebuilds; TTL is a safety net. Keys are overwritten on success — not deleted before rebuild.
 3. **Published-generation freshness in the browser.** `MarketCacheSyncCoordinator` polls `/market/freshness` and, when `market_sync_id` changes (with `last_synced_at` as a rolling-deploy fallback), clears **market-related IndexedDB entries** then invalidates TanStack market queries. Between syncs, generation-aware validation rejects mismatched market entries per URL.
-4. **Background rebuild, compute-on-miss fallback.** After sync, `spawn_rebuild_market_read_cache()` warms overview → sectors → movers → universe in priority order. HTTP misses compute inline for dashboard; universe serves stale `universe:scored:prev` or returns 503.
+4. **Background rebuild, compute-on-miss fallback.** After sync, `spawn_rebuild_market_read_cache()` warms overview → sectors → movers → universe in priority order. HTTP misses compute inline for dashboard. Universe serves an identity-compatible primary or `universe:scored:prev`; an unusable/cold cache starts a deduplicated background rebuild before returning 503.
 5. **Redis is optional.** Unset `REDIS_URL` → backend always computes; behavior is correct, only slower.
 6. **Browser fetches the API directly.** Next.js does not proxy or server-cache market JSON for client-side hooks; all client caching happens in the browser.
 
@@ -134,7 +134,17 @@ GET /dashboard/movers
   → miss: compute from DB / universe → SET EX ttl → return
 ```
 
-Universe rows: Redis GET `universe:scored` → on miss serve a schema-compatible `universe:scored:prev` from the same or an earlier decision session and spawn a background rebuild; the `:prev` copy is retained for twice the normal TTL so a normal key expiry can rebuild without a blank page. A true cold miss (no usable primary or previous entry) returns HTTP 503. Dashboard sections compute from lightweight snapshot only (no `get_scored_universe`).
+Universe rows:
+
+1. Read `universe:scored` and require the current published-generation identity.
+2. On a miss or rejection, read `universe:scored:prev`.
+3. A previous payload may bridge the same-session `LIVE`/`FINALIZATION_PENDING` → expected `FINALIZED` transition when its session, calculation versions, row structure, and `source_last_synced_at` all match. `market_sync_id` and `data_state` are intentionally allowed to differ only for this narrow phase transition.
+4. Serving `:prev` starts the deduplicated universe rebuild.
+5. If neither entry is usable, start that same rebuild before returning HTTP 503. Requests never perform the expensive universe computation inline.
+
+Finalized `universe:scored` payloads use a 30-day retention safety horizon instead of the generic eight-hour closed-market TTL. Exact session/generation validation still runs on every read, so this longer retention spans overnight, weekends, and exchange holidays without permitting an older finalized session after a newer generation is published. Live and finalization-pending payloads retain the normal market-state TTL behavior.
+
+Cache rejection logs use the `universe_cache_rejected` event and include the Redis key/TTL plus cached and expected session, state, sync ID, and source timestamp. Dashboard sections continue to compute from the lightweight snapshot only (no `get_scored_universe`).
 
 ### Background rebuild (`rebuild_market_read_cache`)
 
@@ -171,6 +181,8 @@ When a new finalized-session Pulse aggregate is persisted, only `pulse:*:{exchan
 - `dashboard_cache_ttl_seconds` — shared contract for backend Redis TTL and frontend TanStack `staleTime`
 
 The snapshot job writes daily prices, DSEX enrichment, and the `LIVE` manifest in one transaction. The shared state rule is: pre-open/weekend/holiday use the latest `FINALIZED` generation; `OPEN` uses the latest published `LIVE` generation; post-close uses that generation as `FINALIZATION_PENDING` until verified DSEX finalization publishes `FINALIZED`. Failed or unavailable syncs roll back rather than invent a partial generation; readers retain the last published generation and expose `STALE` when applicable.
+
+Freshness and universe readers both call the shared `resolve_published_market_generation()` resolver. This keeps PRE_OPEN, OPEN, POST_CLOSE, weekend, and holiday selection semantics identical across the two APIs.
 
 ---
 
@@ -422,6 +434,8 @@ useMarketUniverse → invalidated with market-universe-rows
 → Backend: universe:scored hit after rebuild step 4, or stale universe:scored:prev while rebuild runs
 → ScoredUniverseRow list in UI (may lag overview by <20s)
 ```
+
+An HTTP 503 from this endpoint is treated as a cache-warm signal: universe consumers wait 20 seconds and retry once, while showing “Market view is warming up.” Other failures are not retried by the universe-specific policy.
 
 ---
 

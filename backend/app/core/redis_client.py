@@ -55,6 +55,16 @@ class OptionalRedisClient:
         except Exception:
             logger.warning("Redis SET failed for key %s", key, exc_info=True)
 
+    async def get_ttl_seconds(self, key: str) -> int | None:
+        if not self.is_available:
+            return None
+
+        try:
+            return int(await self._redis.ttl(key))
+        except Exception:
+            logger.warning("Redis TTL failed for key %s", key, exc_info=True)
+            return None
+
     async def delete(self, key: str) -> None:
         if not self.is_available:
             return

@@ -201,6 +201,7 @@ export function useMarketDashboard(options?: {
     isLoading: isCoreLoading,
     isDeferredLoading: sectionLoading.heatmap || sectionLoading.insights,
     signalsSectionError: signalsQuery.isError,
+    signalsSectionWarmingUp: signalsQuery.isWarmingUp,
     isError:
       overviewQuery.isError ||
       moversQuery.isError ||

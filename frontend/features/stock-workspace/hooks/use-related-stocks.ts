@@ -14,6 +14,11 @@ import { useMarketDataFreshness } from "@/hooks/market/use-market-data-freshness
 import { getMarketStaleTimeMs } from "@/lib/market/market-cache-policy";
 import { mapUniverseRowToListRow } from "@/lib/market/universe-row-mapper";
 import type { StockIntelligenceModel } from "@/lib/market/market-intelligence-types";
+import {
+  isUniverseCacheWarming,
+  shouldRetryUniverseCache,
+  UNIVERSE_CACHE_WARM_RETRY_DELAY_MS,
+} from "@/lib/market/universe-cache-retry";
 
 type UseRelatedStocksOptions = {
   exchange: ExchangeCode;
@@ -32,7 +37,12 @@ export function useRelatedStocks({ exchange, currentStock, sectorLabel, enabled 
     enabled: enabled && currentStock !== null,
     staleTime: staleTimeMs,
     refetchOnMount: false,
+    retry: shouldRetryUniverseCache,
+    retryDelay: () => UNIVERSE_CACHE_WARM_RETRY_DELAY_MS,
   });
+  const isWarmingUp = isUniverseCacheWarming(
+    universeQuery.error ?? universeQuery.failureReason,
+  );
 
   const groups = useMemo(() => {
     const rows = universeQuery.data?.rows;
@@ -51,6 +61,7 @@ export function useRelatedStocks({ exchange, currentStock, sectorLabel, enabled 
     cta,
     hasResults: hasRelatedStockResults(groups),
     isLoading: enabled && universeQuery.isLoading,
-    isError: enabled && universeQuery.isError,
+    isError: enabled && universeQuery.isError && !isWarmingUp,
+    isWarmingUp: enabled && isWarmingUp,
   };
 }

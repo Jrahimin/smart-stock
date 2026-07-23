@@ -32,7 +32,7 @@ type SignalCenterViewProps = {
 
 export function SignalCenterView({ locale = DEFAULT_LOCALE }: SignalCenterViewProps) {
   const language = getSignalsLanguage(locale);
-  const { universe, isLoading, isError } = useMarketUniverse({ stockLimit: 500 });
+  const { universe, isLoading, isError, isWarmingUp } = useMarketUniverse({ stockLimit: 500 });
   const [filter, setFilter] = useState("ALL");
   const [riskFilter, setRiskFilter] = useState("ALL");
   const [sortMode, setSortMode] = useState("CONVICTION");
@@ -103,9 +103,10 @@ export function SignalCenterView({ locale = DEFAULT_LOCALE }: SignalCenterViewPr
           </select>
         </div>
       </WorkspacePageHero>
+      {isWarmingUp ? <div className="data-warning">Market view is warming up.</div> : null}
       {isError ? <div className="data-warning">{language.states.loadError}</div> : null}
       {isLoading ? <MarketActivityLoader label={language.states.loading} /> : null}
-      {!isLoading ? (
+      {!isLoading && !isWarmingUp ? (
         <div className="signal-center-list">
           {signalRows.length ? (
             signalRows.map((stock) => {

@@ -40,6 +40,10 @@ from app.modules.market_data.market_data_schemas import (
     DsexIndexSnapshotRead,
     MarketFreshnessRead,
 )
+from app.modules.market_data.published_generation import (
+    PublishedMarketGeneration,
+    resolve_published_market_generation,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -735,15 +739,17 @@ class MarketDataService:
 
         return MarketFreshnessRead(
             exchange=exchange,
-            trade_date=published[0] if published is not None else trade_date,
-            last_synced_at=published[3] if published is not None else last_synced_at,
-            market_sync_id=published[1] if published is not None else None,
-            data_state=published[2] if published is not None else MarketDataState.STALE,
-            published_at=published[4] if published is not None else None,
+            trade_date=published.trade_date if published is not None else trade_date,
+            last_synced_at=(
+                published.source_last_synced_at if published is not None else last_synced_at
+            ),
+            market_sync_id=published.sync_id if published is not None else None,
+            data_state=published.data_state if published is not None else MarketDataState.STALE,
+            published_at=published.published_at if published is not None else None,
             decision_session_date=decision_session_date,
             live_data_as_of=(
-                published[3]
-                if published is not None and published[2] in {
+                published.source_last_synced_at
+                if published is not None and published.data_state in {
                     MarketDataState.LIVE,
                     MarketDataState.FINALIZATION_PENDING,
                     MarketDataState.STALE,
@@ -752,7 +758,7 @@ class MarketDataService:
             ),
             is_live_session=(
                 published is not None
-                and published[2]
+                and published.data_state
                 in {
                     MarketDataState.LIVE,
                     MarketDataState.FINALIZATION_PENDING,
@@ -855,54 +861,14 @@ class MarketDataService:
         today: date,
         now: datetime,
         stale_after_seconds: int,
-    ) -> tuple[date, str, MarketDataState, datetime, datetime] | None:
-        """Resolve the only dataset readers may expose for the current session state."""
-
-        finalized = await self.repository.get_latest_market_data_generation(
+    ) -> PublishedMarketGeneration | None:
+        return await resolve_published_market_generation(
+            self.repository,
             exchange=exchange,
-            state=MarketDataState.FINALIZED,
-        )
-        today_finalized = (
-            finalized if finalized is not None and finalized.trade_date == today else None
-        )
-        today_live = await self.repository.get_latest_market_data_generation(
-            exchange=exchange,
-            state=MarketDataState.LIVE,
-            trade_date=today,
-        )
-
-        from app.core.enums import MarketSessionStatus
-
-        selected = None
-        data_state = MarketDataState.STALE
-        if market_status == MarketSessionStatus.OPEN:
-            selected = today_live or today_finalized or finalized
-            data_state = MarketDataState.LIVE if selected is today_live else MarketDataState.FINALIZED
-        elif market_status == MarketSessionStatus.POST_CLOSE:
-            selected = today_finalized or today_live or finalized
-            data_state = (
-                MarketDataState.FINALIZED
-                if selected is today_finalized or selected is finalized
-                else MarketDataState.FINALIZATION_PENDING
-            )
-        else:
-            selected = finalized
-            data_state = MarketDataState.FINALIZED if selected is not None else MarketDataState.STALE
-
-        if selected is None:
-            return None
-        if selected is today_live:
-            synced_at = selected.source_last_synced_at
-            if synced_at.tzinfo is None:
-                synced_at = synced_at.replace(tzinfo=now.tzinfo)
-            if (now - synced_at).total_seconds() > stale_after_seconds:
-                data_state = MarketDataState.STALE
-        return (
-            selected.trade_date,
-            selected.sync_id,
-            data_state,
-            selected.source_last_synced_at,
-            selected.published_at,
+            market_status=market_status,
+            today=today,
+            now=now,
+            stale_after_seconds=stale_after_seconds,
         )
 
     async def list_recent_finalized_session_dates(

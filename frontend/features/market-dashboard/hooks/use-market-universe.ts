@@ -9,6 +9,11 @@ import { useMarketDataFreshness } from "@/hooks/market/use-market-data-freshness
 import { getMarketRefetchIntervalMs, getMarketStaleTimeMs } from "@/lib/market/market-cache-policy";
 import { mapUniverseRowToListRow } from "@/lib/market/universe-row-mapper";
 import type { BackendScoredUniverseRowDto } from "@/lib/api/backend-api-types";
+import {
+  isUniverseCacheWarming,
+  shouldRetryUniverseCache,
+  UNIVERSE_CACHE_WARM_RETRY_DELAY_MS,
+} from "@/lib/market/universe-cache-retry";
 
 const DEFAULT_MARKET_UNIVERSE_LIMIT = 500;
 const EMPTY_UNIVERSE_ROWS: BackendScoredUniverseRowDto[] = [];
@@ -36,7 +41,12 @@ export function useMarketUniverse(options: UseMarketUniverseOptions = {}) {
     queryFn: () => listUniverseRows("DSE"),
     staleTime: cacheMs,
     refetchInterval,
+    retry: shouldRetryUniverseCache,
+    retryDelay: () => UNIVERSE_CACHE_WARM_RETRY_DELAY_MS,
   });
+  const isWarmingUp = isUniverseCacheWarming(
+    universeQuery.error ?? universeQuery.failureReason,
+  );
 
   const rows = universeQuery.data?.rows ?? EMPTY_UNIVERSE_ROWS;
   const stocks = useMemo(() => rows.map((row) => row.stock), [rows]);
@@ -52,7 +62,8 @@ export function useMarketUniverse(options: UseMarketUniverseOptions = {}) {
     listedStockCount: universeQuery.data?.meta.listed_stock_count ?? stocks.length,
     universe,
     isLoading: universeQuery.isLoading,
-    isError: universeQuery.isError,
+    isError: universeQuery.isError && !isWarmingUp,
+    isWarmingUp,
     loadedPriceCount: rows.length,
     refetch: refreshMarketCaches,
   };

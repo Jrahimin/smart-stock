@@ -19,15 +19,15 @@ from app.core.constants.trading_constants import (
     TRADING_THRESHOLD_VERSION,
 )
 from app.core.core_config import Settings, get_settings
-from app.core.enums import ExchangeCode, MarketDataState, MarketSessionStatus
+from app.core.enums import ExchangeCode, MarketDataState
 from app.core.perf_timing import PerfReport, async_perf_stage
 from app.core.redis_client import OptionalRedisClient, get_redis_client
-from app.jobs.market_session_schedule import current_cache_ttl_seconds
-from app.jobs.market_session_schedule import resolve_market_status
+from app.jobs.market_session_schedule import current_cache_ttl_seconds, resolve_market_status
 from app.modules.market_data.market_data_repository import (
     MarketDataRepository,
     get_market_data_repository,
 )
+from app.modules.market_data.published_generation import resolve_published_market_generation
 from app.modules.market_universe.market_universe_cache import (
     universe_cache_key,
     universe_prev_cache_key,
@@ -62,6 +62,19 @@ from app.modules.trading_intelligence.monitoring import (
 logger = logging.getLogger(__name__)
 
 UNIVERSE_PREVIOUS_CACHE_TTL_MULTIPLIER = 2
+FINALIZED_UNIVERSE_CACHE_TTL_SECONDS = 30 * 24 * 60 * 60
+
+
+def universe_cache_ttl_seconds(
+    settings: Settings,
+    *,
+    data_state: MarketDataState,
+    now: datetime | None = None,
+) -> int:
+    ttl_seconds = current_cache_ttl_seconds(settings, now=now)
+    if data_state == MarketDataState.FINALIZED:
+        return max(ttl_seconds, FINALIZED_UNIVERSE_CACHE_TTL_SECONDS)
+    return ttl_seconds
 
 
 class UniverseCacheUnavailableError(RuntimeError):
@@ -95,6 +108,41 @@ class MarketUniverseService:
         ttl_seconds = ttl_seconds or current_cache_ttl_seconds(self.settings)
         await self.redis.set_json(cache_key, payload, ttl_seconds=ttl_seconds)
 
+    async def _cache_ttl_seconds(self, cache_key: str) -> int | None:
+        ttl_reader = getattr(self.redis, "get_ttl_seconds", None)
+        if ttl_reader is None:
+            return None
+        return await ttl_reader(cache_key)
+
+    async def _log_cache_rejection(
+        self,
+        *,
+        exchange: ExchangeCode,
+        cache_key: str,
+        payload: ScoredUniverseCacheRead | None,
+        expected_session_date: date | None,
+        expected_source_last_synced_at: datetime | None,
+        expected_market_sync_id: str | None,
+        expected_data_state: MarketDataState,
+    ) -> None:
+        logger.info(
+            "universe_cache_rejected exchange=%s key=%s ttl_seconds=%s "
+            "cached_session=%s expected_session=%s cached_state=%s expected_state=%s "
+            "cached_sync_id=%s expected_sync_id=%s "
+            "cached_source_last_synced_at=%s expected_source_last_synced_at=%s",
+            exchange.value,
+            cache_key,
+            await self._cache_ttl_seconds(cache_key),
+            payload.decision_session_date if payload is not None else None,
+            expected_session_date,
+            payload.data_state if payload is not None else None,
+            expected_data_state,
+            payload.market_sync_id if payload is not None else None,
+            expected_market_sync_id,
+            payload.source_last_synced_at if payload is not None else None,
+            expected_source_last_synced_at,
+        )
+
     async def get_scored_universe(self, *, exchange: ExchangeCode) -> list[ScoredUniverseRow]:
         (
             session_trade_date,
@@ -116,10 +164,24 @@ class MarketUniverseService:
                     data_state,
                 ):
                     return cached_payload.rows
-                logger.info(
-                    "Ignoring stale universe:scored for %s (session %s)",
-                    exchange.value,
-                    session_trade_date,
+                await self._log_cache_rejection(
+                    exchange=exchange,
+                    cache_key=cache_key,
+                    payload=cached_payload,
+                    expected_session_date=session_trade_date,
+                    expected_source_last_synced_at=source_last_synced_at,
+                    expected_market_sync_id=market_sync_id,
+                    expected_data_state=data_state,
+                )
+            else:
+                await self._log_cache_rejection(
+                    exchange=exchange,
+                    cache_key=cache_key,
+                    payload=None,
+                    expected_session_date=session_trade_date,
+                    expected_source_last_synced_at=source_last_synced_at,
+                    expected_market_sync_id=market_sync_id,
+                    expected_data_state=data_state,
                 )
 
             prev_key = universe_prev_cache_key(exchange)
@@ -137,11 +199,29 @@ class MarketUniverseService:
 
                     spawn_rebuild_universe_read_cache(exchange, settings=self.settings)
                     return stale_payload.rows
-                logger.info(
-                    "Ignoring stale universe:scored:prev for %s (session %s)",
-                    exchange.value,
-                    session_trade_date,
+                await self._log_cache_rejection(
+                    exchange=exchange,
+                    cache_key=prev_key,
+                    payload=stale_payload,
+                    expected_session_date=session_trade_date,
+                    expected_source_last_synced_at=source_last_synced_at,
+                    expected_market_sync_id=market_sync_id,
+                    expected_data_state=data_state,
                 )
+            else:
+                await self._log_cache_rejection(
+                    exchange=exchange,
+                    cache_key=prev_key,
+                    payload=None,
+                    expected_session_date=session_trade_date,
+                    expected_source_last_synced_at=source_last_synced_at,
+                    expected_market_sync_id=market_sync_id,
+                    expected_data_state=data_state,
+                )
+
+            from app.jobs.market_cache_spawn import spawn_rebuild_universe_read_cache
+
+            spawn_rebuild_universe_read_cache(exchange, settings=self.settings)
 
         raise UniverseCacheUnavailableError(
             f"Scored universe cache is unavailable for {exchange.value}; "
@@ -214,6 +294,17 @@ class MarketUniverseService:
         if data_state in {MarketDataState.LIVE, MarketDataState.FINALIZATION_PENDING}:
             return False
         previous_session_date = payload.decision_session_date
+        is_same_session_finalization_bridge = (
+            data_state == MarketDataState.FINALIZED
+            and previous_session_date == current_session_date
+            and payload.data_state
+            in {MarketDataState.LIVE, MarketDataState.FINALIZATION_PENDING}
+        )
+        data_state_matches = (
+            data_state is None
+            or payload.data_state == data_state
+            or is_same_session_finalization_bridge
+        )
         return (
             current_session_date is not None
             and previous_session_date is not None
@@ -222,7 +313,7 @@ class MarketUniverseService:
                 source_last_synced_at is None
                 or payload.source_last_synced_at == source_last_synced_at
             )
-            and (data_state is None or payload.data_state == data_state)
+            and data_state_matches
             and bool(payload.rows)
             and payload.session_trade_date == previous_session_date
             and payload.strategy_version == TRADING_STRATEGY_VERSION
@@ -260,65 +351,32 @@ class MarketUniverseService:
         )
         now = datetime.now(ZoneInfo("Asia/Dhaka"))
         status = resolve_market_status(now, self.settings)
-        # Keep the old durable-finalized behaviour while a rolling deployment
-        # still has repositories/mocks without generation support.
-        generation_reader = getattr(self.market_repository, "get_latest_market_data_generation", None)
-        latest_live_generation = (
-            await generation_reader(
-                exchange=exchange,
-                state=MarketDataState.LIVE,
-                trade_date=live_date,
-            )
-            if generation_reader is not None and live_date is not None
-            else None
+        published = await resolve_published_market_generation(
+            self.market_repository,
+            exchange=exchange,
+            market_status=status,
+            today=now.date(),
+            now=now,
+            stale_after_seconds=self.settings.market_sync_interval_seconds * 2,
         )
-        latest_final_generation = (
-            await generation_reader(
-                exchange=exchange,
-                state=MarketDataState.FINALIZED,
-                trade_date=latest_finalized,
-            )
-            if generation_reader is not None and latest_finalized is not None
-            else None
-        )
-
-        can_use_live = (
-            status in {MarketSessionStatus.OPEN, MarketSessionStatus.POST_CLOSE}
-            and live_date is not None
-            and (latest_finalized is None or live_date >= latest_finalized)
-            and latest_live_generation is not None
-        )
-        if can_use_live:
-            synced_at = latest_live_generation.source_last_synced_at
-            if synced_at.tzinfo is None:
-                synced_at = synced_at.replace(tzinfo=now.tzinfo)
-            is_stale = (now - synced_at).total_seconds() > (
-                self.settings.market_sync_interval_seconds * 2
-            )
+        if published is not None:
             return (
-                live_date,
-                latest_live_generation.source_last_synced_at,
-                latest_live_generation.sync_id,
-                (
-                    MarketDataState.STALE
-                    if is_stale
-                    else (
-                        MarketDataState.LIVE
-                        if status == MarketSessionStatus.OPEN
-                        else MarketDataState.FINALIZATION_PENDING
-                    )
-                ),
+                published.trade_date,
+                published.source_last_synced_at,
+                published.sync_id,
+                published.data_state,
             )
+
+        # Preserve the durable-finalized fallback for rolling deployments and
+        # repository doubles that predate market_data_generations.
         if latest_finalized is not None:
             final_synced_at = (
-                latest_final_generation.source_last_synced_at
-                if latest_final_generation is not None
-                else (await self.market_repository.get_decision_session_freshness(exchange=exchange))[1]
-            )
+                await self.market_repository.get_decision_session_freshness(exchange=exchange)
+            )[1]
             return (
                 latest_finalized,
                 final_synced_at,
-                latest_final_generation.sync_id if latest_final_generation is not None else None,
+                None,
                 MarketDataState.FINALIZED,
             )
         return live_date, live_synced_at, None, MarketDataState.STALE
@@ -489,13 +547,25 @@ class MarketUniverseService:
         )
         serialized_payload = payload.model_dump(mode="json")
         ttl_seconds = current_cache_ttl_seconds(self.settings)
+        primary_ttl_seconds = universe_cache_ttl_seconds(
+            self.settings,
+            data_state=data_state,
+        )
+        previous_ttl_seconds = max(
+            ttl_seconds * UNIVERSE_PREVIOUS_CACHE_TTL_MULTIPLIER,
+            primary_ttl_seconds * UNIVERSE_PREVIOUS_CACHE_TTL_MULTIPLIER,
+        )
         previous_payload = current or serialized_payload
         await self._cache_set(
             universe_prev_cache_key(exchange),
             previous_payload,
-            ttl_seconds=ttl_seconds * UNIVERSE_PREVIOUS_CACHE_TTL_MULTIPLIER,
+            ttl_seconds=previous_ttl_seconds,
         )
-        await self._cache_set(cache_key, serialized_payload, ttl_seconds=ttl_seconds)
+        await self._cache_set(
+            cache_key,
+            serialized_payload,
+            ttl_seconds=primary_ttl_seconds,
+        )
 
     async def get_universe_rows(self, *, exchange: ExchangeCode) -> UniverseRowsRead:
         (

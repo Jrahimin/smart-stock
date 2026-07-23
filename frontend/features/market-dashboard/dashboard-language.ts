@@ -455,7 +455,7 @@ const dashboardLanguage = {
       empty:
         "No actionable deterministic signals yet for the loaded market universe.",
       warmup:
-        "Trader signals are warming up after startup. This section should populate shortly.",
+        "Market view is warming up. This section should populate shortly.",
       confidence: (value) => `${value}/100 evidence`,
       risk: (value) => `${value} risk`,
       awaitingContext: "Awaiting stronger context",

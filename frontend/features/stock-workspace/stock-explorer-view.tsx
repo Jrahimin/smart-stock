@@ -32,7 +32,7 @@ type ExplorerPortfolioScope = "ALL" | "WATCHLIST" | "HOLDINGS";
 
 export function StockExplorerView() {
   const searchParams = useSearchParams();
-  const { universe, isLoading, isError, listedStockCount, loadedPriceCount } = useMarketUniverse({
+  const { universe, isLoading, isError, isWarmingUp, listedStockCount, loadedPriceCount } = useMarketUniverse({
     stockLimit: 500,
   });
   const { watchedStockIds, holdingStockIds } = useUserWatchlist();
@@ -74,7 +74,7 @@ export function StockExplorerView() {
     });
   }, [decisionByStockId, deferredSearch, holdingStockIds, portfolioScope, signalFilter, universe, volumeFilter, watchedStockIds]);
   const visibleUniverse = useMemo(() => filteredUniverse.slice(0, visibleCount), [filteredUniverse, visibleCount]);
-  const showEmptyResults = !isLoading && !isError && filteredUniverse.length === 0;
+  const showEmptyResults = !isLoading && !isError && !isWarmingUp && filteredUniverse.length === 0;
   const emptyResultsMessage = useMemo(() => getEmptyResultsMessage(portfolioScope, deferredSearch), [deferredSearch, portfolioScope]);
 
   function togglePortfolioScope(scope: Exclude<ExplorerPortfolioScope, "ALL">) {
@@ -288,6 +288,7 @@ export function StockExplorerView() {
           </div>
         </div>
       </WorkspacePageHero>
+      {isWarmingUp ? <div className="data-warning">Market view is warming up.</div> : null}
       {isError ? <div className="data-warning">Could not load stock explorer data.</div> : null}
       {isLoading ? <MarketActivityLoader /> : null}
       {showEmptyResults ? (

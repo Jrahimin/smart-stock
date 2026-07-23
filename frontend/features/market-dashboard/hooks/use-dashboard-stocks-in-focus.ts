@@ -4,10 +4,14 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { mapUniverseRowsToSignalFeed } from "@/features/market-dashboard/view-models/dashboard-sections-mapper";
-import { BackendApiError } from "@/lib/api/backend-api-client";
 import { listUniverseRows } from "@/lib/api/market-universe-api";
 import type { ExchangeCode } from "@/lib/api/backend-api-types";
 import type { SignalFeedItemModel } from "@/features/market-dashboard/types/market-dashboard-types";
+import {
+  isUniverseCacheWarming,
+  shouldRetryUniverseCache,
+  UNIVERSE_CACHE_WARM_RETRY_DELAY_MS,
+} from "@/lib/market/universe-cache-retry";
 
 type UseDashboardSectionOptions = {
   exchange?: ExchangeCode;
@@ -23,16 +27,6 @@ export type DashboardStocksInFocusQueryData = {
 
 const UNIVERSE_ROWS_QUERY_KEY_LIMIT = 500;
 
-const UNIVERSE_CACHE_WARM_MAX_RETRIES = 20;
-const UNIVERSE_CACHE_WARM_RETRY_DELAY_MS = 2000;
-
-function shouldRetryTraderSignals(failureCount: number, error: Error): boolean {
-  if (error instanceof BackendApiError && error.status === 503) {
-    return failureCount < UNIVERSE_CACHE_WARM_MAX_RETRIES;
-  }
-  return failureCount < 1;
-}
-
 export function useDashboardStocksInFocus({
   exchange = "DSE",
   staleTimeMs,
@@ -45,7 +39,7 @@ export function useDashboardStocksInFocus({
     staleTime: staleTimeMs,
     refetchInterval: refetchIntervalMs,
     enabled,
-    retry: shouldRetryTraderSignals,
+    retry: shouldRetryUniverseCache,
     retryDelay: () => UNIVERSE_CACHE_WARM_RETRY_DELAY_MS,
   });
 
@@ -63,5 +57,8 @@ export function useDashboardStocksInFocus({
   return {
     ...universeQuery,
     data,
+    isWarmingUp: isUniverseCacheWarming(
+      universeQuery.error ?? universeQuery.failureReason,
+    ),
   };
 }

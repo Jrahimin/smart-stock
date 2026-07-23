@@ -13,6 +13,7 @@ type RelatedStocksSectionProps = {
   hasResults: boolean;
   isLoading: boolean;
   isError: boolean;
+  isWarmingUp: boolean;
   loadEnabled: boolean;
   onRequestLoad: () => void;
   copy: StockWorkspaceLanguage["relatedStocks"];
@@ -24,6 +25,7 @@ export function RelatedStocksSection({
   hasResults,
   isLoading,
   isError,
+  isWarmingUp,
   loadEnabled,
   onRequestLoad,
   copy,
@@ -52,6 +54,9 @@ export function RelatedStocksSection({
   return (
     <div className="related-stocks-panel">
       {isError ? <div className="data-warning data-warning-compact">{copy.loadError}</div> : null}
+      {isWarmingUp ? (
+        <div className="data-warning data-warning-compact">Market view is warming up.</div>
+      ) : null}
 
       {showSkeleton ? (
         <div aria-hidden="true" className="related-stocks-skeleton">
@@ -106,7 +111,7 @@ export function RelatedStocksSection({
         </div>
       ) : null}
 
-      {loadEnabled && !showSkeleton && !hasResults && !isError ? (
+      {loadEnabled && !showSkeleton && !hasResults && !isError && !isWarmingUp ? (
         <div className="related-stocks-empty related-stocks-empty-section">{copy.emptySection}</div>
       ) : null}
 
