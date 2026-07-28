@@ -1,6 +1,6 @@
 # Smart Stock — Production Deployment (MVP)
 
-Deploy Smart Stock on a single Ubuntu VPS behind Cloudflare using Docker Compose.
+Deploy Smart Stock on a single Ubuntu VPS behind Cloudflare using Docker Compose. **Host-level Nginx** (not managed by this repository) terminates TLS on ports 80/443 and reverse-proxies to the Docker stack on loopback.
 
 Architecture overview: [`backend/docs/deployment_architecture.md`](../backend/docs/deployment_architecture.md)
 
@@ -10,6 +10,7 @@ Architecture overview: [`backend/docs/deployment_architecture.md`](../backend/do
 
 - Ubuntu 22.04+ VPS (Contabo or similar)
 - Docker Engine + Docker Compose plugin
+- **Host Nginx** installed and configured for `stockwealthbd.com` and `api.stockwealthbd.com` (TLS certificates and virtual hosts live outside this repo)
 - Domain `stockwealthbd.com` on Cloudflare (proxy enabled)
 - UFW: allow `22`, `80`, `443`
 
@@ -20,6 +21,7 @@ Architecture overview: [`backend/docs/deployment_architecture.md`](../backend/do
 ```bash
 sudo apt update && sudo apt install -y git
 # Install Docker: https://docs.docker.com/engine/install/ubuntu/
+# Install and configure host Nginx (see architecture doc for traffic flow)
 
 sudo ufw allow OpenSSH
 sudo ufw allow 80/tcp
@@ -30,10 +32,10 @@ sudo ufw enable
 Clone the repository:
 
 ```bash
-sudo mkdir -p /opt/smart-stock
-sudo chown $USER:$USER /opt/smart-stock
-git clone <your-repo-url> /opt/smart-stock
-cd /opt/smart-stock
+sudo mkdir -p /opt/stockwealthbd
+sudo chown $USER:$USER /opt/stockwealthbd
+git clone <your-repo-url> /opt/stockwealthbd
+cd /opt/stockwealthbd
 ```
 
 ---
@@ -59,27 +61,27 @@ Never commit `.env`.
 
 ---
 
-## 3. TLS certificates
+## 3. Host Nginx and TLS
 
-Place certificates in `deploy/certs/`:
+TLS certificates and virtual-host configuration are **managed outside this repository** on the VPS host Nginx.
 
-| File | Permissions |
-|------|-------------|
-| `fullchain.pem` | `644` |
-| `privkey.pem` | `600` |
+Traffic flow:
 
-**Option A — Let's Encrypt (certbot on host):**
-
-```bash
-sudo apt install certbot
-sudo certbot certonly --standalone -d stockwealthbd.com -d www.stockwealthbd.com -d api.stockwealthbd.com
-sudo cp /etc/letsencrypt/live/stockwealthbd.com/fullchain.pem deploy/certs/
-sudo cp /etc/letsencrypt/live/stockwealthbd.com/privkey.pem deploy/certs/
-sudo chmod 644 deploy/certs/fullchain.pem
-sudo chmod 600 deploy/certs/privkey.pem
+```text
+Cloudflare → host Nginx (:443) → loopback upstreams
+  stockwealthbd.com      → 127.0.0.1:3000  (frontend)
+  api.stockwealthbd.com  → 127.0.0.1:8000  (backend-api)
 ```
 
-**Option B — Cloudflare Origin Certificate:** Generate in Cloudflare dashboard → SSL/TLS → Origin Server, save files to `deploy/certs/`.
+Host Nginx should:
+
+- Terminate TLS (Cloudflare SSL mode: **Full (strict)**)
+- Set `X-Forwarded-Proto https` and forward `CF-Connecting-IP` / `X-Forwarded-For`
+- Restore real client IP from Cloudflare (`real_ip_header CF-Connecting-IP` and Cloudflare IP ranges)
+- Redirect `www.stockwealthbd.com` to `stockwealthbd.com`
+- Serve ACME challenges on port 80 if using Let's Encrypt on the host
+
+Deploy scripts **do not** restart, reload, or modify host Nginx.
 
 ---
 
@@ -202,15 +204,33 @@ Set `CF_API_TOKEN` and `CF_ZONE_ID` in `.env` to purge Cloudflare automatically 
 
 ---
 
-## 8. Useful Docker commands
+## 8. Migrating from project-owned Nginx
 
-Run all commands from the **repo root** (where `docker-compose.yml` lives), e.g. `/opt/smart-stock`.
+If the VPS previously ran the Docker `nginx` service with `deploy/nginx/` and `deploy/certs/`:
 
-**Compose services:** `postgres`, `redis`, `backend-migrate` (one-shot schema job), `backend-api` (HTTP only), `backend-scheduler` (background jobs), `frontend`, `nginx`.
+1. **Configure host Nginx** with virtual hosts pointing to `127.0.0.1:3000` (frontend) and `127.0.0.1:8000` (API). Move TLS certificates to the host (e.g. `/etc/letsencrypt/` or `/etc/ssl/stockwealthbd/`).
+2. **Test host Nginx** with `nginx -t`, then `sudo systemctl reload nginx`.
+3. **Stop the old stack** (or at least the Docker nginx container) so ports 80/443 are free for host Nginx if it was not already bound.
+4. **Update the repo** at `/opt/stockwealthbd` (rename from `/opt/smart-stock` if needed): `git pull`.
+5. **Recreate the stack:** `docker compose up -d --build` — confirm `127.0.0.1:3000` and `127.0.0.1:8000` are listening.
+6. **Remove obsolete artifacts:** delete `deploy/nginx/`, `deploy/certs/`, and any stopped `smart-stock-nginx` container (`docker compose rm -f nginx` on the old compose file if needed).
+7. **Verify:** public HTTPS curls from section 6; loopback checks: `curl -f http://127.0.0.1:3000/build-info.json` and `curl -f http://127.0.0.1:8000/api/v1/health`.
+
+Deploy scripts do not manage host Nginx — reload or reconfigure it separately when changing TLS or proxy rules.
+
+---
+
+## 9. Useful Docker commands
+
+Run all commands from the **repo root** (where `docker-compose.yml` lives), e.g. `/opt/stockwealthbd`.
+
+**Compose services:** `postgres`, `redis`, `backend-migrate` (one-shot schema job), `backend-api` (HTTP only), `backend-scheduler` (background jobs), `frontend`.
+
+**Loopback ports (host Nginx upstreams):** frontend `127.0.0.1:3000`, backend-api `127.0.0.1:8000`.
 
 **Frontend runtime env (dashboard SSR):** `SERVER_API_BASE_URL` must point at the internal API from the frontend container (default in Compose: `http://backend-api:8000/api/v1`). This is separate from build-time `NEXT_PUBLIC_API_BASE_URL`, which the browser uses. Stock detail SSR still uses the public/build-time API URL with Next.js ISR; dashboard core SSR uses the internal URL with `cache: no-store` so Redis remains the only server-side market cache.
 
-> **Note:** `docker compose down` affects the **entire stack**, not a single service. There is no `docker compose down frontend`. Frontend/nginx-only replacements can use `--no-deps`; backend replacements should retain the migration dependency.
+> **Note:** `docker compose down` affects the **entire stack**, not a single service. There is no `docker compose down frontend`. Frontend-only replacements can use `--no-deps`; backend replacements should retain the migration dependency.
 
 ### Stack lifecycle
 
@@ -233,7 +253,7 @@ Prefer `bash deploy/scripts/deploy-frontend.sh` or `deploy.sh` for version check
 | `docker compose build frontend` | Rebuild frontend only | | Required after UI/CSS/JS or `NEXT_PUBLIC_*` changes |
 | `docker compose build backend-api backend-scheduler` | Rebuild backend image | Both services share `smart-stock-backend:latest` | Required after Python/API code changes |
 | `docker compose up -d --force-recreate` | Recreate all containers | `--force-recreate` = replace even if config unchanged | Full stack uses freshly built images |
-| `docker compose up -d --build --no-deps frontend` | Frontend-only quick deploy | `--build` = build first; `--no-deps` = don't touch api/scheduler/postgres/nginx | New frontend container; brief frontend-only rollout |
+| `docker compose up -d --build --no-deps frontend` | Frontend-only quick deploy | `--build` = build first; `--no-deps` = don't touch api/scheduler/postgres | New frontend container; brief frontend-only rollout |
 | `docker compose build frontend && docker compose up -d --force-recreate --no-deps frontend` | Frontend-only (script equivalent) | `--force-recreate` guarantees new container from new image | Same as `deploy-frontend.sh` without verification/purge |
 
 ### Frontend only
@@ -242,7 +262,7 @@ Prefer `bash deploy/scripts/deploy-frontend.sh` or `deploy.sh` for version check
 |---------|---------|-------------------|---------|
 | `bash deploy/scripts/deploy-frontend.sh` | **Recommended** frontend deploy | Sets `APP_VERSION` / `GIT_SHA` / `BUILD_TIME`; optional Cloudflare purge | Build → recreate `frontend` → health + `build-info.json` checks |
 | `docker compose up -d --build --no-deps frontend` | Manual frontend deploy | | Rebuilds and starts `frontend` only |
-| `docker compose stop frontend` | Stop frontend container | | Site 502 via nginx until started again |
+| `docker compose stop frontend` | Stop frontend container | | Site 502 via host Nginx until started again |
 | `docker compose rm -f frontend` | Remove frontend container | | Container gone; image remains; follow with `up` |
 | `docker compose logs -f frontend` | Follow frontend logs | | Next.js / Node startup errors |
 
@@ -264,21 +284,19 @@ Production needs **both** `backend-api` and `backend-scheduler`. The scheduler r
 
 | Command | Purpose | Key flags / params | Outcome |
 |---------|---------|-------------------|---------|
-| `bash deploy/scripts/deploy.sh` | **Recommended** full deploy | Build all → recreate all → migration service → `/system` + market API smoke checks | API + scheduler + frontend + nginx all updated |
+| `bash deploy/scripts/deploy.sh` | **Recommended** full deploy | Build all → recreate all → migration service → `/system` + market API smoke checks | API + scheduler + frontend all updated |
 | `docker compose build backend-api backend-scheduler` | Rebuild shared backend image | Single image used by both services | New `smart-stock-backend:latest` |
-| `docker compose up -d --build backend-api backend-scheduler` | Redeploy API + scheduler | Starts migration dependency first | Both use new image; frontend/nginx keep running |
+| `docker compose up -d --build backend-api backend-scheduler` | Redeploy API + scheduler | Starts migration dependency first | Both use new image; frontend keeps running |
 | `docker compose restart backend-scheduler` | Restart jobs process | | Scheduler re-reads env; jobs restart; **no HTTP** on this container |
 | `docker compose logs -f backend-scheduler` | Verify scheduler health | | Expect `RUN_SCHEDULER=true`, job start lines, no crash loop |
 | `docker compose run --rm backend-migrate` | Migrations after backend deploy | Recovery path | API and scheduler are gated on migration success |
 
-### Data layer & edge
+### Data layer
 
 | Command | Purpose | Key flags / params | Outcome |
 |---------|---------|-------------------|---------|
 | `docker compose up -d postgres` | Start / recreate Postgres | | DB available on `127.0.0.1:5432` on host (SSH tunnel only) |
 | `docker compose up -d redis` | Start Redis | Optional cache | Dashboard section cache; omit `REDIS_URL` in `.env` to run without |
-| `docker compose restart nginx` | Reload edge proxy | | Picks up cert/config volume changes after file edits on host |
-| `docker compose up -d --force-recreate --no-deps nginx` | Recreate nginx container | After `deploy/nginx/` or cert changes | New container mounting current `deploy/certs/` |
 
 ### Inspect running version
 
@@ -300,7 +318,7 @@ Production needs **both** `backend-api` and `backend-scheduler`. The scheduler r
 
 ---
 
-## 9. Remote database access (DBeaver via SSH tunnel)
+## 10. Remote database access (DBeaver via SSH tunnel)
 
 Postgres is published on the VPS **loopback only** (`127.0.0.1:5432`). It is not reachable from the public internet. Do **not** open port 5432 in UFW.
 
@@ -345,13 +363,13 @@ Local and production should be on the same Alembic migration head before a data-
 
 ---
 
-## 10. Troubleshooting
+## 11. Troubleshooting
 
 | Issue | Check |
 |-------|-------|
 | API unhealthy | `docker compose logs backend-api` — DB connection, migrations run? |
 | Scheduler restart loop | `docker compose logs backend-scheduler` — `RUN_SCHEDULER` must be `true` |
-| 502 from Nginx | `docker compose ps` — are frontend and backend-api healthy? |
+| 502 from host Nginx | `docker compose ps` — are frontend and backend-api healthy? `curl -f http://127.0.0.1:3000/build-info.json` and `curl -f http://127.0.0.1:8000/api/v1/health` on the VPS |
 | CORS errors | `BACKEND_CORS_ORIGINS` includes `https://stockwealthbd.com` |
 | Wrong API URL in browser | Rebuild frontend with correct `NEXT_PUBLIC_API_BASE_URL` |
 | Stale UI after deploy | Run `bash deploy/scripts/deploy-frontend.sh`; compare `/build-info.json` vs `/api/v1/system` |
@@ -359,7 +377,7 @@ Local and production should be on the same Alembic migration head before a data-
 
 ---
 
-## 11. Migration safety
+## 12. Migration safety
 
 The one-shot migration service is intentionally separate from the API image
 entrypoint. Failed migrations leave the API and scheduler stopped, making the

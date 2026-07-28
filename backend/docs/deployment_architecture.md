@@ -8,12 +8,14 @@ For step-by-step commands, see [`deploy/README.md`](../../deploy/README.md).
 
 ## Overview
 
-Production runs on a **single Ubuntu VPS** (Contabo) using **Docker Compose**. **Cloudflare** sits in front as DNS proxy, WAF, and CDN. **Nginx** on the VPS terminates TLS (Full Strict with Cloudflare) and reverse-proxies to internal containers.
+Production runs on a **single Ubuntu VPS** (Contabo) using **Docker Compose**. **Cloudflare** sits in front as DNS proxy, WAF, and CDN. **Host-level Nginx** (outside this repository) terminates TLS on ports 80/443 and reverse-proxies to loopback ports published by the Docker stack.
 
-| Domain | Service |
-|--------|---------|
-| `stockwealthbd.com` | Next.js frontend |
-| `api.stockwealthbd.com` | FastAPI backend |
+| Domain | Upstream (loopback) | Container |
+|--------|---------------------|-----------|
+| `stockwealthbd.com` | `127.0.0.1:3000` | Next.js frontend |
+| `api.stockwealthbd.com` | `127.0.0.1:8000` | FastAPI backend-api |
+
+PostgreSQL is **internal only** — not exposed on the host (except `127.0.0.1:5432` for SSH tunnel access).
 
 PostgreSQL is **internal only** — not exposed on the host.
 
@@ -32,7 +34,7 @@ flowchart TB
     end
 
     subgraph vps [Contabo VPS]
-        Nginx[Nginx :443 TLS]
+        HostNginx[Host Nginx :443 TLS]
 
         subgraph docker [Docker app-network]
             FE[frontend :3000]
@@ -45,9 +47,9 @@ flowchart TB
     end
 
     Browser --> CF
-    CF --> Nginx
-    Nginx --> FE
-    Nginx --> API
+    CF --> HostNginx
+    HostNginx -->|127.0.0.1:3000| FE
+    HostNginx -->|127.0.0.1:8000| API
     API --> PG
     MIG --> PG
     API -.->|optional cache| RD
@@ -59,10 +61,10 @@ flowchart TB
 | Component | Role | Process |
 |-----------|------|---------|
 | **Cloudflare** | Public edge — DNS, TLS to visitors, DDoS protection | Managed service |
-| **Nginx** | Origin TLS, reverse proxy, real client IP from `CF-Connecting-IP` | `nginx:1.27-alpine` |
-| **frontend** | Next.js App Router (standalone build) | `node server.js` |
+| **Host Nginx** | Origin TLS, reverse proxy to loopback, real client IP from `CF-Connecting-IP` | System package on VPS — **not** in Docker Compose |
+| **frontend** | Next.js App Router (standalone build) | `node server.js` — published on `127.0.0.1:3000` |
 | **backend-migrate** | One-shot database migration job | `alembic upgrade head` |
-| **backend-api** | REST API | Gunicorn + Uvicorn workers |
+| **backend-api** | REST API | Gunicorn + Uvicorn workers — published on `127.0.0.1:8000` |
 | **backend-scheduler** | Background jobs only — no HTTP | `python -m app.jobs.scheduler` |
 | **postgres** | Primary database | `postgres:17-alpine` |
 | **redis** | Optional dashboard section cache | `redis:7-alpine` — omit `REDIS_URL` to run without Redis |
@@ -79,12 +81,12 @@ Dashboard cache architecture: [market_dashboard.md](market_dashboard.md). Phase 
 sequenceDiagram
     participant Browser
     participant Cloudflare
-    participant Nginx
+    participant HostNginx as Host Nginx
     participant Frontend
 
     Browser->>Cloudflare: HTTPS stockwealthbd.com
-    Cloudflare->>Nginx: HTTPS origin
-    Nginx->>Frontend: HTTP frontend:3000
+    Cloudflare->>HostNginx: HTTPS origin
+    HostNginx->>Frontend: HTTP 127.0.0.1:3000
     Frontend-->>Browser: HTML / JS / assets
 ```
 
@@ -94,20 +96,20 @@ sequenceDiagram
 sequenceDiagram
     participant Browser
     participant Cloudflare
-    participant Nginx
+    participant HostNginx as Host Nginx
     participant API
     participant Postgres
 
     Browser->>Cloudflare: HTTPS api.stockwealthbd.com/api/v1/...
-    Cloudflare->>Nginx: HTTPS origin
-    Nginx->>API: HTTP backend-api:8000
-    Note over Nginx,API: X-Forwarded-Proto https
+    Cloudflare->>HostNginx: HTTPS origin
+    HostNginx->>API: HTTP 127.0.0.1:8000
+    Note over HostNginx,API: X-Forwarded-Proto https
     API->>Postgres: async SQLAlchemy
     Postgres-->>API: data
     API-->>Browser: JSON response
 ```
 
-The frontend calls the API **from the browser** using `NEXT_PUBLIC_API_BASE_URL` (baked at Docker build time). Server-side Next.js does not proxy API traffic through Nginx internally.
+The frontend calls the API **from the browser** using `NEXT_PUBLIC_API_BASE_URL` (baked at Docker build time). Server-side Next.js does not proxy API traffic through host Nginx internally; dashboard SSR uses the internal Docker URL (`SERVER_API_BASE_URL` → `backend-api:8000`).
 
 ---
 
@@ -203,12 +205,13 @@ Market intelligence is cached in the **browser** (IndexedDB + TanStack Query), n
 ## TLS and proxy trust
 
 ```text
-Browser ──TLS──► Cloudflare ──TLS──► Nginx ──HTTP──► backend-api:8000
+Browser ──TLS──► Cloudflare ──TLS──► Host Nginx ──HTTP──► 127.0.0.1:8000 (backend-api)
+Browser ──TLS──► Cloudflare ──TLS──► Host Nginx ──HTTP──► 127.0.0.1:3000 (frontend)
 ```
 
-- **Cloudflare SSL mode:** Full (strict) — origin must present a valid certificate.
-- **Certificates:** Let's Encrypt or Cloudflare Origin Certificate in `deploy/certs/`.
-- **Gunicorn `forwarded_allow_ips`:** Restricted to `127.0.0.1` and Docker subnet `172.28.0.0/16` — only Nginx reaches the API on the internal network. Cloudflare never contacts Gunicorn directly, so Cloudflare IP ranges are configured in **Nginx** (`real_ip_header CF-Connecting-IP`), not in Gunicorn.
+- **Cloudflare SSL mode:** Full (strict) — origin must present a valid certificate on host Nginx.
+- **Certificates:** Managed on the VPS host (e.g. Let's Encrypt via certbot, or Cloudflare Origin Certificate). Not stored in this repository.
+- **Gunicorn `forwarded_allow_ips`:** Restricted to `127.0.0.1` and Docker subnet `172.28.0.0/16` — only host Nginx (via loopback) and internal Docker traffic reach the API. Cloudflare never contacts Gunicorn directly, so Cloudflare IP ranges are configured in **host Nginx** (`real_ip_header CF-Connecting-IP`), not in Gunicorn.
 
 ---
 
@@ -258,9 +261,10 @@ Operational keys in that file overlap with admin-editable settings — see [Conf
 
 | Choice | Rationale |
 |--------|-----------|
-| Non-root containers | `appuser` (backend), `node` (frontend), official image users (postgres, nginx) |
+| Non-root containers | `appuser` (backend), `node` (frontend), official image users (postgres, redis) |
 | Postgres not on public interface | Bound to `127.0.0.1:5432` on the host for SSH tunnel access only; no UFW rule for 5432 |
-| Log rotation on api/scheduler/nginx | `json-file` max 10m × 5 files — prevents disk fill on single VPS |
+| API and frontend on loopback only | `127.0.0.1:8000` and `127.0.0.1:3000` — only host Nginx reaches them from outside Docker |
+| Log rotation on api/scheduler | `json-file` max 10m × 5 files — prevents disk fill on single VPS |
 | Internal Docker network | Services resolve by name (`postgres`, `backend-api`, `frontend`) — never `localhost` |
 
 ---
@@ -292,16 +296,17 @@ See [`frontend/README.md`](../../frontend/README.md).
 ## File map
 
 ```
-docker-compose.yml          # Service definitions
+docker-compose.yml          # Service definitions (no edge proxy)
 .env.docker.example         # Environment template
 deploy/
   README.md                 # Operational runbook
-  nginx/                    # Reverse proxy config
-  certs/                    # TLS certificates (gitignored)
-  scripts/                  # backend entrypoint, postgres wait
+  cloudflare/               # Edge cache rules (Cloudflare dashboard)
+  scripts/                  # Deploy scripts, backend entrypoint, postgres wait
 backend/Dockerfile
 frontend/Dockerfile
 ```
+
+Production project path on the VPS: `/opt/stockwealthbd`.
 
 ---
 
