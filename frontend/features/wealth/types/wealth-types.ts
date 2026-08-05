@@ -34,7 +34,7 @@ export type WealthIntentHref =
   | "/wealth/tools/dps"
   | "/wealth/tools/fdr"
   | "/wealth/tools/sanchayapatra"
-  | "/wealth/tools/compound-growth"
+  | "/tools/invest"
   | "/wealth/tools/emi"
   | "/wealth/tools/zakat"
   | "/wealth/tools/retirement";

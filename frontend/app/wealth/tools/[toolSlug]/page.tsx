@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import { JsonLdScript } from "@/components/seo/json-ld-script";
 import { TerminalAppShell } from "@/components/layout/terminal-app-shell";
@@ -43,6 +43,9 @@ export default async function WealthToolPage({ params }: WealthToolPageProps) {
   if (!isWealthToolSlug(toolSlug)) {
     notFound();
   }
+  if (toolSlug === "compound-growth") {
+    redirect("/tools/invest");
+  }
   const locale = parseAppLocale((await cookies()).get(LOCALE_COOKIE_NAME)?.value);
 
   const workspace =
@@ -54,7 +57,7 @@ export default async function WealthToolPage({ params }: WealthToolPageProps) {
       <FdrToolWorkspace locale={locale} />
     ) : toolSlug === "sanchayapatra" ? (
       <SanchayapatraToolWorkspace locale={locale} />
-    ) : toolSlug === "compound-growth" || toolSlug === "savings-goal" ? (
+    ) : toolSlug === "savings-goal" ? (
       <WealthFutureJourneyWorkspace toolSlug={toolSlug} />
     ) : (
       <WealthToolWorkspace locale={locale} toolSlug={toolSlug} />

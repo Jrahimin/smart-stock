@@ -2374,7 +2374,7 @@ Public educational scenario calculation for wealth tools. No persistence.
 
 **Path Params**
 
-* tool_slug: one of `fdr`, `dps`, `sanchayapatra`, `compound-growth`, `emi`, `cagr`, `zakat`, `retirement`, `savings-goal`
+* tool_slug: one of `fdr`, `dps`, `sanchayapatra`, `compound-growth`, `investment-evaluation`, `emi`, `cagr`, `zakat`, `retirement`, `savings-goal`
 
 **Body**
 

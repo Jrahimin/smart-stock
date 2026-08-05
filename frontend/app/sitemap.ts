@@ -21,7 +21,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     url: buildWealthCanonical(path),
     lastModified: now,
     changeFrequency: "weekly",
-    priority: path === "/wealth" ? 0.85 : path.startsWith("/wealth/tools") || path.startsWith("/wealth/compare") ? 0.75 : 0.65,
+    priority:
+      path === "/wealth"
+        ? 0.85
+        : path === "/tools/invest" || path.startsWith("/wealth/tools") || path.startsWith("/wealth/compare")
+          ? 0.75
+          : 0.65,
   }));
 
   const activeSymbols = await fetchServerApiData<ActiveStockSymbolDto[]>("/stocks/active-symbols", 3600);

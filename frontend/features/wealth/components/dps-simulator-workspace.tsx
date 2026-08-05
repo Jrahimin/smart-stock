@@ -475,7 +475,7 @@ export function DpsSimulatorWorkspace({ locale }: { locale: AppLocale }) {
           <Link className="wealth-chip" href="/wealth/compare/dps-vs-fdr">
             {copy.dps.compareFdr}
           </Link>
-          <Link className="wealth-chip" href="/wealth/tools/compound-growth">
+          <Link className="wealth-chip" href="/tools/invest">
             {copy.dps.compareInvesting}
           </Link>
           <button className="wealth-chip wealth-chip-button" onClick={() => void handleSaveScenario()} type="button">

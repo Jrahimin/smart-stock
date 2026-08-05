@@ -119,7 +119,9 @@ function WealthCalculatorsNavItem({ pathname, copy }: { pathname: string; copy: 
   const [isOpen, setIsOpen] = useState(false);
   const [guideForcedOpen, setGuideForcedOpen] = useState(false);
   const shellRef = useRef<HTMLDivElement>(null);
-  const isActive = pathname.startsWith("/wealth/tools") && !pathname.startsWith("/wealth/tools/tax-planner");
+  const isActive =
+    pathname.startsWith("/tools/invest") ||
+    (pathname.startsWith("/wealth/tools") && !pathname.startsWith("/wealth/tools/tax-planner"));
   const activeCalculator =
     WEALTH_CALCULATOR_NAV_ITEMS.find((item) => pathname === item.href || pathname.startsWith(`${item.href}/`)) ??
     null;

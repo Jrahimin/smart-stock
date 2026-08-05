@@ -317,6 +317,113 @@ def test_fdr_tool_calculation() -> None:
     assert response.next_steps
 
 
+def test_investment_evaluation_reconciles_profit_roi_and_break_even() -> None:
+    service = WealthCalculationService()
+    response = service.calculate(
+        "investment-evaluation",
+        {
+            "initial_investment": 500000,
+            "additional_costs": 50000,
+            "monthly_income": 40000,
+            "monthly_expenses": 15000,
+            "investment_months": 24,
+            "exit_value": 100000,
+            "ownership_percentage": 50,
+            "tax_rate": 10,
+            "fees_rate": 5,
+            "income_growth_rate": 0,
+        },
+        WealthAssumptionsInput(),
+    )
+
+    assert response.tool_slug == "investment-evaluation"
+    assert response.assumptions_used["total_capital"] == "550000.00"
+    assert response.assumptions_used["monthly_net_income"] == "10625.00"
+    assert response.assumptions_used["total_income"] == "255000.00"
+    assert response.assumptions_used["net_profit"] == "-195000.00"
+    assert response.assumptions_used["roi_percent"] == "-35.45"
+    assert response.assumptions_used["break_even_months"] == "52"
+
+
+def test_investment_evaluation_handles_zero_income_and_no_break_even() -> None:
+    response = WealthCalculationService().calculate(
+        "investment-evaluation",
+        {
+            "initial_investment": 100000,
+            "monthly_income": 0,
+            "monthly_expenses": 0,
+            "investment_months": 12,
+        },
+        WealthAssumptionsInput(),
+    )
+
+    assert response.assumptions_used["monthly_net_income"] == "0.00"
+    assert response.assumptions_used["break_even_months"] is None
+    assert response.assumptions_used["annualized_return_percent"] is None
+
+
+def test_investment_evaluation_handles_expenses_above_income_and_negative_profit() -> None:
+    response = WealthCalculationService().calculate(
+        "investment-evaluation",
+        {
+            "initial_investment": 100000,
+            "monthly_income": 5000,
+            "monthly_expenses": 8000,
+            "investment_months": 12,
+        },
+        WealthAssumptionsInput(),
+    )
+
+    assert response.assumptions_used["monthly_net_income"] == "-3000.00"
+    assert response.assumptions_used["break_even_months"] is None
+    assert Decimal(str(response.assumptions_used["net_profit"])) < 0
+
+
+def test_investment_evaluation_uses_ownership_and_missing_resale_as_zero() -> None:
+    response = WealthCalculationService().calculate(
+        "investment-evaluation",
+        {
+            "initial_investment": 100000,
+            "monthly_income": 20000,
+            "monthly_expenses": 0,
+            "investment_months": 12,
+            "ownership_percentage": 50,
+        },
+        WealthAssumptionsInput(),
+    )
+
+    assert response.assumptions_used["ownership_percentage"] == "50"
+    assert response.assumptions_used["exit_value"] == "0"
+    assert response.assumptions_used["monthly_net_income"] == "10000.00"
+    assert response.assumptions_used["total_income"] == "120000.00"
+
+
+def test_investment_evaluation_only_returns_annualized_return_when_valid() -> None:
+    valid_response = WealthCalculationService().calculate(
+        "investment-evaluation",
+        {
+            "initial_investment": 100000,
+            "monthly_income": 10000,
+            "monthly_expenses": 0,
+            "investment_months": 12,
+        },
+        WealthAssumptionsInput(),
+    )
+    invalid_response = WealthCalculationService().calculate(
+        "investment-evaluation",
+        {
+            "initial_investment": 100000,
+            "monthly_income": 0,
+            "monthly_expenses": 0,
+            "investment_months": 12,
+        },
+        WealthAssumptionsInput(),
+    )
+
+    assert valid_response.assumptions_used["annualized_return_percent"] == "20.00"
+    assert invalid_response.assumptions_used["annualized_return_percent"] is None
+
+
 def test_fdr_monthly_income_uses_principal_not_maturity_value() -> None:
     service = WealthCalculationService()
     response = service.calculate(

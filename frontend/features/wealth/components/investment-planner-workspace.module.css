@@ -1,0 +1,939 @@
+.workspace {
+  display: grid;
+  gap: 14px;
+  width: 100%;
+}
+
+.intro {
+  display: grid;
+  gap: 4px;
+  padding: 4px 2px 0;
+}
+
+.eyebrow {
+  color: var(--primary);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.intro h1 {
+  font-size: clamp(1.65rem, 3vw, 2.2rem);
+  letter-spacing: -0.045em;
+  line-height: 1.08;
+  margin: 0;
+}
+
+.intro > p:last-child {
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.5;
+  margin: 0;
+  max-width: 70ch;
+}
+
+.modeSelector {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+.modeOption {
+  align-items: center;
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  border: 0;
+  color: var(--foreground);
+  cursor: pointer;
+  display: grid;
+  gap: 11px;
+  grid-template-columns: auto minmax(0, 1fr);
+  min-height: 70px;
+  padding: 12px 14px;
+  position: relative;
+  text-align: left;
+  width: 100%;
+}
+
+.modeOption + .modeOption {
+  border-left: 1px solid var(--border);
+}
+
+.modeOptionActive {
+  background:
+    linear-gradient(110deg, color-mix(in srgb, var(--primary) 13%, transparent), transparent),
+    var(--panel);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 72%, transparent);
+}
+
+.modeOptionDisabled {
+  cursor: not-allowed;
+}
+
+.modeOptionDisabled .modeCopy {
+  opacity: 0.65;
+}
+
+.modeOption:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -3px;
+  z-index: 1;
+}
+
+.radioMark {
+  border: 1px solid color-mix(in srgb, var(--muted) 70%, transparent);
+  border-radius: 50%;
+  height: 20px;
+  position: relative;
+  width: 20px;
+}
+
+.modeOptionActive .radioMark {
+  border-color: var(--primary);
+}
+
+.modeOptionActive .radioMark::after {
+  background: var(--primary);
+  border-radius: 50%;
+  content: "";
+  inset: 4px;
+  position: absolute;
+}
+
+.modeCopy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.modeCopy > span:last-child {
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.modeLabelRow {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.modeLabelRow strong {
+  font-size: 0.84rem;
+}
+
+.modeLabelRow small {
+  background: color-mix(in srgb, var(--primary) 10%, var(--soft-surface));
+  border: 1px solid color-mix(in srgb, var(--primary) 18%, var(--border));
+  border-radius: 999px;
+  color: color-mix(in srgb, var(--primary) 76%, var(--foreground));
+  font-size: 0.58rem;
+  padding: 2px 6px;
+}
+
+.context {
+  align-items: start;
+  display: flex;
+  gap: 10px;
+  padding: 5px 3px 0;
+}
+
+.context > svg {
+  color: var(--primary);
+  margin-top: 2px;
+}
+
+.context h2,
+.panel h2,
+.scenario h2 {
+  font-size: 0.98rem;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+.context p {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  margin: 3px 0 0;
+}
+
+.plannerGrid {
+  align-items: start;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(330px, 0.95fr) minmax(430px, 1.3fr);
+}
+
+.outcomeColumn {
+  display: grid;
+  gap: 12px;
+}
+
+.modeContent {
+  display: grid;
+  gap: 14px;
+}
+
+.panel,
+.scenario,
+.actions {
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 3%), transparent 58%),
+    var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--card-inner-highlight);
+}
+
+.panel {
+  padding: 14px;
+}
+
+.panelHeading {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.updating {
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+
+.fieldList {
+  display: grid;
+  gap: 10px;
+  margin-top: 13px;
+}
+
+.compactForm .fieldList {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.compactForm .field {
+  align-items: start;
+  gap: 5px;
+  grid-template-columns: 1fr;
+}
+
+.field {
+  align-items: center;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(140px, 0.85fr) minmax(150px, 1.15fr);
+}
+
+.field > span:first-child {
+  color: var(--foreground);
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+
+.inputShell {
+  align-items: stretch;
+  background: var(--subtle);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  display: flex;
+  min-height: 36px;
+  overflow: hidden;
+}
+
+.inputShell:focus-within {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 16%, transparent);
+}
+
+.inputShell input {
+  appearance: textfield;
+  background: transparent;
+  border: 0;
+  color: var(--foreground);
+  font: inherit;
+  min-width: 0;
+  outline: 0;
+  padding: 7px 9px;
+  width: 100%;
+}
+
+.inputShell input::-webkit-inner-spin-button,
+.inputShell input::-webkit-outer-spin-button {
+  appearance: none;
+  margin: 0;
+}
+
+.inputAffix {
+  align-items: center;
+  border-right: 1px solid var(--border);
+  color: var(--muted);
+  display: flex;
+  font-size: 0.7rem;
+  padding: 0 10px;
+}
+
+.inputShell input + .inputAffix {
+  border-left: 1px solid var(--border);
+  border-right: 0;
+}
+
+.advanced {
+  background: color-mix(in srgb, var(--soft-surface) 90%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
+  border-radius: 10px;
+  margin-top: 13px;
+}
+
+.advanced summary {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  list-style: none;
+  padding: 11px 12px;
+}
+
+.advanced summary::-webkit-details-marker {
+  display: none;
+}
+
+.advanced summary > span {
+  align-items: center;
+  display: flex;
+  font-size: 0.75rem;
+  font-weight: 700;
+  gap: 7px;
+}
+
+.advanced summary small {
+  color: var(--muted);
+  font-size: 0.64rem;
+  font-weight: 500;
+}
+
+.advanced[open] summary > svg {
+  transform: rotate(180deg);
+}
+
+.advancedContent {
+  border-top: 1px solid var(--border);
+  padding: 12px;
+}
+
+.advancedContent .fieldList {
+  margin-top: 0;
+}
+
+.advancedHint {
+  color: var(--muted);
+  font-size: 0.69rem;
+  line-height: 1.4;
+  margin: 12px 0 0;
+}
+
+.note {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-size: 0.69rem;
+  gap: 7px;
+  line-height: 1.4;
+  margin: 14px 0 0;
+}
+
+.headlineMetrics {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 14px;
+}
+
+.headlineMetrics article {
+  background: color-mix(in srgb, var(--soft-surface) 96%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
+  border-radius: 10px;
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  padding: 13px;
+}
+
+.headlineMetrics article > span,
+.headlineMetrics article > small {
+  color: var(--muted);
+  font-size: 0.69rem;
+}
+
+.headlineMetrics strong {
+  font-size: clamp(1.22rem, 2.2vw, 1.68rem);
+  letter-spacing: -0.04em;
+  line-height: 1.1;
+}
+
+.primaryValue {
+  color: var(--primary);
+}
+
+.realValue {
+  color: var(--wealth-accent);
+}
+
+.negativeValue {
+  color: var(--negative);
+}
+
+.splitSection {
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+  padding-top: 14px;
+}
+
+.splitSection h3 {
+  font-size: 0.78rem;
+  margin: 0;
+}
+
+.splitBar {
+  border-radius: 7px;
+  display: flex;
+  min-height: 25px;
+  overflow: hidden;
+}
+
+.splitBar span {
+  align-items: center;
+  display: flex;
+  font-size: 0.68rem;
+  font-weight: 800;
+  justify-content: center;
+  min-width: 34px;
+}
+
+.splitBar span:first-child {
+  background: color-mix(in srgb, var(--primary) 82%, #5531b6);
+  color: white;
+}
+
+.splitBar span:last-child {
+  background: color-mix(in srgb, var(--wealth-accent) 76%, #b8ef8f);
+  color: #09251b;
+}
+
+.splitLegend {
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+}
+
+.splitLegend p {
+  display: grid;
+  gap: 3px;
+  margin: 0;
+}
+
+.splitLegend p:last-child {
+  text-align: right;
+}
+
+.splitLegend span {
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+
+.splitLegend strong {
+  font-size: 0.84rem;
+}
+
+.insight {
+  align-items: center;
+  background: color-mix(in srgb, var(--primary) 8%, var(--soft-surface));
+  border: 1px solid color-mix(in srgb, var(--primary) 18%, var(--border));
+  border-radius: 9px;
+  color: color-mix(in srgb, var(--foreground) 88%, var(--muted));
+  display: flex;
+  font-size: 0.72rem;
+  gap: 9px;
+  line-height: 1.45;
+  margin: 0;
+  padding: 10px 11px;
+}
+
+.insight > svg {
+  color: var(--primary);
+  flex: 0 0 auto;
+}
+
+.scenario {
+  align-items: center;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(220px, 1fr) minmax(320px, 1.25fr);
+  padding: 13px 16px;
+}
+
+.scenarioLead {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+}
+
+.scenarioIcon {
+  align-items: center;
+  background: color-mix(in srgb, var(--primary) 13%, var(--soft-surface));
+  border-radius: 9px;
+  color: var(--primary);
+  display: flex;
+  flex: 0 0 auto;
+  height: 38px;
+  justify-content: center;
+  width: 38px;
+}
+
+.scenarioLead p {
+  color: var(--muted);
+  font-size: 0.7rem;
+  margin: 4px 0 0;
+}
+
+.scenarioMetrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+}
+
+.scenarioMetrics div {
+  border-left: 1px solid var(--border);
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding-left: 12px;
+}
+
+.scenarioMetrics dt {
+  color: var(--muted);
+  font-size: 0.63rem;
+}
+
+.scenarioMetrics dd {
+  font-size: 0.78rem;
+  font-weight: 800;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.scenarioMetrics .gain {
+  color: var(--wealth-accent);
+}
+
+.investmentTypeSelector {
+  border: 0;
+  margin: 14px 0 0;
+  padding: 0;
+}
+
+.investmentTypeSelector legend {
+  color: var(--foreground);
+  font-size: 0.76rem;
+  font-weight: 600;
+  margin-bottom: 7px;
+}
+
+.investmentTypeSelector > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.typeOption {
+  cursor: pointer;
+}
+
+.typeOption input {
+  height: 1px;
+  opacity: 0;
+  position: absolute;
+  width: 1px;
+}
+
+.typeOption span {
+  background: var(--soft-surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  display: inline-flex;
+  font-size: 0.69rem;
+  padding: 6px 10px;
+}
+
+.typeOption input:focus-visible + span {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.typeOptionActive span {
+  background: color-mix(in srgb, var(--primary) 13%, var(--soft-surface));
+  border-color: color-mix(in srgb, var(--primary) 48%, var(--border));
+  color: var(--foreground);
+}
+
+.evaluationMetrics {
+  display: grid;
+  gap: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 14px 0 0;
+}
+
+.evaluationMetrics div {
+  border-bottom: 1px solid var(--border);
+  display: grid;
+  gap: 4px;
+  padding: 10px 0;
+}
+
+.evaluationMetrics div:nth-child(odd) {
+  padding-right: 12px;
+}
+
+.evaluationMetrics div:nth-child(even) {
+  border-left: 1px solid var(--border);
+  padding-left: 12px;
+}
+
+.evaluationMetrics dt {
+  color: var(--muted);
+  font-size: 0.67rem;
+}
+
+.evaluationMetrics dd {
+  font-size: 0.82rem;
+  font-weight: 800;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.incomePotential {
+  margin: 0;
+  padding: 0;
+}
+
+.incomePotential summary {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  list-style: none;
+  padding: 11px 13px;
+}
+
+.incomePotential summary::-webkit-details-marker { display: none; }
+
+.incomePotential summary > span {
+  display: grid;
+  gap: 3px;
+}
+
+.incomePotential summary strong { font-size: 0.82rem; }
+
+.incomePotential summary small {
+  color: var(--muted);
+  font-size: 0.67rem;
+  line-height: 1.35;
+}
+
+.incomePotential[open] summary > svg { transform: rotate(180deg); }
+
+.incomePotentialBody {
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 11px;
+  padding: 12px 13px;
+}
+
+.incomeQuestion {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.incomeQuestion legend {
+  color: var(--muted);
+  font-size: 0.66rem;
+  margin-bottom: 6px;
+}
+
+.incomeQuestion > div { display: flex; flex-wrap: wrap; gap: 7px; }
+
+.incomeQuestion label { cursor: pointer; }
+
+.incomeQuestion input {
+  height: 1px;
+  opacity: 0;
+  position: absolute;
+  width: 1px;
+}
+
+.incomeQuestion span {
+  background: var(--soft-surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  display: inline-flex;
+  font-size: 0.68rem;
+  padding: 6px 9px;
+}
+
+.incomeQuestion input:checked + span {
+  background: color-mix(in srgb, var(--primary) 13%, var(--soft-surface));
+  border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
+  color: var(--foreground);
+}
+
+.incomeQuestion input:focus-visible + span { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+.incomeMetrics {
+  display: grid;
+  gap: 9px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.incomeMetrics p {
+  display: grid;
+  gap: 3px;
+  margin: 0;
+}
+
+.incomeMetrics span { color: var(--muted); font-size: 0.66rem; }
+.incomeMetrics strong { font-size: 0.8rem; overflow-wrap: anywhere; }
+
+.stressScenario {
+  align-items: center;
+  background: color-mix(in srgb, var(--soft-surface) 92%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(190px, 0.8fr) minmax(330px, 1.2fr);
+  padding: 12px 14px;
+}
+
+.stressScenario h2 { font-size: 0.82rem; margin: 0; }
+.stressScenario p { color: var(--muted); font-size: 0.68rem; line-height: 1.35; margin: 4px 0 0; }
+
+.stressScenario dl {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+}
+
+.stressScenario dl div { border-left: 1px solid var(--border); display: grid; gap: 3px; padding-left: 11px; }
+.stressScenario dt { color: var(--muted); font-size: 0.63rem; }
+.stressScenario dd { font-size: 0.76rem; font-weight: 800; margin: 0; overflow-wrap: anywhere; }
+
+.actions {
+  background: var(--soft-surface);
+  border-radius: 9px;
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: minmax(150px, 0.82fr) repeat(2, minmax(0, 1fr));
+  overflow: hidden;
+}
+
+.primaryAction,
+.secondaryAction {
+  align-items: center;
+  border: 0;
+  border-radius: 0;
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  min-height: 48px;
+  padding: 8px 10px;
+}
+
+.primaryAction {
+  background: linear-gradient(110deg, color-mix(in srgb, var(--primary) 78%, #5b2cc7), var(--primary));
+  color: white;
+  font-weight: 800;
+}
+
+.primaryAction:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.secondaryAction {
+  background: transparent;
+  border-left: 1px solid var(--border);
+  color: color-mix(in srgb, var(--primary) 78%, var(--foreground));
+  justify-content: flex-start;
+}
+
+.secondaryAction > span {
+  display: grid;
+  gap: 2px;
+}
+
+.secondaryAction strong {
+  font-size: 0.7rem;
+}
+
+.secondaryAction small {
+  color: var(--muted);
+  font-size: 0.63rem;
+}
+
+.primaryAction:hover,
+.secondaryAction:hover {
+  background-color: color-mix(in srgb, var(--primary) 8%, transparent);
+}
+
+.primaryAction:focus-visible,
+.secondaryAction:focus-visible,
+.advanced summary:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -3px;
+}
+
+.error,
+.savedMessage {
+  border-radius: 8px;
+  font-size: 0.72rem;
+  margin: 0;
+  padding: 9px 11px;
+}
+
+.error {
+  background: color-mix(in srgb, var(--negative) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--negative) 24%, var(--border));
+  color: var(--negative);
+}
+
+.savedMessage {
+  background: var(--wealth-accent-subtle);
+  border: 1px solid color-mix(in srgb, var(--wealth-accent) 28%, var(--border));
+  color: var(--wealth-accent);
+}
+
+.srOnly {
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
+@media (max-width: 1050px) {
+  .plannerGrid {
+    grid-template-columns: minmax(280px, 0.82fr) minmax(380px, 1.18fr);
+  }
+
+  .scenario {
+    align-items: start;
+    grid-template-columns: 1fr;
+  }
+
+  .stressScenario { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 820px) {
+  .modeSelector,
+  .plannerGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .modeOption + .modeOption {
+    border-left: 0;
+    border-top: 1px solid var(--border);
+  }
+
+  .modeOption {
+    min-height: 60px;
+  }
+
+  .actions {
+    grid-template-columns: 1fr;
+  }
+
+  .secondaryAction {
+    border-left: 0;
+    border-top: 1px solid var(--border);
+  }
+}
+
+@media (max-width: 560px) {
+  .workspace {
+    gap: 12px;
+  }
+
+  .intro h1 {
+    font-size: 1.55rem;
+  }
+
+  .panel {
+    padding: 13px;
+  }
+
+  .field {
+    align-items: start;
+    gap: 6px;
+    grid-template-columns: 1fr;
+  }
+
+  .compactForm .fieldList,
+  .incomeMetrics,
+  .stressScenario dl {
+    grid-template-columns: 1fr;
+  }
+
+  .headlineMetrics,
+  .scenarioMetrics {
+    grid-template-columns: 1fr;
+  }
+
+  .scenarioMetrics {
+    gap: 9px;
+  }
+
+  .scenarioMetrics div {
+    border-left: 0;
+    border-top: 1px solid var(--border);
+    padding: 9px 0 0;
+  }
+
+  .scenarioMetrics div:first-child {
+    border-top: 0;
+    padding-top: 0;
+  }
+
+  .splitLegend {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .evaluationMetrics {
+    grid-template-columns: 1fr;
+  }
+
+  .evaluationMetrics div,
+  .evaluationMetrics div:nth-child(odd),
+  .evaluationMetrics div:nth-child(even) {
+    border-left: 0;
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .stressScenario dl { gap: 8px; }
+  .stressScenario dl div { border-left: 0; border-top: 1px solid var(--border); padding: 8px 0 0; }
+  .stressScenario dl div:first-child { border-top: 0; padding-top: 0; }
+}

@@ -1,5 +1,5 @@
 from datetime import date
-from decimal import Decimal
+from decimal import ROUND_CEILING, Decimal
 from typing import Any
 
 from app.core.exception_handlers import AppError
@@ -27,6 +27,7 @@ SUPPORTED_TOOLS = {
     "dps",
     "sanchayapatra",
     "compound-growth",
+    "investment-evaluation",
     "emi",
     "cagr",
     "zakat",
@@ -507,6 +508,37 @@ class WealthCalculationService:
         annuity_value = calculate_future_value_annuity(monthly_contribution, annual_rate, years) if monthly_contribution > 0 else Decimal("0")
         total_value = (lump_sum_value + annuity_value).quantize(Decimal("0.01"))
         real_value = calculate_inflation_adjusted_value(total_value, inflation_rate, years)
+        withdrawal_rate = _decimal_input(inputs, "withdrawal_rate", Decimal("4"))
+        monthly_income_target = _decimal_input(inputs, "monthly_income_target")
+        projected_monthly_income = (total_value * withdrawal_rate / Decimal("1200")).quantize(Decimal("0.01"))
+        projected_annual_income = (projected_monthly_income * Decimal("12")).quantize(Decimal("0.01"))
+        monthly_income_today_value = calculate_inflation_adjusted_value(
+            projected_monthly_income,
+            inflation_rate,
+            years,
+        )
+        capital_outlook = (
+            "growing"
+            if withdrawal_rate < annual_rate
+            else "stable"
+            if withdrawal_rate == annual_rate
+            else "declining"
+        )
+        required_capital = (
+            (monthly_income_target * Decimal("1200") / withdrawal_rate).quantize(Decimal("0.01"))
+            if withdrawal_rate > 0 and monthly_income_target > 0
+            else None
+        )
+        capital_gap = (
+            max(Decimal("0"), required_capital - total_value).quantize(Decimal("0.01"))
+            if required_capital is not None
+            else None
+        )
+        additional_monthly_investment = None
+        if capital_gap is not None and capital_gap > 0 and years > 0:
+            annuity_factor = calculate_future_value_annuity(Decimal("1"), annual_rate, years)
+            if annuity_factor > 0:
+                additional_monthly_investment = (capital_gap / annuity_factor).quantize(Decimal("0.01"))
 
         return WealthToolCalculateResponse(
             tool_slug="compound-growth",
@@ -538,7 +570,160 @@ class WealthCalculationService:
                 {"label": "Compare with FDR", "href": "/wealth/compare/fdr-vs-stocks"},
                 {"label": "Save scenario", "href": "/wealth/snapshot"},
             ],
-            assumptions_used={"annual_rate": str(annual_rate), "inflation_rate": str(inflation_rate)},
+            assumptions_used={
+                "annual_rate": str(annual_rate),
+                "inflation_rate": str(inflation_rate),
+                "withdrawal_rate": str(withdrawal_rate),
+                "projected_monthly_income": str(projected_monthly_income),
+                "projected_annual_income": str(projected_annual_income),
+                "monthly_income_today_value": str(monthly_income_today_value),
+                "capital_outlook": capital_outlook,
+                "monthly_income_target": str(monthly_income_target) if monthly_income_target > 0 else None,
+                "required_capital": str(required_capital) if required_capital is not None else None,
+                "capital_gap": str(capital_gap) if capital_gap is not None else None,
+                "additional_monthly_investment": (
+                    str(additional_monthly_investment)
+                    if additional_monthly_investment is not None
+                    else None
+                ),
+            },
+        )
+
+    def _calculate_investment_evaluation(
+        self,
+        inputs: dict[str, Any],
+        assumptions: WealthAssumptionsInput,
+    ) -> WealthToolCalculateResponse:
+        """Evaluate an income-producing investment using explicit, user-editable assumptions."""
+        defaults = get_country_defaults(assumptions.country_code)
+        initial_investment = max(Decimal("0"), _decimal_input(inputs, "initial_investment"))
+        additional_costs = max(Decimal("0"), _decimal_input(inputs, "additional_costs"))
+        monthly_income = _decimal_input(inputs, "monthly_income")
+        monthly_expenses = _decimal_input(inputs, "monthly_expenses")
+        investment_months = max(0, _int_input(inputs, "investment_months", 60))
+        exit_value = max(Decimal("0"), _decimal_input(inputs, "exit_value"))
+        ownership_percentage = min(Decimal("100"), max(Decimal("0"), _decimal_input(inputs, "ownership_percentage", 100)))
+        tax_rate = min(Decimal("100"), max(Decimal("0"), _decimal_input(inputs, "tax_rate")))
+        fees_rate = min(Decimal("100"), max(Decimal("0"), _decimal_input(inputs, "fees_rate")))
+        income_growth_rate = max(Decimal("-100"), _decimal_input(inputs, "income_growth_rate"))
+        expense_growth_rate = max(Decimal("-100"), _decimal_input(inputs, "expense_growth_rate"))
+
+        total_capital = (initial_investment + additional_costs).quantize(Decimal("0.01"))
+        gross_monthly_net_income = (
+            (monthly_income - monthly_expenses) * ownership_percentage / Decimal("100")
+        ).quantize(Decimal("0.01"))
+        income_multiplier = max(Decimal("0"), Decimal("1") - (tax_rate + fees_rate) / Decimal("100"))
+        monthly_net_income = (
+            gross_monthly_net_income * income_multiplier
+        ).quantize(Decimal("0.01"))
+        monthly_income_growth_factor = Decimal("1") + income_growth_rate / Decimal("100")
+        monthly_expense_growth_factor = Decimal("1") + expense_growth_rate / Decimal("100")
+        total_income = sum(
+            (
+                (
+                    (
+                        monthly_income * (monthly_income_growth_factor ** (month // 12))
+                        - monthly_expenses * (monthly_expense_growth_factor ** (month // 12))
+                    )
+                    * ownership_percentage
+                    / Decimal("100")
+                    * income_multiplier
+                )
+                for month in range(investment_months)
+            ),
+            Decimal("0"),
+        ).quantize(Decimal("0.01"))
+        net_profit = (total_income + exit_value - total_capital).quantize(Decimal("0.01"))
+        roi_percent = (
+            (net_profit / total_capital * Decimal("100")).quantize(Decimal("0.01"))
+            if total_capital > 0
+            else Decimal("0")
+        )
+        break_even_months = (
+            (total_capital / monthly_net_income).to_integral_value(rounding=ROUND_CEILING)
+            if monthly_net_income > 0 and total_capital > 0
+            else None
+        )
+        total_return_value = (total_income + exit_value).quantize(Decimal("0.01"))
+        annualized_return_percent = (
+            (((total_return_value / total_capital) ** (Decimal("12") / Decimal(investment_months))) - Decimal("1"))
+            * Decimal("100")
+        ).quantize(Decimal("0.01")) if total_capital > 0 and total_return_value > 0 and investment_months > 0 else None
+
+        if monthly_net_income <= 0:
+            insight = WealthInsightCard(
+                id="investment-evaluation-income-gap",
+                title="Income needs attention",
+                body="Expected monthly income does not cover the expected monthly expenses at this ownership share.",
+                severity=WealthInsightSeverity.WARNING,
+            )
+        elif break_even_months is not None and break_even_months > investment_months:
+            insight = WealthInsightCard(
+                id="investment-evaluation-long-break-even",
+                title="Capital is not recovered in this period",
+                body="The expected monthly net income would take longer than the selected investment period to recover the capital.",
+                severity=WealthInsightSeverity.WARNING,
+            )
+        else:
+            insight = WealthInsightCard(
+                id="investment-evaluation-break-even",
+                title="Recovery point is visible",
+                body="Use the break-even estimate alongside your assumptions about income, expenses, and resale value.",
+                severity=WealthInsightSeverity.POSITIVE,
+            )
+
+        return WealthToolCalculateResponse(
+            tool_slug="investment-evaluation",
+            headline_value=net_profit,
+            headline_label="Estimated net profit",
+            summary=(
+                f"Over {investment_months} months, this investment could produce about "
+                f"{defaults.currency_symbol}{net_profit:,.0f} in net profit if the assumptions hold."
+            ),
+            metrics=[
+                _metric("Total capital", total_capital),
+                _metric("Monthly net income", monthly_net_income),
+                _metric("Total income", total_income),
+                _metric("Exit value", exit_value),
+                _metric("Net profit", net_profit),
+                _metric("ROI", roi_percent),
+                _metric("Break-even (months)", break_even_months),
+                _metric("Annualized return", annualized_return_percent),
+            ],
+            timeline=[
+                WealthTimelinePoint(label="Capital committed", value=total_capital, real_value=total_capital),
+                WealthTimelinePoint(label=f"After {investment_months} months", value=total_income + exit_value),
+            ],
+            insights=[insight],
+            next_steps=[
+                {"label": "Open Money Snapshot", "href": "/wealth/snapshot"},
+                {"label": "Compare investment paths", "href": "/wealth/compare/fdr-vs-stocks"},
+            ],
+            assumptions_used={
+                "initial_investment": str(initial_investment),
+                "additional_costs": str(additional_costs),
+                "monthly_income": str(monthly_income),
+                "monthly_expenses": str(monthly_expenses),
+                "investment_months": investment_months,
+                "exit_value": str(exit_value),
+                "ownership_percentage": str(ownership_percentage),
+                "tax_rate": str(tax_rate),
+                "fees_rate": str(fees_rate),
+                "income_growth_rate": str(income_growth_rate),
+                "expense_growth_rate": str(expense_growth_rate),
+                "total_capital": str(total_capital),
+                "gross_monthly_net_income": str(gross_monthly_net_income),
+                "monthly_net_income": str(monthly_net_income),
+                "total_income": str(total_income),
+                "net_profit": str(net_profit),
+                "roi_percent": str(roi_percent),
+                "break_even_months": str(break_even_months) if break_even_months is not None else None,
+                "annualized_return_percent": (
+                    str(annualized_return_percent)
+                    if annualized_return_percent is not None
+                    else None
+                ),
+            },
         )
 
     def _calculate_emi(self, inputs: dict[str, Any], assumptions: WealthAssumptionsInput) -> WealthToolCalculateResponse:
@@ -639,7 +824,7 @@ class WealthCalculationService:
                     severity=WealthInsightSeverity.INFO,
                 ),
             ],
-            next_steps=[{"label": "Explore compound growth", "href": "/wealth/tools/compound-growth"}],
+            next_steps=[{"label": "Explore compound growth", "href": "/tools/invest"}],
             assumptions_used={},
         )
 

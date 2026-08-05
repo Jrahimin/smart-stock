@@ -5,8 +5,10 @@ import { useQuery } from "@tanstack/react-query";
 import { calculateWealthTool } from "@/lib/api/wealth-api";
 import type { WealthToolSlug } from "@/features/wealth/types/wealth-types";
 
+type WealthCalculatorSlug = WealthToolSlug | "investment-evaluation";
+
 export function useWealthTool(
-  toolSlug: WealthToolSlug,
+  toolSlug: WealthCalculatorSlug,
   inputs: Record<string, string>,
   assumptions: Record<string, unknown>,
 ) {

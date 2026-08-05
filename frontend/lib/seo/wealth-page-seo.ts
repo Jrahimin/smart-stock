@@ -38,6 +38,9 @@ export function buildWealthCanonical(path: string) {
 }
 
 export function buildWealthToolPath(toolSlug: WealthToolSlug) {
+  if (toolSlug === "compound-growth") {
+    return "/tools/invest";
+  }
   return `/wealth/tools/${toolSlug}`;
 }
 

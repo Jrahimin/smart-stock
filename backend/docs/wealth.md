@@ -42,7 +42,8 @@ Landing (/wealth)
 | `fdr` | FDR | Deposit, **FDR rate %**, years | User-editable; optional monthly/quarterly/yearly/maturity profit sharing; **source tax 10/15%** on interest |
 | `dps` | DPS | Monthly saving, **DPS rate %**, years | User-editable; optional account identifier; **source tax 10/15%** on returns |
 | `sanchayapatra` | Sanchayapatra | Certificate type, amount | Optional purchase date, rate override, payout style, certificate identifier, notes |
-| `compound-growth` | Invest | Principal, monthly contribution, **expected return %**, years | User-editable; default ~12% (BD) |
+| `compound-growth` | Invest | Principal, monthly contribution, **expected return %**, years | User-editable; optional withdrawal-rate income potential and monthly-income target inverse calculation |
+| `investment-evaluation` | Evaluate an investment | Initial investment, one-time costs, monthly income/expenses, period, optional exit value | Ownership, tax, fees, and yearly income/expense growth are optional; returns monthly net income, break-even, profit, ROI, and annualized return when valid |
 | `emi` | Loan / EMI | Loan amount, **loan rate %**, tenure (months) | User-editable |
 | `cagr` | CAGR | Start value, end value, years | Derived rate (no rate input) |
 | `zakat` | Zakat | Cash, gold, investments, receivables, liabilities | **Fixed 2.5%** on eligible wealth above nisab; not user-editable |
@@ -51,6 +52,10 @@ Landing (/wealth)
 | `savings-goal` | Savings goal | Same pattern as retirement | User-editable return |
 
 Inflation is adjustable separately (advanced assumption) for purchasing-power context.
+
+`compound-growth` can optionally estimate withdrawal-rate income from projected capital: `monthly_income = projected_capital × withdrawal_rate / 12`. For a monthly income target, it derives required capital and, when the annuity factor is positive, the additional monthly investment needed to close the gap. These are planning estimates, not guaranteed income.
+
+`investment-evaluation` keeps the estimate explicit: `total_capital = initial_investment + additional_costs`; monthly net income starts from `(monthly_income - monthly_expenses) × ownership_percentage` and applies optional tax and fees; `net_profit = total_income + exit_value - total_capital`; `roi_percent = net_profit / total_capital × 100`; and `break_even_months = total_capital / monthly_net_income`. Income and expense growth are applied every 12 months. Annualized return is returned only when capital, period, and total return value make the calculation valid.
 
 ### Comparisons (`POST /api/v1/wealth/comparisons/{comparison_slug}/evaluate`)
 
@@ -168,6 +173,7 @@ Relationships: `User` → one `MoneySnapshot` → many assets/liabilities/histor
 
 - `/wealth` — workspace landing (situations, comparisons, Money Snapshot preview)
 - `/wealth/tools/[toolSlug]` — scenario tool
+- `/tools/invest` — Investment Planner with compound-growth and investment-evaluation modes; the legacy `/wealth/tools/compound-growth` route redirects here
 - `/wealth/compare/[comparisonSlug]` — comparison
 - `/wealth/snapshot` — add/edit assets, liabilities, monthly savings
 

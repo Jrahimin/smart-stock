@@ -11,7 +11,7 @@ export const WEALTH_INTENT_OPTIONS = [
   { href: "/wealth/tools/dps" },
   { href: "/wealth/tools/fdr" },
   { href: "/wealth/tools/sanchayapatra" },
-  { href: "/wealth/tools/compound-growth" },
+  { href: "/tools/invest" },
   { href: "/wealth/tools/emi" },
   { href: "/wealth/tools/zakat" },
   { href: "/wealth/tools/retirement" },
@@ -23,7 +23,7 @@ export const WEALTH_CALCULATOR_NAV_ITEMS = [
   { label: "Sanchayapatra", href: "/wealth/tools/sanchayapatra", icon: "🇧🇩" },
   { label: "Zakat", href: "/wealth/tools/zakat", icon: "🤲" },
   { label: "Loan / EMI", href: "/wealth/tools/emi", icon: "💳" },
-  { label: "Invest", href: "/wealth/tools/compound-growth", icon: "📈" },
+  { label: "Invest", href: "/tools/invest", icon: "📈" },
   { label: "Retirement", href: "/wealth/tools/retirement", icon: "🌅" },
   { label: "Savings goal", href: "/wealth/tools/savings-goal", icon: "🎯" },
   { label: "CAGR", href: "/wealth/tools/cagr", icon: "📊" },
@@ -363,8 +363,8 @@ export const WEALTH_TOOL_CONFIG: Record<
     ],
   },
   "compound-growth": {
-    title: "What could my money become?",
-    prompt: "Explore long-term growth with patience and consistency.",
+    title: "Plan an Investment",
+    prompt: "Build a simple investment plan and see how contributions and estimated growth shape the outcome.",
     includeInflationAssumption: true,
     fields: [
       { key: "principal", label: "Starting with", defaultValue: "100000" },
