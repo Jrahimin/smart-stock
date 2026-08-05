@@ -25,7 +25,6 @@ export const WEALTH_CALCULATOR_NAV_ITEMS = [
   { label: "Loan / EMI", href: "/wealth/tools/emi", icon: "💳" },
   { label: "Invest", href: "/tools/invest", icon: "📈" },
   { label: "Retirement", href: "/wealth/tools/retirement", icon: "🌅" },
-  { label: "Savings goal", href: "/wealth/tools/savings-goal", icon: "🎯" },
   { label: "CAGR", href: "/wealth/tools/cagr", icon: "📊" },
 ] as const;
 
@@ -431,30 +430,6 @@ export const WEALTH_TOOL_CONFIG: Record<
       { key: "monthly_contribution", label: "Monthly savings", defaultValue: "15000" },
       { key: "annual_rate", label: "Expected return (%)", defaultValue: WEALTH_DEFAULT_RATES.invest },
       { key: "tenure_value", label: "Duration", defaultValue: "15", group: "tenure" },
-      {
-        key: "tenure_unit",
-        label: "Duration unit",
-        type: "select",
-        defaultValue: "years",
-        group: "tenure",
-        options: [
-          { value: "months", label: "Months" },
-          { value: "quarters", label: "Quarters" },
-          { value: "years", label: "Years" },
-        ],
-      },
-    ],
-  },
-  "savings-goal": {
-    title: "How close am I?",
-    prompt: "See how today's savings move toward your target.",
-    includeInflationAssumption: true,
-    fields: [
-      { key: "target_amount", label: "Goal", defaultValue: "1000000" },
-      { key: "current_amount", label: "Saved", defaultValue: "100000" },
-      { key: "monthly_contribution", label: "Monthly saving", defaultValue: "10000" },
-      { key: "annual_rate", label: "Expected return (%)", defaultValue: WEALTH_DEFAULT_RATES.invest },
-      { key: "tenure_value", label: "Time horizon", defaultValue: "5", group: "tenure" },
       {
         key: "tenure_unit",
         label: "Duration unit",

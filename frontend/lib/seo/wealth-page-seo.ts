@@ -17,7 +17,6 @@ const WEALTH_TOOL_SEO_TITLES: Partial<Record<WealthToolSlug, string>> = {
   cagr: "CAGR Calculator",
   zakat: "Zakat Calculator",
   retirement: "Retirement Goal Calculator",
-  "savings-goal": "Savings Goal Calculator",
 };
 
 const WEALTH_COMPARISON_SEO_TITLES: Record<WealthComparisonSlug, string> = {

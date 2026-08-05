@@ -13,7 +13,7 @@ export function getCalculatorAccountIdentifierLabel(
 }
 
 export function canSaveCalculatorToSnapshot(toolSlug: WealthToolSlug): boolean {
-  return ["fdr", "dps", "sanchayapatra", "compound-growth", "emi", "retirement", "savings-goal"].includes(toolSlug);
+  return ["fdr", "dps", "sanchayapatra", "compound-growth", "emi", "retirement"].includes(toolSlug);
 }
 
 type SnapshotDraftInput = {
@@ -133,7 +133,6 @@ export function buildCalculatorSnapshotDraft(input: SnapshotDraftInput) {
       };
     }
     case "retirement":
-    case "savings-goal":
       return {
         monthly_savings: Number(inputs.monthly_contribution) || undefined,
         assets: [],
@@ -158,8 +157,6 @@ export function calculatorSnapshotTitle(toolSlug: WealthToolSlug): string {
       return "Loan / EMI";
     case "retirement":
       return "Retirement goal";
-    case "savings-goal":
-      return "Savings goal";
     default:
       return "Wealth scenario";
   }

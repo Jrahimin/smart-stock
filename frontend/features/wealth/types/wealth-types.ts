@@ -7,7 +7,6 @@ export type WealthToolSlug =
   | "cagr"
   | "zakat"
   | "retirement"
-  | "savings-goal"
   | "tax-planner";
 
 export type WealthComparisonSlug =

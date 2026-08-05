@@ -9,7 +9,6 @@ import { DpsSimulatorWorkspace } from "@/features/wealth/components/dps-simulato
 import { FdrToolWorkspace } from "@/features/wealth/components/fdr-tool-workspace";
 import { SanchayapatraToolWorkspace } from "@/features/wealth/components/sanchayapatra-tool-workspace";
 import { TaxPlannerWorkspace } from "@/features/wealth/components/tax-planner-workspace";
-import { WealthFutureJourneyWorkspace } from "@/features/wealth/components/wealth-future-journey-workspace";
 import { WealthToolWorkspace } from "@/features/wealth/components/wealth-tool-workspace";
 import type { WealthToolSlug } from "@/features/wealth/types/wealth-types";
 import { LOCALE_COOKIE_NAME, parseAppLocale } from "@/lib/locale/app-locale";
@@ -57,8 +56,6 @@ export default async function WealthToolPage({ params }: WealthToolPageProps) {
       <FdrToolWorkspace locale={locale} />
     ) : toolSlug === "sanchayapatra" ? (
       <SanchayapatraToolWorkspace locale={locale} />
-    ) : toolSlug === "savings-goal" ? (
-      <WealthFutureJourneyWorkspace toolSlug={toolSlug} />
     ) : (
       <WealthToolWorkspace locale={locale} toolSlug={toolSlug} />
     );

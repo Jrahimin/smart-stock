@@ -1264,6 +1264,7 @@ function PlayAndExplore({
 }) {
   const isBangla = locale === "bn";
   const [draftAdditional, setDraftAdditional] = useState(additionalInvestment);
+  const [showSliderPrompt, setShowSliderPrompt] = useState(false);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -1324,6 +1325,25 @@ function PlayAndExplore({
     isSimulating && additionalInvestment > 0 && (projectedUtilizationPct >= 100 || toNumber(simResult.additional_investment_needed) <= 0);
   const currentRebateMaxed = baseUtilizationPct >= 100 || toNumber(baseResult.additional_investment_needed) <= 0;
   const rebateMaxed = isSimulating && additionalInvestment > 0 ? projectedRebateMaxed : currentRebateMaxed;
+
+  useEffect(() => {
+    if (sliderMax <= 0 || typeof window === "undefined") {
+      return;
+    }
+
+    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const sessionKey = "wealth-tax-rebate-slider-discovery-v1";
+    if (prefersReducedMotion || window.sessionStorage.getItem(sessionKey)) {
+      return;
+    }
+
+    window.sessionStorage.setItem(sessionKey, "seen");
+    setShowSliderPrompt(true);
+  }, [sliderMax]);
+
+  function stopSliderPrompt() {
+    setShowSliderPrompt(false);
+  }
 
   return (
     <section
@@ -1446,6 +1466,11 @@ function PlayAndExplore({
 
           <div className="wealth-tax-play-controls wealth-tax-play-controls-compact">
             <div className="wealth-tax-slider-block wealth-tax-slider-block--compact">
+              <p className="wealth-tax-slider-helper" id="tax-planner-rebate-slider-help">
+                {isBangla
+                  ? "আরও invest করলে rebate কত বাড়বে, slider টেনে দেখুন"
+                  : "Drag the slider to see how much your rebate could grow with more investment."}
+              </p>
               <div aria-live="polite" className="wealth-tax-slider-summary">
                 <span className="wealth-tax-slider-summary-item">
                     <em>{isBangla ? "অতিরিক্ত Investment" : "Additional Investment"}</em>
@@ -1471,15 +1496,21 @@ function PlayAndExplore({
                   ) : null}
                   <input
                     aria-label="Additional tax-saving investment to simulate"
+                    aria-describedby="tax-planner-rebate-slider-help"
                     aria-valuemax={sliderMax}
                     aria-valuemin={0}
                     aria-valuenow={simulatedAdditional}
                     aria-valuetext={formatWealthCurrency(simulatedAdditional)}
-                    className="wealth-tax-slider"
+                    className={`wealth-tax-slider${showSliderPrompt ? " wealth-tax-slider--discovery" : ""}`}
                     disabled={sliderMax <= 0}
                     max={sliderMax || 1}
                     min={0}
-                    onChange={(event) => handleAdditionalChange(Number(event.target.value))}
+                    onChange={(event) => {
+                      stopSliderPrompt();
+                      handleAdditionalChange(Number(event.target.value));
+                    }}
+                    onKeyDown={stopSliderPrompt}
+                    onPointerDown={stopSliderPrompt}
                     onPointerUp={(event) => flushAdditionalChange(Number(event.currentTarget.value))}
                     step={sliderStep}
                     type="range"

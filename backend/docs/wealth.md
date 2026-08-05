@@ -49,7 +49,6 @@ Landing (/wealth)
 | `zakat` | Zakat | Cash, gold, investments, receivables, liabilities | **Fixed 2.5%** on eligible wealth above nisab; not user-editable |
 | `tax-planner` | Tax Planner | Quick estimate or detailed yearly income and eligible investments | Bangladesh resident individual planning estimate; stateless V1, not a filing system |
 | `retirement` | Retirement goal | Goal, saved, monthly savings, **return %**, years | User-editable return |
-| `savings-goal` | Savings goal | Same pattern as retirement | User-editable return |
 
 Inflation is adjustable separately (advanced assumption) for purchasing-power context.
 

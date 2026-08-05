@@ -116,32 +116,32 @@ export function WealthToolWorkspace({ toolSlug, locale }: WealthToolWorkspacePro
     <section className="wealth-tool-workspace">
       <WealthSubNav locale={locale} />
 
-      <header className="wealth-hero-card">
-        <p className="eyebrow">{productLabel}</p>
-        <h1>
-          {toolSlug === "zakat"
-            ? copy.zakat.heroTitle
-            : toolSlug === "emi"
-              ? copy.emi.title
-              : config.title}
-        </h1>
-        <p>
-          {toolSlug === "zakat"
-            ? copy.zakat.heroDescription
-            : toolSlug === "emi"
-              ? copy.emi.prompt
-              : config.prompt}
-        </p>
-        {toolSlug === "zakat" ? (
-          <>
-            <p className="wealth-muted-copy">{copy.zakat.fixedRate}</p>
-            <button className="wealth-zakat-guide-trigger" onClick={() => setIsInfoOpen(true)} type="button">
-              <span aria-hidden="true">✦</span>
-              {copy.zakat.learnMore}
-              <span aria-hidden="true">→</span>
-            </button>
-          </>
-        ) : null}
+      <header className="wealth-hero-card wealth-tool-hero">
+        <div className="wealth-hero-copy">
+          <p className="eyebrow">{productLabel}</p>
+          <h1>
+            {toolSlug === "zakat"
+              ? copy.zakat.heroTitle
+              : toolSlug === "emi"
+                ? copy.emi.title
+                : config.title}
+          </h1>
+          {toolSlug !== "zakat" ? (
+            <p className="wealth-tool-hero-description">
+              {toolSlug === "emi" ? copy.emi.prompt : config.prompt}
+            </p>
+          ) : null}
+          {toolSlug === "zakat" ? (
+            <>
+              <button className="wealth-zakat-guide-trigger" onClick={() => setIsInfoOpen(true)} type="button">
+                <span aria-hidden="true">✦</span>
+                {copy.zakat.learnMore}
+                <span aria-hidden="true">→</span>
+              </button>
+            </>
+          ) : null}
+        </div>
+        <CalculatorHeroVisual locale={locale} toolSlug={toolSlug} />
       </header>
 
       <div className="wealth-tool-layout">
@@ -273,6 +273,28 @@ export function WealthToolWorkspace({ toolSlug, locale }: WealthToolWorkspacePro
       </div>
       {toolSlug === "zakat" ? <WealthInfoModal closeLabel={copy.zakat.modal.close} content={copy.zakat.modal} isOpen={isInfoOpen} locale={locale} onClose={() => setIsInfoOpen(false)} /> : null}
     </section>
+  );
+}
+
+function CalculatorHeroVisual({ locale, toolSlug }: { locale: AppLocale; toolSlug: WealthToolSlug }) {
+  const isBangla = locale === "bn";
+  const visual =
+    toolSlug === "zakat"
+      ? { icon: "☾", value: "2.5%", label: isBangla ? "প্রচলিত rate" : "Standard rate" }
+      : toolSlug === "emi"
+        ? { icon: "▤", value: "EMI", label: isBangla ? "মাসিক plan" : "Monthly plan" }
+        : toolSlug === "retirement"
+          ? { icon: "◒", value: "∞", label: isBangla ? "ভবিষ্যতের plan" : "Future plan" }
+          : toolSlug === "cagr"
+            ? { icon: "↗", value: "%", label: isBangla ? "বার্ষিক growth" : "Annual growth" }
+            : { icon: "✦", value: "BDT", label: isBangla ? "সহজ estimate" : "Simple estimate" };
+
+  return (
+    <div aria-hidden="true" className={`wealth-tool-hero-visual wealth-tool-hero-visual--${toolSlug}`}>
+      <span className="wealth-tool-hero-visual-icon">{visual.icon}</span>
+      <span className="wealth-tool-hero-visual-value">{visual.value}</span>
+      <span className="wealth-tool-hero-visual-label">{visual.label}</span>
+    </div>
   );
 }
 

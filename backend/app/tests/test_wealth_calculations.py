@@ -317,6 +317,34 @@ def test_fdr_tool_calculation() -> None:
     assert response.next_steps
 
 
+def test_retirement_tool_keeps_its_goal_projection() -> None:
+    response = WealthCalculationService().calculate(
+        "retirement",
+        {
+            "target_amount": 5000000,
+            "current_amount": 500000,
+            "monthly_contribution": 15000,
+            "annual_rate": 12,
+            "tenure_value": 15,
+            "tenure_unit": "years",
+        },
+        WealthAssumptionsInput(),
+    )
+
+    assert response.tool_slug == "retirement"
+    assert response.headline_label == "Retirement fund"
+    assert response.next_steps[0]["href"] == "/wealth/tools/retirement"
+
+
+def test_savings_goal_tool_is_not_available() -> None:
+    import pytest
+
+    from app.core.exception_handlers import AppError
+
+    with pytest.raises(AppError, match="Unsupported wealth tool"):
+        WealthCalculationService().calculate("savings-goal", {}, WealthAssumptionsInput())
+
+
 def test_investment_evaluation_reconciles_profit_roi_and_break_even() -> None:
     service = WealthCalculationService()
     response = service.calculate(

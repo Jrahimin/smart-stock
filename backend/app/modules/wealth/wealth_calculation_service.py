@@ -32,7 +32,6 @@ SUPPORTED_TOOLS = {
     "cagr",
     "zakat",
     "retirement",
-    "savings-goal",
 }
 
 
@@ -871,9 +870,9 @@ class WealthCalculationService:
         )
 
     def _calculate_retirement(self, inputs: dict[str, Any], assumptions: WealthAssumptionsInput) -> WealthToolCalculateResponse:
-        return self._calculate_savings_goal(inputs, assumptions, default_slug="retirement", default_title="Retirement fund")
+        return self._calculate_retirement_goal(inputs, assumptions)
 
-    def _calculate_savings_goal(self, inputs: dict[str, Any], assumptions: WealthAssumptionsInput, *, default_slug: str = "savings-goal", default_title: str = "Savings goal") -> WealthToolCalculateResponse:
+    def _calculate_retirement_goal(self, inputs: dict[str, Any], assumptions: WealthAssumptionsInput) -> WealthToolCalculateResponse:
         defaults = get_country_defaults(assumptions.country_code)
         target_amount = _decimal_input(inputs, "target_amount")
         current_amount = _decimal_input(inputs, "current_amount")
@@ -891,9 +890,9 @@ class WealthCalculationService:
         real_target = calculate_inflation_adjusted_value(target_amount, inflation_rate, years)
 
         return WealthToolCalculateResponse(
-            tool_slug=default_slug,
+            tool_slug="retirement",
             headline_value=projected_value,
-            headline_label=default_title,
+            headline_label="Retirement fund",
             summary=f"At this pace, you may reach about {defaults.currency_symbol}{projected_value:,.0f} of a {defaults.currency_symbol}{target_amount:,.0f} goal.",
             metrics=[
                 _metric("Target amount", target_amount),
@@ -919,7 +918,7 @@ class WealthCalculationService:
                 ),
             ],
             next_steps=[
-                {"label": "Adjust monthly savings", "href": f"/wealth/tools/{default_slug}"},
+                {"label": "Adjust monthly savings", "href": "/wealth/tools/retirement"},
                 {"label": "Save scenario", "href": "/wealth/snapshot"},
             ],
             assumptions_used={"annual_rate": str(annual_rate), "inflation_rate": str(inflation_rate)},
