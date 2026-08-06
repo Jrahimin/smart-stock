@@ -7,6 +7,9 @@ import type {
   EmailCampaign,
   EmailCampaignRecipientScope,
   SystemJobExecution,
+  SystemJobExecutionStatus,
+  SystemJobTriggerSource,
+  SystemJobTriggerResult,
   SystemJobType,
   UserRole,
 } from "@/features/admin/types/admin-types";
@@ -97,18 +100,26 @@ export function updateAdminTaxInvestmentCategories(
 
 export function fetchSystemJobExecutions(params?: {
   job_type?: SystemJobType;
-  status?: string;
+  status?: SystemJobExecutionStatus;
+  trigger_source?: SystemJobTriggerSource;
+  date_from?: string;
+  date_to?: string;
   limit?: number;
   offset?: number;
 }) {
   return backendApiGet<SystemJobExecution[]>("/admin/jobs/executions", params, NO_STORE);
 }
 
-export function triggerSystemJob(payload: { job_type: SystemJobType; job_name?: string; metadata?: Record<string, unknown> }) {
-  return backendApiPost<{ execution: SystemJobExecution; result_summary: Record<string, unknown> }>(
-    "/admin/jobs/trigger",
-    payload,
+export function fetchSystemJobExecution(executionId: string) {
+  return backendApiGet<SystemJobExecution>(
+    `/admin/jobs/executions/${executionId}`,
+    undefined,
+    NO_STORE,
   );
+}
+
+export function triggerSystemJob(payload: { job_type: SystemJobType; job_name?: string; metadata?: Record<string, unknown> }) {
+  return backendApiPost<SystemJobTriggerResult>("/admin/jobs/trigger", payload);
 }
 
 export function fetchEmailCampaigns(params?: { limit?: number; offset?: number }) {

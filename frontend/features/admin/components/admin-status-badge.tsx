@@ -22,6 +22,8 @@ export function jobStatusTone(status: string): AdminStatusTone {
       return "queued";
     case "PARTIAL":
       return "partial";
+    case "SKIPPED":
+      return "warning";
     case "FAILED":
       return "failed";
     case "CANCELLED":
