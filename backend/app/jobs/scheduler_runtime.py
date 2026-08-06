@@ -1,18 +1,28 @@
 import logging
 
 from app.core.core_config import get_settings
-from app.jobs.email_campaign_scheduler import start_email_campaign_scheduler, stop_email_campaign_scheduler
-from app.jobs.market_data_scheduler import daily_market_sync_scheduler, market_snapshot_scheduler
+from app.jobs.email_campaign_scheduler import (
+    start_email_campaign_scheduler,
+    stop_email_campaign_scheduler,
+)
+from app.jobs.market_data_scheduler import (
+    daily_market_sync_scheduler,
+    market_snapshot_scheduler,
+    stock_details_sync_scheduler,
+)
 from app.jobs.portfolio_summary_scheduler import (
     start_portfolio_summary_scheduler,
     stop_portfolio_summary_scheduler,
 )
+from app.jobs.system_job_queue import system_job_queue_runtime
 
 logger = logging.getLogger(__name__)
 
 
 async def start_application_schedulers() -> None:
     settings = get_settings()
+    await system_job_queue_runtime.start()
+
     if settings.market_snapshot_scheduler_enabled:
         market_snapshot_scheduler.start()
         logger.info("Market snapshot scheduler started")
@@ -24,6 +34,12 @@ async def start_application_schedulers() -> None:
         logger.info("Daily market sync scheduler started")
     else:
         logger.info("Daily market sync scheduler disabled by configuration")
+
+    if settings.stock_details_sync_scheduler_enabled:
+        stock_details_sync_scheduler.start()
+        logger.info("Stock details sync scheduler started")
+    else:
+        logger.info("Stock details sync scheduler disabled by configuration")
 
     start_email_campaign_scheduler()
     logger.info("Email campaign scheduler started")
@@ -47,3 +63,9 @@ async def stop_application_schedulers() -> None:
 
     logger.info("Stopping daily market sync scheduler")
     await daily_market_sync_scheduler.stop()
+
+    logger.info("Stopping stock details sync scheduler")
+    await stock_details_sync_scheduler.stop()
+
+    logger.info("Stopping system job queue worker")
+    await system_job_queue_runtime.stop()

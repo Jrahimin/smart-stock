@@ -56,7 +56,7 @@ Related module docs: [market_universe.md](market_universe.md), [market_dashboard
 ┌─────────────────────────────────────────────────────────────────────────┐
 │ backend-scheduler                                                       │
 │                                                                         │
-│  sync_market_snapshot / backfill / admin jobs → write DB                │
+│  durable queue runner / backfill → sync_market_snapshot → write DB       │
 │                                              → spawn rebuild (async)    │
 │                                                 overview → sectors      │
 │                                                 → movers → universe     │

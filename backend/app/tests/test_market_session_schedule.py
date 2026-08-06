@@ -8,6 +8,7 @@ from app.core.enums import MarketSessionStatus
 from app.jobs.market_session_schedule import (
     is_trading_weekday,
     next_snapshot_sync_at,
+    next_stock_details_sync_at,
     resolve_market_status,
 )
 
@@ -77,3 +78,13 @@ def test_next_snapshot_sync_at_after_close_returns_next_trading_day_open() -> No
     now = _dhaka(2026, 6, 11, 15, 30)  # Thursday post-close
     nxt = next_snapshot_sync_at(now, settings)
     assert nxt == _dhaka(2026, 6, 14, 10, 0)  # Sunday session open
+
+
+def test_next_stock_details_sync_runs_sunday_through_thursday_at_1535() -> None:
+    settings = _settings()
+    settings.stock_details_sync_time = "15:35"
+
+    thursday_after_run = _dhaka(2026, 6, 11, 16, 0)
+    nxt = next_stock_details_sync_at(thursday_after_run, settings)
+
+    assert nxt == _dhaka(2026, 6, 14, 15, 35)

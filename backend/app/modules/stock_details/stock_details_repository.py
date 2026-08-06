@@ -485,6 +485,75 @@ class StockDetailsRepository(BaseRepository[StockDetailsSyncJob]):
         result = await self.session.scalars(statement)
         return list(result.all())
 
+    async def count_due_stocks(
+        self,
+        *,
+        exchange: ExchangeCode,
+        cutoff: datetime,
+    ) -> int:
+        latest_completed = (
+            select(func.max(StockDetailsSyncJob.completed_at))
+            .where(
+                StockDetailsSyncJob.stock_id == Stock.id,
+                StockDetailsSyncJob.status.in_(
+                    [StockDetailsSyncJobStatus.SUCCEEDED, StockDetailsSyncJobStatus.PARTIAL]
+                ),
+            )
+            .correlate(Stock)
+            .scalar_subquery()
+        )
+        statement = (
+            select(func.count())
+            .select_from(Stock)
+            .where(
+                Stock.exchange == exchange,
+                Stock.is_active.is_(True),
+                Stock.should_fetch_details.is_(True),
+                (latest_completed.is_(None) | (latest_completed < cutoff)),
+            )
+        )
+        return int(await self.session.scalar(statement) or 0)
+
+    async def count_sync_jobs_by_statuses(
+        self,
+        statuses: list[StockDetailsSyncJobStatus],
+        *,
+        exchange: ExchangeCode,
+    ) -> int:
+        statement = (
+            select(func.count())
+            .select_from(StockDetailsSyncJob)
+            .join(Stock, Stock.id == StockDetailsSyncJob.stock_id)
+            .where(
+                Stock.exchange == exchange,
+                StockDetailsSyncJob.status.in_(statuses),
+            )
+        )
+        return int(await self.session.scalar(statement) or 0)
+
+    async def get_latest_completed_sync_job(
+        self,
+        *,
+        exchange: ExchangeCode,
+    ) -> StockDetailsSyncJob | None:
+        statement = (
+            select(StockDetailsSyncJob)
+            .join(Stock, Stock.id == StockDetailsSyncJob.stock_id)
+            .where(
+                Stock.exchange == exchange,
+                StockDetailsSyncJob.status.in_(
+                    [StockDetailsSyncJobStatus.SUCCEEDED, StockDetailsSyncJobStatus.PARTIAL]
+                ),
+                StockDetailsSyncJob.completed_at.is_not(None),
+            )
+            .order_by(
+                StockDetailsSyncJob.completed_at.desc(),
+                StockDetailsSyncJob.id.desc(),
+            )
+            .limit(1)
+        )
+        return await self.session.scalar(statement)
+
     async def list_eligible_stocks(
         self,
         *,

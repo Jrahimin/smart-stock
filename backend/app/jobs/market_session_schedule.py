@@ -26,7 +26,7 @@ def is_trading_weekday(weekday: int) -> bool:
     return weekday not in WEEKEND_WEEKDAYS
 
 
-def _minutes_since_midnight(moment: datetime) -> int:
+def _minutes_since_midnight(moment: datetime | time) -> int:
     return moment.hour * 60 + moment.minute
 
 
@@ -103,8 +103,6 @@ def next_snapshot_sync_at(now: datetime, settings: Settings) -> datetime | None:
     interval = settings.market_snapshot_interval_minutes
     open_time = parse_hh_mm(settings.market_open_time)
     close_time = parse_hh_mm(settings.market_close_time)
-    open_min = _minutes_since_midnight(open_time)
-    close_min = _minutes_since_midnight(close_time)
 
     day = now.date()
     for _ in range(14):
@@ -140,10 +138,33 @@ def next_daily_sync_at(now: datetime, settings: Settings) -> datetime | None:
     return None
 
 
+def next_stock_details_sync_at(
+    now: datetime,
+    settings: Settings,
+) -> datetime | None:
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=DHAKA_TZ)
+    else:
+        now = now.astimezone(DHAKA_TZ)
+
+    sync_time = parse_hh_mm(settings.stock_details_sync_time)
+    day = now.date()
+    for _ in range(14):
+        if is_trading_weekday(day.weekday()):
+            run_at = _combine_date_time(day, sync_time)
+            if run_at > now:
+                return run_at
+        day += timedelta(days=1)
+    return None
+
+
 def build_freshness_label(settings: Settings, status: MarketSessionStatus) -> str:
     interval = settings.market_snapshot_interval_minutes
     if status == MarketSessionStatus.HOLIDAY:
         return "Market closed for the weekend; showing the latest stored snapshot."
     if status == MarketSessionStatus.POST_CLOSE:
-        return f"Post-close snapshot; prices refresh about every {interval} minutes during the session."
+        return (
+            "Post-close snapshot; prices refresh about every "
+            f"{interval} minutes during the session."
+        )
     return f"Snapshot prices; updates about every {interval} minutes"

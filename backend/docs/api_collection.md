@@ -2277,7 +2277,117 @@ All admin routes require `ADMIN` or `SUPER_ADMIN`. High-impact routes require `S
 
 ### GET /api/v1/admin/dashboard
 
-Operational overview: user counts, scheduler flags, data health, email campaign health, recent `system_job_executions`.
+**Description**
+Returns a no-store operational overview. Market health comes from the newest LIVE market
+generation, newest finalized DSEX summary, and stock-details sync records—not generic job
+execution timestamps. Price-quality and missing-price counts are scoped to the newest published
+market date.
+
+**Response**
+
+```json
+{
+  "success": true,
+  "message": "Admin dashboard retrieved",
+  "data": {
+    "users": {
+      "total_users": 120,
+      "active_users": 116,
+      "inactive_users": 4,
+      "deleted_users": 2,
+      "admin_users": 3,
+      "super_admin_users": 1
+    },
+    "scheduler": {
+      "liveness": {
+        "component_name": "backend-scheduler",
+        "state": "ONLINE",
+        "reason": "The persisted heartbeat is within the two-minute liveness window.",
+        "last_heartbeat_at": "2026-08-06T10:29:30+06:00",
+        "heartbeat_age_seconds": 30
+      },
+      "configuration": {
+        "market_snapshot_scheduler_enabled": true,
+        "daily_market_sync_scheduler_enabled": true,
+        "stock_details_sync_scheduler_enabled": true,
+        "queue_poll_seconds": 10,
+        "stock_details_sync_time": "15:35",
+        "stock_details_sync_batch_size": 50
+      },
+      "next_runs": {
+        "market_snapshot_at": "2026-08-06T10:45:00+06:00",
+        "daily_market_sync_at": "2026-08-06T15:15:00+06:00",
+        "stock_details_sync_at": "2026-08-06T15:35:00+06:00"
+      }
+    },
+    "data_health": {
+      "market_data_health": {
+        "state": "CURRENT",
+        "reason": "Snapshot and finalized DSEX data cover the latest known session.",
+        "last_successful_at": "2026-08-06T10:25:00+06:00"
+      },
+      "market_snapshot_health": {
+        "state": "CURRENT",
+        "reason": "The latest LIVE generation is within two snapshot intervals.",
+        "last_successful_at": "2026-08-06T10:25:00+06:00"
+      },
+      "market_session_health": {
+        "state": "CURRENT",
+        "reason": "The latest DSEX session is finalized for the published market date.",
+        "last_successful_at": "2026-08-06T15:18:00+06:00"
+      },
+      "latest_market_generation": {
+        "trade_date": "2026-08-06",
+        "sync_id": "dse-20260806-1025",
+        "source": "AMARSTOCK_MARKET_MSGPACK",
+        "source_last_synced_at": "2026-08-06T10:25:00+06:00",
+        "published_at": "2026-08-06T10:25:04+06:00",
+        "fetched_count": 400,
+        "accepted_count": 392,
+        "suspicious_count": 2
+      },
+      "latest_market_session": {
+        "trade_date": "2026-08-06",
+        "source": "AMARSTOCK_INDEX_API",
+        "updated_at": "2026-08-06T15:18:00+06:00",
+        "is_finalized": true
+      },
+      "stock_details": {
+        "health": {
+          "state": "DELAYED",
+          "reason": "12 eligible stocks are due for stock-details sync.",
+          "last_successful_at": "2026-08-04T14:05:00+06:00"
+        },
+        "latest_status": "PARTIAL",
+        "latest_source": "AMARSTOCK_API",
+        "due_count": 12,
+        "completed_count": 280,
+        "failed_count": 3
+      },
+      "failed_jobs_count": 1,
+      "suspicious_prices_count": 2,
+      "expected_no_trade_count": 9,
+      "active_stocks_without_latest_price": 7,
+      "latest_price_trade_date": "2026-08-06"
+    },
+    "email_campaign_health": {
+      "queued_count": 0,
+      "running_count": 0,
+      "failed_count": 0,
+      "last_sent_at": null
+    },
+    "recent_job_executions": []
+  }
+}
+```
+
+**Notes**
+
+- Requires `ADMIN` or `SUPER_ADMIN`.
+- Health states are `CURRENT`, `DELAYED`, `STALE`, or `MISSING` and describe data only.
+- Expected no-trade/zero-OHLC placeholders are not missing-price rows.
+- Scheduler liveness is separate: `ONLINE` at heartbeat age ≤120 seconds, `OFFLINE` when older,
+  and `UNKNOWN` when absent. Enabled configuration alone never implies liveness.
 
 ### GET /api/v1/admin/users
 
@@ -2337,7 +2447,13 @@ Bulk replace category labels, sort order, and enabled flags (`SUPER_ADMIN`).
 
 ### GET /api/v1/admin/jobs/executions
 
-List `system_job_executions`.
+List `system_job_executions`. Optional filters:
+
+- `job_type`
+- `status` (includes `PENDING`, `RUNNING`, and terminal `SKIPPED`)
+- `trigger_source`
+- `date_from` / `date_to` (`YYYY-MM-DD`, interpreted in Asia/Dhaka)
+- `limit` / `offset`
 
 ### GET /api/v1/admin/jobs/executions/{execution_id}
 
@@ -2345,7 +2461,69 @@ Get one execution record.
 
 ### POST /api/v1/admin/jobs/trigger
 
-Manually trigger market sync, snapshot, stock details sync, indicators, or signals (`SUPER_ADMIN` only).
+**Description**
+Enqueue one durable operational job (`SUPER_ADMIN` only). Returns HTTP `202` immediately with a
+`PENDING` execution. The admin UI offers Market Snapshot, Daily Close/News/Finalization, and Stock
+Details Batch (20). If equivalent work is already `PENDING` or `RUNNING`, the existing execution
+is returned with `deduplicated=true`.
+
+**Body**
+
+```json
+{
+  "job_type": "STOCK_DETAILS_SYNC",
+  "metadata": {
+    "exchange": "DSE",
+    "limit": 20,
+    "scope": "full"
+  }
+}
+```
+
+**Response**
+
+HTTP `202 Accepted`
+
+```json
+{
+  "success": true,
+  "message": "Job queued",
+  "data": {
+    "execution": {
+      "id": "68ec3e1b-52f6-4f48-9f95-8cb79fb92b70",
+      "job_type": "STOCK_DETAILS_SYNC",
+      "job_name": "Stock Details Batch (20)",
+      "dedupe_key": "stock_details_sync:93ab...",
+      "status": "PENDING",
+      "trigger_source": "MANUAL",
+      "triggered_by_user_id": "f3e82970-8cf7-42a7-9631-b310b7168fa8",
+      "started_at": null,
+      "completed_at": null,
+      "duration_ms": null,
+      "attempt_count": 0,
+      "error_message": null,
+      "metadata_json": {
+        "exchange": "DSE",
+        "limit": 20,
+        "offset": 0,
+        "force": false,
+        "scope": "full"
+      },
+      "created_at": "2026-08-06T10:30:00Z",
+      "updated_at": "2026-08-06T10:30:00Z"
+    },
+    "deduplicated": false
+  }
+}
+```
+
+**Notes**
+
+- The queue runner writes terminal output under `execution.metadata_json.result`.
+- A source-session mismatch becomes terminal `SKIPPED`; its result contains
+  `session_skipped=true` and `session_skip_reason`.
+- Failed rows include sanitized `error_message` and structured `metadata_json.error`.
+- Read routes remain `ADMIN`/`SUPER_ADMIN`; trigger remains `SUPER_ADMIN`.
 
 ### GET /api/v1/admin/email-campaigns
 

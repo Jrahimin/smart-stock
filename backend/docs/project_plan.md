@@ -364,6 +364,24 @@ Source: `backend/docs/decision_model_evolution_three_phase_plan.md`.
 * [x] Phase 2 — conditional opportunity and entry-plan model
 * [x] Phase 3 — public taxonomy rollout, compatibility, and validation
 
+## Admin Operations Reliability
+
+Source: `jobs plan stockwealth.md`.
+
+* [x] Phase 1 — truthful market-data dashboard and honest synchronous manual controls
+* [x] Phase 2 — durable PostgreSQL job queue, scheduler heartbeat, and recurring stock-details batches
+
+Phase 1 reads market generations, finalized DSEX summaries, and stock-detail sync jobs as domain
+truth; scopes missing/suspicious/no-trade metrics to the latest publication; and removes no-op
+Indicators/Signals actions from the admin UI. It does not alter atomic snapshot publication,
+coverage guards, cache rebuild ownership, or introduce a queue.
+
+Phase 2 makes `system_job_executions` the durable queue with active-work deduplication,
+`SKIPPED` outcomes, transactional `SKIP LOCKED` claims, startup recovery, 90-day cleanup, and
+terminal result/error metadata. Market schedules use the same runner; a one-minute persisted
+heartbeat drives two-minute scheduler liveness; and the opt-in 15:35 Sunday–Thursday Stock
+Details schedule processes at most 50 due full-scope DSE stocks.
+
 ---
 
 # 🧠 EXECUTION STRATEGY

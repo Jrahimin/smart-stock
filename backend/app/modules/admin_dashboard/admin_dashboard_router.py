@@ -5,7 +5,10 @@ from fastapi import APIRouter, Depends
 from app.api.dependencies.auth_dependencies import CurrentAdmin
 from app.core.response_handler import ApiResponse, success_response
 from app.modules.admin_dashboard.admin_dashboard_schemas import AdminDashboardOverviewRead
-from app.modules.admin_dashboard.admin_dashboard_service import AdminDashboardService, get_admin_dashboard_service
+from app.modules.admin_dashboard.admin_dashboard_service import (
+    AdminDashboardService,
+    get_admin_dashboard_service,
+)
 
 router = APIRouter(prefix="/admin/dashboard", tags=["admin dashboard"])
 

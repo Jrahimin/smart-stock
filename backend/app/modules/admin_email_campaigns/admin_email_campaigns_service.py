@@ -169,6 +169,7 @@ class AdminEmailCampaignsService:
                 "trigger_source": SystemJobTriggerSource.SCHEDULER,
                 "triggered_by_user_id": campaign.created_by_user_id,
                 "started_at": datetime.now(UTC),
+                "attempt_count": 1,
                 "metadata_json": {"campaign_id": str(campaign.id)},
             },
         )
