@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
+  applyLatestQuoteToSelectedStock,
   buildAddHoldingPreview,
   isAddHoldingFormValid,
   parsePositiveDecimal,
@@ -13,17 +14,17 @@ import {
   type AddHoldingMode,
   type AddHoldingSelectedStock,
 } from "@/features/portfolio/view-models/add-holding-preview";
+import { useDebouncedStockSearch } from "@/hooks/stocks/use-debounced-stock-search";
 import type {
   BackendPortfolioHoldingDto,
   MarketDataState,
 } from "@/lib/api/backend-api-types";
-import { searchStocks } from "@/lib/api/stocks-api";
+import { listDailyPrices } from "@/lib/api/market-data-api";
 import {
   addWatchlistItem,
   updateWatchlistItem,
 } from "@/lib/api/watchlist-api";
 
-const EMPTY_SEARCH: Awaited<ReturnType<typeof searchStocks>> = [];
 const HIGHLIGHT_MS = 2800;
 
 type UseAddHoldingModalOptions = {
@@ -50,7 +51,6 @@ export function useAddHoldingModal({
   const [selectedStock, setSelectedStock] = useState<AddHoldingSelectedStock | null>(null);
   const [stockLocked, setStockLocked] = useState(false);
   const [query, setQuery] = useState("");
-  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [quantity, setQuantity] = useState("");
   const [averageBuyPrice, setAverageBuyPrice] = useState("");
   const [note, setNote] = useState("");
@@ -60,29 +60,49 @@ export function useAddHoldingModal({
   const [activeOptionIndex, setActiveOptionIndex] = useState(-1);
 
   useEffect(() => {
-    const timeoutId = window.setTimeout(() => setDebouncedQuery(query.trim()), 220);
-    return () => window.clearTimeout(timeoutId);
-  }, [query]);
-
-  useEffect(() => {
     if (!highlightedStockId) return;
     const timeoutId = window.setTimeout(() => setHighlightedStockId(null), HIGHLIGHT_MS);
     return () => window.clearTimeout(timeoutId);
   }, [highlightedStockId]);
 
-  const searchQuery = useQuery({
-    queryKey: ["stocks", "search", exchange, debouncedQuery],
-    queryFn: () => searchStocks(debouncedQuery, exchange, 12),
-    enabled: isOpen && !stockLocked && debouncedQuery.length >= 1,
+  const {
+    results: searchResults,
+    isSearching,
+    isSearchEnabled,
+    isError: searchError,
+  } = useDebouncedStockSearch({
+    query,
+    enabled: isOpen && !stockLocked,
+    exchange,
+    limit: 12,
   });
 
-  const searchResults = searchQuery.data ?? EMPTY_SEARCH;
+  const quoteQuery = useQuery({
+    queryKey: ["stocks", "latest-quote", selectedStock?.stockId],
+    queryFn: async () => {
+      const rows = await listDailyPrices(selectedStock!.stockId, { limit: 1 });
+      return rows[0] ?? null;
+    },
+    enabled: isOpen && Boolean(selectedStock?.stockId),
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+  });
+
+  const selectedStockWithQuote = useMemo(() => {
+    if (!selectedStock) return null;
+    if (!quoteQuery.data) return selectedStock;
+    return applyLatestQuoteToSelectedStock(
+      selectedStock,
+      quoteQuery.data,
+      publishedMarketDate,
+      dataState,
+    );
+  }, [dataState, publishedMarketDate, quoteQuery.data, selectedStock]);
 
   const resetForm = useCallback(() => {
     setSelectedStock(null);
     setStockLocked(false);
     setQuery("");
-    setDebouncedQuery("");
     setQuantity("");
     setAverageBuyPrice("");
     setNote("");
@@ -108,7 +128,6 @@ export function useAddHoldingModal({
     setSelectedStock(stock);
     setStockLocked(true);
     setQuery(displayQuery ?? `${stock.symbol} — ${stock.name}`);
-    setDebouncedQuery("");
     setActiveOptionIndex(-1);
     if (existing.isHolding && existing.existing) {
       setMode("edit");
@@ -133,7 +152,6 @@ export function useAddHoldingModal({
     setSelectedStock(null);
     setStockLocked(false);
     setQuery("");
-    setDebouncedQuery("");
     setActiveOptionIndex(-1);
     setMode("create");
     setQuantity("");
@@ -143,8 +161,8 @@ export function useAddHoldingModal({
   }, []);
 
   const existingState = useMemo(
-    () => resolveExistingWatchlistState(watchlistItems, selectedStock?.stockId ?? null),
-    [selectedStock?.stockId, watchlistItems],
+    () => resolveExistingWatchlistState(watchlistItems, selectedStockWithQuote?.stockId ?? null),
+    [selectedStockWithQuote?.stockId, watchlistItems],
   );
 
   const quantityValue = parsePositiveDecimal(quantity);
@@ -154,24 +172,24 @@ export function useAddHoldingModal({
     () => buildAddHoldingPreview(
       quantityValue,
       averageBuyPriceValue,
-      selectedStock?.latestPrice ?? null,
-      selectedStock?.priceStatus ?? "UNAVAILABLE",
+      selectedStockWithQuote?.latestPrice ?? null,
+      selectedStockWithQuote?.priceStatus ?? "UNAVAILABLE",
     ),
-    [averageBuyPriceValue, quantityValue, selectedStock],
+    [averageBuyPriceValue, quantityValue, selectedStockWithQuote],
   );
 
   const validation = useMemo(
     () => validateAddHoldingForm({
-      stockId: selectedStock?.stockId ?? null,
+      stockId: selectedStockWithQuote?.stockId ?? null,
       quantity,
       averageBuyPrice,
     }),
-    [averageBuyPrice, quantity, selectedStock?.stockId],
+    [averageBuyPrice, quantity, selectedStockWithQuote?.stockId],
   );
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      if (!selectedStock || !isAddHoldingFormValid(validation)) {
+      if (!selectedStockWithQuote || !isAddHoldingFormValid(validation)) {
         throw new Error("Invalid holding form");
       }
       const quantityNumber = parsePositiveDecimal(quantity);
@@ -181,10 +199,10 @@ export function useAddHoldingModal({
       }
 
       if (!existingState.isWatched) {
-        await addWatchlistItem(selectedStock.stockId);
+        await addWatchlistItem(selectedStockWithQuote.stockId);
       }
 
-      return updateWatchlistItem(selectedStock.stockId, {
+      return updateWatchlistItem(selectedStockWithQuote.stockId, {
         is_holding: true,
         quantity: quantityNumber,
         buy_price: buyPriceNumber,
@@ -192,7 +210,7 @@ export function useAddHoldingModal({
       });
     },
     onSuccess: () => {
-      const stockId = selectedStock?.stockId ?? null;
+      const stockId = selectedStockWithQuote?.stockId ?? null;
       void queryClient.invalidateQueries({ queryKey: ["watchlist"] });
       void queryClient.invalidateQueries({
         queryKey: ["portfolio"],
@@ -216,15 +234,15 @@ export function useAddHoldingModal({
     close,
     query,
     setQuery,
-    selectedStock,
+    selectedStock: selectedStockWithQuote,
     stockLocked,
     stockPickerLocked: false,
     clearSelectedStock,
     selectSearchResult,
     searchResults,
-    isSearching: searchQuery.isFetching,
-    isSearchEnabled: debouncedQuery.length >= 1,
-    searchError: searchQuery.isError,
+    isSearching,
+    isSearchEnabled,
+    searchError,
     activeOptionIndex,
     setActiveOptionIndex,
     quantity,

@@ -1,4 +1,5 @@
 import type {
+  BackendDailyPriceDto,
   BackendPortfolioHoldingDto,
   BackendStockSearchResultDto,
   DataQualityFlag,
@@ -103,6 +104,28 @@ export function selectedStockFromSearchResult(
       latestPrice,
       stock.latest_trade_date,
       stock.data_quality_flag,
+      publishedMarketDate,
+      dataState,
+    ),
+  };
+}
+
+export function applyLatestQuoteToSelectedStock(
+  selected: AddHoldingSelectedStock,
+  quote: Pick<BackendDailyPriceDto, "close_price" | "trade_date" | "data_quality_flag">,
+  publishedMarketDate: string | null,
+  dataState: MarketDataState | null,
+): AddHoldingSelectedStock {
+  const latestPrice = parseDecimal(quote.close_price);
+  return {
+    ...selected,
+    latestPrice,
+    latestTradeDate: quote.trade_date,
+    dataQualityFlag: quote.data_quality_flag,
+    priceStatus: resolveSearchPriceStatus(
+      latestPrice,
+      quote.trade_date,
+      quote.data_quality_flag,
       publishedMarketDate,
       dataState,
     ),

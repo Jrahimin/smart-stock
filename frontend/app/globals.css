@@ -31111,7 +31111,12 @@ button {
 .add-holding-field,
 .add-holding-autocomplete {
   display: grid;
+}
+.add-holding-search-wrap {
+  display: grid;
+  gap: 6px;
   position: relative;
+  z-index: 5;
 }
 .add-holding-field input,
 .add-holding-field textarea,
@@ -31174,37 +31179,38 @@ button {
 .add-holding-selected-stock span {
   color: var(--muted);
   font-size: 12px;
+  min-width: 0;
 }
-.add-holding-selected-stock em,
 .add-holding-selected-stock small {
   color: var(--muted);
   font-size: 11px;
-  font-style: normal;
+  margin-left: auto;
 }
 .add-holding-search-menu {
-  background: var(--panel-strong);
+  background: color-mix(in srgb, var(--panel-strong) 96%, transparent);
   border: 1px solid var(--border);
-  border-radius: 12px;
-  box-shadow: 0 16px 36px color-mix(in srgb, #050914 28%, transparent);
+  border-radius: 10px;
+  box-shadow: 0 10px 24px color-mix(in srgb, #050914 18%, transparent);
   display: grid;
-  gap: 2px;
-  margin-top: 6px;
-  max-height: 240px;
+  gap: 0;
+  max-height: 168px;
   overflow: auto;
-  padding: 6px;
-  position: absolute;
+  padding: 3px;
+  position: static;
   width: 100%;
-  z-index: 20;
+  z-index: 1;
 }
 .add-holding-search-option {
+  align-items: center;
   background: transparent;
   border: 0;
-  border-radius: 9px;
+  border-radius: 7px;
   color: inherit;
   cursor: pointer;
-  display: grid;
-  gap: 4px;
-  padding: 9px 10px;
+  display: flex;
+  gap: 8px;
+  min-height: 28px;
+  padding: 4px 9px;
   text-align: left;
   width: 100%;
 }
@@ -31212,27 +31218,20 @@ button {
 .add-holding-search-option:hover {
   background: color-mix(in srgb, var(--primary) 12%, transparent);
 }
-.add-holding-search-option-main {
-  display: grid;
-  gap: 2px;
+.add-holding-search-option strong {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 750;
+  letter-spacing: .02em;
+  min-width: 4.5ch;
 }
-.add-holding-search-option-main strong {
-  font-size: 13px;
-}
-.add-holding-search-option-main span {
+.add-holding-search-option span {
   color: var(--muted);
   font-size: 12px;
-}
-.add-holding-search-option-meta {
-  align-items: center;
-  color: var(--muted);
-  display: flex;
-  gap: 10px;
-  justify-content: space-between;
-}
-.add-holding-search-option-meta em {
-  font-style: normal;
-  font-size: 11px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .add-holding-search-state {
   align-items: center;
@@ -31240,7 +31239,7 @@ button {
   display: flex;
   font-size: 12px;
   gap: 8px;
-  padding: 12px 10px;
+  padding: 10px;
 }
 .add-holding-search-state.is-error {
   color: var(--danger);

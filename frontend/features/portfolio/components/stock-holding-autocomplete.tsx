@@ -82,34 +82,75 @@ export function StockHoldingAutocomplete({
       <label className="add-holding-label" htmlFor="add-holding-stock">
         {t.stock}
       </label>
-      <div className={`add-holding-search ${showValidation && validation.stock ? "has-error" : ""}`}>
-        <Search size={15} />
-        <input
-          aria-autocomplete="list"
-          aria-controls={listboxId}
-          aria-expanded={showMenu}
-          aria-invalid={showValidation && Boolean(validation.stock)}
-          autoComplete="off"
-          disabled={disabled || stockLocked}
-          id="add-holding-stock"
-          onChange={(event) => {
-            if (stockLocked) return;
-            setQuery(event.target.value);
-            setActiveOptionIndex(-1);
-          }}
-          onKeyDown={onKeyDown}
-          placeholder={t.stockSearchPlaceholder}
-          ref={inputRef}
-          role="combobox"
-          type="search"
-          value={query}
-        />
-        {stockLocked && selectedStock && !disabled ? (
-          <button className="add-holding-clear-stock" onClick={clearSelectedStock} type="button">
-            {t.edit}
-          </button>
+      <div className="add-holding-search-wrap">
+        <div className={`add-holding-search ${showValidation && validation.stock ? "has-error" : ""}`}>
+          <Search size={15} />
+          <input
+            aria-autocomplete="list"
+            aria-controls={listboxId}
+            aria-expanded={showMenu}
+            aria-invalid={showValidation && Boolean(validation.stock)}
+            autoComplete="off"
+            disabled={disabled || stockLocked}
+            id="add-holding-stock"
+            onChange={(event) => {
+              if (stockLocked) return;
+              setQuery(event.target.value);
+              setActiveOptionIndex(-1);
+            }}
+            onKeyDown={onKeyDown}
+            placeholder={t.stockSearchPlaceholder}
+            ref={inputRef}
+            role="combobox"
+            type="search"
+            value={query}
+          />
+          {stockLocked && selectedStock && !disabled ? (
+            <button className="add-holding-clear-stock" onClick={clearSelectedStock} type="button">
+              {t.edit}
+            </button>
+          ) : null}
+        </div>
+
+        {showMenu ? (
+          <div
+            aria-label={t.stock}
+            className="add-holding-search-menu"
+            id={listboxId}
+            role="listbox"
+          >
+            {isSearching ? (
+              <div className="add-holding-search-state">
+                <Loader2 className="is-spinning" size={14} />
+                {t.stockSearchLoading}
+              </div>
+            ) : null}
+            {searchError ? (
+              <div className="add-holding-search-state is-error">{t.stockSearchError}</div>
+            ) : null}
+            {!isSearching && !searchError && searchResults.length === 0 ? (
+              <div className="add-holding-search-state">{t.stockSearchEmpty}</div>
+            ) : null}
+            {!searchError
+              ? searchResults.map((stock, index) => (
+                <button
+                  aria-selected={activeOptionIndex === index}
+                  className={`add-holding-search-option ${activeOptionIndex === index ? "is-active" : ""}`}
+                  key={stock.id}
+                  onClick={() => selectSearchResult(stock)}
+                  onMouseEnter={() => setActiveOptionIndex(index)}
+                  role="option"
+                  type="button"
+                >
+                  <strong>{stock.symbol}</strong>
+                  <span>{stock.name}</span>
+                </button>
+              ))
+              : null}
+          </div>
         ) : null}
       </div>
+
       {showValidation && validation.stock ? (
         <p className="add-holding-field-error">{t.stockRequired}</p>
       ) : null}
@@ -118,60 +159,11 @@ export function StockHoldingAutocomplete({
         <div className="add-holding-selected-stock">
           <strong>{selectedStock.symbol}</strong>
           <span>{selectedStock.name}</span>
-          <em>{selectedStock.exchange}</em>
           <small>
             {selectedStock.latestPrice != null
               ? formatPortfolioMoney(selectedStock.latestPrice, locale)
               : t.previewPriceUnavailable}
           </small>
-        </div>
-      ) : null}
-
-      {showMenu ? (
-        <div
-          aria-label={t.stock}
-          className="add-holding-search-menu"
-          id={listboxId}
-          role="listbox"
-        >
-          {isSearching ? (
-            <div className="add-holding-search-state">
-              <Loader2 className="is-spinning" size={14} />
-              {t.stockSearchLoading}
-            </div>
-          ) : null}
-          {searchError ? (
-            <div className="add-holding-search-state is-error">{t.stockSearchError}</div>
-          ) : null}
-          {!isSearching && !searchError && searchResults.length === 0 ? (
-            <div className="add-holding-search-state">{t.stockSearchEmpty}</div>
-          ) : null}
-          {!searchError
-            ? searchResults.map((stock, index) => (
-              <button
-                aria-selected={activeOptionIndex === index}
-                className={`add-holding-search-option ${activeOptionIndex === index ? "is-active" : ""}`}
-                key={stock.id}
-                onClick={() => selectSearchResult(stock)}
-                onMouseEnter={() => setActiveOptionIndex(index)}
-                role="option"
-                type="button"
-              >
-                <span className="add-holding-search-option-main">
-                  <strong>{stock.symbol}</strong>
-                  <span>{stock.name}</span>
-                </span>
-                <span className="add-holding-search-option-meta">
-                  <em>{stock.exchange}</em>
-                  <small>
-                    {stock.latest_price != null
-                      ? formatPortfolioMoney(stock.latest_price, locale)
-                      : "—"}
-                  </small>
-                </span>
-              </button>
-            ))
-            : null}
         </div>
       ) : null}
     </div>

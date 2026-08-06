@@ -15,7 +15,10 @@ import { PortfolioMutationsProvider, usePortfolioMutations } from "@/features/po
 import { useAddHoldingModal } from "@/features/portfolio/hooks/use-add-holding-modal";
 import { usePortfolioCompactLayout } from "@/features/portfolio/hooks/use-portfolio-compact-layout";
 import { usePortfolioEmailPreference } from "@/features/portfolio/hooks/use-portfolio-email-preference";
-import { usePortfolioWorkspace } from "@/features/portfolio/hooks/use-portfolio-workspace";
+import {
+  resolvePortfolioWorkspaceLoadState,
+  usePortfolioWorkspace,
+} from "@/features/portfolio/hooks/use-portfolio-workspace";
 import { portfolioLanguage } from "@/features/portfolio/portfolio-language";
 import {
   attentionFilterForCode,
@@ -1192,8 +1195,9 @@ export function PortfolioWorkspaceContent({
 export function PortfolioWorkspaceView({ locale }: PortfolioWorkspaceViewProps) {
   const t = portfolioLanguage[locale];
   const query = usePortfolioWorkspace("DSE");
+  const loadState = resolvePortfolioWorkspaceLoadState(query);
 
-  if (query.isLoading) {
+  if (loadState === "loading") {
     return (
       <div className="portfolio-page">
         <div className="portfolio-loading"><span /><p>{t.loading}</p></div>
@@ -1201,7 +1205,7 @@ export function PortfolioWorkspaceView({ locale }: PortfolioWorkspaceViewProps) 
     );
   }
 
-  if (query.isError || !query.data) {
+  if (loadState === "error" || !query.data) {
     return (
       <div className="portfolio-page">
         <div className="portfolio-error">

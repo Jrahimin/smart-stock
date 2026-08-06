@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  applyLatestQuoteToSelectedStock,
   buildAddHoldingPreview,
   isAddHoldingFormValid,
   parsePositiveDecimal,
@@ -151,12 +152,31 @@ describe("watchlist to holding conversion and existing holding update", () => {
     expect(selected.latestPrice).toBe(262.5);
     expect(selected.priceStatus).toBe("FINALIZED");
   });
+
+  it("applies a single-stock quote after lean search selection", () => {
+    const lean = selectedStockFromSearchResult(
+      searchHit({ latest_price: null, latest_trade_date: null, data_quality_flag: null }),
+      "2026-08-06",
+      "FINALIZED",
+    );
+    expect(lean.latestPrice).toBeNull();
+    expect(lean.priceStatus).toBe("UNAVAILABLE");
+
+    const withQuote = applyLatestQuoteToSelectedStock(
+      lean,
+      { close_price: "262.5000", trade_date: "2026-08-06", data_quality_flag: "OK" },
+      "2026-08-06",
+      "FINALIZED",
+    );
+    expect(withQuote.latestPrice).toBe(262.5);
+    expect(withQuote.priceStatus).toBe("FINALIZED");
+  });
 });
 
 describe("add holding localization", () => {
   it("renders Bangla and English add-holding copy", () => {
-    expect(portfolioLanguage.en.addHolding).toBe("Add holding");
-    expect(portfolioLanguage.bn.addHolding).toBe("হোল্ডিং যোগ করুন");
+    expect(portfolioLanguage.en.addHolding).toBe("Add in Portfolio");
+    expect(portfolioLanguage.bn.addHolding).toBe("পোর্টফোলিওতে যোগ করুন");
     expect(portfolioLanguage.en.addToPortfolio).toBe("Add to portfolio");
     expect(portfolioLanguage.bn.addToPortfolio).toBe("পোর্টফোলিওতে যোগ করুন");
     expect(portfolioLanguage.en.alreadyOnWatchlist).toContain("watchlist");

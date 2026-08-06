@@ -4,8 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import type { BackendStockDto, BackendStockSearchResultDto } from "@/lib/api/backend-api-types";
-import { searchStocks } from "@/lib/api/stocks-api";
+import { useDebouncedStockSearch } from "@/hooks/stocks/use-debounced-stock-search";
+import type { BackendStockDto } from "@/lib/api/backend-api-types";
 import {
   EXPLORER_POPULAR_STOCKS,
   loadRecentStockSearches,
@@ -18,30 +18,18 @@ type UseStockSymbolSearchOptions = {
   onFilterTable?: (query: string) => void;
 };
 
-const EMPTY_SEARCH_RESULTS: BackendStockSearchResultDto[] = [];
-
 export function useStockSymbolSearch(options: UseStockSymbolSearchOptions = {}) {
   const router = useRouter();
   const [query, setQuery] = useState("");
-  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [recentSearches, setRecentSearches] = useState<StockSearchPick[]>([]);
 
   useEffect(() => {
     setRecentSearches(loadRecentStockSearches());
   }, []);
 
-  useEffect(() => {
-    const timeoutId = window.setTimeout(() => setDebouncedQuery(query.trim()), 220);
-    return () => window.clearTimeout(timeoutId);
-  }, [query]);
-
-  const searchQuery = useQuery({
-    queryKey: ["stock-symbol-search", debouncedQuery],
-    queryFn: () => searchStocks(debouncedQuery, undefined, 12),
-    enabled: debouncedQuery.length >= 1,
+  const { results, isSearching, isSearchEnabled, debouncedQuery } = useDebouncedStockSearch({
+    query,
   });
-
-  const results = searchQuery.data ?? EMPTY_SEARCH_RESULTS;
 
   const exactMatch = useMemo(() => {
     const normalizedQuery = query.trim().toUpperCase();
@@ -62,7 +50,6 @@ export function useStockSymbolSearch(options: UseStockSymbolSearchOptions = {}) 
       rememberStock({ symbol: stock.symbol, exchange: stock.exchange, name: stock.name });
       router.push(buildStockDetailPath(stock.exchange, stock.symbol));
       setQuery("");
-      setDebouncedQuery("");
     },
     [rememberStock, router],
   );
@@ -71,7 +58,6 @@ export function useStockSymbolSearch(options: UseStockSymbolSearchOptions = {}) 
     (value: string) => {
       options.onFilterTable?.(value);
       setQuery("");
-      setDebouncedQuery("");
     },
     [options],
   );
@@ -102,7 +88,6 @@ export function useStockSymbolSearch(options: UseStockSymbolSearchOptions = {}) 
 
   function reset() {
     setQuery("");
-    setDebouncedQuery("");
   }
 
   return {
@@ -112,8 +97,9 @@ export function useStockSymbolSearch(options: UseStockSymbolSearchOptions = {}) 
     recentSearches,
     popularStocks: EXPLORER_POPULAR_STOCKS,
     exactMatch,
-    isSearching: searchQuery.isFetching,
-    isSearchEnabled: debouncedQuery.length >= 1,
+    isSearching,
+    isSearchEnabled,
+    debouncedQuery,
     navigateToStock,
     applyTableFilter,
     submitQuery,

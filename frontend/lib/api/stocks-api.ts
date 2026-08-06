@@ -29,14 +29,24 @@ export function listStocks(params: ListStocksParams = {}) {
   });
 }
 
-export function searchStocks(query: string, exchange?: ExchangeCode, limit = 20) {
-  return backendApiGet<BackendStockSearchResultDto[]>("/stocks/search", {
-    q: query,
-    exchange,
-    limit,
-    offset: 0,
-    is_active: true,
-  });
+export function searchStocks(
+  query: string,
+  exchange?: ExchangeCode,
+  limit = 20,
+  options?: { includeQuotes?: boolean; signal?: AbortSignal },
+) {
+  return backendApiGet<BackendStockSearchResultDto[]>(
+    "/stocks/search",
+    {
+      q: query,
+      exchange,
+      limit,
+      offset: 0,
+      is_active: true,
+      include_quotes: options?.includeQuotes ?? false,
+    },
+    options?.signal ? { signal: options.signal } : undefined,
+  );
 }
 
 export function getStockByLookup(exchange: ExchangeCode, symbol: string) {

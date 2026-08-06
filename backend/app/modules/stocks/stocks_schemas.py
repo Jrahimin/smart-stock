@@ -70,7 +70,11 @@ class StockRead(StockBase):
 
 
 class StockSearchResultRead(StockRead):
-    """Stock master row enriched with the latest available quote for autocomplete."""
+    """Stock master row for autocomplete.
+
+    Quote fields are optional and only populated when `include_quotes=true`.
+    Autocomplete defaults to lean master rows for speed.
+    """
 
     latest_price: Decimal | None = None
     latest_trade_date: date | None = None

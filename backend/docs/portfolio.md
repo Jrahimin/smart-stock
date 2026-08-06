@@ -65,4 +65,4 @@ The portfolio page adds or completes one consolidated position through the exist
 1. `POST /watchlist/items` when the stock is not yet watched.
 2. `PATCH /watchlist/items/{stock_id}` with `is_holding=true`, `quantity`, `buy_price`, and optional `note`.
 
-There is still no transaction ledger, purchase lot history, realized P/L, or partial-sale tracking. Stock autocomplete uses `GET /stocks/search`, which returns the latest available quote for preview and selection. Incomplete holdings continue to use inline quantity / average-price edits in the table.
+There is still no transaction ledger, purchase lot history, realized P/L, or partial-sale tracking. Stock autocomplete uses lean `GET /stocks/search` (no per-keystroke quote join); after selection, preview loads the latest close via `GET /stocks/{stock_id}/prices?limit=1`. Incomplete holdings continue to use inline quantity / average-price edits in the table.

@@ -32,13 +32,22 @@ class StocksService:
             params=params,
         )
 
-    async def search_stocks_with_quotes(
+    async def search_stocks(
         self,
         *,
+        query: str,
         exchange: ExchangeCode | None,
         params: ListQueryParams,
+        include_quotes: bool = False,
     ) -> list[StockSearchResultRead]:
-        stocks = await self.list_stocks(exchange=exchange, params=params)
+        stocks = await self.repository.search_stocks(
+            query=query,
+            exchange=exchange,
+            params=params,
+        )
+        if not include_quotes:
+            return [StockSearchResultRead.model_validate(stock) for stock in stocks]
+
         latest_prices = await self.repository.list_latest_prices_for_stocks(
             [stock.id for stock in stocks]
         )

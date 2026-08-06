@@ -129,7 +129,8 @@ None
 **Description**
 Search stock master records by partial symbol or company name.
 Useful for autocomplete and user-facing search fields.
-Each match includes the latest available daily close when a quote exists.
+Results are ranked: exact symbol, symbol prefix, name prefix, then contains.
+Quote fields are omitted by default so autocomplete stays fast; pass `include_quotes=true` only when the caller needs latest close on every match.
 
 **Path Params**
 
@@ -142,6 +143,7 @@ None
 * offset: number, default 0, min 0
 * exchange: optional enum, one of `DSE`, `CSE`
 * is_active: optional boolean
+* include_quotes: optional boolean, default `false` — when true, attaches `latest_price`, `latest_trade_date`, and `data_quality_flag`
 
 **Response**
 
@@ -175,8 +177,9 @@ None
 
 **Notes**
 
-* `latest_price`, `latest_trade_date`, and `data_quality_flag` are null when no daily price row exists.
-* Quote enrichment uses the newest `daily_prices` row per matched stock; it does not recompute trading decisions.
+* Default responses keep quote fields null for speed (single master-table query).
+* With `include_quotes=true`, quote fields are null when no daily price row exists; enrichment uses the newest `daily_prices` row per matched stock and does not recompute trading decisions.
+* Prefer lean search for typeahead, then fetch `GET /stocks/{stock_id}/prices?limit=1` when a single selection needs a preview quote.
 
 ---
 

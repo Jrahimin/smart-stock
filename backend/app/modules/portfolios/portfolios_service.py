@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Annotated
 from uuid import UUID
@@ -175,22 +175,37 @@ class PortfoliosService:
         )
         return PortfolioEmailPreferenceRead(enabled=enabled, locale=locale)
 
-    async def _build_workspace(self, *, user_id: UUID, exchange: ExchangeCode) -> PortfolioWorkspaceRead:
-        items = await self.repository.list_items(user_id=user_id, exchange=exchange)
-        universe_rows: list[ScoredUniverseRow] = []
+    async def _resolve_universe_context(
+        self,
+        *,
+        exchange: ExchangeCode,
+    ) -> tuple[list[ScoredUniverseRow], date | None, datetime | None, MarketDataState, bool]:
         try:
             universe = await self.universe_service.get_universe_rows(exchange=exchange)
-            universe_rows = universe.rows
-            published_date = universe.meta.session_trade_date
-            live_as_of = universe.meta.live_data_as_of
-            data_state = universe.meta.data_state
-            is_provisional = universe.meta.is_live_session
+            return (
+                universe.rows,
+                universe.meta.session_trade_date,
+                universe.meta.live_data_as_of,
+                universe.meta.data_state,
+                universe.meta.is_live_session,
+            )
         except UniverseCacheUnavailableError:
             freshness = await self.market_data_service.get_market_freshness(exchange=exchange)
-            published_date = freshness.trade_date
-            live_as_of = freshness.live_data_as_of
-            data_state = freshness.data_state or MarketDataState.STALE
-            is_provisional = bool(freshness.is_live_session)
+            return (
+                [],
+                freshness.trade_date,
+                freshness.live_data_as_of,
+                freshness.data_state or MarketDataState.STALE,
+                bool(freshness.is_live_session),
+            )
+
+    async def _build_workspace(self, *, user_id: UUID, exchange: ExchangeCode) -> PortfolioWorkspaceRead:
+        # Sequential awaits only — this request shares one AsyncSession across
+        # repository/universe/market services; concurrent gather is not safe.
+        items = await self.repository.list_items(user_id=user_id, exchange=exchange)
+        universe_rows, published_date, live_as_of, data_state, is_provisional = (
+            await self._resolve_universe_context(exchange=exchange)
+        )
 
         universe_by_stock = {row.stock.id: row for row in universe_rows}
         fallback_stock_ids = [

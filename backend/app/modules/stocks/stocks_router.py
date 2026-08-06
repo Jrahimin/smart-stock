@@ -37,11 +37,13 @@ async def search_stocks(
     service: Annotated[StocksService, Depends(get_stocks_service)],
     q: Annotated[str, Query(min_length=1, max_length=120)],
     exchange: ExchangeCode | None = None,
+    include_quotes: Annotated[bool, Query()] = False,
 ) -> ApiResponse[list[StockSearchResultRead]]:
-    search_params = params.model_copy(update={"search": q})
-    stock_items = await service.search_stocks_with_quotes(
+    stock_items = await service.search_stocks(
+        query=q,
         exchange=exchange,
-        params=search_params,
+        params=params,
+        include_quotes=include_quotes,
     )
     return success_response(data=stock_items, message="Stocks matched")
 

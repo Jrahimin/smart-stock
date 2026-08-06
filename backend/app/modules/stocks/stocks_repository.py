@@ -2,7 +2,7 @@ from datetime import date
 from uuid import UUID
 
 from fastapi import Depends
-from sqlalchemy import func, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.base_repository import BaseRepository
@@ -10,6 +10,7 @@ from app.core.database_session import get_db_session
 from app.core.enums import ExchangeCode
 from app.core.pagination import ListQueryParams
 from app.models import DailyPrice, Stock
+from app.modules.stocks.stock_search import escape_ilike_pattern
 
 
 class StocksRepository(BaseRepository[Stock]):
@@ -30,6 +31,48 @@ class StocksRepository(BaseRepository[Stock]):
             search_columns=(Stock.symbol, Stock.name),
             order_by=(Stock.exchange, Stock.symbol, Stock.id),
         )
+
+    async def search_stocks(
+        self,
+        *,
+        query: str,
+        exchange: ExchangeCode | None,
+        params: ListQueryParams,
+    ) -> list[Stock]:
+        """Ranked autocomplete search: exact symbol → symbol prefix → name prefix → contains."""
+        normalized = query.strip()
+        if not normalized:
+            return []
+
+        escaped = escape_ilike_pattern(normalized)
+        contains_pattern = f"%{escaped}%"
+        prefix_pattern = f"{escaped}%"
+        exact_symbol = normalized.upper()
+
+        match_filter = or_(
+            Stock.symbol.ilike(contains_pattern, escape="\\"),
+            Stock.name.ilike(contains_pattern, escape="\\"),
+        )
+        rank = case(
+            (func.upper(Stock.symbol) == exact_symbol, 0),
+            (Stock.symbol.ilike(prefix_pattern, escape="\\"), 1),
+            (Stock.name.ilike(prefix_pattern, escape="\\"), 2),
+            else_=3,
+        )
+
+        statement = select(Stock).where(match_filter)
+        if exchange is not None:
+            statement = statement.where(Stock.exchange == exchange)
+        if params.is_active is not None:
+            statement = statement.where(Stock.is_active.is_(params.is_active))
+
+        statement = (
+            statement.order_by(rank, Stock.symbol, Stock.exchange, Stock.id)
+            .limit(params.limit)
+            .offset(params.offset)
+        )
+        result = await self.session.scalars(statement)
+        return list(result.all())
 
     async def list_latest_prices_for_stocks(
         self,
