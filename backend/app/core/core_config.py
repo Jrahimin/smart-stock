@@ -42,11 +42,15 @@ class Settings(BaseSettings):
     run_scheduler: bool = False
     daily_market_sync_scheduler_enabled: bool = True
     market_snapshot_scheduler_enabled: bool = True
+    stock_details_sync_scheduler_enabled: bool = False
     portfolio_summary_email_scheduler_enabled: bool = True
+    system_job_queue_poll_seconds: int = Field(default=10, ge=1, le=300)
     market_open_time: str = "10:00"
     market_close_time: str = "15:00"
     market_snapshot_interval_minutes: int = Field(default=15, ge=1, le=120)
     daily_market_sync_time: str = "15:15"
+    stock_details_sync_time: str = "15:35"
+    stock_details_sync_batch_size: int = Field(default=50, ge=1, le=100)
     daily_market_primary_source: str = "amarstock_msgpack"
     daily_market_stocknow_validation_enabled: bool = False
     daily_market_stocknow_fallback_enabled: bool = False

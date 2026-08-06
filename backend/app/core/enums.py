@@ -491,6 +491,7 @@ class SystemJobExecutionStatus(StrEnum):
     RUNNING = "RUNNING"
     SUCCEEDED = "SUCCEEDED"
     PARTIAL = "PARTIAL"
+    SKIPPED = "SKIPPED"
     FAILED = "FAILED"
     CANCELLED = "CANCELLED"
 

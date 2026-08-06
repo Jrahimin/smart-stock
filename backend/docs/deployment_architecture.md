@@ -15,9 +15,8 @@ Production runs on a **single Ubuntu VPS** (Contabo) using **Docker Compose**. *
 | `stockwealthbd.com` | `127.0.0.1:3000` | Next.js frontend |
 | `api.stockwealthbd.com` | `127.0.0.1:8000` | FastAPI backend-api |
 
-PostgreSQL is **internal only** — not exposed on the host (except `127.0.0.1:5432` for SSH tunnel access).
-
-PostgreSQL is **internal only** — not exposed on the host.
+PostgreSQL is not publicly exposed; it is bound to `127.0.0.1:5432` only for
+SSH-tunnel access.
 
 ---
 
@@ -65,7 +64,7 @@ flowchart TB
 | **frontend** | Next.js App Router (standalone build) | `node server.js` — published on `127.0.0.1:3000` |
 | **backend-migrate** | One-shot database migration job | `alembic upgrade head` |
 | **backend-api** | REST API | Gunicorn + Uvicorn workers — published on `127.0.0.1:8000` |
-| **backend-scheduler** | Background jobs only — no HTTP | `python -m app.jobs.scheduler` |
+| **backend-scheduler** | Durable PostgreSQL queue worker, scheduled producers, and persisted heartbeat — no HTTP | `python -m app.jobs.scheduler` |
 | **postgres** | Primary database | `postgres:17-alpine` |
 | **redis** | Optional dashboard section cache | `redis:7-alpine` — omit `REDIS_URL` to run without Redis |
 
@@ -128,10 +127,12 @@ The scheduler entrypoint:
 
 - **Fail-fast** if `RUN_SCHEDULER=false`
 - **Fail-fast** (exit 1) if initialization fails — Docker `restart: unless-stopped` recovers
-- **Graceful shutdown** on SIGTERM/SIGINT — stops APScheduler and cancels asyncio market-data tasks
-- **No HTTP healthcheck** — operability via `docker compose logs backend-scheduler`
+- **Graceful shutdown** on SIGTERM/SIGINT — stops scheduled producers, then the queue worker
+- **Durable queue recovery** — abandoned `RUNNING` rows become recoverable failures on startup
+- **Persisted liveness** — writes `backend-scheduler` heartbeat rows every minute; Admin reports Online only while the heartbeat is at most two minutes old
+- **No HTTP endpoint on the worker** — inspect Admin → Dashboard and `docker compose logs backend-scheduler`
 
-Per-job toggles (`MARKET_SNAPSHOT_SCHEDULER_ENABLED`, `DAILY_MARKET_SYNC_SCHEDULER_ENABLED`) are read from **environment** at scheduler startup. See [Configuration precedence](#configuration-precedence) for how admin DB settings relate to Docker env.
+Per-job toggles (`MARKET_SNAPSHOT_SCHEDULER_ENABLED`, `DAILY_MARKET_SYNC_SCHEDULER_ENABLED`, `STOCK_DETAILS_SYNC_SCHEDULER_ENABLED`) are read from **environment** at scheduler startup. See [Configuration precedence](#configuration-precedence) for how admin DB settings relate to Docker env.
 
 ---
 
@@ -256,6 +257,10 @@ Browser ──TLS──► Cloudflare ──TLS──► Host Nginx ──HTTP�
 | `AMARSTOCK_MARKET_SNAPSHOT_MAX_LAST_MODIFIED_AGE_DAYS` | **API + scheduler runtime** | Default `7`; rejects clearly stale advisory metadata |
 | `MARKET_SNAPSHOT_MIN_ACTIVE_COVERAGE_PERCENT` | **API + scheduler runtime** | Default `95`; blocks partial publication before writes |
 | `MARKET_SNAPSHOT_MIN_SOURCE_SYMBOLS` | **API + scheduler runtime** | Default `300` matched active DSE symbols |
+| `SYSTEM_JOB_QUEUE_POLL_SECONDS` | **scheduler runtime** | Default `10`; delay between empty PostgreSQL queue polls |
+| `STOCK_DETAILS_SYNC_SCHEDULER_ENABLED` | **scheduler startup** | Enables the Sunday–Thursday due-batch producer; production template enables it explicitly |
+| `STOCK_DETAILS_SYNC_TIME` | **scheduler runtime** | Default `15:35` in `Asia/Dhaka` |
+| `STOCK_DETAILS_SYNC_BATCH_SIZE` | **scheduler runtime** | Default `50`; due eligible stocks per full-scope scheduled run |
 
 Copy [`.env.docker.example`](../../.env.docker.example) to `.env` at the repo root.
 

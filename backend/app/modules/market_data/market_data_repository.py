@@ -466,6 +466,27 @@ class MarketDataRepository(BaseRepository[DailyPrice]):
         )
         return await self.session.scalar(statement)
 
+    async def get_latest_finalized_market_summary(
+        self,
+        *,
+        exchange: ExchangeCode,
+    ) -> DailyMarketSummary | None:
+        statement = (
+            select(DailyMarketSummary)
+            .where(
+                DailyMarketSummary.exchange == exchange,
+                DailyMarketSummary.index_name == "DSEX",
+                DailyMarketSummary.is_finalized.is_(True),
+            )
+            .order_by(
+                DailyMarketSummary.trade_date.desc(),
+                DailyMarketSummary.updated_at.desc(),
+                DailyMarketSummary.id.desc(),
+            )
+            .limit(1)
+        )
+        return await self.session.scalar(statement)
+
     async def list_recent_finalized_session_dates(
         self,
         *,

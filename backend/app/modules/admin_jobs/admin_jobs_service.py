@@ -1,40 +1,44 @@
-from datetime import UTC, date, datetime
-from typing import Any
+from __future__ import annotations
+
+import hashlib
+import json
+from datetime import UTC, date, datetime, time, timedelta
+from typing import Annotated, Any
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from fastapi import Depends
+from sqlalchemy.exc import IntegrityError
 
 from app.core.core_config import Settings, get_settings
 from app.core.enums import (
     ExchangeCode,
     StockDetailsSyncScope,
-    StockDetailsSyncTriggerType,
     SystemJobExecutionStatus,
     SystemJobTriggerSource,
     SystemJobType,
 )
 from app.core.exception_handlers import NotFoundError
 from app.core.security_config import UserContext
-from app.jobs.indicators.compute_daily_indicators import compute_daily_indicators
-from app.jobs.ingestion.ingest_daily_market_prices import run_daily_market_sync, sync_market_snapshot
-from app.jobs.ingest_stock_details import ingest_stock_details
-from app.jobs.signals.generate_daily_signals import generate_daily_signals
 from app.models import SystemJobExecution
-from app.modules.admin_jobs.admin_jobs_repository import AdminJobsRepository, get_admin_jobs_repository
+from app.modules.admin_jobs.admin_jobs_repository import (
+    AdminJobsRepository,
+    get_admin_jobs_repository,
+)
 from app.modules.admin_jobs.admin_jobs_schemas import (
     AdminJobTriggerRequest,
     SystemJobExecutionRead,
     SystemJobTriggerResult,
 )
-from zoneinfo import ZoneInfo
 
 DHAKA_TIMEZONE = ZoneInfo("Asia/Dhaka")
-
-
-def _duration_ms(started_at: datetime | None, completed_at: datetime | None) -> int | None:
-    if started_at is None or completed_at is None:
-        return None
-    return int((completed_at - started_at).total_seconds() * 1000)
+MANUAL_JOB_NAMES = {
+    SystemJobType.MARKET_SNAPSHOT: "Market Snapshot",
+    SystemJobType.MARKET_SYNC: "Daily Close, News & Finalization",
+    SystemJobType.STOCK_DETAILS_SYNC: "Stock Details Batch (20)",
+    SystemJobType.INDICATORS: "Daily Indicators",
+    SystemJobType.SIGNALS: "Daily Signals",
+}
 
 
 class AdminJobsService:
@@ -47,12 +51,34 @@ class AdminJobsService:
         *,
         job_type: SystemJobType | None = None,
         status: SystemJobExecutionStatus | None = None,
+        trigger_source: SystemJobTriggerSource | None = None,
+        date_from: date | None = None,
+        date_to: date | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> list[SystemJobExecution]:
+        created_from = (
+            datetime.combine(date_from, time.min, tzinfo=DHAKA_TIMEZONE).astimezone(
+                UTC
+            )
+            if date_from is not None
+            else None
+        )
+        created_before = (
+            datetime.combine(
+                date_to + timedelta(days=1),
+                time.min,
+                tzinfo=DHAKA_TIMEZONE,
+            ).astimezone(UTC)
+            if date_to is not None
+            else None
+        )
         return await self.repository.list_executions(
             job_type=job_type,
             status=status,
+            trigger_source=trigger_source,
+            created_from=created_from,
+            created_before=created_before,
             limit=limit,
             offset=offset,
         )
@@ -69,36 +95,25 @@ class AdminJobsService:
         request: AdminJobTriggerRequest,
         actor: UserContext,
     ) -> SystemJobTriggerResult:
-        execution = await self._create_execution(
+        metadata = self._normalize_metadata(
             job_type=request.job_type,
-            job_name=request.job_name or request.job_type.value,
+            metadata=request.metadata,
+            trigger_source=SystemJobTriggerSource.MANUAL,
+        )
+        execution, deduplicated = await self.enqueue_job(
+            job_type=request.job_type,
+            job_name=request.job_name
+            or MANUAL_JOB_NAMES.get(request.job_type, request.job_type.value),
             trigger_source=SystemJobTriggerSource.MANUAL,
             triggered_by_user_id=UUID(actor.user_id),
-            metadata=request.metadata,
+            metadata=metadata,
         )
-        await self.repository.commit()
-
-        try:
-            result = await self._run_job(request.job_type, request.metadata)
-            execution.status = SystemJobExecutionStatus.SUCCEEDED
-            execution.completed_at = datetime.now(UTC)
-            execution.duration_ms = _duration_ms(execution.started_at, execution.completed_at)
-            execution.metadata_json = {**execution.metadata_json, "result": result}
-        except Exception as exc:
-            execution.status = SystemJobExecutionStatus.FAILED
-            execution.completed_at = datetime.now(UTC)
-            execution.duration_ms = _duration_ms(execution.started_at, execution.completed_at)
-            execution.error_message = str(exc)
-            await self.repository.commit()
-            raise
-
-        await self.repository.commit()
         return SystemJobTriggerResult(
             execution=SystemJobExecutionRead.model_validate(execution),
-            result_summary=result,
+            deduplicated=deduplicated,
         )
 
-    async def _create_execution(
+    async def enqueue_job(
         self,
         *,
         job_type: SystemJobType,
@@ -106,49 +121,98 @@ class AdminJobsService:
         trigger_source: SystemJobTriggerSource,
         triggered_by_user_id: UUID | None,
         metadata: dict[str, Any] | None = None,
-    ) -> SystemJobExecution:
-        now = datetime.now(UTC)
-        return await self.repository.create(
-            {
-                "job_type": job_type,
-                "job_name": job_name,
-                "status": SystemJobExecutionStatus.RUNNING,
-                "trigger_source": trigger_source,
-                "triggered_by_user_id": triggered_by_user_id,
-                "started_at": now,
-                "metadata_json": metadata or {},
-            }
+        dedupe_key: str | None = None,
+    ) -> tuple[SystemJobExecution, bool]:
+        normalized_metadata = self._normalize_metadata(
+            job_type=job_type,
+            metadata=metadata or {},
+            trigger_source=trigger_source,
         )
+        resolved_dedupe_key = dedupe_key or build_system_job_dedupe_key(
+            job_type=job_type,
+            metadata=normalized_metadata,
+        )
+        existing = await self.repository.get_active_by_dedupe_key(
+            resolved_dedupe_key
+        )
+        if existing is not None:
+            return existing, True
 
-    async def _run_job(self, job_type: SystemJobType, metadata: dict[str, Any]) -> dict[str, Any]:
-        trade_date = date.fromisoformat(metadata["trade_date"]) if metadata.get("trade_date") else datetime.now(DHAKA_TIMEZONE).date()
-
-        if job_type == SystemJobType.MARKET_SNAPSHOT:
-            result = await sync_market_snapshot(trade_date)
-            return result.model_dump()
-        if job_type == SystemJobType.MARKET_SYNC:
-            result = await run_daily_market_sync(trade_date)
-            return result.model_dump()
-        if job_type == SystemJobType.STOCK_DETAILS_SYNC:
-            result = await ingest_stock_details(
-                exchange=ExchangeCode(metadata.get("exchange", ExchangeCode.DSE.value)),
-                symbols=metadata.get("symbols"),
-                limit=metadata.get("limit", 20),
-                offset=metadata.get("offset", 0),
-                force=bool(metadata.get("force", False)),
-                trigger_type=StockDetailsSyncTriggerType.MANUAL,
-                scope=StockDetailsSyncScope(metadata.get("scope", StockDetailsSyncScope.FULL.value)),
+        try:
+            execution = await self.repository.create(
+                {
+                    "job_type": job_type,
+                    "job_name": job_name,
+                    "dedupe_key": resolved_dedupe_key,
+                    "status": SystemJobExecutionStatus.PENDING,
+                    "trigger_source": trigger_source,
+                    "triggered_by_user_id": triggered_by_user_id,
+                    "started_at": None,
+                    "completed_at": None,
+                    "attempt_count": 0,
+                    "metadata_json": normalized_metadata,
+                }
             )
-            return result.model_dump()
-        if job_type == SystemJobType.INDICATORS:
-            return await compute_daily_indicators(trade_date)
-        if job_type == SystemJobType.SIGNALS:
-            return await generate_daily_signals(trade_date)
-        raise ValueError(f"Unsupported job type: {job_type}")
+            await self.repository.commit()
+            return execution, False
+        except IntegrityError:
+            await self.repository.session.rollback()
+            existing = await self.repository.get_active_by_dedupe_key(
+                resolved_dedupe_key
+            )
+            if existing is None:
+                raise
+            return existing, True
+
+    def _normalize_metadata(
+        self,
+        *,
+        job_type: SystemJobType,
+        metadata: dict[str, Any],
+        trigger_source: SystemJobTriggerSource,
+    ) -> dict[str, Any]:
+        normalized = dict(metadata)
+        if job_type in {
+            SystemJobType.MARKET_SNAPSHOT,
+            SystemJobType.MARKET_SYNC,
+            SystemJobType.INDICATORS,
+            SystemJobType.SIGNALS,
+        }:
+            normalized.setdefault(
+                "trade_date",
+                datetime.now(DHAKA_TIMEZONE).date().isoformat(),
+            )
+        if job_type == SystemJobType.STOCK_DETAILS_SYNC:
+            normalized.setdefault("exchange", ExchangeCode.DSE.value)
+            normalized.setdefault("scope", StockDetailsSyncScope.FULL.value)
+            normalized.setdefault("offset", 0)
+            normalized.setdefault("force", False)
+            normalized.setdefault(
+                "limit",
+                20
+                if trigger_source == SystemJobTriggerSource.MANUAL
+                else self.settings.stock_details_sync_batch_size,
+            )
+        return normalized
+
+
+def build_system_job_dedupe_key(
+    *,
+    job_type: SystemJobType,
+    metadata: dict[str, Any],
+) -> str:
+    canonical = json.dumps(
+        {"job_type": job_type.value, "metadata": metadata},
+        sort_keys=True,
+        separators=(",", ":"),
+        default=str,
+    )
+    digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    return f"{job_type.value.lower()}:{digest}"
 
 
 def get_admin_jobs_service(
-    repository: AdminJobsRepository = Depends(get_admin_jobs_repository),
-    settings: Settings = Depends(get_settings),
+    repository: Annotated[AdminJobsRepository, Depends(get_admin_jobs_repository)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> AdminJobsService:
     return AdminJobsService(repository, settings)

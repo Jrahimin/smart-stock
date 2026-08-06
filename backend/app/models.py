@@ -18,6 +18,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
@@ -1215,12 +1216,27 @@ class SystemJobExecution(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __table_args__ = (
         Index("ix_system_job_executions_type_started", "job_type", "started_at"),
         Index("ix_system_job_executions_status_started", "status", "started_at"),
+        Index(
+            "uq_system_job_executions_active_dedupe_key",
+            "dedupe_key",
+            unique=True,
+            postgresql_where=text(
+                "dedupe_key IS NOT NULL AND status IN ('PENDING', 'RUNNING')"
+            ),
+        ),
     )
 
     job_type: Mapped[SystemJobType] = mapped_column(Enum(SystemJobType), nullable=False)
     job_name: Mapped[str] = mapped_column(String(120), nullable=False)
-    status: Mapped[SystemJobExecutionStatus] = mapped_column(Enum(SystemJobExecutionStatus), nullable=False)
-    trigger_source: Mapped[SystemJobTriggerSource] = mapped_column(Enum(SystemJobTriggerSource), nullable=False)
+    dedupe_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    status: Mapped[SystemJobExecutionStatus] = mapped_column(
+        Enum(SystemJobExecutionStatus),
+        nullable=False,
+    )
+    trigger_source: Mapped[SystemJobTriggerSource] = mapped_column(
+        Enum(SystemJobTriggerSource),
+        nullable=False,
+    )
     triggered_by_user_id: Mapped[UUID | None] = mapped_column(
         PostgresUUID(as_uuid=True),
         ForeignKey("users.id", ondelete="SET NULL"),
@@ -1229,9 +1245,31 @@ class SystemJobExecution(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    attempt_count: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    attempt_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
-    metadata_json: Mapped[dict[str, Any]] = mapped_column("metadata", JSONB, default=dict, nullable=False)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(
+        "metadata",
+        JSONB,
+        default=dict,
+        nullable=False,
+    )
+
+
+class SchedulerHeartbeat(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "scheduler_heartbeats"
+    __table_args__ = (
+        UniqueConstraint("component_name", name="uq_scheduler_heartbeats_component_name"),
+        Index("ix_scheduler_heartbeats_heartbeat_at", "heartbeat_at"),
+    )
+
+    component_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    heartbeat_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(
+        "metadata",
+        JSONB,
+        default=dict,
+        nullable=False,
+    )
 
 
 class EmailCampaign(UUIDPrimaryKeyMixin, TimestampMixin, Base):

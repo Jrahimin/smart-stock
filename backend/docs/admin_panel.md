@@ -49,7 +49,7 @@ Admin navigation appears in the terminal sidebar for `ADMIN` and `SUPER_ADMIN` u
 | `admin_dashboard` | Dashboard overview and data health |
 | `admin_users` | User management and `user_sessions` history |
 | `admin_configuration` | Safe runtime settings stored in `admin_config_settings` |
-| `admin_jobs` | `system_job_executions` and manual job triggers |
+| `admin_jobs` | Durable `system_job_executions` queue, history, and manual enqueue API |
 | `admin_email_campaigns` | Campaign creation, recipient snapshots, APScheduler processing |
 | `wealth/tax_config` | Tax calculator config (3-table model), public config API, admin maintenance |
 
@@ -143,20 +143,49 @@ Recipient scopes:
 - email campaigns
 - future AI/RAG jobs
 
-Generic fields include `job_type`, `job_name`, `triggered_by_user_id`, `trigger_source`, and `metadata_json`.
+Generic fields include `job_type`, `job_name`, `dedupe_key`, `triggered_by_user_id`,
+`trigger_source`, and `metadata_json`.
 
-Manual triggers are `SUPER_ADMIN` only and wrap existing job entrypoints under `backend/app/jobs/`.
+Manual triggers are `SUPER_ADMIN` only. They enqueue `PENDING` work and return HTTP `202`
+without running ingestion inside the API request.
+
+The `/admin/jobs` manual controls expose only:
+
+- **Market Snapshot** — one validated LIVE price/DSEX publication attempt.
+- **Daily Close, News & Finalization** — daily news ingestion plus DSEX finalization when inputs exist.
+- **Stock Details Batch (20)** — at most 20 DSE stocks in the default full scope.
+
+Equivalent active requests return the existing row rather than failing or creating duplicate
+work. The UI polls while `PENDING`/`RUNNING`, supports type/status/source/date filters, and shows
+request/result/error metadata in the execution drawer. Market-session no-work outcomes are
+terminal `SKIPPED` executions. Indicators and Signals remain absent from manual UI actions.
+Existing execution rows remain visible to `ADMIN` and `SUPER_ADMIN`; enqueue remains
+`SUPER_ADMIN` only.
+
+The dedicated `backend-scheduler` claims rows transactionally with `FOR UPDATE SKIP LOCKED`,
+runs one operational job at a time, recovers abandoned `RUNNING` rows on startup, and removes
+terminal history older than 90 days. See [`admin_job_queue.md`](admin_job_queue.md).
 
 ## Data health dashboard
 
-The admin dashboard exposes:
+The admin dashboard reads operational domain tables directly; generic job history is not treated
+as proof that market data exists.
 
-- latest sync timestamps
-- failed job count
-- suspicious/partial price counts
-- active stocks missing latest prices
-- overall freshness label
-- email campaign health: queued, running, failed, last sent
+- **Market Snapshot** — newest `LIVE` row in `market_data_generations`, including session date,
+  source/publish timestamps, fetched/accepted coverage, and suspicious count.
+- **Daily Close & Finalization** — newest finalized DSEX row in `daily_market_summaries`.
+- **Stock Details** — newest successful/partial `stock_details_sync_jobs` row, current due-stock
+  backlog, and recorded completed/failed counts.
+- **Missing Prices** — active DSE stocks with no `daily_prices` row for the newest LIVE generation
+  date.
+- **Suspicious Prices** and **Expected No-Trade** — scoped to that newest generation date only.
+  Zero-OHLC source placeholders are informational no-trade rows and are not counted as missing.
+- Market health values are data-only `CURRENT`, `DELAYED`, `STALE`, or `MISSING` states with a
+  reason and last successful source timestamp.
+- Scheduler liveness comes only from the persisted `backend-scheduler` heartbeat: `ONLINE` at
+  no more than two minutes old, `OFFLINE` when older, and `UNKNOWN` when missing. Enabled flags
+  and next-run timestamps are shown separately.
+- Email campaign health remains queued, running, failed, and last-sent counts/timing.
 
 ## At-a-glance operations
 

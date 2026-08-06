@@ -33,8 +33,8 @@ Exit codes: `0` success · `2` bad date · `130` interrupt · `1` error.
 
 | Workflow | Code entry | Cadence | Writes |
 |----------|------------|---------|--------|
-| Intraday snapshot | `sync_market_snapshot()` | Every `market_snapshot_interval_minutes` (default 15) between `market_open_time`–`market_close_time`, Sun–Thu | `daily_prices` (upsert), DSEX summary |
-| Daily news/finality | `run_daily_market_sync()` | Once per session day at `daily_market_sync_time` (default 15:15) | `market_events`; finalize DSEX session when price + index inputs exist |
+| Intraday snapshot | Scheduler enqueues `MARKET_SNAPSHOT`; queue runner calls `sync_market_snapshot()` | Every `market_snapshot_interval_minutes` (default 15) between `market_open_time`–`market_close_time`, Sun–Thu | `daily_prices` (upsert), DSEX summary |
+| Daily news/finality | Scheduler enqueues `MARKET_SYNC`; queue runner calls `run_daily_market_sync()` | Once per session day at `daily_market_sync_time` (default 15:15) | `market_events`; finalize DSEX session when price + index inputs exist |
 | Historical backfill | `backfill_daily_prices()` | Manual / API | `daily_prices` from DSE archive |
 
 ```text
@@ -91,7 +91,11 @@ uses only known source contracts and leaves other rows unknown.
 
 ## Schedulers
 
-**Production (Docker):** Market snapshot and daily sync jobs run in the dedicated `backend-scheduler` container (`python -m app.jobs.scheduler`, `RUN_SCHEDULER=true`). The API container (`backend-api`) sets `RUN_SCHEDULER=false` and does not start schedulers.
+**Production (Docker):** Market snapshot and daily sync schedules enqueue durable
+`system_job_executions` rows in the dedicated `backend-scheduler` container
+(`python -m app.jobs.scheduler`, `RUN_SCHEDULER=true`). Its single queue runner claims and
+executes them. The API container (`backend-api`) sets `RUN_SCHEDULER=false` and only enqueues
+manual requests.
 
 **Local development:** With `RUN_SCHEDULER=true`, schedulers can start inside the FastAPI process (`uvicorn`) via `app.main` lifespan.
 
@@ -100,11 +104,16 @@ uses only known source contracts and leaves other rows unknown.
 | `run_scheduler` | `false` — process gate; `true` only in scheduler container or local single-process dev |
 | `market_snapshot_scheduler_enabled` | `true` |
 | `daily_market_sync_scheduler_enabled` | `true` |
+| `system_job_queue_poll_seconds` | `10` |
+| `stock_details_sync_scheduler_enabled` | `false` |
+| `stock_details_sync_time` | `15:35` (Asia/Dhaka) |
+| `stock_details_sync_batch_size` | `50` due eligible full-scope DSE stocks |
 | `market_open_time` / `market_close_time` | `10:00` / `15:00` (Asia/Dhaka) |
 | `market_snapshot_interval_minutes` | `15` |
 | `daily_market_sync_time` | `15:15` |
 
 See [`deployment_architecture.md`](deployment_architecture.md) for the full production layout.
+Queue lifecycle and heartbeat behavior: [`admin_job_queue.md`](admin_job_queue.md).
 
 Session helpers live in `market_session_schedule.py` (shared with `GET /market/freshness`).
 
