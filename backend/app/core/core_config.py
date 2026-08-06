@@ -47,9 +47,11 @@ class Settings(BaseSettings):
     market_close_time: str = "15:00"
     market_snapshot_interval_minutes: int = Field(default=15, ge=1, le=120)
     daily_market_sync_time: str = "15:15"
-    daily_market_primary_source: str = "amarstock_latest_price_json"
+    daily_market_primary_source: str = "amarstock_msgpack"
     daily_market_stocknow_validation_enabled: bool = False
     daily_market_stocknow_fallback_enabled: bool = False
+    market_snapshot_min_active_coverage_percent: float = Field(default=95, gt=0, le=100)
+    market_snapshot_min_source_symbols: int = Field(default=300, ge=1)
     stock_details_sync_frequency_months: int = Field(default=3, ge=1)
     stock_details_sync_max_concurrency: int = Field(default=3, ge=1, le=5)
     stock_details_sync_request_delay_min_seconds: float = Field(default=1.0, ge=0)
@@ -62,6 +64,13 @@ class Settings(BaseSettings):
     amarstock_historical_token: str = "5ee4d332a90e"
     amarstock_company_token: str = "2b5e8cfdd75f"
     amarstock_latest_price_token: str = "dbfd2587c77f"
+    amarstock_market_snapshot_path: str = "/823af3f1ebdd"
+    amarstock_market_snapshot_max_response_bytes: int = Field(
+        default=5_000_000,
+        ge=100_000,
+        le=50_000_000,
+    )
+    amarstock_market_snapshot_max_last_modified_age_days: int = Field(default=7, ge=1, le=30)
     amarstock_news_path: str = "/info/News"
     amarstock_bulk_api_max_retries: int = Field(default=3, ge=1)
     amarstock_bulk_api_retry_delay_seconds: float = Field(default=1.0, ge=0)

@@ -4,17 +4,26 @@ from __future__ import annotations
 
 from app.core.core_config import Settings
 from app.core.enums import DailyMarketPrimarySource
-from app.jobs.ingestion.amarstock_latest_price_market_data_source import AmarStockLatestPriceMarketDataSource
+from app.jobs.ingestion.amarstock_latest_price_market_data_source import (
+    AmarStockLatestPriceMarketDataSource,
+)
 from app.jobs.ingestion.amarstock_market_data_source import AmarStockMarketDataSource
+from app.jobs.ingestion.amarstock_msgpack_market_data_source import (
+    AmarStockMsgpackMarketDataSource,
+)
 from app.jobs.ingestion.ingestion_source_base import MarketDataSource
 from app.jobs.ingestion.stocknow_market_data_source import StockNowMarketDataSource
 
 
 def build_primary_market_data_source(settings: Settings) -> MarketDataSource:
     source_key = settings.daily_market_primary_source.strip().lower()
+    if source_key == DailyMarketPrimarySource.AMARSTOCK_MSGPACK:
+        return AmarStockMsgpackMarketDataSource.from_settings(settings)
     if source_key == DailyMarketPrimarySource.AMARSTOCK_HTML:
         return AmarStockMarketDataSource()
-    return AmarStockLatestPriceMarketDataSource.from_settings(settings)
+    if source_key == DailyMarketPrimarySource.AMARSTOCK_LATEST_PRICE_JSON:
+        return AmarStockLatestPriceMarketDataSource.from_settings(settings)
+    raise ValueError(f"Unsupported daily market primary source: {source_key}")
 
 
 def resolve_validation_source(settings: Settings) -> MarketDataSource | None:

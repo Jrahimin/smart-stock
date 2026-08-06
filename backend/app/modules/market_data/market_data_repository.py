@@ -318,6 +318,13 @@ class MarketDataRepository(BaseRepository[DailyPrice]):
         result = await self.session.scalars(statement)
         return {stock.symbol.upper(): stock for stock in result.all()}
 
+    async def list_active_stock_symbols(self, *, exchange: ExchangeCode) -> set[str]:
+        statement = select(func.upper(func.trim(Stock.symbol))).where(
+            Stock.exchange == exchange,
+            Stock.is_active.is_(True),
+        )
+        return set((await self.session.scalars(statement)).all())
+
     async def create_stock(
         self,
         *,

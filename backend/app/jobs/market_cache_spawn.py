@@ -9,7 +9,10 @@ from collections.abc import Awaitable, Callable
 from app.core.core_config import Settings, get_settings
 from app.core.enums import ExchangeCode
 from app.core.redis_client import OptionalRedisClient, build_redis_client
-from app.modules.market_universe.market_universe_cache import universe_cache_key, universe_prev_cache_key
+from app.modules.market_universe.market_universe_cache import (
+    universe_cache_key,
+    universe_prev_cache_key,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -97,6 +100,23 @@ def spawn_rebuild_market_read_cache(
         task_name=f"rebuild-market-read-cache-{exchange.value}",
         runner=_run,
     )
+
+
+async def rebuild_market_read_cache_now(
+    exchange: ExchangeCode,
+    *,
+    settings: Settings | None = None,
+    include_universe: bool = True,
+) -> bool:
+    """Await a rebuild for short-lived CLI processes that cannot own background tasks."""
+    from app.jobs.market_cache_rebuild import rebuild_market_read_cache
+
+    result = await rebuild_market_read_cache(
+        exchange,
+        settings=settings,
+        include_universe=include_universe,
+    )
+    return result.success
 
 
 def spawn_rebuild_universe_read_cache(exchange: ExchangeCode, *, settings: Settings | None = None) -> bool:

@@ -73,6 +73,20 @@ SAFE_OPERATIONAL_SETTINGS: tuple[SafeOperationalSettingDefinition, ...] = (
         default_attr="daily_market_stocknow_fallback_enabled",
     ),
     SafeOperationalSettingDefinition(
+        key="market_snapshot_min_active_coverage_percent",
+        value_type=ConfigValueType.FLOAT,
+        category=AdminConfigCategory.MARKET,
+        description="Minimum active DSE symbol coverage required before snapshot writes",
+        default_attr="market_snapshot_min_active_coverage_percent",
+    ),
+    SafeOperationalSettingDefinition(
+        key="market_snapshot_min_source_symbols",
+        value_type=ConfigValueType.INTEGER,
+        category=AdminConfigCategory.MARKET,
+        description="Minimum absolute matched active DSE symbol count before snapshot writes",
+        default_attr="market_snapshot_min_source_symbols",
+    ),
+    SafeOperationalSettingDefinition(
         key="amarstock_news_ingestion_enabled",
         value_type=ConfigValueType.BOOLEAN,
         category=AdminConfigCategory.FEATURE_FLAG,

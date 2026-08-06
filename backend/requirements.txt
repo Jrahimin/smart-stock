@@ -17,6 +17,7 @@ requests
 httpx
 certifi
 redis>=5.0,<6
+msgpack>=1.0,<2
 
 # zoneinfo lookups (Asia/Dhaka scheduler/CLI); required on Windows when OS has no IANA data
 tzdata
