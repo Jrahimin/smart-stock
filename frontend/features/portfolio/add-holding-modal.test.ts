@@ -5,6 +5,7 @@ import {
   buildAddHoldingPreview,
   isAddHoldingFormValid,
   parsePositiveDecimal,
+  parsePositiveInteger,
   resolveExistingWatchlistState,
   resolveSearchPriceStatus,
   selectedStockFromHolding,
@@ -12,6 +13,10 @@ import {
   validateAddHoldingForm,
 } from "@/features/portfolio/view-models/add-holding-preview";
 import { portfolioLanguage } from "@/features/portfolio/portfolio-language";
+import {
+  formatPortfolioQuantity,
+  toQuantityInputValue,
+} from "@/features/portfolio/view-models/portfolio-view-model";
 import type {
   BackendPortfolioHoldingDto,
   BackendStockSearchResultDto,
@@ -82,7 +87,7 @@ function searchHit(overrides: Partial<BackendStockSearchResultDto> = {}): Backen
 }
 
 describe("add holding validation", () => {
-  it("requires stock, positive quantity, and positive average buy price", () => {
+  it("requires stock, positive whole-share quantity, and positive average buy price", () => {
     expect(validateAddHoldingForm({
       stockId: null,
       quantity: "",
@@ -95,12 +100,22 @@ describe("add holding validation", () => {
 
     expect(isAddHoldingFormValid(validateAddHoldingForm({
       stockId: "stock-1",
-      quantity: "10.5",
+      quantity: "10",
       averageBuyPrice: "250",
     }))).toBe(true);
 
+    expect(validateAddHoldingForm({
+      stockId: "stock-1",
+      quantity: "10.5",
+      averageBuyPrice: "250",
+    }).quantity).toBe("required");
+
     expect(parsePositiveDecimal("0")).toBeNull();
     expect(parsePositiveDecimal("12.5")).toBe(12.5);
+    expect(parsePositiveInteger("8000.0000")).toBeNull();
+    expect(parsePositiveInteger("8000")).toBe(8000);
+    expect(toQuantityInputValue("8000.0000")).toBe("8000");
+    expect(formatPortfolioQuantity("8000.0000")).toBe("8,000");
   });
 });
 

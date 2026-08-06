@@ -58,6 +58,7 @@ from app.modules.stock_details.decision.display_taxonomy import resolve_holder_d
 DHAKA_TZ = ZoneInfo("Asia/Dhaka")
 MONEY_QUANTUM = Decimal("0.01")
 PRICE_QUANTUM = Decimal("0.0001")
+QUANTITY_QUANTUM = Decimal("1")
 PERCENT_QUANTUM = Decimal("0.01")
 NEAR_RESISTANCE_PERCENT = Decimal("2.5")
 CONCENTRATION_PERCENT = Decimal("35")
@@ -485,7 +486,7 @@ class PortfoliosService:
             name=item.stock.name,
             exchange=item.stock.exchange,
             sector=item.stock.sector,
-            quantity=_quantize(quantity, PRICE_QUANTUM),
+            quantity=_quantize(quantity, QUANTITY_QUANTUM),
             average_buy_price=_quantize(buy_price, PRICE_QUANTUM),
             note=item.entry.note,
             current_price=_quantize(current_price, PRICE_QUANTUM),

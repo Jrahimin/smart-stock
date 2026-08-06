@@ -8,12 +8,14 @@ import {
   buildAddHoldingPreview,
   isAddHoldingFormValid,
   parsePositiveDecimal,
+  parsePositiveInteger,
   resolveExistingWatchlistState,
   selectedStockFromSearchResult,
   validateAddHoldingForm,
   type AddHoldingMode,
   type AddHoldingSelectedStock,
 } from "@/features/portfolio/view-models/add-holding-preview";
+import { toQuantityInputValue } from "@/features/portfolio/view-models/portfolio-view-model";
 import { useDebouncedStockSearch } from "@/hooks/stocks/use-debounced-stock-search";
 import type {
   BackendPortfolioHoldingDto,
@@ -131,7 +133,7 @@ export function useAddHoldingModal({
     setActiveOptionIndex(-1);
     if (existing.isHolding && existing.existing) {
       setMode("edit");
-      setQuantity(existing.existing.quantity ?? "");
+      setQuantity(toQuantityInputValue(existing.existing.quantity));
       setAverageBuyPrice(existing.existing.average_buy_price ?? "");
       setNote(existing.existing.note ?? "");
       setNoteExpanded(Boolean(existing.existing.note));
@@ -165,7 +167,7 @@ export function useAddHoldingModal({
     [selectedStockWithQuote?.stockId, watchlistItems],
   );
 
-  const quantityValue = parsePositiveDecimal(quantity);
+  const quantityValue = parsePositiveInteger(quantity);
   const averageBuyPriceValue = parsePositiveDecimal(averageBuyPrice);
 
   const preview = useMemo(
@@ -192,7 +194,7 @@ export function useAddHoldingModal({
       if (!selectedStockWithQuote || !isAddHoldingFormValid(validation)) {
         throw new Error("Invalid holding form");
       }
-      const quantityNumber = parsePositiveDecimal(quantity);
+      const quantityNumber = parsePositiveInteger(quantity);
       const buyPriceNumber = parsePositiveDecimal(averageBuyPrice);
       if (quantityNumber == null || buyPriceNumber == null) {
         throw new Error("Invalid holding numbers");

@@ -134,6 +134,20 @@ export function formatPortfolioNumber(
   return new Intl.NumberFormat("en-BD", { maximumFractionDigits }).format(parsed);
 }
 
+/** Share quantity is whole lots — strip API decimal padding like "8000.0000". */
+export function formatPortfolioQuantity(value: string | number | null) {
+  const parsed = parseDecimal(value);
+  if (parsed == null) return "—";
+  return new Intl.NumberFormat("en-BD", { maximumFractionDigits: 0 }).format(Math.trunc(parsed));
+}
+
+export function toQuantityInputValue(value: string | number | null | undefined) {
+  if (value == null || value === "") return "";
+  const parsed = parseDecimal(value);
+  if (parsed == null || parsed <= 0) return "";
+  return String(Math.trunc(parsed));
+}
+
 export function formatSignedPercent(value: string | number | null) {
   const parsed = parseDecimal(value);
   if (parsed == null) return "—";

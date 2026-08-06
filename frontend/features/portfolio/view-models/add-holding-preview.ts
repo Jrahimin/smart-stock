@@ -65,6 +65,15 @@ export function parsePositiveDecimal(raw: string): number | null {
   return parsed;
 }
 
+/** Holding quantity is whole shares (no fractional lots). */
+export function parsePositiveInteger(raw: string): number | null {
+  const trimmed = raw.trim();
+  if (!trimmed || !/^\d+$/.test(trimmed)) return null;
+  const parsed = Number(trimmed);
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) return null;
+  return parsed;
+}
+
 export function resolveSearchPriceStatus(
   latestPrice: number | null,
   latestTradeDate: string | null,
@@ -191,7 +200,7 @@ export function validateAddHoldingForm(input: {
 }): AddHoldingValidation {
   return {
     stock: input.stockId ? null : "required",
-    quantity: parsePositiveDecimal(input.quantity) == null ? "required" : null,
+    quantity: parsePositiveInteger(input.quantity) == null ? "required" : null,
     averageBuyPrice: parsePositiveDecimal(input.averageBuyPrice) == null ? "required" : null,
   };
 }

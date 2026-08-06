@@ -27,14 +27,15 @@ import {
   filterPortfolioHoldings,
   financialTone,
   formatPortfolioMoney,
-  formatPortfolioNumber,
   formatPortfolioPercent,
   formatPortfolioPriceState,
+  formatPortfolioQuantity,
   formatSignedPercent,
   getPortfolioSignalMeta,
   getPortfolioWhatNextCopy,
   isPortfolioReviewRow,
   sortPortfolioGroupRows,
+  toQuantityInputValue,
   type PortfolioHoldingFilter,
 } from "@/features/portfolio/view-models/portfolio-view-model";
 import type {
@@ -313,20 +314,25 @@ function InlineNumber({
   const emptyLabel = field === "quantity" ? t.addQuantityAction : t.addAveragePriceAction;
 
   useEffect(() => {
-    if (!editing) setDraft(initial ?? "");
-  }, [editing, initial]);
+    if (!editing) {
+      setDraft(field === "quantity" ? toQuantityInputValue(initial) : (initial ?? ""));
+    }
+  }, [editing, field, initial]);
 
   const formattedValue = initial == null
     ? null
     : field === "quantity"
-      ? formatPortfolioNumber(initial, 4)
+      ? formatPortfolioQuantity(initial)
       : formatPortfolioMoney(initial, locale);
 
   const save = useCallback(() => {
     const parsed = Number(draft);
-    if (!Number.isFinite(parsed) || parsed <= 0) {
+    const isValidQuantity = field === "quantity"
+      ? Number.isSafeInteger(parsed) && parsed > 0
+      : Number.isFinite(parsed) && parsed > 0;
+    if (!isValidQuantity) {
       setEditing(false);
-      setDraft(initial ?? "");
+      setDraft(field === "quantity" ? toQuantityInputValue(initial) : (initial ?? ""));
       return;
     }
     if (initial != null && parsed === Number(initial)) {
@@ -340,11 +346,12 @@ function InlineNumber({
   }, [draft, field, initial, item.stock_id, update]);
 
   const openEditor = () => {
-    setDraft(initial ?? "");
+    setDraft(field === "quantity" ? toQuantityInputValue(initial) : (initial ?? ""));
     setEditing(true);
   };
 
   if (editing) {
+    const isQuantity = field === "quantity";
     return (
       <span className={`portfolio-inline-edit portfolio-inline-field ${compact ? "is-compact" : ""}`}>
         {!compact && <span className="portfolio-inline-label">{label}</span>}
@@ -354,8 +361,8 @@ function InlineNumber({
             autoFocus
             className="portfolio-inline-input"
             disabled={update.isPending}
-            inputMode="decimal"
-            min="0.0001"
+            inputMode={isQuantity ? "numeric" : "decimal"}
+            min={isQuantity ? "1" : "0.0001"}
             onBlur={() => {
               if (skipBlurSaveRef.current) {
                 skipBlurSaveRef.current = false;
@@ -372,10 +379,10 @@ function InlineNumber({
               if (event.key === "Escape") {
                 skipBlurSaveRef.current = true;
                 setEditing(false);
-                setDraft(initial ?? "");
+                setDraft(isQuantity ? toQuantityInputValue(initial) : (initial ?? ""));
               }
             }}
-            step="0.0001"
+            step={isQuantity ? "1" : "0.0001"}
             type="number"
             value={draft}
           />

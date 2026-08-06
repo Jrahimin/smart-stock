@@ -87,10 +87,10 @@ export function AddHoldingModal({ locale, controller }: AddHoldingModalProps) {
             <input
               aria-invalid={showValidation && Boolean(validation.quantity)}
               className={showValidation && validation.quantity ? "has-error" : ""}
-              inputMode="decimal"
-              min="0.0001"
+              inputMode="numeric"
+              min="1"
               onChange={(event) => setQuantity(event.target.value)}
-              step="0.0001"
+              step="1"
               type="number"
               value={quantity}
             />
