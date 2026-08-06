@@ -63,7 +63,7 @@ Signals are based on:
 
 Market data workflow (split):
 
-1. **Intraday snapshots** (`sync_market_snapshot`) — LatestPrice JSON → `daily_prices`; index API → DSEX `daily_market_summaries`; every ~15 min during Sun–Thu session window.
+1. **Intraday snapshots** (`sync_market_snapshot`) — full-market AmarStock MessagePack → coverage guard → `daily_prices`; index API → DSEX `daily_market_summaries`; every ~15 min during Sun–Thu session window.
 2. **Daily orchestration** (`run_daily_market_sync`) — AmarStock News → `market_events` once per session day after close.
 3. Clean and validate (optional StockNow validation when enabled)
 4. Store in database (upsert by `stock_id + trade_date`)
@@ -322,9 +322,9 @@ Pipeline jobs live under `backend/app/jobs/`:
 
 Market data ingestion context:
 
-* **Primary snapshot source** (default): AmarStock bulk LatestPrice JSON (`AMARSTOCK_LATEST_PRICE_API`). HTML scraper remains available via `daily_market_primary_source = amarstock_html`.
+* **Primary snapshot source** (default): AmarStock full-market MessagePack (`AMARSTOCK_MARKET_MSGPACK`) at configurable `amarstock_market_snapshot_path`. The old LatestPrice JSON source remains compatibility-only. HTML is explicit-only and never an automatic fallback.
 * Manual snapshot CLI: `python -m app.jobs.sync_market_data` (prices + DSEX; `--news-only` / `--with-news`). Historical gaps: `python -m app.jobs.backfill_daily_prices --date YYYY-MM-DD`.
-* DSEX / official breadth come from the AmarStock **index API**, not LatestPrice JSON.
+* DSEX / official breadth and authoritative session date come from the AmarStock **index API**, not MessagePack headers or payload metadata.
 * Daily price ingestion uses replaceable source classes that return `IngestedDailyPrice`.
 * `AmarStockMarketDataSource` fetches live AmarStock latest-share-price HTML, parses with BeautifulSoup plus `lxml`, detects the table from minimal headers (`TRADING CODE`, `LTP`), and maps by header name rather than fixed column positions.
 * AmarStock `LTP` maps to `close_price`; `OPEN` is optional, otherwise `YCP` is used as the open-price proxy and rows are marked `PARTIAL`.

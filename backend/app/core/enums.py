@@ -14,6 +14,7 @@ class ExchangeCode(StrEnum):
 
 
 class DailyMarketPrimarySource(StrEnum):
+    AMARSTOCK_MSGPACK = "amarstock_msgpack"
     AMARSTOCK_LATEST_PRICE_JSON = "amarstock_latest_price_json"
     AMARSTOCK_HTML = "amarstock_html"
 

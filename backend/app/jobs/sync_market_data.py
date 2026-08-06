@@ -18,7 +18,10 @@ from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
 from app.core.logging_config import configure_logging
-from app.jobs.ingestion.ingest_daily_market_prices import run_daily_market_sync, sync_market_snapshot
+from app.jobs.ingestion.ingest_daily_market_prices import (
+    run_daily_market_sync,
+    sync_market_snapshot,
+)
 
 logger = logging.getLogger(__name__)
 DHAKA_TZ = ZoneInfo("Asia/Dhaka")
@@ -74,6 +77,7 @@ async def _run_snapshot(trade_date: date, *, skip_validation: bool, skip_session
         trade_date,
         skip_validation=skip_validation,
         skip_session_validation=skip_session_validation,
+        wait_for_cache_rebuild=True,
     )
     if result.session_skipped:
         logger.info(

@@ -7,9 +7,12 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from app.core.enums import ExchangeCode
-from app.jobs.ingestion.amarstock_index_api_source import AmarStockDsexSnapshot
 from app.jobs.ingestion.amarstock_daily_enrichment import PostDailyAmarstockStats
-from app.jobs.ingestion.ingest_daily_market_prices import run_daily_market_sync, sync_market_snapshot
+from app.jobs.ingestion.amarstock_index_api_source import AmarStockDsexSnapshot
+from app.jobs.ingestion.ingest_daily_market_prices import (
+    run_daily_market_sync,
+    sync_market_snapshot,
+)
 from app.jobs.market_session_validation import MarketSessionValidation, validate_market_session
 from app.modules.market_data.market_data_schemas import DailyPriceIngestionResult
 
@@ -159,6 +162,8 @@ async def test_sync_market_snapshot_uses_api_trade_date_when_validation_passes(m
     mock_service.run_snapshot_enrichment = AsyncMock(
         return_value=PostDailyAmarstockStats(index_summary_upserted=True),
     )
+    mock_service.publish_market_generation = AsyncMock(return_value="generation-1")
+    mock_service.rollback_transaction = AsyncMock()
 
     mock_session = MagicMock()
     mock_session_cm = MagicMock()

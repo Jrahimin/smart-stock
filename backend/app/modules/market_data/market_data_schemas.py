@@ -46,13 +46,16 @@ class DailyPriceBase(BaseModel):
 
     @model_validator(mode="after")
     def validate_price_range(self) -> Self:
-        if self.high_price < self.low_price:
+        has_positive_range = self.high_price > 0 and self.low_price > 0
+        if has_positive_range and self.high_price < self.low_price:
             raise ValueError("high_price must be greater than or equal to low_price")
 
-        bounded_prices = {"close_price": self.close_price}
-        for field_name, value in bounded_prices.items():
-            if value is not None and (value < self.low_price or value > self.high_price):
-                raise ValueError(f"{field_name} must be between low_price and high_price")
+        if (
+            has_positive_range
+            and self.close_price > 0
+            and (self.close_price < self.low_price or self.close_price > self.high_price)
+        ):
+            raise ValueError("close_price must be between low_price and high_price")
 
         return self
 

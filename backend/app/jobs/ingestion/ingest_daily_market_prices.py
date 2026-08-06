@@ -8,8 +8,7 @@ from zoneinfo import ZoneInfo
 
 from app.core.core_config import Settings, get_settings
 from app.core.database_session import AsyncSessionLocal
-from app.core.enums import ExchangeCode
-from app.core.enums import MarketDataState
+from app.core.enums import ExchangeCode, MarketDataState
 from app.core.redis_client import build_redis_client
 from app.core.security_config import UserContext
 from app.jobs.ingestion.dse_market_data_source import DseMarketDataSource
@@ -20,7 +19,10 @@ from app.jobs.ingestion.market_data_source_factory import (
     should_attempt_stocknow_fallback,
 )
 from app.jobs.ingestion.stocknow_market_data_source import StockNowMarketDataSource
-from app.jobs.market_cache_spawn import spawn_rebuild_market_read_cache
+from app.jobs.market_cache_spawn import (
+    rebuild_market_read_cache_now,
+    spawn_rebuild_market_read_cache,
+)
 from app.jobs.market_session_validation import validate_market_session
 from app.modules.market_data.market_data_repository import MarketDataRepository
 from app.modules.market_data.market_data_schemas import (
@@ -120,10 +122,13 @@ async def _ingest_with_optional_fallback(
             validation_source=validation,
             invalidate_market_cache=invalidate_market_cache,
             commit=commit,
+            enforce_snapshot_coverage=True,
+            min_active_coverage_percent=settings.market_snapshot_min_active_coverage_percent,
+            min_source_symbols=settings.market_snapshot_min_source_symbols,
         )
-    except BaseException as exc:
+    except Exception as exc:
         primary_error = exc
-        await service.repository.rollback()
+        await service.rollback_transaction()
         result = DailyPriceIngestionResult(
             exchange=exchange,
             trade_date=trade_date,
@@ -140,20 +145,30 @@ async def _ingest_with_optional_fallback(
         primary_count=result.fetched_count,
         primary_error=primary_error,
     ):
+        if primary_error is None:
+            await service.rollback_transaction()
         logger.warning(
-            "Primary market ingest failed or empty; attempting StockNow fallback: error=%s fetched=%s",
+            "Primary market ingest failed or empty; attempting StockNow fallback: "
+            "error=%s fetched=%s",
             primary_error,
             result.fetched_count,
         )
         fallback = StockNowMarketDataSource()
-        result = await service.ingest_daily_prices(
-            exchange=exchange,
-            trade_date=trade_date,
-            source=fallback,
-            validation_source=None,
-            invalidate_market_cache=invalidate_market_cache,
-            commit=commit,
-        )
+        try:
+            result = await service.ingest_daily_prices(
+                exchange=exchange,
+                trade_date=trade_date,
+                source=fallback,
+                validation_source=None,
+                invalidate_market_cache=invalidate_market_cache,
+                commit=commit,
+                enforce_snapshot_coverage=True,
+                min_active_coverage_percent=settings.market_snapshot_min_active_coverage_percent,
+                min_source_symbols=settings.market_snapshot_min_source_symbols,
+            )
+        except Exception:
+            await service.rollback_transaction()
+            raise
     elif primary_error is not None:
         raise primary_error
 
@@ -202,63 +217,81 @@ async def sync_market_snapshot(
     settings: Settings | None = None,
     skip_validation: bool = False,
     skip_session_validation: bool = False,
+    wait_for_cache_rebuild: bool = False,
 ) -> MarketSnapshotSyncResult:
     """Intraday snapshot: per-stock prices + DSEX summary (no news)."""
     resolved_settings = settings or get_settings()
     resolved_trade_date = trade_date or datetime.now(DHAKA_TIMEZONE).date()
 
     if not skip_session_validation:
-        session = await validate_market_session(settings=resolved_settings)
-        if not session.should_sync:
+        session_validation = await validate_market_session(settings=resolved_settings)
+        if not session_validation.should_sync:
             spawn_rebuild_market_read_cache(exchange, settings=resolved_settings)
             return _skipped_snapshot_result(
                 exchange=exchange,
                 trade_date=resolved_trade_date,
-                reason=session.reason,
+                reason=session_validation.reason,
             )
-        resolved_trade_date = session.trade_date
+        resolved_trade_date = session_validation.trade_date
 
     validation = None if skip_validation else resolve_validation_source(resolved_settings)
 
     async with AsyncSessionLocal() as session:
         service = _build_service(session)
-        price_result = await _ingest_with_optional_fallback(
-            service,
-            exchange=exchange,
-            trade_date=resolved_trade_date,
-            settings=resolved_settings,
-            validation_source=validation,
-            invalidate_market_cache=False,
-            commit=False,
-        )
-        enrich = await service.run_snapshot_enrichment(
-            exchange=exchange,
-            trade_date=resolved_trade_date,
-            commit=False,
-        )
-        if price_result.fetched_count > 0 and enrich.index_summary_upserted:
-            await service.publish_market_generation(
+        try:
+            price_result = await _ingest_with_optional_fallback(
+                service,
                 exchange=exchange,
                 trade_date=resolved_trade_date,
-                state=MarketDataState.LIVE,
-                source=price_result.source,
-                fetched_count=price_result.fetched_count,
-                accepted_count=price_result.created_count,
-                suspicious_count=price_result.suspicious_count,
+                settings=resolved_settings,
+                validation_source=validation,
+                invalidate_market_cache=False,
+                commit=False,
             )
-        else:
-            # Price rows and DSEX enrichment share this transaction.  If either
-            # side is incomplete, keep the prior published generation visible.
-            await service.repository.rollback()
-            logger.error(
-                "Market snapshot was not published: exchange=%s date=%s prices=%s dsex=%s",
-                exchange.value,
-                resolved_trade_date,
-                price_result.fetched_count,
-                enrich.index_summary_upserted,
+            enrich = await service.run_snapshot_enrichment(
+                exchange=exchange,
+                trade_date=resolved_trade_date,
+                commit=False,
             )
+            if price_result.fetched_count > 0 and enrich.index_summary_upserted:
+                await service.publish_market_generation(
+                    exchange=exchange,
+                    trade_date=resolved_trade_date,
+                    state=MarketDataState.LIVE,
+                    source=price_result.source,
+                    fetched_count=price_result.fetched_count,
+                    accepted_count=price_result.created_count,
+                    suspicious_count=price_result.suspicious_count,
+                )
+                published = True
+            else:
+                # Price rows and DSEX enrichment share this transaction. If either
+                # side is incomplete, keep the prior published generation visible.
+                await service.rollback_transaction()
+                published = False
+                logger.error(
+                    "Market snapshot was not published: exchange=%s date=%s prices=%s dsex=%s",
+                    exchange.value,
+                    resolved_trade_date,
+                    price_result.fetched_count,
+                    enrich.index_summary_upserted,
+                )
+        except Exception:
+            await service.rollback_transaction()
+            raise
 
-    spawn_rebuild_market_read_cache(exchange, settings=resolved_settings)
+    if published:
+        if wait_for_cache_rebuild:
+            cache_rebuild_succeeded = await rebuild_market_read_cache_now(
+                exchange,
+                settings=resolved_settings,
+            )
+            if not cache_rebuild_succeeded:
+                raise RuntimeError(
+                    "Market snapshot was published, but its read-cache rebuild failed"
+                )
+        else:
+            spawn_rebuild_market_read_cache(exchange, settings=resolved_settings)
 
     return MarketSnapshotSyncResult(
         exchange=exchange,
@@ -434,7 +467,10 @@ async def backfill_daily_prices(
             result.skipped_unknown_symbol_count,
         )
         if result.fetched_count == 0:
-            logger.warning("No rows parsed for %s (weekend/holiday or DSE archive empty)", day.isoformat())
+            logger.warning(
+                "No rows parsed for %s (weekend/holiday or DSE archive empty)",
+                day.isoformat(),
+            )
         results.append(result)
         day += timedelta(days=1)
 

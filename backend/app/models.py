@@ -342,7 +342,10 @@ class DailyPrice(UUIDPrimaryKeyMixin, TimestampMixin, Base):
             name="adjusted_close_price_non_negative",
         ),
         CheckConstraint("volume >= 0", name="volume_non_negative"),
-        CheckConstraint("high_price >= low_price", name="high_price_greater_than_low_price"),
+        CheckConstraint(
+            "high_price = 0 OR low_price = 0 OR high_price >= low_price",
+            name="high_price_greater_than_low_price",
+        ),
         Index("ix_daily_prices_stock_trade_date", "stock_id", "trade_date"),
         Index("ix_daily_prices_trade_date", "trade_date"),
         Index("ix_daily_prices_source", "source"),

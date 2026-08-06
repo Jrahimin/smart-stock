@@ -55,6 +55,10 @@ TRADING_DAYS_6M = 126
 TRADING_DAYS_1Y = 252
 
 
+class MarketSnapshotCoverageError(RuntimeError):
+    """The upstream symbol universe is too incomplete to publish safely."""
+
+
 class MarketDataService:
     def __init__(self, repository: MarketDataRepository, user_context: UserContext) -> None:
         self.repository = repository
@@ -137,6 +141,9 @@ class MarketDataService:
         insert_only: bool = False,
         invalidate_market_cache: bool = True,
         commit: bool = True,
+        enforce_snapshot_coverage: bool = False,
+        min_active_coverage_percent: float = 95,
+        min_source_symbols: int = 300,
     ) -> DailyPriceIngestionResult:
         ingested_prices, validation_prices = await self._fetch_ingestion_prices(
             source=source,
@@ -160,8 +167,6 @@ class MarketDataService:
                 skipped_unknown_symbol_count=0,
                 suspicious_count=0,
             )
-            if invalidate_market_cache:
-                spawn_rebuild_market_read_cache(exchange)
             return result
 
         suspicious_count = self._apply_close_price_validation(
@@ -169,6 +174,14 @@ class MarketDataService:
             validation_prices=validation_prices,
             validation_source_name=validation_source.source_name if validation_source is not None else None,
         )
+        if enforce_snapshot_coverage:
+            await self._validate_snapshot_coverage(
+                exchange=exchange,
+                source=source,
+                ingested_prices=ingested_prices,
+                min_active_coverage_percent=min_active_coverage_percent,
+                min_source_symbols=min_source_symbols,
+            )
         stock_by_symbol = await self.repository.get_stocks_by_symbols(
             exchange=exchange,
             symbols={self._normalize_symbol(price.symbol) for price in ingested_prices},
@@ -230,6 +243,58 @@ class MarketDataService:
             suspicious_count=suspicious_count,
         )
 
+    async def _validate_snapshot_coverage(
+        self,
+        *,
+        exchange: ExchangeCode,
+        source: MarketDataSource,
+        ingested_prices: list[IngestedDailyPrice],
+        min_active_coverage_percent: float,
+        min_source_symbols: int,
+    ) -> None:
+        source_symbols = {
+            self._normalize_symbol(symbol)
+            for symbol in source.coverage_symbols(ingested_prices)
+            if self._normalize_symbol(symbol)
+        }
+        active_symbols = await self.repository.list_active_stock_symbols(exchange=exchange)
+        if not active_symbols:
+            raise MarketSnapshotCoverageError(
+                f"Active {exchange.value} stock universe is empty; snapshot publication refused"
+            )
+        matched_symbols = source_symbols & active_symbols
+        unknown_symbols = source_symbols - active_symbols
+        coverage_percent = len(matched_symbols) / len(active_symbols) * 100
+        logger.info(
+            "Market snapshot coverage: exchange=%s source=%s source_symbols=%s "
+            "active_symbols=%s matched_symbols=%s coverage_percent=%.2f "
+            "min_coverage_percent=%.2f min_source_symbols=%s unknown_symbols=%s",
+            exchange.value,
+            source.source_name,
+            len(source_symbols),
+            len(active_symbols),
+            len(matched_symbols),
+            coverage_percent,
+            min_active_coverage_percent,
+            min_source_symbols,
+            sorted(unknown_symbols)[:20],
+        )
+        failures: list[str] = []
+        if len(matched_symbols) < min_source_symbols:
+            failures.append(
+                f"matched_source_symbols={len(matched_symbols)} below minimum={min_source_symbols}"
+            )
+        if coverage_percent < min_active_coverage_percent:
+            failures.append(
+                f"active_coverage={coverage_percent:.2f}% below "
+                f"minimum={min_active_coverage_percent:.2f}%"
+            )
+        if failures:
+            raise MarketSnapshotCoverageError(
+                f"Snapshot coverage validation failed for {source.source_name}: "
+                + "; ".join(failures)
+            )
+
     async def run_snapshot_enrichment(
         self,
         *,
@@ -248,7 +313,7 @@ class MarketDataService:
                 await self.repository.commit()
             return stats
         except Exception as exc:
-            await self.repository.rollback()
+            await self.rollback_transaction()
             logger.warning("Snapshot market enrichment failed: %s", exc, exc_info=True)
             return PostDailyAmarstockStats(index_summary_error=str(exc))
 
@@ -268,7 +333,7 @@ class MarketDataService:
             await self.repository.commit()
             return stats
         except Exception as exc:
-            await self.repository.rollback()
+            await self.rollback_transaction()
             logger.warning("Daily news enrichment failed: %s", exc, exc_info=True)
             return PostDailyAmarstockStats(news_error=str(exc))
 
@@ -290,10 +355,12 @@ class MarketDataService:
             return_exceptions=True,
         )
 
-        if isinstance(primary_result, Exception):
+        if isinstance(primary_result, BaseException):
             raise primary_result
 
-        if isinstance(validation_result, Exception):
+        if isinstance(validation_result, BaseException):
+            if not isinstance(validation_result, Exception):
+                raise validation_result
             logger.warning(
                 "Validation source fetch failed; continuing primary ingestion: source=%s error=%s",
                 validation_source.source_name,
@@ -628,7 +695,17 @@ class MarketDataService:
             )
             previous_close_price = previous_price.close_price if previous_price is not None else None
 
-        day_range = price_data.high_price - price_data.low_price
+        has_complete_positive_ohlc = min(
+            price_data.open_price,
+            price_data.high_price,
+            price_data.low_price,
+            price_data.close_price,
+        ) > 0
+        day_range = (
+            price_data.high_price - price_data.low_price
+            if has_complete_positive_ohlc
+            else None
+        )
         turnover_is_reported = price_data.turnover is not None
         turnover = (
             price_data.turnover
@@ -656,7 +733,11 @@ class MarketDataService:
                     previous_close_price,
                 ),
                 "day_range": day_range,
-                "day_range_percent": self._calculate_ratio_percent(day_range, price_data.low_price),
+                "day_range_percent": (
+                    self._calculate_ratio_percent(day_range, price_data.low_price)
+                    if day_range is not None
+                    else None
+                ),
                 "turnover": turnover,
                 "turnover_provenance": turnover_provenance,
                 "vwap": self._calculate_vwap(turnover, price_data.volume),
@@ -897,8 +978,11 @@ class MarketDataService:
         if finalized:
             await self.repository.commit()
         else:
-            await self.repository.session.rollback()
+            await self.rollback_transaction()
         return finalized
+
+    async def rollback_transaction(self) -> None:
+        await self.repository.session.rollback()
 
 
 def get_market_data_service(

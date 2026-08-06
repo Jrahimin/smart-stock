@@ -32,7 +32,7 @@ class IngestedDailyPrice(BaseModel):
 
     @model_validator(mode="after")
     def validate_prices(self) -> Self:
-        if self.high_price < self.low_price:
+        if self.high_price > 0 and self.low_price > 0 and self.high_price < self.low_price:
             raise ValueError("high_price must be greater than or equal to low_price")
         return self
 
@@ -43,4 +43,8 @@ class MarketDataSource(ABC):
     @abstractmethod
     async def fetch_daily_prices(self, trade_date: date) -> list[IngestedDailyPrice]:
         """Fetch normalized daily prices for a trade date."""
+
+    def coverage_symbols(self, prices: list[IngestedDailyPrice]) -> set[str]:
+        """Symbols present upstream, including source-specific no-trade placeholders."""
+        return {price.symbol.strip().upper() for price in prices if price.symbol.strip()}
 

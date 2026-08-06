@@ -38,7 +38,7 @@ Exit codes: `0` success · `2` bad date · `130` interrupt · `1` error.
 | Historical backfill | `backfill_daily_prices()` | Manual / API | `daily_prices` from DSE archive |
 
 ```text
-Scheduler (snapshot) → LatestPrice JSON → daily_prices
+Scheduler (snapshot) → full-market MessagePack → daily_prices
                     → Index API → daily_market_summaries (DSEX)
 
 Scheduler (daily)    → News API → market_events
@@ -53,31 +53,32 @@ Each snapshot upserts the same `stock_id + trade_date` row; `updated_at` drives 
 
 | Data | Source | When |
 |------|--------|------|
-| Per-stock OHLCV (live) | AmarStock `/LatestPrice/{token}` (`AMARSTOCK_LATEST_PRICE_API`) | Snapshot scheduler / `sync_market_data` |
+| Per-stock OHLCV (live) | AmarStock configurable MessagePack path (`AMARSTOCK_MARKET_MSGPACK`) | Snapshot scheduler / `sync_market_data` |
 | Per-stock OHLCV (historical) | DSE `day_end_archive.php` (`DSE`) | `backfill_daily_prices` / `POST .../ingestion/daily-prices` |
 | DSEX, breadth, exchange turnover | AmarStock index API (`/info/DSE` + `/data/index/summery`) | Every snapshot |
 | News | AmarStock `/info/News` | Daily job only |
 
-**Not in LatestPrice JSON:** DSEX level, advancing/declining counts, exchange-wide turnover — always use the index API for those.
+**Not in the MessagePack snapshot:** authoritative trade date and DSEX session authority. The index API remains the hard session gate and supplies DSEX/breadth.
 
 **Optional / alternate** (via `core_config.py`):
 
-* `daily_market_primary_source = amarstock_html` — HTML scraper instead of JSON
-* StockNow validation or fallback (`daily_market_stocknow_*`) — off by default
+* The old `amarstock_latest_price_json` source remains available for compatibility but is not primary.
+* `amarstock_html` is explicit/manual only. It is never an automatic fallback because plain HTTP currently returns only a small partial table.
+* StockNow validation or fallback (`daily_market_stocknow_*`) is off by default; fallback must pass the same database-aware coverage guard.
 
 Factory: `market_data_source_factory.build_primary_market_data_source()`.
 
-### LatestPrice JSON → `daily_prices`
+### MessagePack → `daily_prices`
 
 | Field | Column |
 |-------|--------|
-| `Scrip` | symbol → `stock_id` |
-| `Close` / `LTP` | `close_price` |
-| `Open`, `High`, `Low` | OHLC (fallbacks when missing) |
-| `YCP` | `previous_close_price` |
-| `Volume`, `Trade`, `Value` | volume, trade_count, turnover |
+| `aa` | symbol → `stock_id` |
+| `ea` / `ee` | LTP / source close; positive LTP is effective `close_price`, otherwise `ee` |
+| `eb`, `ec`, `ed` | open, high, low |
+| `aj` | previous close |
+| `ad`, `eh`, `ei` | volume, trade count, turnover in millions BDT |
 
-Skip rows where `close <= 0`. `Value` turnover: unsuffixed = millions BDT; `K`/`M` suffixes supported.
+`ei` is converted with `turnover_bdt = ei × 1,000,000`. Zero-price rows are retained as non-tradable placeholders. Required arrays must exist, be arrays, and have equal lengths; symbols must be nonempty and unique after normalization; numeric values must be finite. A genuinely invalid row refuses the whole snapshot rather than publishing a partial generation.
 
 ### No-trade / zero-price policy
 
@@ -132,7 +133,9 @@ are capped at the latest DSEX summary with `is_finalized=true`.
   sets it true only when both a DSEX summary and at least one exchange price row exist.
 * **Session gate:** before snapshot or daily sync writes, `validate_market_session()` calls the AmarStock index API and requires `DateEpoch` trade date to equal today (Asia/Dhaka). Mismatch (public holiday, stale feed, API lag) skips all writes for that run. `MarketStatus` is logged only. Override: `skip_session_validation=True` on sync functions or `--skip-session-validation` on the CLI.
 * Unknown symbols skipped — run `seed_stocks` on a fresh DB
-* Official breadth from index API only; do not aggregate LatestPrice `ChangePer` as exchange breadth
+* Before writes, the source must meet both `market_snapshot_min_active_coverage_percent` against active DSE stocks and `market_snapshot_min_source_symbols` matched active symbols. Zero-price placeholders count; unknown symbols improve neither guard.
+* Prices, DSEX, and the `LIVE` generation commit once. Any source, validation, coverage, DSEX, or publication failure rolls back and leaves the prior generation/caches in place.
+* Official breadth comes from the index API only; do not aggregate MessagePack change fields as exchange breadth.
 * Snapshot ingestion derives `price_change`, `price_change_percent`, `day_range`,
   and `vwap` on write. Per-stock historical fallback rows may retain null stored
   changes; analytical returns and volatility are derived from validated closes.
@@ -151,7 +154,10 @@ Key settings in `backend/app/core/core_config.py`:
 
 | Setting | Default | Notes |
 |---------|---------|-------|
-| `daily_market_primary_source` | `amarstock_latest_price_json` | or `amarstock_html` |
+| `daily_market_primary_source` | `amarstock_msgpack` | compatibility: `amarstock_latest_price_json`; explicit only: `amarstock_html` |
+| `amarstock_market_snapshot_path` | `/823af3f1ebdd` | Opaque upstream path; configurable because it may rotate |
+| `market_snapshot_min_active_coverage_percent` | `95` | Active DSE match threshold before writes |
+| `market_snapshot_min_source_symbols` | `300` | Absolute matched-active-symbol floor before writes |
 | `dse_archive_ssl_verify` | `false` | DSE TLS chain often incomplete |
 | `amarstock_index_summary_enabled` | `true` | DSEX on each snapshot |
 | `amarstock_news_ingestion_enabled` | `true` | Daily job only |
