@@ -57,3 +57,12 @@ No score, guaranteed recommendation, or historical-change claim is generated.
 - Market publication invalidation includes the `portfolio` TanStack root.
 - Holding status, quantity, average-price, and note mutations invalidate the watchlist and portfolio query roots.
 - Logs must not include portfolio payloads, quantities, values, or notes.
+
+## Add holding (current position)
+
+The portfolio page adds or completes one consolidated position through the existing watchlist mutation path:
+
+1. `POST /watchlist/items` when the stock is not yet watched.
+2. `PATCH /watchlist/items/{stock_id}` with `is_holding=true`, `quantity`, `buy_price`, and optional `note`.
+
+There is still no transaction ledger, purchase lot history, realized P/L, or partial-sale tracking. Stock autocomplete uses `GET /stocks/search`, which returns the latest available quote for preview and selection. Incomplete holdings continue to use inline quantity / average-price edits in the table.

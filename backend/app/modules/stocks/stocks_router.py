@@ -6,7 +6,12 @@ from fastapi import APIRouter, Depends, Path, Query
 from app.core.enums import ExchangeCode
 from app.core.pagination import ListQueryParams, get_list_query_params
 from app.core.response_handler import ApiResponse, success_response
-from app.modules.stocks.stocks_schemas import ActiveStockSymbolRead, StockCreate, StockRead
+from app.modules.stocks.stocks_schemas import (
+    ActiveStockSymbolRead,
+    StockCreate,
+    StockRead,
+    StockSearchResultRead,
+)
 from app.modules.stocks.stocks_service import StocksService, get_stocks_service
 
 router = APIRouter(prefix="/stocks", tags=["stocks"])
@@ -26,19 +31,18 @@ async def list_stocks(
     return success_response(data=stock_items, message="Stocks retrieved")
 
 
-@router.get("/search", response_model=ApiResponse[list[StockRead]])
+@router.get("/search", response_model=ApiResponse[list[StockSearchResultRead]])
 async def search_stocks(
     params: Annotated[ListQueryParams, Depends(get_list_query_params)],
     service: Annotated[StocksService, Depends(get_stocks_service)],
     q: Annotated[str, Query(min_length=1, max_length=120)],
     exchange: ExchangeCode | None = None,
-) -> ApiResponse[list[StockRead]]:
+) -> ApiResponse[list[StockSearchResultRead]]:
     search_params = params.model_copy(update={"search": q})
-    stocks = await service.list_stocks(
+    stock_items = await service.search_stocks_with_quotes(
         exchange=exchange,
         params=search_params,
     )
-    stock_items = [StockRead.model_validate(stock) for stock in stocks]
     return success_response(data=stock_items, message="Stocks matched")
 
 

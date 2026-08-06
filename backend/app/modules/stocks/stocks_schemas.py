@@ -5,7 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.core.enums import ExchangeCode
+from app.core.enums import DataQualityFlag, ExchangeCode
 
 
 class StockBase(BaseModel):
@@ -67,6 +67,14 @@ class StockRead(StockBase):
     id: UUID
     created_at: datetime
     updated_at: datetime
+
+
+class StockSearchResultRead(StockRead):
+    """Stock master row enriched with the latest available quote for autocomplete."""
+
+    latest_price: Decimal | None = None
+    latest_trade_date: date | None = None
+    data_quality_flag: DataQualityFlag | None = None
 
 
 class ActiveStockSymbolRead(BaseModel):

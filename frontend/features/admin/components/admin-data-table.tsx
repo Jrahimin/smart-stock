@@ -70,9 +70,17 @@ export function AdminDataTableCell({
   );
 }
 
-export function AdminEmptyState({ title, description }: { title: string; description?: string }) {
+export function AdminEmptyState({
+  title,
+  description,
+  className = "",
+}: {
+  title: string;
+  description?: string;
+  className?: string;
+}) {
   return (
-    <div className="admin-empty-state">
+    <div className={`admin-empty-state ${className}`.trim()}>
       <strong>{title}</strong>
       {description ? <p>{description}</p> : null}
     </div>
@@ -93,7 +101,7 @@ export function AdminSection({
   className?: string;
 }) {
   return (
-    <section className={`admin-section workspace-card ${className}`.trim()}>
+    <section className={`admin-section admin-section-surface workspace-card ${className}`.trim()}>
       <div className="admin-section-header">
         <div>
           <h2>{title}</h2>

@@ -106,6 +106,29 @@ type PortfolioLanguage = {
   addAveragePrice: string;
   addQuantityAction: string;
   addAveragePriceAction: string;
+  addHolding: string;
+  addHoldingTitle: string;
+  updateHoldingTitle: string;
+  addToPortfolio: string;
+  updateHolding: string;
+  stockSearchPlaceholder: string;
+  stockSearchEmpty: string;
+  stockSearchError: string;
+  stockSearchLoading: string;
+  stockRequired: string;
+  quantityRequired: string;
+  averageBuyPriceRequired: string;
+  addNoteToggle: string;
+  hideNote: string;
+  alreadyOnWatchlist: string;
+  previewInvested: string;
+  previewCurrentValue: string;
+  previewUnrealized: string;
+  previewPriceUnavailable: string;
+  previewPriceStale: string;
+  previewPriceSuspicious: string;
+  previewNoDailyFromStale: string;
+  savingHolding: string;
   needsSetup: string;
   signalUnavailable: string;
   partialExposure: string;
@@ -155,7 +178,7 @@ const en: PortfolioLanguage = {
   error: "Your portfolio could not be loaded.",
   retry: "Try again",
   emptyTitle: "No holdings yet",
-  emptyDetail: "Mark a watchlist stock as a holding, then add quantity and average price.",
+  emptyDetail: "Add a holding with quantity and average buy price to see value, P/L, and attention.",
   search: "Search holdings",
   all: "All",
   review: "Review",
@@ -228,6 +251,29 @@ const en: PortfolioLanguage = {
   addAveragePrice: "Add average buy price to calculate P/L",
   addQuantityAction: "Add quantity",
   addAveragePriceAction: "Add avg buy price",
+  addHolding: "Add in Portfolio",
+  addHoldingTitle: "Add in Portfolio",
+  updateHoldingTitle: "Update holding",
+  addToPortfolio: "Add to portfolio",
+  updateHolding: "Update holding",
+  stockSearchPlaceholder: "Search by symbol or company name",
+  stockSearchEmpty: "No matching stocks found.",
+  stockSearchError: "Stock search failed. Try again.",
+  stockSearchLoading: "Searching…",
+  stockRequired: "Select a stock.",
+  quantityRequired: "Enter a positive quantity.",
+  averageBuyPriceRequired: "Enter a positive average buy price.",
+  addNoteToggle: "Add note",
+  hideNote: "Hide note",
+  alreadyOnWatchlist: "This stock is already in your watchlist. Add holding details?",
+  previewInvested: "Invested amount",
+  previewCurrentValue: "Current value",
+  previewUnrealized: "Estimated unrealized P/L",
+  previewPriceUnavailable: "Current price unavailable",
+  previewPriceStale: "Using a stale last-known price",
+  previewPriceSuspicious: "Price needs verification",
+  previewNoDailyFromStale: "Daily movement is not calculated from stale prices.",
+  savingHolding: "Saving…",
   needsSetup: "Needs setup",
   signalUnavailable: "Signal unavailable",
   partialExposure: "Exposure reflects only holdings with known current value.",
@@ -327,7 +373,7 @@ const bn: PortfolioLanguage = {
 
   emptyTitle: "এখনও কোনো holding যোগ করা হয়নি",
   emptyDetail:
-    "ওয়াচলিস্টের যেসব শেয়ার আপনার কেনা আছে, সেগুলো Hold করুন। এরপর quantity আর average price যোগ করলেই পুরো হিসাব দেখা যাবে।",
+    "Quantity আর average buy price দিয়ে একটি holding যোগ করলেই value, লাভ/ক্ষতি আর attention দেখা যাবে।",
 
   search: "শেয়ার খুঁজুন",
 
@@ -423,6 +469,29 @@ const bn: PortfolioLanguage = {
   addAveragePrice: "Average buy price যোগ করলে লাভ/ক্ষতি দেখা যাবে",
   addQuantityAction: "Quantity যোগ করুন",
   addAveragePriceAction: "Average buy price যোগ করুন",
+  addHolding: "পোর্টফোলিওতে যোগ করুন",
+  addHoldingTitle: "হোল্ডিং যোগ করুন",
+  updateHoldingTitle: "পোর্টফোলিও আপডেট করুন",
+  addToPortfolio: "পোর্টফোলিওতে যোগ করুন",
+  updateHolding: "পোর্টফোলিও আপডেট করুন",
+  stockSearchPlaceholder: "সিম্বল বা কোম্পানির নাম দিয়ে খুঁজুন",
+  stockSearchEmpty: "কোনো মিল পাওয়া যায়নি।",
+  stockSearchError: "স্টক সার্চ ব্যর্থ হয়েছে। আবার চেষ্টা করুন।",
+  stockSearchLoading: "খোঁজা হচ্ছে…",
+  stockRequired: "একটি শেয়ার বেছে নিন।",
+  quantityRequired: "পজিটিভ quantity দিন।",
+  averageBuyPriceRequired: "পজিটিভ average buy price দিন।",
+  addNoteToggle: "নোট যোগ করুন",
+  hideNote: "নোট লুকান",
+  alreadyOnWatchlist: "এই শেয়ারটি ইতিমধ্যে আপনার ওয়াচলিস্টে আছে। পোর্টফোলিও তথ্য যোগ করবেন?",
+  previewInvested: "বিনিয়োগকৃত পরিমাণ",
+  previewCurrentValue: "বর্তমান ভ্যালু",
+  previewUnrealized: "আনুমানিক অবাস্তবায়িত লাভ/ক্ষতি",
+  previewPriceUnavailable: "বর্তমান দাম পাওয়া যায়নি",
+  previewPriceStale: "পুরোনো সর্বশেষ দাম ব্যবহার করা হচ্ছে",
+  previewPriceSuspicious: "দাম যাচাই করা দরকার",
+  previewNoDailyFromStale: "পুরোনো দাম থেকে দৈনিক পরিবর্তন হিসাব করা হয় না।",
+  savingHolding: "সেভ হচ্ছে…",
 
   needsSetup: "তথ্য বাকি",
   signalUnavailable: "Signal পাওয়া যায়নি",

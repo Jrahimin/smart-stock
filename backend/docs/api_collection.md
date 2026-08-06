@@ -129,6 +129,7 @@ None
 **Description**
 Search stock master records by partial symbol or company name.
 Useful for autocomplete and user-facing search fields.
+Each match includes the latest available daily close when a quote exists.
 
 **Path Params**
 
@@ -163,11 +164,19 @@ None
       "is_active": true,
       "id": "8f8e3b52-2a27-4df8-8e76-c9eb6f61c123",
       "created_at": "2026-05-01T00:00:00Z",
-      "updated_at": "2026-05-01T00:00:00Z"
+      "updated_at": "2026-05-01T00:00:00Z",
+      "latest_price": "262.5000",
+      "latest_trade_date": "2026-08-06",
+      "data_quality_flag": "OK"
     }
   ]
 }
 ```
+
+**Notes**
+
+* `latest_price`, `latest_trade_date`, and `data_quality_flag` are null when no daily price row exists.
+* Quote enrichment uses the newest `daily_prices` row per matched stock; it does not recompute trading decisions.
 
 ---
 
@@ -1818,6 +1827,7 @@ Add a stock to the watchlist. Returns the existing row if already present.
 
 **Description**
 Update holding flag, current quantity, average buy price, and/or personal note.
+Used by the portfolio **Add holding** modal to create or update one consolidated current position per stock (no lots / transactions).
 
 **Body**
 
@@ -1829,6 +1839,13 @@ Update holding flag, current quantity, average buy price, and/or personal note.
   "note": "Accumulate below 245."
 }
 ```
+
+**Notes**
+
+* Setting `is_holding` to `false` clears quantity and average buy price.
+* Quantity and average buy price require `is_holding = true`.
+* Re-saving an existing holding updates the same watchlist row; it does not create a duplicate.
+* After success, clients should invalidate the `watchlist` and `portfolio` TanStack query roots.
 
 ### DELETE /api/v1/watchlist/items/{stock_id}
 

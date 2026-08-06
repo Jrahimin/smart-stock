@@ -30,6 +30,12 @@ export function AdminKpiCard({ icon: Icon, label, value, helper, tone = "neutral
   );
 }
 
-export function AdminKpiGrid({ children }: { children: ReactNode }) {
-  return <div className="admin-kpi-grid">{children}</div>;
+export function AdminKpiGrid({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return <div className={cn("admin-kpi-grid", className)}>{children}</div>;
 }

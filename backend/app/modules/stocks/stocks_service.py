@@ -9,7 +9,11 @@ from app.core.pagination import ListQueryParams
 from app.core.security_config import UserContext
 from app.models import Stock
 from app.modules.stocks.stocks_repository import StocksRepository, get_stocks_repository
-from app.modules.stocks.stocks_schemas import ActiveStockSymbolRead, StockCreate
+from app.modules.stocks.stocks_schemas import (
+    ActiveStockSymbolRead,
+    StockCreate,
+    StockSearchResultRead,
+)
 
 
 class StocksService:
@@ -27,6 +31,34 @@ class StocksService:
             exchange=exchange,
             params=params,
         )
+
+    async def search_stocks_with_quotes(
+        self,
+        *,
+        exchange: ExchangeCode | None,
+        params: ListQueryParams,
+    ) -> list[StockSearchResultRead]:
+        stocks = await self.list_stocks(exchange=exchange, params=params)
+        latest_prices = await self.repository.list_latest_prices_for_stocks(
+            [stock.id for stock in stocks]
+        )
+        results: list[StockSearchResultRead] = []
+        for stock in stocks:
+            price = latest_prices.get(stock.id)
+            base = StockSearchResultRead.model_validate(stock)
+            if price is None:
+                results.append(base)
+                continue
+            results.append(
+                base.model_copy(
+                    update={
+                        "latest_price": price.close_price,
+                        "latest_trade_date": price.trade_date,
+                        "data_quality_flag": price.data_quality_flag,
+                    }
+                )
+            )
+        return results
 
     async def list_active_symbols(self, *, exchange: ExchangeCode | None = None) -> list[ActiveStockSymbolRead]:
         rows = await self.repository.list_active_symbols(exchange=exchange)

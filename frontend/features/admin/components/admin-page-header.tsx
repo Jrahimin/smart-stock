@@ -1,16 +1,27 @@
 "use client";
 
-import { Search } from "lucide-react";
+import { RefreshCw, Search } from "lucide-react";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+
+import { AdminStatusBadge } from "@/features/admin/components/admin-status-badge";
+import { formatAdminDateTime } from "@/features/admin/utils/format-admin-datetime";
+import { cn } from "@/lib/utils/cn";
 
 type AdminPageHeaderProps = {
   title: string;
   description: string;
   lastUpdated?: string | null;
+  statusChip?: {
+    label: string;
+    tone: "success" | "running" | "queued" | "failed" | "partial" | "draft" | "neutral" | "warning";
+  } | null;
+  onRefresh?: () => void;
+  isRefreshing?: boolean;
   searchValue?: string;
   onSearchChange?: (value: string) => void;
   searchPlaceholder?: string;
   actions?: ReactNode;
+  className?: string;
 };
 
 function useSearchShortcutLabel() {
@@ -28,10 +39,14 @@ export function AdminPageHeader({
   title,
   description,
   lastUpdated,
+  statusChip,
+  onRefresh,
+  isRefreshing,
   searchValue = "",
   onSearchChange,
   searchPlaceholder = "Search…",
   actions,
+  className,
 }: AdminPageHeaderProps) {
   const inputId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -52,10 +67,15 @@ export function AdminPageHeader({
   }, [onSearchChange]);
 
   return (
-    <header className="admin-page-header">
+    <header className={cn("admin-page-header", className)}>
       <div className="admin-page-header-main">
         <div className="admin-page-header-copy">
-          <p className="admin-page-header-eyebrow">Operations</p>
+          <div className="admin-page-header-title-row">
+            <p className="admin-page-header-eyebrow">Operations</p>
+            {statusChip ? (
+              <AdminStatusBadge label={statusChip.label} tone={statusChip.tone} />
+            ) : null}
+          </div>
           <h1>{title}</h1>
           <p className="admin-page-header-description">{description}</p>
         </div>
@@ -79,9 +99,22 @@ export function AdminPageHeader({
 
           {actions ? <div className="admin-page-header-actions">{actions}</div> : null}
 
+          {onRefresh ? (
+            <button
+              aria-label="Refresh"
+              className={cn("admin-btn admin-btn-icon", isRefreshing && "admin-btn-loading")}
+              disabled={isRefreshing}
+              onClick={onRefresh}
+              type="button"
+            >
+              <RefreshCw size={14} />
+            </button>
+          ) : null}
+
           {lastUpdated ? (
             <p className="admin-page-header-updated">
-              Updated <time dateTime={lastUpdated}>{new Date(lastUpdated).toLocaleString()}</time>
+              Updated{" "}
+              <time dateTime={lastUpdated}>{formatAdminDateTime(lastUpdated)}</time>
             </p>
           ) : null}
         </div>

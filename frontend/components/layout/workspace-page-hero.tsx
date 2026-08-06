@@ -17,6 +17,10 @@ type WorkspacePageHeroProps = {
   freshnessClassName?: string;
   locale?: AppLocale;
   localeSwitcherAria?: string;
+  /** Where the global stock search sits. Explorer uses `status` (near freshness). */
+  commandSearchPlacement?: "controls" | "status";
+  commandSearchPlaceholder?: string;
+  commandSearchAriaLabel?: string;
 };
 
 export function WorkspacePageHero({
@@ -30,10 +34,32 @@ export function WorkspacePageHero({
   freshnessClassName,
   locale,
   localeSwitcherAria,
+  commandSearchPlacement = "controls",
+  commandSearchPlaceholder,
+  commandSearchAriaLabel,
 }: WorkspacePageHeroProps) {
+  const commandSearch = (
+    <WorkspaceCommandSearch
+      ariaLabel={commandSearchAriaLabel}
+      filterContextName={filterContextName}
+      onFilterTable={onFilterTable}
+      placeholder={commandSearchPlaceholder}
+      showQuickActions={false}
+      variant="discovery"
+    />
+  );
+
+  const statusRowClassName =
+    commandSearchPlacement === "status"
+      ? "explorer-hero-status-row explorer-hero-status-row-with-search"
+      : "explorer-hero-status-row";
+
   return (
     <div className={className ? `explorer-hero ${className}` : "explorer-hero"}>
-      <div className="explorer-hero-status-row">
+      <div className={statusRowClassName}>
+        {commandSearchPlacement === "status" ? (
+          <div className="explorer-hero-status-search">{commandSearch}</div>
+        ) : null}
         <MarketDataFreshnessBar className={freshnessClassName} locale={locale} variant="status" />
         {locale ? (
           <div aria-label={localeSwitcherAria} className="explorer-hero-locale-switcher">
@@ -50,17 +76,14 @@ export function WorkspacePageHero({
         </div>
       </div>
 
-      <div className="explorer-hero-controls">
-        {children ? <div className="explorer-hero-filters">{children}</div> : null}
-        <div className="explorer-hero-discovery">
-          <WorkspaceCommandSearch
-            filterContextName={filterContextName}
-            onFilterTable={onFilterTable}
-            showQuickActions={false}
-            variant="discovery"
-          />
+      {children || commandSearchPlacement === "controls" ? (
+        <div className="explorer-hero-controls">
+          {children ? <div className="explorer-hero-filters">{children}</div> : null}
+          {commandSearchPlacement === "controls" ? (
+            <div className="explorer-hero-discovery">{commandSearch}</div>
+          ) : null}
         </div>
-      </div>
+      ) : null}
     </div>
   );
 }

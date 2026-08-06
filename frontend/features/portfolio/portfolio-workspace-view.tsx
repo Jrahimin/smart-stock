@@ -2,7 +2,7 @@
 
 import {
   AlertTriangle, ArrowRight, BriefcaseBusiness, CheckCircle2, ChevronDown,
-  CircleAlert, Eye, Layers3, Mail, Pencil, Search, ShieldAlert,
+  CircleAlert, Eye, Layers3, Mail, Pencil, Plus, Search, ShieldAlert,
   StickyNote, TrendingDown, TrendingUp, WalletCards, X,
 } from "lucide-react";
 import Link from "next/link";
@@ -10,7 +10,9 @@ import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, me
 
 import { MarketDataFreshnessBar } from "@/components/layout/market-data-freshness-bar";
 import { DashboardLocaleSwitcher } from "@/features/market-dashboard/components/dashboard-locale-switcher";
+import { AddHoldingModal } from "@/features/portfolio/components/add-holding-modal";
 import { PortfolioMutationsProvider, usePortfolioMutations } from "@/features/portfolio/hooks/portfolio-mutations-context";
+import { useAddHoldingModal } from "@/features/portfolio/hooks/use-add-holding-modal";
 import { usePortfolioCompactLayout } from "@/features/portfolio/hooks/use-portfolio-compact-layout";
 import { usePortfolioEmailPreference } from "@/features/portfolio/hooks/use-portfolio-email-preference";
 import { usePortfolioWorkspace } from "@/features/portfolio/hooks/use-portfolio-workspace";
@@ -266,6 +268,24 @@ function PortfolioAttention({
         </>
       )}
     </section>
+  );
+}
+
+function AddHoldingButton({
+  locale,
+  onClick,
+  className = "",
+}: {
+  locale: AppLocale;
+  onClick: () => void;
+  className?: string;
+}) {
+  const t = portfolioLanguage[locale];
+  return (
+    <button className={`portfolio-add-holding-btn ${className}`.trim()} onClick={onClick} type="button">
+      <Plus size={15} />
+      {t.addHolding}
+    </button>
   );
 }
 
@@ -537,12 +557,23 @@ function SignalCell({ item, locale }: { item: BackendPortfolioHoldingDto; locale
   );
 }
 
-function Row({ item, locale }: { item: BackendPortfolioHoldingDto; locale: AppLocale }) {
+function Row({
+  item,
+  locale,
+  highlighted,
+}: {
+  item: BackendPortfolioHoldingDto;
+  locale: AppLocale;
+  highlighted: boolean;
+}) {
   const t = portfolioLanguage[locale];
   const guidance = getPortfolioWhatNextCopy(item, t);
 
   return (
-    <tr className={`${item.is_holding ? "is-holding" : "is-watching"} ${item.requires_attention ? "needs-review" : ""}`}>
+    <tr
+      className={`${item.is_holding ? "is-holding" : "is-watching"} ${item.requires_attention ? "needs-review" : ""} ${highlighted ? "is-highlighted" : ""}`}
+      data-stock-id={item.stock_id}
+    >
       <td className="portfolio-actions-cell"><RowActions item={item} locale={locale} /></td>
       <td className="portfolio-hold-cell"><HoldToggle item={item} locale={locale} /></td>
       <td className="portfolio-stock-col"><MemoStockSymbolTile exchange={item.exchange} name={item.name} symbol={item.symbol} /></td>
@@ -558,7 +589,15 @@ function Row({ item, locale }: { item: BackendPortfolioHoldingDto; locale: AppLo
 
 const MemoRow = memo(Row);
 
-function MobileHoldingCard({ item, locale }: { item: BackendPortfolioHoldingDto; locale: AppLocale }) {
+function MobileHoldingCard({
+  item,
+  locale,
+  highlighted,
+}: {
+  item: BackendPortfolioHoldingDto;
+  locale: AppLocale;
+  highlighted: boolean;
+}) {
   const t = portfolioLanguage[locale];
   const guidance = getPortfolioWhatNextCopy(item, t);
   const hasPositionValue = item.is_holding && item.quantity != null && item.average_buy_price != null;
@@ -567,7 +606,10 @@ function MobileHoldingCard({ item, locale }: { item: BackendPortfolioHoldingDto;
     : guidance !== t.watching;
 
   return (
-    <article className={`portfolio-holding-card portfolio-mobile-card ${item.is_holding ? "is-holding" : "is-watching"} ${item.requires_attention ? "needs-review" : ""}`}>
+    <article
+      className={`portfolio-holding-card portfolio-mobile-card ${item.is_holding ? "is-holding" : "is-watching"} ${item.requires_attention ? "needs-review" : ""} ${highlighted ? "is-highlighted" : ""}`}
+      data-stock-id={item.stock_id}
+    >
       <div className="portfolio-mobile-card-header">
         <div className="portfolio-mobile-card-identity">
           <MemoStockSymbolTile exchange={item.exchange} name={item.name} symbol={item.symbol} />
@@ -626,6 +668,8 @@ function HoldingsWorkspace({
   filter,
   onFilterChange,
   onClearAttention,
+  onAddHolding,
+  highlightedStockId,
   sectionRef,
 }: {
   items: BackendPortfolioHoldingDto[];
@@ -635,6 +679,8 @@ function HoldingsWorkspace({
   filter: PortfolioHoldingFilter;
   onFilterChange: (filter: PortfolioHoldingFilter) => void;
   onClearAttention: () => void;
+  onAddHolding: () => void;
+  highlightedStockId: string | null;
   sectionRef: RefObject<HTMLElement | null>;
 }) {
   const t = portfolioLanguage[locale];
@@ -670,13 +716,17 @@ function HoldingsWorkspace({
     <PortfolioMutationsProvider>
       <section className={`portfolio-panel portfolio-holdings portfolio-holdings-v2${compactLayout ? " is-compact-layout" : ""}`} aria-labelledby="portfolio-holdings-title" ref={sectionRef}>
       <div className="portfolio-holdings-head">
-        <div className="portfolio-section-heading">
+        <div className="portfolio-section-heading portfolio-holdings-title-row">
           <div className="portfolio-section-icon"><WalletCards size={17} /></div>
           <h2 id="portfolio-holdings-title">{t.holdings}</h2>
+          {!compactLayout ? <AddHoldingButton locale={locale} onClick={onAddHolding} /> : null}
         </div>
-        <div className="portfolio-search">
-          <Search size={16} />
-          <input aria-label={t.search} onChange={(event) => setSearch(event.target.value)} placeholder={t.search} type="search" value={search} />
+        <div className="portfolio-holdings-head-tools">
+          {compactLayout ? <AddHoldingButton className="is-mobile-toolbar" locale={locale} onClick={onAddHolding} /> : null}
+          <div className="portfolio-search">
+            <Search size={16} />
+            <input aria-label={t.search} onChange={(event) => setSearch(event.target.value)} placeholder={t.search} type="search" value={search} />
+          </div>
         </div>
       </div>
       <div className="portfolio-toolbar">
@@ -717,18 +767,45 @@ function HoldingsWorkspace({
             </thead>
             <tbody>
               {holdings.length > 0 && <tr className="portfolio-group-row"><td colSpan={9}>{t.groupHoldings(holdings.length)}</td></tr>}
-              {holdings.map((item) => <MemoRow item={item} key={item.stock_id} locale={locale} />)}
+              {holdings.map((item) => (
+                <MemoRow
+                  highlighted={highlightedStockId === item.stock_id}
+                  item={item}
+                  key={item.stock_id}
+                  locale={locale}
+                />
+              ))}
               {watching.length > 0 && <tr className="portfolio-group-row"><td colSpan={9}>{t.groupWatching(watching.length)}</td></tr>}
-              {watching.map((item) => <MemoRow item={item} key={item.stock_id} locale={locale} />)}
+              {watching.map((item) => (
+                <MemoRow
+                  highlighted={highlightedStockId === item.stock_id}
+                  item={item}
+                  key={item.stock_id}
+                  locale={locale}
+                />
+              ))}
             </tbody>
           </table>
         </div>
       ) : (
         <div className="portfolio-mobile-holdings">
-          {filtered.map((item) => <MemoMobileHoldingCard item={item} key={item.stock_id} locale={locale} />)}
+          {filtered.map((item) => (
+            <MemoMobileHoldingCard
+              highlighted={highlightedStockId === item.stock_id}
+              item={item}
+              key={item.stock_id}
+              locale={locale}
+            />
+          ))}
         </div>
       )}
-      {!filtered.length && <div className="portfolio-table-empty">{t.emptyTitle}</div>}
+      {!filtered.length && (
+        <div className="portfolio-table-empty">
+          <strong>{t.emptyTitle}</strong>
+          <p>{t.emptyDetail}</p>
+          <AddHoldingButton locale={locale} onClick={onAddHolding} />
+        </div>
+      )}
       </section>
     </PortfolioMutationsProvider>
   );
@@ -1010,11 +1087,16 @@ export function PortfolioWorkspaceContent({
   data,
   locale,
 }: PortfolioWorkspaceViewProps & { data: BackendPortfolioWorkspaceDto }) {
-  const t = portfolioLanguage[locale];
   const holdingsRef = useRef<HTMLElement | null>(null);
   const [selectedCode, setSelectedCode] = useState<string | null>(null);
   const [selectedStockIds, setSelectedStockIds] = useState<Set<string> | null>(null);
   const [tableFilter, setTableFilter] = useState<PortfolioHoldingFilter>("ALL");
+  const addHolding = useAddHoldingModal({
+    watchlistItems: data.watchlist_items,
+    publishedMarketDate: data.meta.published_market_date,
+    dataState: data.meta.data_state,
+    exchange: data.meta.exchange,
+  });
 
   const completedCount = useMemo(() => countCompletedHoldings(data.watchlist_items), [data.watchlist_items]);
   const incompleteCount = useMemo(() => countIncompleteHoldings(data.watchlist_items), [data.watchlist_items]);
@@ -1053,6 +1135,14 @@ export function PortfolioWorkspaceContent({
     setTableFilter("ALL");
   }, []);
 
+  useEffect(() => {
+    if (!addHolding.highlightedStockId) return;
+    const node = holdingsRef.current?.querySelector(
+      `[data-stock-id="${addHolding.highlightedStockId}"]`,
+    );
+    node?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [addHolding.highlightedStockId]);
+
   return (
     <div className="portfolio-page portfolio-page-v2">
       <PortfolioHero
@@ -1079,8 +1169,10 @@ export function PortfolioWorkspaceContent({
       </div>
       <HoldingsWorkspace
         filter={tableFilter}
+        highlightedStockId={addHolding.highlightedStockId}
         items={data.watchlist_items}
         locale={locale}
+        onAddHolding={addHolding.openCreate}
         onClearAttention={clearAttentionFilter}
         onFilterChange={setTableFilter}
         sectionRef={holdingsRef}
@@ -1092,6 +1184,7 @@ export function PortfolioWorkspaceContent({
         <PortfolioShape data={data} locale={locale} />
         <WatchlistToReview data={data} locale={locale} />
       </div>
+      <AddHoldingModal controller={addHolding} locale={locale} />
     </div>
   );
 }

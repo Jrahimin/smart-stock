@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import type { BackendStockDto } from "@/lib/api/backend-api-types";
+import type { BackendStockDto, BackendStockSearchResultDto } from "@/lib/api/backend-api-types";
 import { searchStocks } from "@/lib/api/stocks-api";
 import {
   EXPLORER_POPULAR_STOCKS,
@@ -18,7 +18,7 @@ type UseStockSymbolSearchOptions = {
   onFilterTable?: (query: string) => void;
 };
 
-const EMPTY_SEARCH_RESULTS: BackendStockDto[] = [];
+const EMPTY_SEARCH_RESULTS: BackendStockSearchResultDto[] = [];
 
 export function useStockSymbolSearch(options: UseStockSymbolSearchOptions = {}) {
   const router = useRouter();

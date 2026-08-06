@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  AlertTriangle,
-  CheckCircle2,
-  Clock3,
-  ListChecks,
-  Play,
-  Workflow,
-} from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock3, ListChecks, Workflow } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -20,17 +13,22 @@ import {
   AdminEmptyState,
   AdminSection,
 } from "@/features/admin/components/admin-data-table";
+import { AdminJobActionsMenu } from "@/features/admin/components/admin-job-actions";
+import { JobDetailsDrawer } from "@/features/admin/components/admin-job-details";
 import { AdminKpiCard, AdminKpiGrid } from "@/features/admin/components/admin-kpi-card";
 import { AdminPageHeader } from "@/features/admin/components/admin-page-header";
 import { AdminKpiSkeleton } from "@/features/admin/components/admin-skeleton";
 import {
   AdminStatusBadge,
-  formatStatusLabel,
+  formatJobStatusLabel,
+  formatTriggerSourceLabel,
   jobStatusTone,
 } from "@/features/admin/components/admin-status-badge";
 import {
   ADMIN_JOB_ACTIONS,
+  buildJobHistoryEmptyState,
   buildJobTriggerFeedback,
+  hasActiveJobHistoryFilters,
 } from "@/features/admin/lib/admin-operations-view-model";
 import type {
   SystemJobExecution,
@@ -38,6 +36,10 @@ import type {
   SystemJobTriggerSource,
   SystemJobType,
 } from "@/features/admin/types/admin-types";
+import {
+  formatAdminDateTime,
+  formatAdminDuration,
+} from "@/features/admin/utils/format-admin-datetime";
 import { AdminRoute, useIsSuperAdmin } from "@/features/auth/components/admin-route";
 import {
   fetchSystemJobExecution,
@@ -70,6 +72,17 @@ function AdminJobsContent() {
   const [triggerFeedback, setTriggerFeedback] = useState<ReturnType<
     typeof buildJobTriggerFeedback
   > | null>(null);
+
+  const filters = useMemo(
+    () => ({
+      jobType,
+      jobStatus,
+      triggerSource,
+      dateFrom,
+      dateTo,
+    }),
+    [jobType, jobStatus, triggerSource, dateFrom, dateTo],
+  );
 
   const executionsQuery = useQuery({
     queryKey: [
@@ -136,6 +149,8 @@ function AdminJobsContent() {
   const executions = executionsQuery.data ?? [];
   const metrics = useMemo(() => computeJobMetrics(executions), [executions]);
   const selectedJob = selectedExecutionQuery.data ?? null;
+  const emptyState = buildJobHistoryEmptyState(filters);
+  const filtersActive = hasActiveJobHistoryFilters(filters);
 
   const confirmAndTrigger = (requestedJobType: SystemJobType) => {
     const action = ADMIN_JOB_ACTIONS.find(
@@ -149,59 +164,44 @@ function AdminJobsContent() {
     if (confirmed) triggerMutation.mutate(requestedJobType);
   };
 
+  const clearFilters = () => {
+    setJobType("ALL");
+    setJobStatus("ALL");
+    setTriggerSource("ALL");
+    setDateFrom("");
+    setDateTo("");
+  };
+
   return (
-    <div className="admin-workspace workspace-page-stack">
+    <div className="admin-workspace admin-workspace-tight admin-jobs-workspace workspace-page-stack">
       <AdminPageHeader
         actions={
           isSuperAdmin ? (
-            <div className="admin-action-group">
-              {ADMIN_JOB_ACTIONS.map((action) => (
-                <button
-                  className="admin-btn"
-                  disabled={triggerMutation.isPending}
-                  key={action.jobType}
-                  onClick={() => confirmAndTrigger(action.jobType)}
-                  title={action.description}
-                  type="button"
-                >
-                  <Play size={14} />
-                  {action.label}
-                </button>
-              ))}
-            </div>
+            <AdminJobActionsMenu
+              actions={ADMIN_JOB_ACTIONS}
+              disabled={triggerMutation.isPending}
+              onTrigger={confirmAndTrigger}
+            />
           ) : undefined
         }
-        description="Queue operational work and inspect durable execution history."
+        className="admin-page-header-compact"
+        description="Run operational tasks and review their history."
         lastUpdated={
           executionsQuery.data
             ? new Date(executionsQuery.dataUpdatedAt).toISOString()
             : null
         }
+        onRefresh={() => void executionsQuery.refetch()}
+        isRefreshing={executionsQuery.isFetching}
         title="Jobs"
       />
 
-      {isSuperAdmin ? (
-        <section className="placeholder-panel">
-          <p className="eyebrow">Manual queue scope</p>
-          <div className="admin-detail-grid">
-            {ADMIN_JOB_ACTIONS.map((action) => (
-              <DetailItem
-                key={action.jobType}
-                label={action.label}
-                value={action.description}
-              />
-            ))}
-          </div>
-        </section>
-      ) : null}
-
       {triggerFeedback ? (
         <section
-          className={`placeholder-panel admin-health-card-${triggerFeedback.tone}`}
+          className={`admin-feedback-banner admin-feedback-banner-${triggerFeedback.tone}`}
           role="status"
         >
-          <p className="eyebrow">Queue result</p>
-          <h2>{triggerFeedback.title}</h2>
+          <strong>{triggerFeedback.title}</strong>
           <p>{triggerFeedback.message}</p>
         </section>
       ) : null}
@@ -210,165 +210,166 @@ function AdminJobsContent() {
 
       {executionsQuery.data ? (
         <>
-          <AdminKpiGrid>
+          <AdminKpiGrid className="admin-kpi-grid-4 admin-kpi-grid-jobs">
             <AdminKpiCard
-              helper="Waiting for backend-scheduler"
+              helper="Waiting to start"
               icon={ListChecks}
-              label="Queued Jobs"
+              label="Waiting"
               tone={metrics.pending > 0 ? "warning" : "neutral"}
               value={metrics.pending}
             />
             <AdminKpiCard
               helper="Currently executing"
               icon={Workflow}
-              label="Running Jobs"
+              label="Running"
               tone="info"
               value={metrics.running}
             />
             <AdminKpiCard
               helper="Needs attention"
               icon={AlertTriangle}
-              label="Failed Jobs"
-              tone="negative"
+              label="Failed"
+              tone={metrics.failed > 0 ? "negative" : "neutral"}
               value={metrics.failed}
             />
             <AdminKpiCard
-              helper="Terminal successes since midnight"
+              helper="Completed since midnight"
               icon={CheckCircle2}
-              label="Completed Today"
+              label="Completed today"
               tone="positive"
               value={metrics.completedToday}
             />
           </AdminKpiGrid>
 
-          <AdminSection
-            className="admin-section-compact admin-section-flush"
-            description="Filter durable queue history by execution contract."
-            title="Execution History"
-          >
-            <div className="admin-toolbar admin-toolbar-compact">
-              <select
-                aria-label="Job type"
-                className="admin-select"
-                onChange={(event) =>
-                  setJobType(event.target.value as JobTypeFilter)
-                }
-                value={jobType}
-              >
-                <option value="ALL">All job types</option>
-                <option value="MARKET_SNAPSHOT">Market Snapshot</option>
-                <option value="MARKET_SYNC">Daily Close</option>
-                <option value="STOCK_DETAILS_SYNC">Stock Details</option>
-                <option value="INDICATORS">Indicators</option>
-                <option value="SIGNALS">Signals</option>
-                <option value="EMAIL_CAMPAIGN">Email Campaign</option>
-                <option value="OTHER">Other</option>
-              </select>
-              <select
-                aria-label="Job status"
-                className="admin-select"
-                onChange={(event) =>
-                  setJobStatus(event.target.value as JobStatusFilter)
-                }
-                value={jobStatus}
-              >
-                <option value="ALL">All statuses</option>
-                <option value="PENDING">Queued</option>
-                <option value="RUNNING">Running</option>
-                <option value="SUCCEEDED">Succeeded</option>
-                <option value="PARTIAL">Partial</option>
-                <option value="SKIPPED">Skipped</option>
-                <option value="FAILED">Failed</option>
-                <option value="CANCELLED">Cancelled</option>
-              </select>
-              <select
-                aria-label="Trigger source"
-                className="admin-select"
-                onChange={(event) =>
-                  setTriggerSource(event.target.value as JobSourceFilter)
-                }
-                value={triggerSource}
-              >
-                <option value="ALL">All sources</option>
-                <option value="MANUAL">Manual</option>
-                <option value="SCHEDULER">Scheduler</option>
-                <option value="API">API</option>
-                <option value="SYSTEM">System</option>
-              </select>
-              <label className="admin-search-inline">
-                <span className="admin-search-inline-label">From</span>
-                <input
-                  className="admin-filter-control"
-                  onChange={(event) => setDateFrom(event.target.value)}
-                  type="date"
-                  value={dateFrom}
-                />
-              </label>
-              <label className="admin-search-inline">
-                <span className="admin-search-inline-label">To</span>
-                <input
-                  className="admin-filter-control"
-                  onChange={(event) => setDateTo(event.target.value)}
-                  type="date"
-                  value={dateTo}
-                />
-              </label>
-            </div>
+          <AdminSection className="admin-section-compact admin-section-jobs" title="Execution history">
+            <div className="admin-toolbar admin-toolbar-compact admin-toolbar-scroll admin-jobs-filters">
+            <select
+              aria-label="Job type"
+              className="admin-select admin-select-compact"
+              onChange={(event) =>
+                setJobType(event.target.value as JobTypeFilter)
+              }
+              value={jobType}
+            >
+              <option value="ALL">All job types</option>
+              <option value="MARKET_SNAPSHOT">Market Snapshot</option>
+              <option value="MARKET_SYNC">Daily Close</option>
+              <option value="STOCK_DETAILS_SYNC">Stock Details</option>
+              <option value="INDICATORS">Indicators</option>
+              <option value="SIGNALS">Signals</option>
+              <option value="EMAIL_CAMPAIGN">Email Campaign</option>
+              <option value="OTHER">Other</option>
+            </select>
+            <select
+              aria-label="Job status"
+              className="admin-select admin-select-compact"
+              onChange={(event) =>
+                setJobStatus(event.target.value as JobStatusFilter)
+              }
+              value={jobStatus}
+            >
+              <option value="ALL">All statuses</option>
+              <option value="PENDING">Waiting</option>
+              <option value="RUNNING">Running</option>
+              <option value="SUCCEEDED">Completed</option>
+              <option value="PARTIAL">Partial</option>
+              <option value="SKIPPED">Skipped</option>
+              <option value="FAILED">Failed</option>
+              <option value="CANCELLED">Cancelled</option>
+            </select>
+            <select
+              aria-label="Trigger source"
+              className="admin-select admin-select-compact"
+              onChange={(event) =>
+                setTriggerSource(event.target.value as JobSourceFilter)
+              }
+              value={triggerSource}
+            >
+              <option value="ALL">All sources</option>
+              <option value="MANUAL">Manual</option>
+              <option value="SCHEDULER">Scheduler</option>
+              <option value="API">API</option>
+              <option value="SYSTEM">System</option>
+            </select>
+            <label className="admin-search-inline admin-search-inline-compact">
+              <span className="admin-search-inline-label">From</span>
+              <input
+                className="admin-filter-control admin-filter-control-compact"
+                onChange={(event) => setDateFrom(event.target.value)}
+                type="date"
+                value={dateFrom}
+              />
+            </label>
+            <label className="admin-search-inline admin-search-inline-compact">
+              <span className="admin-search-inline-label">To</span>
+              <input
+                className="admin-filter-control admin-filter-control-compact"
+                onChange={(event) => setDateTo(event.target.value)}
+                type="date"
+                value={dateTo}
+              />
+            </label>
+            {filtersActive ? (
+              <button className="admin-btn admin-btn-compact" onClick={clearFilters} type="button">
+                Clear filters
+              </button>
+            ) : null}
+          </div>
 
-            {executions.length ? (
-              <AdminDataTable className="admin-data-table-jobs">
-                <div className="admin-data-table-head">
-                  <AdminDataTableCell>Job Name</AdminDataTableCell>
-                  <AdminDataTableCell>Type</AdminDataTableCell>
-                  <AdminDataTableCell>Status</AdminDataTableCell>
-                  <AdminDataTableCell>Queued</AdminDataTableCell>
-                  <AdminDataTableCell>Started</AdminDataTableCell>
-                  <AdminDataTableCell>Duration</AdminDataTableCell>
-                  <AdminDataTableCell>Trigger</AdminDataTableCell>
-                  <AdminDataTableCell align="right">Details</AdminDataTableCell>
-                </div>
-                <AdminDataTableBody>
-                  {executions.map((job) => (
-                    <AdminDataTableRow
-                      key={job.id}
-                      onClick={() => setSelectedJobId(job.id)}
-                      selected={selectedJobId === job.id}
-                    >
-                      <AdminDataTableCell>
-                        <strong>{job.job_name}</strong>
-                      </AdminDataTableCell>
-                      <AdminDataTableCell>{job.job_type}</AdminDataTableCell>
-                      <AdminDataTableCell>
-                        <AdminStatusBadge
-                          label={formatStatusLabel(job.status)}
-                          tone={jobStatusTone(job.status)}
-                        />
-                      </AdminDataTableCell>
-                      <AdminDataTableCell>
-                        {formatDate(job.created_at)}
-                      </AdminDataTableCell>
-                      <AdminDataTableCell>
-                        {formatDate(job.started_at)}
-                      </AdminDataTableCell>
-                      <AdminDataTableCell>
-                        {job.duration_ms != null
-                          ? `${job.duration_ms} ms`
-                          : "—"}
-                      </AdminDataTableCell>
-                      <AdminDataTableCell>
-                        {formatStatusLabel(job.trigger_source)}
-                      </AdminDataTableCell>
-                      <AdminDataTableCell align="right">
-                        <span className="admin-config-key">Open</span>
-                      </AdminDataTableCell>
-                    </AdminDataTableRow>
-                  ))}
-                </AdminDataTableBody>
-              </AdminDataTable>
+          {executions.length ? (
+            <AdminDataTable className="admin-data-table-jobs">
+              <div className="admin-data-table-head">
+                <AdminDataTableCell>Job</AdminDataTableCell>
+                <AdminDataTableCell>Status</AdminDataTableCell>
+                <AdminDataTableCell>Trigger</AdminDataTableCell>
+                <AdminDataTableCell>Queued at</AdminDataTableCell>
+                <AdminDataTableCell>Started at</AdminDataTableCell>
+                <AdminDataTableCell>Duration</AdminDataTableCell>
+                <AdminDataTableCell align="right">Details</AdminDataTableCell>
+              </div>
+              <AdminDataTableBody>
+                {executions.map((job) => (
+                  <AdminDataTableRow
+                    key={job.id}
+                    onClick={() => setSelectedJobId(job.id)}
+                    selected={selectedJobId === job.id}
+                  >
+                    <AdminDataTableCell>
+                      <strong>{job.job_name}</strong>
+                      <div className="admin-config-key">{job.job_type}</div>
+                    </AdminDataTableCell>
+                    <AdminDataTableCell>
+                      <AdminStatusBadge
+                        label={formatJobStatusLabel(job.status)}
+                        tone={jobStatusTone(job.status)}
+                      />
+                    </AdminDataTableCell>
+                    <AdminDataTableCell>
+                      {formatTriggerSourceLabel(job.trigger_source)}
+                    </AdminDataTableCell>
+                    <AdminDataTableCell>
+                      <time dateTime={job.created_at} title={formatAdminDateTime(job.created_at)}>
+                        {formatAdminDateTime(job.created_at)}
+                      </time>
+                    </AdminDataTableCell>
+                    <AdminDataTableCell>
+                      <time dateTime={job.started_at ?? undefined} title={formatAdminDateTime(job.started_at)}>
+                        {formatAdminDateTime(job.started_at)}
+                      </time>
+                    </AdminDataTableCell>
+                    <AdminDataTableCell>{formatAdminDuration(job.duration_ms)}</AdminDataTableCell>
+                    <AdminDataTableCell align="right">
+                      <span className="admin-config-key">Open</span>
+                    </AdminDataTableCell>
+                  </AdminDataTableRow>
+                ))}
+              </AdminDataTableBody>
+            </AdminDataTable>
             ) : (
               <AdminEmptyState
-                description="Adjust the filters or queue an operational job."
-                title="No matching job executions"
+                className="admin-empty-state-jobs"
+                description={emptyState.description}
+                title={emptyState.title}
               />
             )}
           </AdminSection>
@@ -397,82 +398,13 @@ function AdminJobsContent() {
             <Clock3 size={14} /> Loading execution…
           </p>
         ) : null}
-        {selectedJob ? <JobDetails job={selectedJob} /> : null}
+        {selectedJob ? <JobDetailsDrawer job={selectedJob} /> : null}
         {selectedExecutionQuery.error ? (
           <p className="admin-field-error">Failed to load execution details.</p>
         ) : null}
       </AdminDrawer>
     </div>
   );
-}
-
-function JobDetails({ job }: { job: SystemJobExecution }) {
-  const result = asRecord(job.metadata_json.result);
-  const requestMetadata = { ...job.metadata_json };
-  delete requestMetadata.result;
-  delete requestMetadata.error;
-  return (
-    <div className="admin-detail-grid">
-      <DetailItem label="Execution ID" value={job.id} />
-      <DetailItem label="Status" value={formatStatusLabel(job.status)} />
-      <DetailItem label="Queued" value={formatDate(job.created_at)} />
-      <DetailItem label="Started" value={formatDate(job.started_at)} />
-      <DetailItem label="Completed" value={formatDate(job.completed_at)} />
-      <DetailItem
-        label="Duration"
-        value={job.duration_ms != null ? `${job.duration_ms} ms` : "—"}
-      />
-      <DetailItem label="Attempts" value={String(job.attempt_count)} />
-      <DetailItem
-        label="Trigger Source"
-        value={formatStatusLabel(job.trigger_source)}
-      />
-      <DetailItem
-        label="Triggered By"
-        value={job.triggered_by_user_id ?? "System"}
-      />
-      <DetailItem label="Dedupe Key" value={job.dedupe_key ?? "—"} />
-      <DetailItem label="Error" value={job.error_message ?? "—"} />
-      <JsonDetail label="Request Metadata" value={requestMetadata} />
-      <JsonDetail label="Result Metadata" value={result} />
-      <JsonDetail label="Error Metadata" value={asRecord(job.metadata_json.error)} />
-    </div>
-  );
-}
-
-function DetailItem({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="admin-detail-item">
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
-  );
-}
-
-function JsonDetail({
-  label,
-  value,
-}: {
-  label: string;
-  value: Record<string, unknown> | null;
-}) {
-  return (
-    <div className="admin-detail-item">
-      <span>{label}</span>
-      <pre>{value ? JSON.stringify(value, null, 2) : "—"}</pre>
-    </div>
-  );
-}
-
-function asRecord(value: unknown) {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
-}
-
-function formatDate(value: string | null) {
-  if (!value) return "—";
-  return new Date(value).toLocaleString();
 }
 
 function isActiveJob(job: SystemJobExecution | undefined) {

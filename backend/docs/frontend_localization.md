@@ -60,7 +60,7 @@ Casual Bangla, mixed trading terms (BUY, RSI, Volume, FDR, etc.), Western digits
 
 ### Routes not localized yet (2026-07)
 
-`/wealth` and sub-routes (`/wealth/snapshot`, `/wealth/calendar`, `/wealth/tools/*`, `/wealth/compare/*`) — strings live in `frontend/features/wealth/` (start with `wealth-workspace-view.tsx`, `catalog/wealth-catalog.ts`). Stock explorer list (`/stocks`) is still English-only.
+`/wealth` and sub-routes (`/wealth/snapshot`, `/wealth/calendar`, `/wealth/tools/*`, `/wealth/compare/*`) — strings live in `frontend/features/wealth/` (start with `wealth-workspace-view.tsx`, `catalog/wealth-catalog.ts`).
 
 ---
 
@@ -214,9 +214,10 @@ Run: `cd frontend && npm test -- --run <feature>-locale`
 | `/market-pulse` | `market-pulse-language.ts` | `market-pulse-page-shell.tsx` |
 | `/signals` | `signals-language.ts` | `signals-page-shell.tsx` |
 | `/scanner` | `scanner-language.ts` | `scanner-page-shell.tsx` |
+| `/stocks` (explorer) | `stock-explorer-language.ts` | `stock-explorer-page-shell.tsx` |
 | `/stocks/{exchange}/{symbol}` | `stock-workspace-language.ts`, `stock-decision-language.ts` | `app/stocks/[exchange]/[symbol]/page.tsx` (cookie read inline) |
 
-Locale switcher: dashboard header, `WorkspacePageHero` on Market Pulse / Signal Center / Scanner, stock detail top bar. All write the same `smart-stock-locale` cookie + `router.refresh()`.
+Locale switcher: dashboard header, `WorkspacePageHero` on Market Pulse / Signal Center / Scanner / Stock Explorer, stock detail top bar. All write the same `smart-stock-locale` cookie + `router.refresh()`.
 
 Backend payloads remain **English**. Market Pulse applies a frontend locale overlay to its known story headlines (tone + sector count from English headline), alert, focus-stock, leadership, and summary templates using stable alert types, focus labels, and structured values; unknown or newly added backend prose falls back to English until the API exposes semantic reason codes. Stock decision **smart warnings** (`warnings.py` codes) and decision signal chips are localized in `stock-decision-language.ts` via `applyStockDecisionLocalization` in `buildStockDecisionViewModel`. Other backend briefing narratives, decision `reasoning[]` lines, and event prose remain English until their surfaces add the same typed adapter.
 
@@ -367,7 +368,7 @@ Benefits: one code path for API mapping, English tests stay simple, Bangla is an
 
 ### 1. Partial localization is safe
 
-Dashboard, Market Pulse, Signal Center, Scanner, and Stock Details consume `locale` today. Other routes (`/wealth`, `/stocks` explorer list, …) ignore the cookie and show English. **No errors** — that is by design until each feature adds a dictionary. **New client-facing routes should ship with localization** — see `.cursor/rules/architecture.md`.
+Dashboard, Market Pulse, Signal Center, Scanner, Stock Explorer, and Stock Details consume `locale` today. Other routes (`/wealth`, …) ignore the cookie and show English. **No errors** — that is by design until each feature adds a dictionary. **New client-facing routes should ship with localization** — see `.cursor/rules/architecture.md`.
 
 ### 2. Always pass `locale` from the server boundary
 

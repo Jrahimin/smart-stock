@@ -75,6 +75,12 @@ export type BackendStockDto = {
   updated_at: string;
 };
 
+export type BackendStockSearchResultDto = BackendStockDto & {
+  latest_price: string | number | null;
+  latest_trade_date: string | null;
+  data_quality_flag: DataQualityFlag | null;
+};
+
 export type BackendDailyPriceDto = {
   stock_id: string;
   trade_date: string;

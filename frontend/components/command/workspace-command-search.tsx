@@ -13,6 +13,8 @@ type WorkspaceCommandSearchProps = {
   onFilterTable?: (query: string) => void;
   showQuickActions?: boolean;
   variant?: "default" | "compact" | "discovery";
+  placeholder?: string;
+  ariaLabel?: string;
 };
 
 type SearchMenuItem =
@@ -35,14 +37,18 @@ export function WorkspaceCommandSearch({
   onFilterTable,
   showQuickActions = false,
   variant = "default",
+  placeholder: placeholderProp,
+  ariaLabel = "Global stock search",
 }: WorkspaceCommandSearchProps) {
   const isCompact = variant === "compact";
   const isDiscovery = variant === "discovery";
-  const placeholder = isDiscovery
-    ? "Search stocks, sectors, symbols…"
-    : isCompact
-      ? "Search e.g. GP, BATBC, banks…"
-      : "Search stocks, companies, sectors, or signals…";
+  const placeholder =
+    placeholderProp ??
+    (isDiscovery
+      ? "Search any stock…"
+      : isCompact
+        ? "Search e.g. GP, BATBC, banks…"
+        : "Search stocks, companies, sectors, or signals…");
   const searchClassName = isDiscovery
     ? "explorer-command-search explorer-command-search-discovery"
     : isCompact
@@ -91,6 +97,7 @@ export function WorkspaceCommandSearch({
 
       const firstItem = stockItems[0];
       if (
+        onFilterTable &&
         query.trim() &&
         (stockItems.length !== 1 ||
           firstItem?.kind !== "stock" ||
@@ -121,7 +128,7 @@ export function WorkspaceCommandSearch({
     }
 
     return items;
-  }, [filterContextName, isSearchEnabled, popularStocks, query, recentSearches, results]);
+  }, [filterContextName, isSearchEnabled, onFilterTable, popularStocks, query, recentSearches, results]);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -179,12 +186,13 @@ export function WorkspaceCommandSearch({
       <div className={`explorer-command-input-shell ${isOpen ? "is-open" : ""}`}>
         <label className="explorer-command-search-icon" htmlFor={inputId}>
           <Search aria-hidden="true" size={iconSize} strokeWidth={isDiscovery ? 2.1 : 2} />
-          <span className="sr-only">Search stocks</span>
+          <span className="sr-only">{ariaLabel}</span>
         </label>
         <input
           aria-autocomplete="list"
           aria-controls={showMenu ? `${inputId}-results` : undefined}
           aria-expanded={showMenu}
+          aria-label={ariaLabel}
           autoComplete="off"
           className="explorer-command-input"
           id={inputId}
