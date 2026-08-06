@@ -67,15 +67,19 @@ export type SystemJobExecutionStatus =
   | "RUNNING"
   | "SUCCEEDED"
   | "PARTIAL"
+  | "SKIPPED"
   | "FAILED"
   | "CANCELLED";
+
+export type SystemJobTriggerSource = "SCHEDULER" | "MANUAL" | "API" | "SYSTEM";
 
 export type SystemJobExecution = {
   id: string;
   job_type: SystemJobType;
   job_name: string;
+  dedupe_key: string | null;
   status: SystemJobExecutionStatus;
-  trigger_source: string;
+  trigger_source: SystemJobTriggerSource;
   triggered_by_user_id: string | null;
   started_at: string | null;
   completed_at: string | null;
@@ -85,6 +89,19 @@ export type SystemJobExecution = {
   metadata_json: Record<string, unknown>;
   created_at: string;
   updated_at: string;
+};
+
+export type SystemJobTriggerResult = {
+  execution: SystemJobExecution;
+  deduplicated: boolean;
+};
+
+export type AdminDataHealthState = "CURRENT" | "DELAYED" | "STALE" | "MISSING";
+
+export type AdminMeasuredHealth = {
+  state: AdminDataHealthState;
+  reason: string;
+  last_successful_at: string | null;
 };
 
 export type EmailCampaignRecipientScope =
@@ -135,18 +152,60 @@ export type AdminDashboardOverview = {
     super_admin_users: number;
   };
   scheduler: {
-    market_snapshot_scheduler_enabled: boolean;
-    daily_market_sync_scheduler_enabled: boolean;
+    liveness: {
+      component_name: string;
+      state: "ONLINE" | "OFFLINE" | "UNKNOWN";
+      reason: string;
+      last_heartbeat_at: string | null;
+      heartbeat_age_seconds: number | null;
+    };
+    configuration: {
+      market_snapshot_scheduler_enabled: boolean;
+      daily_market_sync_scheduler_enabled: boolean;
+      stock_details_sync_scheduler_enabled: boolean;
+      queue_poll_seconds: number;
+      stock_details_sync_time: string;
+      stock_details_sync_batch_size: number;
+    };
+    next_runs: {
+      market_snapshot_at: string | null;
+      daily_market_sync_at: string | null;
+      stock_details_sync_at: string | null;
+    };
   };
   data_health: {
-    latest_market_sync_at: string | null;
-    latest_market_snapshot_at: string | null;
-    latest_stock_details_sync_at: string | null;
+    market_data_health: AdminMeasuredHealth;
+    market_snapshot_health: AdminMeasuredHealth;
+    market_session_health: AdminMeasuredHealth;
+    latest_market_generation: {
+      trade_date: string;
+      sync_id: string;
+      source: string;
+      source_last_synced_at: string;
+      published_at: string;
+      fetched_count: number;
+      accepted_count: number;
+      suspicious_count: number;
+    } | null;
+    latest_market_session: {
+      trade_date: string;
+      source: string;
+      updated_at: string;
+      is_finalized: boolean;
+    } | null;
+    stock_details: {
+      health: AdminMeasuredHealth;
+      latest_status: "SUCCEEDED" | "PARTIAL" | null;
+      latest_source: string | null;
+      due_count: number;
+      completed_count: number;
+      failed_count: number;
+    };
     failed_jobs_count: number;
     suspicious_prices_count: number;
-    partial_prices_count: number;
+    expected_no_trade_count: number;
     active_stocks_without_latest_price: number;
-    overall_freshness_label: string;
+    latest_price_trade_date: string | null;
   };
   email_campaign_health: {
     queued_count: number;

@@ -54,6 +54,9 @@ Edit `.env` and set at minimum:
 - `NEXT_PUBLIC_API_BASE_URL` — `https://api.stockwealthbd.com/api/v1`
 - `NEXT_PUBLIC_SITE_URL` — `https://stockwealthbd.com` (canonical URLs, sitemap, JSON-LD; frontend build-time)
 - OAuth / SMTP values if used
+- `SYSTEM_JOB_QUEUE_POLL_SECONDS` — normally `10`
+- `STOCK_DETAILS_SYNC_SCHEDULER_ENABLED` — set explicitly for the rollout
+- `STOCK_DETAILS_SYNC_TIME` / `STOCK_DETAILS_SYNC_BATCH_SIZE` — normally `15:35` and `50`
 
 Never commit `.env`.
 
@@ -147,10 +150,16 @@ Scheduler logs should show:
 
 ```
 Scheduler process starting (RUN_SCHEDULER=true)
+System job queue worker started (poll=10s)
 Market snapshot scheduler started
 ...
 Scheduler process ready — waiting for shutdown signal
 ```
+
+After signing in as an administrator, verify Admin → Dashboard shows the
+`backend-scheduler` heartbeat as **Online**. It becomes Offline when the latest
+persisted heartbeat is older than two minutes; the configured scheduler toggles
+are displayed separately from liveness.
 
 Register OAuth production origins (Google Console, Facebook app) for `https://stockwealthbd.com`.
 
@@ -280,7 +289,10 @@ HTTP API only. **`RUN_SCHEDULER=false`** — no market sync or scheduled jobs in
 
 ### Backend — full functionality (API + scheduler)
 
-Production needs **both** `backend-api` and `backend-scheduler`. The scheduler runs market snapshots, daily sync, and other jobs (`RUN_SCHEDULER=true`). Restarting only `backend-api` does **not** reload scheduler jobs.
+Production needs **both** `backend-api` and `backend-scheduler`. The scheduler
+produces market snapshot, daily sync, and due stock-details work, executes the
+durable PostgreSQL queue, and records its heartbeat (`RUN_SCHEDULER=true`).
+Restarting only `backend-api` does **not** reload scheduler jobs.
 
 | Command | Purpose | Key flags / params | Outcome |
 |---------|---------|-------------------|---------|
@@ -288,7 +300,7 @@ Production needs **both** `backend-api` and `backend-scheduler`. The scheduler r
 | `docker compose build backend-api backend-scheduler` | Rebuild shared backend image | Single image used by both services | New `smart-stock-backend:latest` |
 | `docker compose up -d --build backend-api backend-scheduler` | Redeploy API + scheduler | Starts migration dependency first | Both use new image; frontend keeps running |
 | `docker compose restart backend-scheduler` | Restart jobs process | | Scheduler re-reads env; jobs restart; **no HTTP** on this container |
-| `docker compose logs -f backend-scheduler` | Verify scheduler health | | Expect `RUN_SCHEDULER=true`, job start lines, no crash loop |
+| `docker compose logs -f backend-scheduler` | Verify scheduler health | | Expect queue-runtime and producer start lines, no crash loop; confirm persisted heartbeat in Admin |
 | `docker compose run --rm backend-migrate` | Migrations after backend deploy | Recovery path | API and scheduler are gated on migration success |
 
 ### Data layer
@@ -369,6 +381,9 @@ Local and production should be on the same Alembic migration head before a data-
 |-------|-------|
 | API unhealthy | `docker compose logs backend-api` — DB connection, migrations run? |
 | Scheduler restart loop | `docker compose logs backend-scheduler` — `RUN_SCHEDULER` must be `true` |
+| Scheduler shown Offline | Check `backend-scheduler` logs and database connectivity; Admin requires a persisted heartbeat no older than two minutes |
+| Admin job remains Pending | Check the scheduler container is running and `SYSTEM_JOB_QUEUE_POLL_SECONDS`; only the dedicated scheduler claims work |
+| Abandoned job shown Failed | Expected after scheduler restart; inspect recoverable error metadata and enqueue again if safe |
 | 502 from host Nginx | `docker compose ps` — are frontend and backend-api healthy? `curl -f http://127.0.0.1:3000/build-info.json` and `curl -f http://127.0.0.1:8000/api/v1/health` on the VPS |
 | CORS errors | `BACKEND_CORS_ORIGINS` includes `https://stockwealthbd.com` |
 | Wrong API URL in browser | Rebuild frontend with correct `NEXT_PUBLIC_API_BASE_URL` |

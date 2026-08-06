@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   Clock3,
   Mail,
+  Server,
   Shield,
   Users,
 } from "lucide-react";
@@ -17,7 +18,6 @@ import {
   AdminDataTable,
   AdminDataTableBody,
   AdminDataTableCell,
-  AdminDataTableHead,
   AdminDataTableRow,
   AdminEmptyState,
   AdminSection,
@@ -28,6 +28,10 @@ import {
   formatStatusLabel,
   jobStatusTone,
 } from "@/features/admin/components/admin-status-badge";
+import {
+  adminHealthTone,
+  buildAdminMarketHealthCards,
+} from "@/features/admin/lib/admin-operations-view-model";
 import { fetchAdminDashboard } from "@/lib/api/admin-api";
 
 function formatDate(value: string | null) {
@@ -45,15 +49,10 @@ export function AdminDashboardView() {
   const { data, isLoading, error, dataUpdatedAt } = useQuery({
     queryKey: ["admin-dashboard"],
     queryFn: fetchAdminDashboard,
+    refetchInterval: 60_000,
   });
 
-  const freshness = data?.data_health.overall_freshness_label ?? "Unknown";
-  const systemHealthTone =
-    freshness.toLowerCase().includes("stale") || freshness.toLowerCase().includes("critical")
-      ? "warning"
-      : freshness.toLowerCase().includes("healthy")
-        ? "positive"
-        : "neutral";
+  const healthCards = data ? buildAdminMarketHealthCards(data) : [];
 
   return (
     <div className="admin-workspace workspace-page-stack">
@@ -105,52 +104,101 @@ export function AdminDashboardView() {
               value={data.email_campaign_health.queued_count}
             />
             <AdminKpiCard
-              helper={data.data_health.failed_jobs_count === 0 ? "No critical issues" : "Review failed jobs"}
+              helper={data.data_health.market_data_health.reason}
               icon={CheckCircle2}
-              label="System Health"
-              tone={systemHealthTone}
-              value={freshness}
+              label="Market Data Health"
+              tone={adminHealthTone(data.data_health.market_data_health.state)}
+              value={data.data_health.market_data_health.state}
+            />
+            <AdminKpiCard
+              helper={data.scheduler.liveness.reason}
+              icon={Server}
+              label="Backend Scheduler"
+              tone={schedulerTone(data.scheduler.liveness.state)}
+              value={data.scheduler.liveness.state}
             />
           </AdminKpiGrid>
 
-          <AdminSection description="Live ingestion and data quality signals" title="Data Health">
+          <AdminSection
+            description="Persisted liveness is measured separately from enabled configuration and calculated next runs."
+            title="Scheduler Runtime"
+          >
             <div className="admin-health-grid">
               <HealthCard
-                label="Market Sync"
-                meta={`Last updated ${formatDate(data.data_health.latest_market_sync_at)}`}
-                tone={data.data_health.latest_market_sync_at ? "positive" : "warning"}
-                value={data.data_health.latest_market_sync_at ? "Current" : "Missing"}
+                label="Backend Scheduler"
+                meta={`${data.scheduler.liveness.reason} Last heartbeat ${formatDate(
+                  data.scheduler.liveness.last_heartbeat_at,
+                )}.`}
+                tone={schedulerHealthTone(data.scheduler.liveness.state)}
+                value={data.scheduler.liveness.state}
               />
               <HealthCard
-                label="Snapshot Status"
-                meta={`Last updated ${formatDate(data.data_health.latest_market_snapshot_at)}`}
-                tone={data.data_health.latest_market_snapshot_at ? "positive" : "warning"}
-                value={data.data_health.latest_market_snapshot_at ? "Current" : "Missing"}
+                label="Market Snapshot Schedule"
+                meta={`Next run ${formatDate(
+                  data.scheduler.next_runs.market_snapshot_at,
+                )}. Queue poll ${data.scheduler.configuration.queue_poll_seconds}s.`}
+                tone={
+                  data.scheduler.configuration.market_snapshot_scheduler_enabled
+                    ? "positive"
+                    : "warning"
+                }
+                value={
+                  data.scheduler.configuration.market_snapshot_scheduler_enabled
+                    ? "ENABLED"
+                    : "DISABLED"
+                }
               />
               <HealthCard
-                label="Stock Details"
-                meta={`Last updated ${formatDate(data.data_health.latest_stock_details_sync_at)}`}
-                tone={data.data_health.latest_stock_details_sync_at ? "positive" : "warning"}
-                value={data.data_health.latest_stock_details_sync_at ? "Current" : "Missing"}
+                label="Daily Close Schedule"
+                meta={`Next run ${formatDate(
+                  data.scheduler.next_runs.daily_market_sync_at,
+                )}.`}
+                tone={
+                  data.scheduler.configuration
+                    .daily_market_sync_scheduler_enabled
+                    ? "positive"
+                    : "warning"
+                }
+                value={
+                  data.scheduler.configuration
+                    .daily_market_sync_scheduler_enabled
+                    ? "ENABLED"
+                    : "DISABLED"
+                }
               />
               <HealthCard
-                label="Suspicious Prices"
-                meta="Requires review if elevated"
-                tone={healthTone(data.data_health.suspicious_prices_count, 1, 3)}
-                value={data.data_health.suspicious_prices_count}
+                label="Stock Details Due Batch"
+                meta={`${
+                  data.scheduler.configuration.stock_details_sync_batch_size
+                } due stocks at ${
+                  data.scheduler.configuration.stock_details_sync_time
+                } Asia/Dhaka. Next run ${formatDate(
+                  data.scheduler.next_runs.stock_details_sync_at,
+                )}.`}
+                tone={
+                  data.scheduler.configuration
+                    .stock_details_sync_scheduler_enabled
+                    ? "positive"
+                    : "warning"
+                }
+                value={
+                  data.scheduler.configuration
+                    .stock_details_sync_scheduler_enabled
+                    ? "ENABLED"
+                    : "DISABLED"
+                }
               />
-              <HealthCard
-                label="Missing Prices"
-                meta={`${data.data_health.active_stocks_without_latest_price} active stocks missing latest price`}
-                tone={healthTone(data.data_health.active_stocks_without_latest_price, 1, 10)}
-                value={data.data_health.partial_prices_count}
-              />
-              <HealthCard
-                label="Email Failures"
-                meta={`Last sent ${formatDate(data.email_campaign_health.last_sent_at)}`}
-                tone={healthTone(data.email_campaign_health.failed_count)}
-                value={data.email_campaign_health.failed_count}
-              />
+            </div>
+          </AdminSection>
+
+          <AdminSection
+            description="Measured publication, DSEX finalization, stock-detail, and latest-session quality state."
+            title="Market Data Health"
+          >
+            <div className="admin-health-grid">
+              {healthCards.map((card) => (
+                <HealthCard key={card.label} {...card} />
+              ))}
             </div>
           </AdminSection>
 
@@ -165,7 +213,6 @@ export function AdminDashboardView() {
                   <AdminDataTableCell>Started</AdminDataTableCell>
                   <AdminDataTableCell>Duration</AdminDataTableCell>
                   <AdminDataTableCell>Trigger</AdminDataTableCell>
-                  <AdminDataTableCell align="right">Actions</AdminDataTableCell>
                 </div>
                 <AdminDataTableBody>
                   {data.recent_job_executions.map((job) => (
@@ -182,9 +229,6 @@ export function AdminDashboardView() {
                         {job.duration_ms != null ? `${job.duration_ms} ms` : "—"}
                       </AdminDataTableCell>
                       <AdminDataTableCell>{formatStatusLabel(job.trigger_source)}</AdminDataTableCell>
-                      <AdminDataTableCell align="right">
-                        <span className="admin-config-key">View</span>
-                      </AdminDataTableCell>
                     </AdminDataTableRow>
                   ))}
                 </AdminDataTableBody>
@@ -199,6 +243,18 @@ export function AdminDashboardView() {
   );
 }
 
+function schedulerTone(state: "ONLINE" | "OFFLINE" | "UNKNOWN") {
+  if (state === "ONLINE") return "positive" as const;
+  if (state === "OFFLINE") return "negative" as const;
+  return "warning" as const;
+}
+
+function schedulerHealthTone(
+  state: "ONLINE" | "OFFLINE" | "UNKNOWN",
+): "positive" | "warning" | "negative" {
+  return schedulerTone(state);
+}
+
 function HealthCard({
   label,
   value,
@@ -211,7 +267,13 @@ function HealthCard({
   tone: "positive" | "warning" | "negative";
 }) {
   const icon =
-    tone === "positive" ? <CheckCircle2 size={16} /> : tone === "warning" ? <Clock3 size={16} /> : <AlertTriangle size={16} />;
+    tone === "positive" ? (
+      <CheckCircle2 size={16} />
+    ) : tone === "warning" ? (
+      <Clock3 size={16} />
+    ) : (
+      <AlertTriangle size={16} />
+    );
 
   return (
     <article className={`admin-health-card admin-health-card-${tone}`}>

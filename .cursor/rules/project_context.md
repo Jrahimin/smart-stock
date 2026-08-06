@@ -292,6 +292,13 @@ Each active feature module keeps schemas, repository, service, and router files 
   * Service: `backend/app/modules/signals/signals_service.py`
   * Routes: `backend/app/modules/signals/signals_router.py`
 
+* Admin operations:
+  * Dashboard health: `backend/app/modules/admin_dashboard/`
+  * Durable job queue API/repository/runner: `backend/app/modules/admin_jobs/`
+  * Queue runtime: `backend/app/jobs/system_job_queue.py`
+  * PostgreSQL tables: `system_job_executions` and `scheduler_heartbeats`
+  * Docs: `backend/docs/admin_job_queue.md`
+
 Future feature placeholders:
 
 * AI analysis: `backend/app/modules/ai_analysis/`
@@ -308,6 +315,8 @@ Defined centrally in `backend/app/models.py`:
 * `daily_market_summaries`: exchange/index-level daily summary for quick dashboard fetches.
 * `technical_indicators`: indicator values and explainability metadata.
 * `trading_signals`: buy/sell/hold outputs, confidence, component scores, and metadata.
+* `system_job_executions`: durable operational work queue and terminal history.
+* `scheduler_heartbeats`: persisted component liveness for the backend scheduler.
 
 ## Data Pipeline
 
@@ -317,6 +326,7 @@ Pipeline jobs live under `backend/app/jobs/`:
 * Feature generation: `backend/app/jobs/features/`
 * Indicator computation: `backend/app/jobs/indicators/`
 * Signal generation: `backend/app/jobs/signals/`
+* Durable operations queue: `backend/app/jobs/system_job_queue.py`; manual and scheduled market/stock-details jobs use the same execution runner.
 * Market cache rebuild: `backend/app/jobs/market_cache_rebuild.py` (sequential overview → sectors → universe); spawn: `backend/app/jobs/market_cache_spawn.py`
 * Perf instrumentation: `backend/app/core/perf_timing.py`
 
