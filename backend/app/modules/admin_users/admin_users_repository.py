@@ -1,4 +1,6 @@
+from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import Depends
@@ -9,7 +11,25 @@ from app.core.base_repository import BaseRepository
 from app.core.database_session import get_db_session
 from app.core.enums import UserRole
 from app.core.pagination import ListQueryParams
-from app.models import User, UserSession
+from app.models import User, UserIdentity, UserSession, UserWatchlist
+
+
+@dataclass(frozen=True)
+class AdminUserPortfolioStats:
+    total_watchlisted: int
+    holding_count: int
+    notes_count: int
+    last_updated_at: datetime | None
+
+
+@dataclass(frozen=True)
+class AdminUserSessionStats:
+    total_count: int
+    successful_count: int
+    failed_count: int
+    revoked_count: int
+    logged_out_count: int
+    latest_login_at: datetime | None
 
 
 class AdminUsersRepository(BaseRepository[User]):
@@ -37,7 +57,11 @@ class AdminUsersRepository(BaseRepository[User]):
             statement = statement.where(
                 or_(User.email.ilike(pattern), User.display_name.ilike(pattern))
             )
-        statement = statement.order_by(User.created_at.desc(), User.id.desc()).limit(params.limit).offset(params.offset)
+        statement = (
+            statement.order_by(User.created_at.desc(), User.id.desc())
+            .limit(params.limit)
+            .offset(params.offset)
+        )
         result = await self.session.scalars(statement)
         return list(result.all())
 
@@ -70,7 +94,13 @@ class AdminUsersRepository(BaseRepository[User]):
             },
         )
 
-    async def list_user_sessions(self, user_id: UUID, *, limit: int = 50, offset: int = 0) -> list[UserSession]:
+    async def list_user_sessions(
+        self,
+        user_id: UUID,
+        *,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[UserSession]:
         statement = (
             select(UserSession)
             .where(UserSession.user_id == user_id)
@@ -80,6 +110,49 @@ class AdminUsersRepository(BaseRepository[User]):
         )
         result = await self.session.scalars(statement)
         return list(result.all())
+
+    async def list_user_identities(self, user_id: UUID) -> list[UserIdentity]:
+        statement = (
+            select(UserIdentity)
+            .where(UserIdentity.user_id == user_id)
+            .order_by(UserIdentity.provider.asc(), UserIdentity.created_at.asc())
+        )
+        result = await self.session.scalars(statement)
+        return list(result.all())
+
+    async def get_user_portfolio_stats(self, user_id: UUID) -> AdminUserPortfolioStats:
+        statement = select(
+            func.count(UserWatchlist.id),
+            func.count(UserWatchlist.id).filter(UserWatchlist.is_holding.is_(True)),
+            func.count(UserWatchlist.id).filter(UserWatchlist.note.is_not(None)),
+            func.max(UserWatchlist.updated_at),
+        ).where(UserWatchlist.user_id == user_id)
+        row = (await self.session.execute(statement)).one()
+        return AdminUserPortfolioStats(
+            total_watchlisted=int(row[0] or 0),
+            holding_count=int(row[1] or 0),
+            notes_count=int(row[2] or 0),
+            last_updated_at=row[3],
+        )
+
+    async def get_user_session_stats(self, user_id: UUID) -> AdminUserSessionStats:
+        statement = select(
+            func.count(UserSession.id),
+            func.count(UserSession.id).filter(UserSession.is_successful.is_(True)),
+            func.count(UserSession.id).filter(UserSession.is_successful.is_(False)),
+            func.count(UserSession.id).filter(UserSession.revoked_at.is_not(None)),
+            func.count(UserSession.id).filter(UserSession.logout_at.is_not(None)),
+            func.max(UserSession.login_at),
+        ).where(UserSession.user_id == user_id)
+        row = (await self.session.execute(statement)).one()
+        return AdminUserSessionStats(
+            total_count=int(row[0] or 0),
+            successful_count=int(row[1] or 0),
+            failed_count=int(row[2] or 0),
+            revoked_count=int(row[3] or 0),
+            logged_out_count=int(row[4] or 0),
+            latest_login_at=row[5],
+        )
 
     async def revoke_user_sessions(self, user_id: UUID) -> None:
         statement = (
@@ -91,5 +164,7 @@ class AdminUsersRepository(BaseRepository[User]):
         await self.session.flush()
 
 
-def get_admin_users_repository(session: AsyncSession = Depends(get_db_session)) -> AdminUsersRepository:
+def get_admin_users_repository(
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> AdminUsersRepository:
     return AdminUsersRepository(session)

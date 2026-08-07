@@ -3,6 +3,7 @@
 import { X } from "lucide-react";
 import type { ReactNode } from "react";
 import { useEffect } from "react";
+import { createPortal } from "react-dom";
 
 type AdminDrawerProps = {
   title: string;
@@ -21,17 +22,18 @@ export function AdminDrawer({ title, subtitle, isOpen, onClose, children, footer
       if (event.key === "Escape") onClose();
     };
 
+    const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     window.addEventListener("keydown", onKeyDown);
     return () => {
-      document.body.style.overflow = "";
+      document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", onKeyDown);
     };
   }, [isOpen, onClose]);
 
-  if (!isOpen) return null;
+  if (!isOpen || typeof document === "undefined") return null;
 
-  return (
+  return createPortal(
     <div className="admin-drawer-root">
       <button aria-label="Close panel" className="admin-drawer-backdrop" onClick={onClose} type="button" />
       <aside aria-labelledby="admin-drawer-title" className="admin-drawer-panel" role="dialog">
@@ -47,6 +49,7 @@ export function AdminDrawer({ title, subtitle, isOpen, onClose, children, footer
         <div className="admin-drawer-body">{children}</div>
         {footer ? <footer className="admin-drawer-footer">{footer}</footer> : null}
       </aside>
-    </div>
+    </div>,
+    document.body,
   );
 }

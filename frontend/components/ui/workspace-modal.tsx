@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useEffect } from "react";
+import { createPortal } from "react-dom";
 
 type WorkspaceModalProps = {
   title: string;
@@ -21,15 +22,20 @@ export function WorkspaceModal({ title, isOpen, onClose, children, size = "defau
         onClose();
       }
     };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
   }, [isOpen, onClose]);
 
-  if (!isOpen) {
+  if (!isOpen || typeof document === "undefined") {
     return null;
   }
 
-  return (
+  return createPortal(
     <div className="workspace-modal-backdrop workspace-modal-animate-in" onClick={onClose} role="presentation">
       <div
         aria-labelledby={title ? "workspace-modal-title" : undefined}
@@ -52,6 +58,7 @@ export function WorkspaceModal({ title, isOpen, onClose, children, size = "defau
         )}
         <div className="workspace-modal-body">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

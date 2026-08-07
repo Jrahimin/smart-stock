@@ -1,6 +1,6 @@
 "use client";
 
-import { Download, History, Trash2, UserCog, UserPlus } from "lucide-react";
+import { Download, Eye, History, Trash2, UserCog, UserPlus } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -491,6 +491,11 @@ function UserRow({
       </AdminDataTableCell>
       <AdminDataTableCell align="right">
         <div className="admin-action-group">
+          <AdminIconAction
+            href={`/admin/users/${user.id}`}
+            icon={Eye}
+            label="View user details"
+          />
           {isSuperAdmin ? (
             <AdminIconAction icon={UserCog} label="Edit user" onClick={onEdit} tone="info" />
           ) : null}

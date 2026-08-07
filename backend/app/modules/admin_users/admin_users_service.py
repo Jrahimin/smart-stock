@@ -1,22 +1,43 @@
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import Depends
 
-from app.core.security.password_service import hash_password
-from app.core.enums import UserRole
+from app.core.enums import ExchangeCode, UserRole
 from app.core.exception_handlers import AppError, ForbiddenError, NotFoundError
 from app.core.pagination import ListQueryParams
+from app.core.security.password_service import hash_password
 from app.core.security_config import UserContext
 from app.models import User
-from app.modules.admin_users.admin_users_repository import AdminUsersRepository, get_admin_users_repository
-from app.modules.admin_users.admin_users_schemas import AdminUserCreateRequest, AdminUserListQuery, AdminUserRoleUpdateRequest
+from app.modules.admin_users.admin_users_repository import (
+    AdminUsersRepository,
+    get_admin_users_repository,
+)
+from app.modules.admin_users.admin_users_schemas import (
+    AdminUserCreateRequest,
+    AdminUserDetailsRead,
+    AdminUserIdentityRead,
+    AdminUserListQuery,
+    AdminUserPortfolioSummaryRead,
+    AdminUserRead,
+    AdminUserRoleUpdateRequest,
+    AdminUserSessionSummaryRead,
+)
 from app.modules.auth.auth_repository import AuthRepository, get_auth_repository
+from app.modules.portfolios.portfolios_schemas import PortfolioWorkspaceRead
+from app.modules.portfolios.portfolios_service import PortfoliosService, get_portfolios_service
 
 
 class AdminUsersService:
-    def __init__(self, repository: AdminUsersRepository, auth_repository: AuthRepository) -> None:
+    def __init__(
+        self,
+        repository: AdminUsersRepository,
+        auth_repository: AuthRepository,
+        portfolios_service: PortfoliosService,
+    ) -> None:
         self.repository = repository
         self.auth_repository = auth_repository
+        self.portfolios_service = portfolios_service
 
     async def list_users(self, query: AdminUserListQuery) -> list[User]:
         params = ListQueryParams(
@@ -36,6 +57,54 @@ class AdminUsersService:
         if user is None or (user.deleted_at is not None and not include_deleted):
             raise NotFoundError("User was not found")
         return user
+
+    async def get_user_details(self, user_id: UUID) -> AdminUserDetailsRead:
+        user = await self.get_user(user_id, include_deleted=True)
+        identities = await self.repository.list_user_identities(user_id)
+        portfolio = await self.repository.get_user_portfolio_stats(user_id)
+        sessions = await self.repository.get_user_session_stats(user_id)
+        base = AdminUserRead.model_validate(user)
+        return AdminUserDetailsRead(
+            **base.model_dump(),
+            gender=user.gender,
+            address=user.address,
+            profile_pic_url=user.profile_pic_url,
+            portfolio_daily_summary_email_enabled=user.portfolio_daily_summary_email_enabled,
+            preferred_locale=user.preferred_locale,
+            has_password=user.has_password,
+            identities=[
+                AdminUserIdentityRead(provider=identity.provider, linked_at=identity.created_at)
+                for identity in identities
+            ],
+            portfolio_summary=AdminUserPortfolioSummaryRead(
+                has_watchlist=portfolio.total_watchlisted > 0,
+                has_holdings=portfolio.holding_count > 0,
+                total_watchlisted=portfolio.total_watchlisted,
+                holding_count=portfolio.holding_count,
+                notes_count=portfolio.notes_count,
+                last_updated_at=portfolio.last_updated_at,
+            ),
+            session_summary=AdminUserSessionSummaryRead(
+                total_count=sessions.total_count,
+                successful_count=sessions.successful_count,
+                failed_count=sessions.failed_count,
+                revoked_count=sessions.revoked_count,
+                logged_out_count=sessions.logged_out_count,
+                latest_login_at=sessions.latest_login_at,
+            ),
+        )
+
+    async def get_user_portfolio(
+        self,
+        user_id: UUID,
+        *,
+        exchange: ExchangeCode,
+    ) -> PortfolioWorkspaceRead:
+        await self.get_user(user_id, include_deleted=True)
+        return await self.portfolios_service.get_workspace_for_user(
+            user_id=user_id,
+            exchange=exchange,
+        )
 
     async def set_active_status(self, user_id: UUID, *, is_active: bool) -> User:
         user = await self.get_user(user_id)
@@ -80,7 +149,12 @@ class AdminUsersService:
         await self.repository.revoke_user_sessions(user.id)
         await self.repository.commit()
 
-    async def create_admin_user(self, payload: AdminUserCreateRequest, *, actor: UserContext) -> User:
+    async def create_admin_user(
+        self,
+        payload: AdminUserCreateRequest,
+        *,
+        actor: UserContext,
+    ) -> User:
         if payload.role == UserRole.SUPER_ADMIN:
             raise AppError("Create super admin accounts via the bootstrap seeder")
 
@@ -114,7 +188,8 @@ class AdminUsersService:
 
 
 def get_admin_users_service(
-    repository: AdminUsersRepository = Depends(get_admin_users_repository),
-    auth_repository: AuthRepository = Depends(get_auth_repository),
+    repository: Annotated[AdminUsersRepository, Depends(get_admin_users_repository)],
+    auth_repository: Annotated[AuthRepository, Depends(get_auth_repository)],
+    portfolios_service: Annotated[PortfoliosService, Depends(get_portfolios_service)],
 ) -> AdminUsersService:
-    return AdminUsersService(repository, auth_repository)
+    return AdminUsersService(repository, auth_repository, portfolios_service)

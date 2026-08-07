@@ -1,10 +1,9 @@
 from datetime import datetime
-from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.core.enums import UserRole
+from app.core.enums import UserGender, UserRole
 
 
 class AdminUserRead(BaseModel):
@@ -43,6 +42,41 @@ class AdminUserSessionRead(BaseModel):
     is_successful: bool
     failure_reason: str | None
     created_at: datetime
+
+
+class AdminUserIdentityRead(BaseModel):
+    provider: str
+    linked_at: datetime
+
+
+class AdminUserPortfolioSummaryRead(BaseModel):
+    has_watchlist: bool
+    has_holdings: bool
+    total_watchlisted: int
+    holding_count: int
+    notes_count: int
+    last_updated_at: datetime | None
+
+
+class AdminUserSessionSummaryRead(BaseModel):
+    total_count: int
+    successful_count: int
+    failed_count: int
+    revoked_count: int
+    logged_out_count: int
+    latest_login_at: datetime | None
+
+
+class AdminUserDetailsRead(AdminUserRead):
+    gender: UserGender | None
+    address: str | None
+    profile_pic_url: str | None
+    portfolio_daily_summary_email_enabled: bool
+    preferred_locale: str
+    has_password: bool
+    identities: list[AdminUserIdentityRead]
+    portfolio_summary: AdminUserPortfolioSummaryRead
+    session_summary: AdminUserSessionSummaryRead
 
 
 class AdminUserCreateRequest(BaseModel):

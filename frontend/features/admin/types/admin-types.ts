@@ -1,4 +1,5 @@
 export type UserRole = "USER" | "ADMIN" | "SUPER_ADMIN";
+export type AdminUserGender = "male" | "female" | "other" | "prefer_not_to_say";
 
 export type AdminUser = {
   id: string;
@@ -32,6 +33,41 @@ export type AdminUserSession = {
   is_successful: boolean;
   failure_reason: string | null;
   created_at: string;
+};
+
+export type AdminUserIdentity = {
+  provider: string;
+  linked_at: string;
+};
+
+export type AdminUserPortfolioSummary = {
+  has_watchlist: boolean;
+  has_holdings: boolean;
+  total_watchlisted: number;
+  holding_count: number;
+  notes_count: number;
+  last_updated_at: string | null;
+};
+
+export type AdminUserSessionSummary = {
+  total_count: number;
+  successful_count: number;
+  failed_count: number;
+  revoked_count: number;
+  logged_out_count: number;
+  latest_login_at: string | null;
+};
+
+export type AdminUserDetails = AdminUser & {
+  gender: AdminUserGender | null;
+  address: string | null;
+  profile_pic_url: string | null;
+  portfolio_daily_summary_email_enabled: boolean;
+  preferred_locale: string;
+  has_password: boolean;
+  identities: AdminUserIdentity[];
+  portfolio_summary: AdminUserPortfolioSummary;
+  session_summary: AdminUserSessionSummary;
 };
 
 export type ConfigValueType = "STRING" | "INTEGER" | "FLOAT" | "BOOLEAN" | "JSON";

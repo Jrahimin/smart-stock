@@ -4,17 +4,19 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 
 from app.api.dependencies.auth_dependencies import CurrentAdmin, CurrentSuperAdmin
-from app.core.enums import UserRole
+from app.core.enums import ExchangeCode, UserRole
 from app.core.response_handler import ApiResponse, success_response
 from app.modules.admin_users.admin_users_schemas import (
     AdminUserActiveUpdateRequest,
     AdminUserCreateRequest,
+    AdminUserDetailsRead,
     AdminUserListQuery,
     AdminUserRead,
     AdminUserRoleUpdateRequest,
     AdminUserSessionRead,
 )
 from app.modules.admin_users.admin_users_service import AdminUsersService, get_admin_users_service
+from app.modules.portfolios.portfolios_schemas import PortfolioWorkspaceRead
 
 router = APIRouter(prefix="/admin/users", tags=["admin users"])
 
@@ -65,6 +67,27 @@ async def get_user(
 ) -> ApiResponse[AdminUserRead]:
     user = await service.get_user(user_id, include_deleted=include_deleted)
     return success_response(data=AdminUserRead.model_validate(user), message="User retrieved")
+
+
+@router.get("/{user_id}/details", response_model=ApiResponse[AdminUserDetailsRead])
+async def get_user_details(
+    user_id: UUID,
+    service: Annotated[AdminUsersService, Depends(get_admin_users_service)],
+    _: CurrentAdmin,
+) -> ApiResponse[AdminUserDetailsRead]:
+    details = await service.get_user_details(user_id)
+    return success_response(data=details, message="User details retrieved")
+
+
+@router.get("/{user_id}/portfolio", response_model=ApiResponse[PortfolioWorkspaceRead])
+async def get_user_portfolio(
+    user_id: UUID,
+    service: Annotated[AdminUsersService, Depends(get_admin_users_service)],
+    _: CurrentAdmin,
+    exchange: ExchangeCode = ExchangeCode.DSE,
+) -> ApiResponse[PortfolioWorkspaceRead]:
+    workspace = await service.get_user_portfolio(user_id, exchange=exchange)
+    return success_response(data=workspace, message="User portfolio retrieved")
 
 
 @router.get("/{user_id}/sessions", response_model=ApiResponse[list[AdminUserSessionRead]])

@@ -3,6 +3,7 @@ import type {
   AdminConfigSetting,
   AdminDashboardOverview,
   AdminUser,
+  AdminUserDetails,
   AdminUserSession,
   EmailCampaign,
   EmailCampaignRecipientScope,
@@ -13,6 +14,7 @@ import type {
   SystemJobType,
   UserRole,
 } from "@/features/admin/types/admin-types";
+import type { BackendPortfolioWorkspaceDto, ExchangeCode } from "@/lib/api/backend-api-types";
 
 const NO_STORE = { cache: "no-store" } as RequestInit;
 
@@ -35,8 +37,27 @@ export function fetchAdminUser(userId: string, includeDeleted = false) {
   return backendApiGet<AdminUser>(`/admin/users/${userId}`, { include_deleted: includeDeleted }, NO_STORE);
 }
 
-export function fetchAdminUserSessions(userId: string) {
-  return backendApiGet<AdminUserSession[]>(`/admin/users/${userId}/sessions`, undefined, NO_STORE);
+export function fetchAdminUserDetails(userId: string) {
+  return backendApiGet<AdminUserDetails>(`/admin/users/${userId}/details`, undefined, NO_STORE);
+}
+
+export function fetchAdminUserPortfolio(userId: string, exchange: ExchangeCode = "DSE") {
+  return backendApiGet<BackendPortfolioWorkspaceDto>(
+    `/admin/users/${userId}/portfolio`,
+    { exchange },
+    NO_STORE,
+  );
+}
+
+export function fetchAdminUserSessions(
+  userId: string,
+  params?: { limit?: number; offset?: number },
+) {
+  return backendApiGet<AdminUserSession[]>(
+    `/admin/users/${userId}/sessions`,
+    params,
+    NO_STORE,
+  );
 }
 
 export function updateAdminUserActive(userId: string, isActive: boolean) {

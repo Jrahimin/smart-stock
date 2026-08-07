@@ -159,7 +159,16 @@ class PortfoliosService:
         return UUID(self.user_context.user_id)
 
     async def get_workspace(self, *, exchange: ExchangeCode) -> PortfolioWorkspaceRead:
-        return await self._build_workspace(user_id=self._user_id(), exchange=exchange)
+        return await self.get_workspace_for_user(user_id=self._user_id(), exchange=exchange)
+
+    async def get_workspace_for_user(
+        self,
+        *,
+        user_id: UUID,
+        exchange: ExchangeCode,
+    ) -> PortfolioWorkspaceRead:
+        """Build a portfolio workspace for an already-authorized target user."""
+        return await self._build_workspace(user_id=user_id, exchange=exchange)
 
     async def get_email_preference(self) -> PortfolioEmailPreferenceRead:
         enabled, locale = await self.repository.get_email_preference(user_id=self._user_id())
@@ -200,7 +209,12 @@ class PortfoliosService:
                 bool(freshness.is_live_session),
             )
 
-    async def _build_workspace(self, *, user_id: UUID, exchange: ExchangeCode) -> PortfolioWorkspaceRead:
+    async def _build_workspace(
+        self,
+        *,
+        user_id: UUID,
+        exchange: ExchangeCode,
+    ) -> PortfolioWorkspaceRead:
         # Sequential awaits only — this request shares one AsyncSession across
         # repository/universe/market services; concurrent gather is not safe.
         items = await self.repository.list_items(user_id=user_id, exchange=exchange)

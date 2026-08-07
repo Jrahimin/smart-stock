@@ -35,6 +35,7 @@ The seeder creates or updates one verified `SUPER_ADMIN` account. Keep credentia
 |-------|---------|
 | `/admin` | Dashboard, data health, recent jobs |
 | `/admin/users` | User management and session activity |
+| `/admin/users/{user_id}` | Read-only user profile, sign-in methods, portfolio, preferences, and sessions |
 | `/admin/configuration` | Safe runtime operational settings (`SUPER_ADMIN`) |
 | `/admin/jobs` | `system_job_executions` history and manual triggers (`SUPER_ADMIN`) |
 | `/admin/email-campaigns` | Compose, queue, and monitor bulk email campaigns |
@@ -75,6 +76,29 @@ Login activity is captured only at authentication time:
 - JWT access tokens include `session_id` and role claims.
 
 There is no full request/activity middleware and no admin audit log table in this phase.
+
+## User details
+
+The user directory links to `/admin/users/{user_id}` for an admin-only detail workspace.
+It combines:
+
+- complete stored profile and account state;
+- safe linked-provider names from `user_identities` (provider subject identifiers are not exposed);
+- portfolio/watchlist presence, counts, notes, last edit time, and daily summary email preference;
+- a read-only target-user portfolio workspace using the same valuation and decision calculations as
+  the user's portfolio;
+- paginated authentication history from `user_sessions`.
+
+Admin APIs:
+
+- `GET /api/v1/admin/users/{user_id}/details`
+- `GET /api/v1/admin/users/{user_id}/portfolio?exchange=DSE`
+- `GET /api/v1/admin/users/{user_id}/sessions?limit=25&offset=0`
+
+`user_identities.provider = "google"` means Google OAuth is linked to the account. The current
+session schema does not record the provider used for each individual login, so the UI does not
+attribute a particular session to Google. Sessions that are not logged out or revoked are labelled
+as recorded logins rather than active sessions because continuous request activity is not tracked.
 
 ## Configuration rules
 
