@@ -37,13 +37,11 @@ from app.core.enums import (
     TrendDirection,
 )
 from app.core.redis_client import OptionalRedisClient, get_redis_client
-from app.modules.market_data.market_data_schemas import MarketFreshnessRead
 from app.modules.market_data.market_data_service import MarketDataService, get_market_data_service
 from app.modules.market_pulse.market_pulse_cache import (
     pulse_cache_key,
     pulse_cache_ttl_seconds,
 )
-from app.modules.market_pulse.market_pulse_session import resolve_pulse_decision_date
 from app.modules.market_pulse.market_pulse_history import (
     compute_pulse_opportunity_aggregate,
     pulse_history_trend_label,
@@ -84,9 +82,12 @@ from app.modules.market_pulse.pulse_score import (
 from app.modules.market_universe.market_universe_compute import technical_snapshot_from_read
 from app.modules.market_universe.market_universe_schemas import ScoredUniverseRow
 from app.modules.market_universe.market_universe_service import (
+    CanonicalUniverseSnapshot,
     MarketUniverseService,
+    UniverseCacheUnavailableError,
     get_market_universe_service,
 )
+from app.jobs.market_session_schedule import resolve_market_status
 from app.modules.stock_details.decision.technical import TechnicalSnapshot
 from app.modules.stock_details.stock_details_schemas import TraderDecisionSummaryRead
 
@@ -478,16 +479,6 @@ class MarketPulseService:
     async def _cache_get(self, cache_key: str) -> dict | None:
         return await self.redis.get_json(cache_key)
 
-    @staticmethod
-    def _freshness_market_sync_id(freshness: MarketFreshnessRead) -> str | None:
-        value = getattr(freshness, "market_sync_id", None)
-        return value if isinstance(value, str) else None
-
-    @staticmethod
-    def _freshness_data_state(freshness: MarketFreshnessRead) -> MarketDataState:
-        value = getattr(freshness, "data_state", None)
-        return value if isinstance(value, MarketDataState) else MarketDataState.STALE
-
     async def _cache_set(self, cache_key: str, payload: dict, *, empty_state: str) -> None:
         ttl_seconds = pulse_cache_ttl_seconds(self.settings, empty_state=empty_state)
         await self.redis.set_json(cache_key, payload, ttl_seconds=ttl_seconds)
@@ -509,19 +500,17 @@ class MarketPulseService:
     def _cached_generation_matches(
         *,
         market_sync_id: str | None,
-        data_state,
-        freshness: MarketFreshnessRead,
+        snapshot: CanonicalUniverseSnapshot,
     ) -> bool:
-        return (
-            market_sync_id == MarketPulseService._freshness_market_sync_id(freshness)
-            and data_state == MarketPulseService._freshness_data_state(freshness)
-        )
+        # State is presentation metadata.  The cache content is reusable while
+        # the immutable published generation remains unchanged.
+        return market_sync_id == snapshot.generation.sync_id
 
     async def _load_cached_summary_if_valid(
         self,
         *,
         cache_key: str,
-        freshness: MarketFreshnessRead,
+        snapshot: CanonicalUniverseSnapshot,
         decision_date: date | None,
     ) -> MarketPulseSummaryRead | None:
         cached = await self._cache_get(cache_key)
@@ -538,13 +527,12 @@ class MarketPulseService:
             await self._delete_cache_key(cache_key)
             return None
 
-        if freshness.last_synced_at is None or summary.last_synced_at != freshness.last_synced_at:
+        if summary.last_synced_at != snapshot.generation.source_last_synced_at:
             return None
 
         if not self._cached_generation_matches(
             market_sync_id=summary.market_sync_id,
-            data_state=summary.data_state,
-            freshness=freshness,
+            snapshot=snapshot,
         ):
             return None
 
@@ -560,7 +548,7 @@ class MarketPulseService:
         self,
         *,
         cache_key: str,
-        freshness: MarketFreshnessRead,
+        snapshot: CanonicalUniverseSnapshot,
         decision_date: date | None,
     ) -> MarketPulseRead | None:
         cached = await self._cache_get(cache_key)
@@ -577,13 +565,12 @@ class MarketPulseService:
             await self._delete_cache_key(cache_key)
             return None
 
-        if freshness.last_synced_at is None or pulse.last_synced_at != freshness.last_synced_at:
+        if pulse.last_synced_at != snapshot.generation.source_last_synced_at:
             return None
 
         if not self._cached_generation_matches(
             market_sync_id=pulse.market_sync_id,
-            data_state=pulse.data_state,
-            freshness=freshness,
+            snapshot=snapshot,
         ):
             return None
 
@@ -602,41 +589,40 @@ class MarketPulseService:
         previous: MarketPulsePreviousSnapshot | None,
         display_name: str | None = None,
     ) -> MarketPulseRead:
-        freshness = await self.market_data_service.get_market_freshness(exchange=exchange)
-        decision_date = resolve_pulse_decision_date(freshness)
-        market_sync_id = self._freshness_market_sync_id(freshness)
-        data_state = self._freshness_data_state(freshness)
-        cache_key = pulse_cache_key("response", exchange, decision_date, market_sync_id)
-        if uses_shared_pulse_cache(previous, display_name):
-            cached_pulse = await self._load_cached_pulse_if_valid(
-                cache_key=cache_key,
-                freshness=freshness,
-                decision_date=decision_date,
-            )
-            if cached_pulse is not None:
-                return cached_pulse
+        for _ in range(2):
+            snapshot = await self.universe_service.get_canonical_universe(exchange=exchange)
+            generation = snapshot.generation
+            decision_date = generation.trade_date
+            cache_key = pulse_cache_key("response", exchange, decision_date, generation.sync_id)
+            if uses_shared_pulse_cache(previous, display_name):
+                cached_pulse = await self._load_cached_pulse_if_valid(
+                    cache_key=cache_key,
+                    snapshot=snapshot,
+                    decision_date=decision_date,
+                )
+                if cached_pulse is not None and await self.universe_service.is_generation_current(
+                    generation,
+                    exchange=exchange,
+                ):
+                    return self._stamp_pulse(cached_pulse, snapshot)
 
-        payload = await self._compute_market_pulse(
-            exchange=exchange,
-            previous=previous,
-            display_name=display_name,
-            freshness=freshness,
-            decision_date=decision_date,
-        )
-        stamped = payload.model_copy(
-            update={
-                "last_synced_at": freshness.last_synced_at,
-                "market_sync_id": market_sync_id,
-                "data_state": data_state,
-            }
-        )
-        if uses_shared_pulse_cache(previous, display_name):
-            await self._cache_set(
-                cache_key,
-                stamped.model_dump(mode="json"),
-                empty_state=stamped.empty_state,
+            payload = await self._compute_market_pulse(
+                exchange=exchange,
+                previous=previous,
+                display_name=display_name,
+                snapshot=snapshot,
             )
-        return stamped
+            if not await self.universe_service.is_generation_current(generation, exchange=exchange):
+                continue
+            stamped = self._stamp_pulse(payload, snapshot)
+            if uses_shared_pulse_cache(previous, display_name):
+                await self._cache_set(
+                    cache_key,
+                    stamped.model_dump(mode="json"),
+                    empty_state=stamped.empty_state,
+                )
+            return stamped
+        raise UniverseCacheUnavailableError("Published market generation changed while Pulse was loading")
 
     async def get_market_pulse_summary(
         self,
@@ -645,49 +631,54 @@ class MarketPulseService:
         previous: MarketPulsePreviousSnapshot | None,
         display_name: str | None = None,
     ) -> MarketPulseSummaryRead:
-        freshness = await self.market_data_service.get_market_freshness(exchange=exchange)
-        decision_date = resolve_pulse_decision_date(freshness)
-        market_sync_id = self._freshness_market_sync_id(freshness)
-        data_state = self._freshness_data_state(freshness)
-        cache_key = pulse_cache_key("summary", exchange, decision_date, market_sync_id)
-        if uses_shared_pulse_cache(previous, display_name):
-            cached_summary = await self._load_cached_summary_if_valid(
-                cache_key=cache_key,
-                freshness=freshness,
-                decision_date=decision_date,
-            )
-            if cached_summary is not None:
-                return cached_summary
+        for _ in range(2):
+            snapshot = await self.universe_service.get_canonical_universe(exchange=exchange)
+            generation = snapshot.generation
+            decision_date = generation.trade_date
+            cache_key = pulse_cache_key("summary", exchange, decision_date, generation.sync_id)
+            if uses_shared_pulse_cache(previous, display_name):
+                cached_summary = await self._load_cached_summary_if_valid(
+                    cache_key=cache_key,
+                    snapshot=snapshot,
+                    decision_date=decision_date,
+                )
+                if cached_summary is not None and await self.universe_service.is_generation_current(
+                    generation,
+                    exchange=exchange,
+                ):
+                    return self._stamp_summary(cached_summary, snapshot)
 
-        # Rebuild from compute — never reuse pulse:response cache (may be stale without generation).
-        pulse = await self._compute_market_pulse(
-            exchange=exchange,
-            previous=previous,
-            display_name=display_name,
-            freshness=freshness,
-            decision_date=decision_date,
-        )
-        summary = MarketPulseSummaryRead(
-            hero=pulse.hero,
-            since_last_visit=pulse.since_last_visit,
-            focus_stocks=pulse.focus_stocks,
-            monitor_candidates=pulse.monitor_candidates,
-            alerts=pulse.alerts,
-            empty_state=pulse.empty_state,
-            empty_message=pulse.empty_message,
-            data_quality_note=pulse.data_quality_note,
-            coverage=pulse.coverage,
-            last_synced_at=freshness.last_synced_at,
-            market_sync_id=market_sync_id,
-            data_state=data_state,
-        )
-        if uses_shared_pulse_cache(previous, display_name):
-            await self._cache_set(
-                cache_key,
-                summary.model_dump(mode="json"),
-                empty_state=summary.empty_state,
+            pulse = await self._compute_market_pulse(
+                exchange=exchange,
+                previous=previous,
+                display_name=display_name,
+                snapshot=snapshot,
             )
-        return summary
+            if not await self.universe_service.is_generation_current(generation, exchange=exchange):
+                continue
+            stamped_pulse = self._stamp_pulse(pulse, snapshot)
+            summary = MarketPulseSummaryRead(
+                hero=stamped_pulse.hero,
+                since_last_visit=stamped_pulse.since_last_visit,
+                focus_stocks=stamped_pulse.focus_stocks,
+                monitor_candidates=stamped_pulse.monitor_candidates,
+                alerts=stamped_pulse.alerts,
+                empty_state=stamped_pulse.empty_state,
+                empty_message=stamped_pulse.empty_message,
+                data_quality_note=stamped_pulse.data_quality_note,
+                coverage=stamped_pulse.coverage,
+                last_synced_at=stamped_pulse.last_synced_at,
+                market_sync_id=stamped_pulse.market_sync_id,
+                data_state=stamped_pulse.data_state,
+            )
+            if uses_shared_pulse_cache(previous, display_name):
+                await self._cache_set(
+                    cache_key,
+                    summary.model_dump(mode="json"),
+                    empty_state=summary.empty_state,
+                )
+            return summary
+        raise UniverseCacheUnavailableError("Published market generation changed while Pulse was loading")
 
     async def get_market_pulse_briefing(
         self,
@@ -702,24 +693,70 @@ class MarketPulseService:
         )
         return pulse.briefing
 
+    @staticmethod
+    def _stamp_pulse(
+        pulse: MarketPulseRead,
+        snapshot: CanonicalUniverseSnapshot,
+    ) -> MarketPulseRead:
+        generation = snapshot.generation
+        coverage = pulse.coverage.model_copy(
+            update={
+                "decision_session_date": generation.trade_date,
+                "trade_date": generation.trade_date,
+                "session_trade_date": generation.trade_date,
+                "market_sync_id": generation.sync_id,
+                "data_state": generation.data_state,
+            }
+        )
+        return pulse.model_copy(
+            update={
+                "coverage": coverage,
+                "last_synced_at": generation.source_last_synced_at,
+                "market_sync_id": generation.sync_id,
+                "data_state": generation.data_state,
+            }
+        )
+
+    @staticmethod
+    def _stamp_summary(
+        summary: MarketPulseSummaryRead,
+        snapshot: CanonicalUniverseSnapshot,
+    ) -> MarketPulseSummaryRead:
+        generation = snapshot.generation
+        coverage = summary.coverage.model_copy(
+            update={
+                "decision_session_date": generation.trade_date,
+                "trade_date": generation.trade_date,
+                "session_trade_date": generation.trade_date,
+                "market_sync_id": generation.sync_id,
+                "data_state": generation.data_state,
+            }
+        )
+        return summary.model_copy(
+            update={
+                "coverage": coverage,
+                "last_synced_at": generation.source_last_synced_at,
+                "market_sync_id": generation.sync_id,
+                "data_state": generation.data_state,
+            }
+        )
+
     async def _compute_market_pulse(
         self,
         *,
         exchange: ExchangeCode,
         previous: MarketPulsePreviousSnapshot | None,
         display_name: str | None = None,
-        freshness: MarketFreshnessRead | None = None,
-        decision_date: date | None = None,
+        snapshot: CanonicalUniverseSnapshot,
     ) -> MarketPulseRead:
-        if freshness is None:
-            freshness = await self.market_data_service.get_market_freshness(exchange=exchange)
-        if decision_date is None:
-            decision_date = resolve_pulse_decision_date(freshness)
-        universe_rows = await self.universe_service.get_scored_universe(exchange=exchange)
+        generation = snapshot.generation
+        decision_date = generation.trade_date
+        universe_rows = snapshot.rows
         summaries = await self.market_data_service.list_daily_market_summaries(
             exchange=exchange,
             limit=30,
             offset=0,
+            end_date=decision_date,
         )
 
         # Client snapshots created before this score version are accepted for
@@ -766,7 +803,7 @@ class MarketPulseService:
         monitor_rows = _select_monitor_rows(scored_rows, selected)
         monitor_reads = [_to_focus_stock_read(row, index + 1) for index, row in enumerate(monitor_rows)]
 
-        last_synced = freshness.last_synced_at
+        last_synced = generation.source_last_synced_at
         changes, new_focus_count = self._build_changes(scored_rows, focus_reads, previous, last_synced)
         alerts = self._build_alerts(scored_rows, previous, last_synced)
         new_alerts_count = len([alert for alert in alerts if previous and alert.id not in previous.alert_ids])
@@ -780,7 +817,9 @@ class MarketPulseService:
             attention_subline="A quick read on what's moving the market and what deserves attention.",
             last_updated_label=_format_time_label(last_synced),
             relative_updated_label=_format_relative_updated(last_synced),
-            session_label=freshness.market_status.replace("_", " ") if freshness.market_status else None,
+            session_label=resolve_market_status(
+                datetime.now(DHAKA), self.settings
+            ).value.replace("_", " "),
             focus_count=len(hero_stocks),
             recent_focus_count=new_focus_count,
         )
@@ -801,7 +840,7 @@ class MarketPulseService:
             exchange=exchange,
             decision_date=decision_date,
             briefing_rows=briefing_rows,
-            is_finalized=freshness.data_state.value == "FINALIZED",
+            is_finalized=generation.data_state == MarketDataState.FINALIZED,
         )
         briefing = build_market_briefing(
             briefing_rows,
@@ -853,16 +892,16 @@ class MarketPulseService:
             ),
             coverage=PulseCoverageRead(
                 decision_session_date=decision_date,
-                trade_date=freshness.trade_date,
+                trade_date=generation.trade_date,
                 session_trade_date=decision_date,
                 universe_candidate_count=len(universe_rows),
                 eligible_candidate_count=len(scored_rows),
                 excluded_candidate_count=max(0, len(universe_rows) - len(scored_rows)),
-                market_sync_id=freshness.market_sync_id,
-                data_state=freshness.data_state,
+                market_sync_id=generation.sync_id,
+                data_state=generation.data_state,
             ),
-            market_sync_id=freshness.market_sync_id,
-            data_state=freshness.data_state,
+            market_sync_id=generation.sync_id,
+            data_state=generation.data_state,
         )
 
     def _build_since_last_visit(

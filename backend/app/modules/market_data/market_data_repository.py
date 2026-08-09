@@ -3,7 +3,7 @@ from decimal import Decimal
 from uuid import UUID
 
 from fastapi import Depends
-from sqlalchemy import func, select, update
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -263,6 +263,42 @@ class MarketDataRepository(BaseRepository[DailyPrice]):
         if daily_price is None:
             raise RuntimeError("Daily price upsert did not return a row")
         return daily_price
+
+    async def upsert_daily_price_if_changed(self, values: dict[str, object]) -> DailyPrice | None:
+        """Insert or update one OHLCV row only when a canonical input changed."""
+
+        statement = insert(DailyPrice).values(**values)
+        mutable_columns = [
+            column.name
+            for column in DailyPrice.__table__.columns
+            if column.name in values
+            and column.name not in {"id", "stock_id", "trade_date", "created_at", "updated_at"}
+        ]
+        update_values = {
+            column: getattr(statement.excluded, column)
+            for column in mutable_columns
+        }
+        update_values["updated_at"] = func.now()
+        changed = or_(
+            *(
+                getattr(DailyPrice, column).is_distinct_from(
+                    getattr(statement.excluded, column)
+                )
+                for column in mutable_columns
+            )
+        )
+        statement = statement.on_conflict_do_update(
+            index_elements=[DailyPrice.stock_id, DailyPrice.trade_date],
+            set_=update_values,
+            where=(
+                ~(
+                    (DailyPrice.source == "AMARSTOCK_API")
+                    & (statement.excluded.source != "AMARSTOCK_API")
+                )
+                & changed
+            ),
+        ).returning(DailyPrice)
+        return await self.session.scalar(statement)
 
     async def insert_daily_price_if_absent(self, values: dict[str, object]) -> DailyPrice | None:
         statement = insert(DailyPrice).values(**values)

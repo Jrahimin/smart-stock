@@ -149,10 +149,6 @@ async def create_daily_price(
     prepared_price_data = price_data.model_copy(update={"stock_id": stock_id})
     existing_price = await service.find_daily_price(prepared_price_data)
     if existing_price is not None:
-        await service.republish_stock_decision_input_revision(
-            stock_id=stock_id,
-            source="manual-daily-price-retry",
-        )
         return success_response(
             data=DailyPriceRead.model_validate(existing_price),
             message="Daily price already exists",
@@ -210,10 +206,6 @@ async def create_daily_market_summary(
 ) -> ApiResponse[DailyMarketSummaryRead]:
     existing_summary = await service.find_daily_market_summary(summary_data)
     if existing_summary is not None:
-        await service.republish_exchange_decision_input_revision(
-            exchange=summary_data.exchange,
-            source="manual-market-summary-retry",
-        )
         return success_response(
             data=DailyMarketSummaryRead.model_validate(existing_summary),
             message="Daily market summary already exists",

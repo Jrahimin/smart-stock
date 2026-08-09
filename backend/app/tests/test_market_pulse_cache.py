@@ -2,12 +2,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from app.core.core_config import Settings
-from app.core.enums import ExchangeCode
+from app.core.enums import ExchangeCode, MarketDataState
 from app.modules.market_pulse.market_pulse_cache import (
     PULSE_EMPTY_CACHE_TTL_SECONDS,
     pulse_cache_key,
@@ -27,8 +28,10 @@ from app.modules.market_pulse.market_pulse_service import (
 )
 
 DECISION_DATE = date(2026, 7, 9)
-SUMMARY_CACHE_KEY = pulse_cache_key("summary", ExchangeCode.DSE, DECISION_DATE)
-RESPONSE_CACHE_KEY = pulse_cache_key("response", ExchangeCode.DSE, DECISION_DATE)
+MARKET_SYNC_ID = "G123"
+SYNCED_AT = datetime(2026, 7, 9, 10, 0, tzinfo=timezone.utc)
+SUMMARY_CACHE_KEY = pulse_cache_key("summary", ExchangeCode.DSE, DECISION_DATE, MARKET_SYNC_ID)
+RESPONSE_CACHE_KEY = pulse_cache_key("response", ExchangeCode.DSE, DECISION_DATE, MARKET_SYNC_ID)
 
 
 def _hero(greeting: str) -> MarketPulseHeroRead:
@@ -117,18 +120,30 @@ class FakePulseRedis:
 def _service_with_redis(store: dict[str, dict]) -> MarketPulseService:
     redis = FakePulseRedis(store=store)
     market_data_service = MagicMock()
-    market_data_service.get_market_freshness = AsyncMock(
-        return_value=MagicMock(
-            last_synced_at=datetime(2026, 7, 9, 10, 0, tzinfo=timezone.utc),
-            trade_date=DECISION_DATE,
-            decision_session_date=DECISION_DATE,
-        ),
-    )
+    universe_service = MagicMock()
+    universe_service.get_canonical_universe = AsyncMock(return_value=_snapshot())
+    universe_service.is_generation_current = AsyncMock(return_value=True)
     return MarketPulseService(
         market_data_service=market_data_service,
-        universe_service=MagicMock(),
+        universe_service=universe_service,
         redis=redis,  # type: ignore[arg-type]
         settings=Settings(),
+    )
+
+
+def _snapshot(
+    *,
+    sync_id: str = MARKET_SYNC_ID,
+    data_state: MarketDataState = MarketDataState.LIVE,
+):
+    return SimpleNamespace(
+        generation=SimpleNamespace(
+            sync_id=sync_id,
+            trade_date=DECISION_DATE,
+            source_last_synced_at=SYNCED_AT,
+            data_state=data_state,
+        ),
+        rows=[],
     )
 
 
@@ -152,15 +167,15 @@ async def test_anonymous_summary_reads_and_writes_shared_cache() -> None:
     summary = await service.get_market_pulse_summary(exchange=ExchangeCode.DSE, previous=None)
 
     assert summary.hero.greeting == "Good morning"
-    assert summary.last_synced_at == datetime(2026, 7, 9, 10, 0, tzinfo=timezone.utc)
+    assert summary.last_synced_at == SYNCED_AT
     assert SUMMARY_CACHE_KEY in store
-    service.market_data_service.get_market_freshness.assert_awaited_once_with(exchange=ExchangeCode.DSE)
+    service.universe_service.get_canonical_universe.assert_awaited_once_with(exchange=ExchangeCode.DSE)
 
     service._compute_market_pulse.reset_mock()
     cached = await service.get_market_pulse_summary(exchange=ExchangeCode.DSE, previous=None)
     service._compute_market_pulse.assert_not_called()
     assert cached.hero.greeting == "Good morning"
-    assert service.market_data_service.get_market_freshness.await_count == 2
+    assert service.universe_service.get_canonical_universe.await_count == 2
 
 
 @pytest.mark.asyncio
@@ -206,7 +221,7 @@ async def test_legacy_cached_summary_without_generation_is_treated_as_miss() -> 
     summary = await service.get_market_pulse_summary(exchange=ExchangeCode.DSE, previous=None)
 
     assert summary.hero.greeting == "Good morning, fresh"
-    assert summary.last_synced_at == datetime(2026, 7, 9, 10, 0, tzinfo=timezone.utc)
+    assert summary.last_synced_at == SYNCED_AT
     service._compute_market_pulse.assert_awaited_once()
     assert SUMMARY_CACHE_KEY in store
     assert store[SUMMARY_CACHE_KEY]["last_synced_at"] is not None
@@ -248,7 +263,7 @@ async def test_stale_pulse_response_cache_is_not_reused_when_rebuilding_summary(
 
     assert summary.hero.greeting == "Good morning, fresh"
     service._compute_market_pulse.assert_awaited_once()
-    assert summary.last_synced_at == datetime(2026, 7, 9, 10, 0, tzinfo=timezone.utc)
+    assert summary.last_synced_at == SYNCED_AT
 
 
 @pytest.mark.asyncio
@@ -310,7 +325,7 @@ async def test_degraded_empty_summary_uses_shorter_cache_ttl() -> None:
     redis = FakePulseRedis(store=store)
     service = MarketPulseService(
         market_data_service=_service_with_redis({}).market_data_service,
-        universe_service=MagicMock(),
+        universe_service=_service_with_redis({}).universe_service,
         redis=redis,  # type: ignore[arg-type]
         settings=Settings(),
     )
@@ -320,3 +335,40 @@ async def test_degraded_empty_summary_uses_shorter_cache_ttl() -> None:
     await service.get_market_pulse_summary(exchange=ExchangeCode.DSE, previous=None)
 
     assert redis.ttls[SUMMARY_CACHE_KEY] == PULSE_EMPTY_CACHE_TTL_SECONDS
+
+
+@pytest.mark.asyncio
+async def test_pulse_retries_with_the_new_canonical_snapshot_after_a_generation_race() -> None:
+    store: dict[str, dict] = {}
+    service = _service_with_redis(store)
+    g123 = _snapshot(sync_id="G123")
+    g124 = _snapshot(sync_id="G124")
+    service.universe_service.get_canonical_universe = AsyncMock(side_effect=[g123, g124])
+    service.universe_service.is_generation_current = AsyncMock(side_effect=[False, True])
+    service._compute_market_pulse = AsyncMock(side_effect=[_pulse("G123"), _pulse("G124")])  # type: ignore[method-assign]
+
+    pulse = await service.get_market_pulse(exchange=ExchangeCode.DSE, previous=None)
+
+    assert pulse.market_sync_id == "G124"
+    assert pulse.hero.greeting == "G124"
+    assert pulse.coverage.market_sync_id == "G124"
+    assert pulse_cache_key("response", ExchangeCode.DSE, DECISION_DATE, "G123") not in store
+    assert pulse_cache_key("response", ExchangeCode.DSE, DECISION_DATE, "G124") in store
+
+
+@pytest.mark.asyncio
+async def test_pulse_reuses_decision_content_when_only_data_state_changes() -> None:
+    store: dict[str, dict] = {}
+    service = _service_with_redis(store)
+    live = _snapshot(data_state=MarketDataState.LIVE)
+    stale = _snapshot(data_state=MarketDataState.STALE)
+    service.universe_service.get_canonical_universe = AsyncMock(side_effect=[live, stale])
+    service._compute_market_pulse = AsyncMock(return_value=_pulse("cached content"))  # type: ignore[method-assign]
+
+    await service.get_market_pulse(exchange=ExchangeCode.DSE, previous=None)
+    service._compute_market_pulse.reset_mock()
+    stale_pulse = await service.get_market_pulse(exchange=ExchangeCode.DSE, previous=None)
+
+    service._compute_market_pulse.assert_not_called()
+    assert stale_pulse.market_sync_id == MARKET_SYNC_ID
+    assert stale_pulse.data_state == MarketDataState.STALE

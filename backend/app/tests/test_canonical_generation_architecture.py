@@ -23,7 +23,11 @@ from app.core.enums import DataQualityFlag, ExchangeCode, MarketDataState
 from app.core.exception_handlers import UnauthorizedError
 from app.core.redis_client import OptionalRedisClient
 from app.core.security_config import ANONYMOUS_USER_CONTEXT
-from app.jobs.market_cache_rebuild import _acquire_rebuild_lock
+from app.jobs.market_cache_rebuild import (
+    _acquire_rebuild_lock,
+    _start_rebuild_lock_lease,
+    _stop_rebuild_lock_lease,
+)
 from app.models import DailyPrice, Stock
 from app.modules.market_data.market_data_service import MarketDataService
 from app.modules.market_data.published_generation import PublishedMarketGeneration
@@ -36,7 +40,9 @@ from app.modules.market_universe.market_universe_lineage import compute_universe
 from app.modules.market_universe.market_universe_schemas import ScoredUniverseCacheRead
 from app.modules.market_universe.market_universe_service import (
     CanonicalUniverseSnapshot,
+    FINALIZED_UNIVERSE_CACHE_TTL_SECONDS,
     MarketUniverseService,
+    UniverseCachePublicationError,
     UniverseCacheUnavailableError,
 )
 from app.modules.signals.trader_decisions_service import TraderDecisionsService
@@ -247,6 +253,52 @@ async def test_state_only_transition_reuses_same_generation_cache() -> None:
 
 
 @pytest.mark.asyncio
+async def test_finalized_generation_promotes_existing_universe_without_recalculation() -> None:
+    _, _, _, live_snapshot = _canonical_fixture()
+    redis = _MemoryRedis()
+    redis.ttls: dict[str, int] = {}
+
+    async def set_json(key, value, *, ttl_seconds):
+        redis.storage[key] = value
+        redis.ttls[key] = ttl_seconds
+        return True
+
+    redis.set_json = set_json  # type: ignore[method-assign]
+    generation = _generation("G123", MarketDataState.FINALIZED)
+    cache_key = universe_cache_key("scored", ExchangeCode.DSE, "G123")
+    redis.storage[cache_key] = live_snapshot.payload.model_dump(mode="json")
+    service = MarketUniverseService(object(), object(), redis, Settings())
+    service.resolve_generation_context = AsyncMock(return_value=generation)
+    service.recompute_scored_universe = AsyncMock()
+
+    promoted = await service.promote_cached_generation(exchange=ExchangeCode.DSE, generation=generation)
+
+    assert promoted is True
+    assert redis.ttls[cache_key] == FINALIZED_UNIVERSE_CACHE_TTL_SECONDS
+    assert redis.storage[cache_key]["data_state"] == MarketDataState.FINALIZED.value
+    service.recompute_scored_universe.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_redis_set_failure_is_not_reported_as_a_published_universe() -> None:
+    _, _, row, _ = _canonical_fixture()
+
+    class FailingRedis(_MemoryRedis):
+        async def set_json(self, key, value, *, ttl_seconds):
+            return False
+
+    service = MarketUniverseService(object(), object(), FailingRedis(), Settings())
+    service.resolve_generation_context = AsyncMock(return_value=_generation("G123"))
+
+    with pytest.raises(UniverseCachePublicationError, match="Failed to publish"):
+        await service.cache_scored_universe(
+            ExchangeCode.DSE,
+            [row],
+            generation=_generation("G123"),
+        )
+
+
+@pytest.mark.asyncio
 async def test_stock_details_rejects_mid_request_generation_change() -> None:
     stock, prices, _, snapshot = _canonical_fixture()
     universe = _CanonicalUniverseDouble(snapshot, current=False)
@@ -304,6 +356,40 @@ async def test_redis_lock_error_fails_closed() -> None:
 
 
 @pytest.mark.asyncio
+async def test_rebuild_lock_lease_keeps_a_slow_owner_exclusive(monkeypatch: pytest.MonkeyPatch) -> None:
+    import app.jobs.market_cache_rebuild as rebuild_module
+
+    monkeypatch.setattr(rebuild_module, "REBUILD_LOCK_TTL_SECONDS", 1)
+
+    class LeaseRedis:
+        is_available = True
+
+        def __init__(self) -> None:
+            self.owner: str | None = None
+
+        async def extend_if_value(self, key, value, *, ttl_seconds):
+            return self.owner == value
+
+        async def set_if_not_exists(self, key, value, *, ttl_seconds):
+            if self.owner is not None:
+                return False
+            self.owner = value
+            return True
+
+    redis = LeaseRedis()
+    token = "owner-a"
+    redis.owner = token
+    lease = _start_rebuild_lock_lease(redis, ExchangeCode.DSE, token)
+    try:
+        await asyncio.sleep(1.05)
+        assert redis.owner == token
+        assert lease.lost.is_set() is False
+        assert await _acquire_rebuild_lock(redis, ExchangeCode.DSE, wait=False) is None
+    finally:
+        await _stop_rebuild_lock_lease(lease)
+
+
+@pytest.mark.asyncio
 async def test_historical_correction_advances_generation_and_cache_identity() -> None:
     current = SimpleNamespace(
         trade_date=SESSION_DATE,
@@ -342,6 +428,7 @@ async def test_historical_correction_advances_generation_and_cache_identity() ->
 
     assert revised is not None and revised != "G123"
     assert repository.created[0]["sync_id"] == revised
+    assert repository.created[0]["source_last_synced_at"] == SYNCED_AT
     assert universe_cache_key("scored", ExchangeCode.DSE, revised) != universe_cache_key(
         "scored", ExchangeCode.DSE, "G123"
     )

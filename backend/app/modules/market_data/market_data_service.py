@@ -136,29 +136,6 @@ class MarketDataService:
         spawn_rebuild_market_read_cache(stock.exchange)
         return daily_price
 
-    async def republish_stock_decision_input_revision(
-        self,
-        *,
-        stock_id: UUID,
-        source: str,
-    ) -> None:
-        stock = await self.repository.get_stock_by_id(stock_id)
-        if stock is None:
-            raise NotFoundError("Stock was not found")
-        await self.republish_exchange_decision_input_revision(
-            exchange=stock.exchange,
-            source=source,
-        )
-
-    async def republish_exchange_decision_input_revision(
-        self,
-        *,
-        exchange: ExchangeCode,
-        source: str,
-    ) -> None:
-        await self.publish_decision_input_revision(exchange=exchange, source=source)
-        spawn_rebuild_market_read_cache(exchange)
-
     async def ingest_daily_prices(
         self,
         *,
@@ -234,8 +211,11 @@ class MarketDataService:
                 else:
                     upserted_count += 1
             else:
-                await self.repository.upsert_daily_price(prepared_values)
-                upserted_count += 1
+                changed = await self.repository.upsert_daily_price_if_changed(prepared_values)
+                if changed is not None:
+                    upserted_count += 1
+                else:
+                    skipped_existing_count += 1
 
         if validation_source is not None:
             await self._upsert_source_validation_summary(
@@ -267,7 +247,7 @@ class MarketDataService:
             skipped_unknown_symbol_count,
             suspicious_count,
         )
-        if invalidate_market_cache:
+        if invalidate_market_cache and upserted_count:
             spawn_rebuild_market_read_cache(exchange)
         return DailyPriceIngestionResult(
             exchange=exchange,
@@ -525,11 +505,13 @@ class MarketDataService:
         exchange: ExchangeCode | None,
         limit: int,
         offset: int,
+        end_date: date | None = None,
     ) -> list[DailyMarketSummary]:
         return await self.repository.list_daily_market_summaries(
             exchange=exchange,
             limit=limit,
             offset=offset,
+            end_date=end_date,
         )
 
     async def create_daily_market_summary(
@@ -563,6 +545,7 @@ class MarketDataService:
         exchange: ExchangeCode = ExchangeCode.DSE,
         summaries: list[DailyMarketSummary] | None = None,
         report: PerfReport | None = None,
+        end_date: date | None = None,
     ) -> DsexIndexSnapshotRead:
         settings = get_settings()
         now = datetime.now(ZoneInfo("Asia/Dhaka"))
@@ -576,6 +559,7 @@ class MarketDataService:
                     exchange=exchange,
                     limit=280,
                     offset=0,
+                    end_date=end_date,
                 )
 
         dsex_history = sorted(
@@ -595,6 +579,7 @@ class MarketDataService:
                     exchange=exchange,
                     limit=280,
                     offset=0,
+                    end_date=end_date,
                 )
             dsex_history = sorted(
                 (
@@ -972,7 +957,7 @@ class MarketDataService:
             sync_id=sync_id,
             state=current.state,
             source=source,
-            source_last_synced_at=now,
+            source_last_synced_at=current.source_last_synced_at,
             fetched_count=current.fetched_count,
             accepted_count=current.accepted_count,
             suspicious_count=current.suspicious_count,
@@ -986,19 +971,19 @@ class MarketDataService:
         exchange: ExchangeCode,
         trade_date: date,
     ) -> str:
+        existing = await self.repository.get_latest_market_data_generation(
+            exchange=exchange,
+            state=MarketDataState.FINALIZED,
+            trade_date=trade_date,
+        )
+        if existing is not None:
+            return existing.sync_id
         live = await self.repository.get_latest_market_data_generation(
             exchange=exchange,
             state=MarketDataState.LIVE,
             trade_date=trade_date,
         )
         if live is None:
-            existing = await self.repository.get_latest_market_data_generation(
-                exchange=exchange,
-                state=MarketDataState.FINALIZED,
-                trade_date=trade_date,
-            )
-            if existing is not None:
-                return existing.sync_id
             # Safe deployment/retry fallback: the finalizer already verified the
             # price and DSEX inputs.  Older deployments have no LIVE manifest to
             # promote, but must not leave a verified session permanently hidden.

@@ -51,14 +51,16 @@ class OptionalRedisClient:
             logger.warning("Redis GET failed for key %s", key, exc_info=True)
             return None
 
-    async def set_json(self, key: str, value: dict[str, Any], *, ttl_seconds: int) -> None:
+    async def set_json(self, key: str, value: dict[str, Any], *, ttl_seconds: int) -> bool:
         if not self.is_available:
-            return
+            return False
 
         try:
             await self._redis.set(key, json.dumps(value, default=str), ex=ttl_seconds)
+            return True
         except Exception:
             logger.warning("Redis SET failed for key %s", key, exc_info=True)
+            return False
 
     async def get_ttl_seconds(self, key: str) -> int | None:
         if not self.is_available:
@@ -94,6 +96,23 @@ class OptionalRedisClient:
             return bool(await self._redis.eval(script, 1, key, expected_value))
         except Exception:
             logger.warning("Redis compare-and-delete failed for key %s", key, exc_info=True)
+            return False
+
+    async def extend_if_value(self, key: str, expected_value: str, *, ttl_seconds: int) -> bool:
+        """Renew an owned lock without extending a replacement owner's lease."""
+        if not self.is_available:
+            return False
+
+        script = """
+        if redis.call('get', KEYS[1]) == ARGV[1] then
+          return redis.call('expire', KEYS[1], ARGV[2])
+        end
+        return 0
+        """
+        try:
+            return bool(await self._redis.eval(script, 1, key, expected_value, ttl_seconds))
+        except Exception:
+            logger.warning("Redis lease renewal failed for key %s", key, exc_info=True)
             return False
 
     async def has_key_matching(self, pattern: str) -> bool:

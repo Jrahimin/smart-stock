@@ -8,7 +8,8 @@ import pytest
 from app.core.core_config import Settings
 from app.core.enums import ExchangeCode
 from app.core.redis_client import OptionalRedisClient
-from app.jobs.market_cache_rebuild import rebuild_market_read_cache
+from app.jobs.market_cache_rebuild import rebuild_market_read_cache, rebuild_universe_read_cache
+from app.modules.market_universe.market_universe_service import UniverseCachePublicationError
 
 
 @pytest.mark.asyncio
@@ -356,3 +357,37 @@ async def test_rebuild_market_read_cache_releases_lock_after_completion(monkeypa
     await rebuild_market_read_cache(ExchangeCode.DSE, settings=Settings(), redis=redis)
 
     redis.delete.assert_called_once_with("market:rebuild-lock:DSE")
+
+
+@pytest.mark.asyncio
+async def test_rebuild_fails_when_canonical_universe_redis_publication_fails(monkeypatch) -> None:
+    redis = MagicMock(is_available=True)
+    redis.set_if_not_exists = AsyncMock(return_value=True)
+    redis.delete = AsyncMock()
+
+    class FailingUniverseService:
+        async def resolve_generation_context(self, *, exchange):
+            return MagicMock(sync_id="G123")
+
+        async def has_cached_generation(self, *, exchange, generation):
+            return False
+
+        async def recompute_scored_universe(self, exchange, *, generation):
+            return [MagicMock()]
+
+        async def cache_scored_universe(self, exchange, rows, *, generation):
+            raise UniverseCachePublicationError("Redis SET failed")
+
+    monkeypatch.setattr(
+        "app.jobs.market_cache_rebuild._build_universe_service",
+        lambda session, settings, redis_client: FailingUniverseService(),
+    )
+    monkeypatch.setattr(
+        "app.jobs.market_cache_rebuild.AsyncSessionLocal",
+        lambda: MagicMock(__aenter__=AsyncMock(return_value=MagicMock()), __aexit__=AsyncMock(return_value=None)),
+    )
+
+    result = await rebuild_universe_read_cache(ExchangeCode.DSE, settings=Settings(), redis=redis)
+
+    assert result.success is False
+    assert "Redis SET failed" in (result.error or "")

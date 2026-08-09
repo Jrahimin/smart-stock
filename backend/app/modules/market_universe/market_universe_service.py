@@ -83,6 +83,10 @@ class UniverseCacheUnavailableError(RuntimeError):
     """Raised when scored universe is not cached and no stale fallback exists."""
 
 
+class UniverseCachePublicationError(RuntimeError):
+    """Raised when a canonical universe result cannot be published to Redis."""
+
+
 @dataclass(frozen=True, slots=True)
 class CanonicalUniverseSnapshot:
     generation: PublishedMarketGeneration
@@ -120,9 +124,11 @@ class MarketUniverseService:
     async def _cache_get(self, cache_key: str) -> dict | None:
         return await self.redis.get_json(cache_key)
 
-    async def _cache_set(self, cache_key: str, payload: dict, *, ttl_seconds: int | None = None) -> None:
+    async def _cache_set(self, cache_key: str, payload: dict, *, ttl_seconds: int | None = None) -> bool:
         ttl_seconds = ttl_seconds or current_cache_ttl_seconds(self.settings)
-        await self.redis.set_json(cache_key, payload, ttl_seconds=ttl_seconds)
+        result = await self.redis.set_json(cache_key, payload, ttl_seconds=ttl_seconds)
+        # Existing lightweight test doubles predate the Redis success return.
+        return result is not False
 
     async def _cache_ttl_seconds(self, cache_key: str) -> int | None:
         ttl_reader = getattr(self.redis, "get_ttl_seconds", None)
@@ -222,6 +228,47 @@ class MarketUniverseService:
             generation.source_last_synced_at,
             generation.sync_id,
         )
+
+    async def promote_cached_generation(
+        self,
+        *,
+        exchange: ExchangeCode,
+        generation: PublishedMarketGeneration,
+    ) -> bool:
+        """Extend a finalized generation's existing canonical cache without recomputing it."""
+
+        if generation.data_state != MarketDataState.FINALIZED or not self.redis.is_available:
+            return True
+        cache_key = universe_cache_key("scored", exchange, generation.sync_id)
+        cached = await self._cache_get(cache_key)
+        payload = self._parse_cache_payload(cached) if cached is not None else None
+        if payload is None or not self._cache_matches_identity(
+            payload,
+            generation.trade_date,
+            generation.source_last_synced_at,
+            generation.sync_id,
+        ):
+            return False
+        if not await self.is_generation_current(generation, exchange=exchange):
+            return False
+
+        promoted = payload.model_copy(
+            update={
+                "data_state": MarketDataState.FINALIZED,
+                "is_live_session": False,
+                "live_data_as_of": None,
+            }
+        )
+        if not await self._cache_set(
+            cache_key,
+            promoted.model_dump(mode="json"),
+            ttl_seconds=FINALIZED_UNIVERSE_CACHE_TTL_SECONDS,
+        ):
+            raise UniverseCachePublicationError(
+                f"Failed to promote canonical universe cache for {exchange.value} "
+                f"generation {generation.sync_id}"
+            )
+        return await self.is_generation_current(generation, exchange=exchange)
 
     @staticmethod
     def _parse_cache_payload(payload: dict) -> ScoredUniverseCacheRead | None:
@@ -528,11 +575,15 @@ class MarketUniverseService:
             self.settings,
             data_state=data_state,
         )
-        await self._cache_set(
+        if not await self._cache_set(
             cache_key,
             serialized_payload,
             ttl_seconds=primary_ttl_seconds,
-        )
+        ):
+            raise UniverseCachePublicationError(
+                f"Failed to publish canonical universe cache for {exchange.value} "
+                f"generation {context.sync_id}"
+            )
         if not await self.is_generation_current(context, exchange=exchange):
             await self.redis.delete(cache_key)
             logger.info(
