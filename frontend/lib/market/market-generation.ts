@@ -5,24 +5,43 @@ export type MarketGenerationStamp = {
   market_sync_id?: string | null;
 };
 
+function directGenerationStamp(data: unknown): MarketGenerationStamp | null {
+  if (typeof data !== "object" || data === null) {
+    return null;
+  }
+  if (!(MARKET_GENERATION_FIELD in data) && !("last_synced_at" in data)) {
+    return null;
+  }
+  return data as MarketGenerationStamp;
+}
+
+function nestedObject(data: unknown, key: "meta" | "data"): unknown {
+  return typeof data === "object" && data !== null && key in data
+    ? (data as Record<string, unknown>)[key]
+    : undefined;
+}
+
 /** True when the payload exposes a generation identity field (value may still be null). */
 export function hasMarketGenerationField(data: unknown): data is MarketGenerationStamp {
-  return (
-    typeof data === "object" &&
-    data !== null &&
-    (MARKET_GENERATION_FIELD in data || "last_synced_at" in data)
-  );
+  return readMarketGenerationValue(data) !== undefined;
 }
 
 /** Returns `undefined` when the response has no generation field to validate. */
 export function readMarketGenerationValue(data: unknown): string | null | undefined {
-  if (!hasMarketGenerationField(data)) {
+  const candidates = [
+    data,
+    nestedObject(data, "meta"),
+    nestedObject(data, "data"),
+    nestedObject(nestedObject(data, "data"), "meta"),
+  ];
+  const stamp = candidates.map(directGenerationStamp).find((candidate) => candidate !== null);
+  if (!stamp) {
     return undefined;
   }
 
   // New API responses use an immutable publication id.  Keep timestamp fallback
   // while older backend nodes are draining during a rolling deployment.
-  const value = data.market_sync_id ?? data.last_synced_at;
+  const value = stamp.market_sync_id ?? stamp.last_synced_at;
   if (value === null || value === undefined) {
     return null;
   }

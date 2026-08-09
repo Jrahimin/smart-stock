@@ -18,7 +18,7 @@ from app.core.perf_timing import PerfReport, async_perf_stage
 from app.core.redis_client import OptionalRedisClient, get_redis_client
 from app.models import DailyMarketSummary, DailyPrice, Stock
 from app.modules.market_data.market_data_repository import MarketDataRepository, get_market_data_repository
-from app.modules.market_data.market_data_schemas import DailyMarketSummaryRead
+from app.modules.market_data.market_data_schemas import DailyMarketSummaryRead, MarketFreshnessRead
 from app.modules.market_data.market_data_service import MarketDataService, get_market_data_service
 from app.modules.market_data.market_mover_rules import is_eligible_session_mover
 from app.modules.market_dashboard.market_dashboard_cache import dashboard_cache_key
@@ -157,28 +157,63 @@ class MarketDashboardService:
         ttl_seconds = current_cache_ttl_seconds(self.settings)
         await self.redis.set_json(cache_key, payload, ttl_seconds=ttl_seconds)
 
-    async def cache_dashboard_payload(self, section: str, exchange: ExchangeCode, payload: BaseModel) -> None:
-        freshness = await self.market_data_service.get_market_freshness(exchange=exchange)
-        cache_key = dashboard_cache_key(section, exchange, freshness.market_sync_id)
+    async def cache_dashboard_payload(
+        self,
+        section: str,
+        exchange: ExchangeCode,
+        payload: BaseModel,
+        *,
+        market_sync_id: str | None = None,
+    ) -> None:
+        if market_sync_id is None:
+            freshness = await self.market_data_service.get_market_freshness(exchange=exchange)
+            market_sync_id = freshness.market_sync_id
+        if market_sync_id is not None:
+            payload = payload.model_copy(update={"market_sync_id": market_sync_id})
+        cache_key = dashboard_cache_key(section, exchange, market_sync_id)
         await self._cache_set(cache_key, payload.model_dump(mode="json"))
 
+    @staticmethod
+    def _same_generation(before: MarketFreshnessRead, after: MarketFreshnessRead) -> bool:
+        before_id = before.market_sync_id or before.last_synced_at
+        after_id = after.market_sync_id or after.last_synced_at
+        return before_id is not None and before_id == after_id
+
     async def _get_cached(self, section: str, exchange: ExchangeCode, model: type[T], compute) -> T:
-        freshness = await self.market_data_service.get_market_freshness(exchange=exchange)
-        cache_key = dashboard_cache_key(section, exchange, freshness.market_sync_id)
-        cached = await self._cache_get(cache_key)
-        if cached is not None:
-            return model.model_validate(cached)
+        """Serve or compute one dashboard response fenced to one publication id."""
 
-        perf = PerfReport(f"dashboard.{section}")
-        async with async_perf_stage(perf, "compute.total"):
-            data = await compute(perf)
-        perf.log_summary()
-        self._last_compute_ms = perf.total_ms
-        await self._cache_set(cache_key, data.model_dump(mode="json"))
-        return data
+        for _ in range(2):
+            freshness = await self.market_data_service.get_market_freshness(exchange=exchange)
+            cache_key = dashboard_cache_key(section, exchange, freshness.market_sync_id)
+            cached = await self._cache_get(cache_key)
+            if cached is not None:
+                data = model.model_validate(cached)
+                after = await self.market_data_service.get_market_freshness(exchange=exchange)
+                if self._same_generation(freshness, after):
+                    return data
+                continue
 
-    async def _load_snapshot(self, exchange: ExchangeCode, report: PerfReport | None = None) -> DashboardMarketSnapshot:
-        freshness = await self.market_data_service.get_market_freshness(exchange=exchange)
+            perf = PerfReport(f"dashboard.{section}")
+            async with async_perf_stage(perf, "compute.total"):
+                data = await compute(perf, freshness)
+            after = await self.market_data_service.get_market_freshness(exchange=exchange)
+            if not self._same_generation(freshness, after):
+                continue
+            data = data.model_copy(update={"market_sync_id": freshness.market_sync_id})
+            perf.log_summary()
+            self._last_compute_ms = perf.total_ms
+            await self._cache_set(cache_key, data.model_dump(mode="json"))
+            return data
+        raise RuntimeError(f"Published market generation changed while loading dashboard {section}")
+
+    async def _load_snapshot(
+        self,
+        exchange: ExchangeCode,
+        report: PerfReport | None = None,
+        freshness: MarketFreshnessRead | None = None,
+    ) -> DashboardMarketSnapshot:
+        if freshness is None:
+            freshness = await self.market_data_service.get_market_freshness(exchange=exchange)
         return await load_dashboard_market_snapshot(
             self.market_repository,
             exchange=exchange,
@@ -187,31 +222,23 @@ class MarketDashboardService:
         )
 
     async def get_overview(self, *, exchange: ExchangeCode) -> DashboardOverviewRead:
-        freshness = await self.market_data_service.get_market_freshness(exchange=exchange)
-        cache_key = dashboard_cache_key("overview", exchange, freshness.market_sync_id)
-        cached = await self._cache_get(cache_key)
-
-        if cached is not None:
-            overview = DashboardOverviewRead.model_validate(cached)
-            dsex_index = await self.market_data_service.get_dsex_index_snapshot(exchange=exchange)
-            merged = overview.model_copy(update={"dsex_index": dsex_index})
-            await self._cache_set(cache_key, merged.model_dump(mode="json"))
-            return merged
-
-        perf = PerfReport("dashboard.overview")
-        async with async_perf_stage(perf, "compute.total"):
-            data = await self.compute_overview(exchange, report=perf)
-        perf.log_summary()
-        self._last_compute_ms = perf.total_ms
-        await self._cache_set(cache_key, data.model_dump(mode="json"))
-        return data
+        return await self._get_cached(
+            "overview",
+            exchange,
+            DashboardOverviewRead,
+            lambda perf, freshness: self.compute_overview(
+                exchange,
+                report=perf,
+                freshness=freshness,
+            ),
+        )
 
     async def get_movers(self, *, exchange: ExchangeCode) -> DashboardMoversRead:
         return await self._get_cached(
             "movers",
             exchange,
             DashboardMoversRead,
-            lambda perf: self.compute_movers(exchange, report=perf),
+            lambda perf, freshness: self.compute_movers(exchange, report=perf, freshness=freshness),
         )
 
     async def get_sectors(self, *, exchange: ExchangeCode) -> DashboardSectorsRead:
@@ -219,7 +246,7 @@ class MarketDashboardService:
             "sectors",
             exchange,
             DashboardSectorsRead,
-            lambda perf: self.compute_sectors(exchange, report=perf),
+            lambda perf, freshness: self.compute_sectors(exchange, report=perf, freshness=freshness),
         )
 
     async def get_market_alerts(self, *, exchange: ExchangeCode) -> DashboardMarketAlertsRead:
@@ -227,7 +254,9 @@ class MarketDashboardService:
             "market-alerts",
             exchange,
             DashboardMarketAlertsRead,
-            lambda perf: self.compute_market_alerts(exchange, report=perf),
+            lambda perf, freshness: self.compute_market_alerts(
+                exchange, report=perf, freshness=freshness
+            ),
         )
 
     async def get_stocks_in_focus(self, *, exchange: ExchangeCode) -> DashboardStocksInFocusRead:
@@ -244,7 +273,7 @@ class MarketDashboardService:
             "heatmap",
             exchange,
             DashboardHeatmapRead,
-            lambda perf: self.compute_heatmap(exchange, report=perf),
+            lambda perf, freshness: self.compute_heatmap(exchange, report=perf, freshness=freshness),
         )
 
     async def get_market_sentiment(self, *, exchange: ExchangeCode) -> DashboardMarketSentimentRead:
@@ -252,7 +281,9 @@ class MarketDashboardService:
             "market-sentiment",
             exchange,
             DashboardMarketSentimentRead,
-            lambda perf: self.compute_market_sentiment(exchange, report=perf),
+            lambda perf, freshness: self.compute_market_sentiment(
+                exchange, report=perf, freshness=freshness
+            ),
         )
 
     async def compute_overview(
@@ -260,9 +291,12 @@ class MarketDashboardService:
         exchange: ExchangeCode,
         *,
         report: PerfReport | None = None,
+        freshness: MarketFreshnessRead | None = None,
     ) -> DashboardOverviewRead:
         perf = report or PerfReport("dashboard.overview")
-        snapshot = await self._load_snapshot(exchange, perf)
+        if freshness is None:
+            freshness = await self.market_data_service.get_market_freshness(exchange=exchange)
+        snapshot = await self._load_snapshot(exchange, perf, freshness)
 
         async with async_perf_stage(perf, "metrics.local"):
             listed_stock_count = await self.stocks_repository.count_stocks(exchange=exchange, is_active=True)
@@ -270,12 +304,10 @@ class MarketDashboardService:
         async with async_perf_stage(perf, "metrics.dsex"):
             dsex_index = await self.market_data_service.get_dsex_index_snapshot(
                 exchange=exchange,
-                summaries=None,
+                summaries=snapshot.summaries,
                 report=perf,
+                end_date=freshness.trade_date,
             )
-
-        async with async_perf_stage(perf, "db.freshness"):
-            last_synced_at = (await self.market_data_service.get_market_freshness(exchange=exchange)).last_synced_at
 
         if report is None:
             perf.log_summary()
@@ -284,7 +316,7 @@ class MarketDashboardService:
         return DashboardOverviewRead(
             exchange=exchange,
             session_trade_date=snapshot.session_trade_date,
-            last_synced_at=last_synced_at,
+            last_synced_at=freshness.last_synced_at,
             listed_stock_count=listed_stock_count,
             dsex_index=dsex_index,
             summaries=[DailyMarketSummaryRead.model_validate(summary) for summary in snapshot.summaries],
@@ -295,10 +327,12 @@ class MarketDashboardService:
         exchange: ExchangeCode,
         *,
         report: PerfReport | None = None,
+        freshness: MarketFreshnessRead | None = None,
     ) -> DashboardMoversRead:
         perf = report or PerfReport("dashboard.movers")
-        async with async_perf_stage(perf, "db.freshness"):
-            session_trade_date = (await self.market_data_service.get_market_freshness(exchange=exchange)).trade_date
+        if freshness is None:
+            freshness = await self.market_data_service.get_market_freshness(exchange=exchange)
+        session_trade_date = freshness.trade_date
         async with async_perf_stage(perf, "db.latest_prices"):
             latest_rows = await self.market_repository.list_latest_daily_prices(
                 exchange=exchange,
@@ -326,9 +360,12 @@ class MarketDashboardService:
         exchange: ExchangeCode,
         *,
         report: PerfReport | None = None,
+        freshness: MarketFreshnessRead | None = None,
     ) -> DashboardSectorsRead:
         perf = report or PerfReport("dashboard.sectors")
-        snapshot = await self._load_snapshot(exchange, perf)
+        if freshness is None:
+            freshness = await self.market_data_service.get_market_freshness(exchange=exchange)
+        snapshot = await self._load_snapshot(exchange, perf, freshness)
 
         async with async_perf_stage(perf, "compute.sectors_agg"):
             sectors, top_gainer = build_sector_snapshots_from_snapshot(
@@ -351,9 +388,12 @@ class MarketDashboardService:
         exchange: ExchangeCode,
         *,
         report: PerfReport | None = None,
+        freshness: MarketFreshnessRead | None = None,
     ) -> DashboardMarketAlertsRead:
         perf = report or PerfReport("dashboard.market-alerts")
-        snapshot = await self._load_snapshot(exchange, perf)
+        if freshness is None:
+            freshness = await self.market_data_service.get_market_freshness(exchange=exchange)
+        snapshot = await self._load_snapshot(exchange, perf, freshness)
         latest_summary = _latest_summary(snapshot.summaries)
 
         async with async_perf_stage(perf, "compute.alerts"):
@@ -377,10 +417,12 @@ class MarketDashboardService:
         exchange: ExchangeCode,
         *,
         report: PerfReport | None = None,
+        freshness: MarketFreshnessRead | None = None,
     ) -> DashboardHeatmapRead:
         perf = report or PerfReport("dashboard.heatmap")
-        async with async_perf_stage(perf, "db.freshness"):
-            session_trade_date = (await self.market_data_service.get_market_freshness(exchange=exchange)).trade_date
+        if freshness is None:
+            freshness = await self.market_data_service.get_market_freshness(exchange=exchange)
+        session_trade_date = freshness.trade_date
         async with async_perf_stage(perf, "db.latest_prices"):
             latest_rows = await self.market_repository.list_latest_daily_prices(
                 exchange=exchange,
@@ -413,23 +455,26 @@ class MarketDashboardService:
         exchange: ExchangeCode,
         *,
         report: PerfReport | None = None,
+        freshness: MarketFreshnessRead | None = None,
     ) -> DashboardMarketSentimentRead:
         perf = report or PerfReport("dashboard.market-sentiment")
-        snapshot = await self._load_snapshot(exchange, perf)
+        if freshness is None:
+            freshness = await self.market_data_service.get_market_freshness(exchange=exchange)
+        snapshot = await self._load_snapshot(exchange, perf, freshness)
         latest_summary = _latest_summary(snapshot.summaries)
 
         async with async_perf_stage(perf, "metrics.dsex"):
             dsex_index = await self.market_data_service.get_dsex_index_snapshot(
                 exchange=exchange,
-                summaries=None,
+                summaries=snapshot.summaries,
                 report=perf,
+                end_date=freshness.trade_date,
             )
 
         advancing, declining, unchanged, _ = derive_market_breadth_from_snapshot(snapshot.rows)
         if dsex_index.advancing_issues + dsex_index.declining_issues + dsex_index.unchanged_issues > 0:
             advancing = dsex_index.advancing_issues
             declining = dsex_index.declining_issues
-            unchanged = dsex_index.unchanged_issues
 
         async with async_perf_stage(perf, "compute.sentiment"):
             market_mood = derive_market_mood_from_snapshot(

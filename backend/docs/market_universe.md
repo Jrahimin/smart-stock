@@ -1,129 +1,124 @@
 # Market Universe Module
 
-## Purpose
+## Invariant
 
-`market_universe_service` is the **single exchange-wide compute source** for trader intelligence. Dashboard, Market Pulse, Explorer, Scanner, Signals, and Watchlist consume scored rows from this module — they do not run parallel `list_market_price_windows` + decision-engine loops.
+For one published market generation there is one canonical current trading
+decision per stock. Signals, Scanner, Stock Explorer, Stock Details, Watchlist,
+Portfolio and Market Pulse consume that reusable result. Consumer services may
+add presentation or domain-specific context, but they do not calculate a second
+current action.
+
+```text
+market_data_generations.sync_id
+        ↓
+one exchange-wide canonical universe calculation
+        ↓
+generation-specific Redis payload
+        ↓
+all trader-facing consumers
+```
+
+`MarketUniverseService.resolve_generation_context()` resolves an immutable
+`PublishedMarketGeneration` containing `trade_date`, `sync_id`, source timestamp
+and current presentation state. The same object is used for input loading,
+calculation and cache publication.
 
 ## API
 
 | Endpoint | Purpose |
 |----------|---------|
-| `GET /api/v1/market/universe-rows` | `ScoredUniverseRow[]` + `listed_stock_count` meta |
+| `GET /api/v1/market/universe-rows` | Canonical rows plus exchange, generation, state and lineage metadata |
 
-Serves from Redis
-`universe:scored:{exchange}:{strategy_version}:{threshold_version}:{input_schema_version}:{decision_taxonomy_version}`
-on cache hit. On miss, serves the equivalently versioned `scored:prev` key
-if present and spawns background rebuild. Cold miss returns HTTP 503 — **no
-inline compute on the HTTP request path**. Legacy unversioned keys are invalidated
-but never accepted as current canonical results.
+The endpoint is Redis-only on the normal HTTP path. A missing current-generation
+payload starts a coalesced background rebuild and returns HTTP 503 with an
+updating message. It never performs an uncontrolled full-exchange calculation
+inside the request.
 
-## `ScoredUniverseRow` contract
+## Canonical row
 
-Canonical row type in `market_universe_schemas.py`. Frontend mirror: `BackendScoredUniverseRowDto`.
+`ScoredUniverseRow` contains:
 
-### Allowed fields (cache-safe)
+| Field | Contents |
+|-------|----------|
+| `stock` | Compact stock identity |
+| `session` | Published-session price, trade date, volume, turnover and quality |
+| `technical_snapshot` | Shared indicators and price structure |
+| `eligibility` | Session participation, OHLCV quality, liquidity and corporate-action gate |
+| `decision` | Canonical summary, action, constraints, versions, `shared_decision_id` and `input_hash` |
+| `analysis` | Reusable opportunity, risk, directional evidence, reliability, trade plan, liquidity and price position |
+| `scanner` | Versioned scanner matches and deterministic ranks |
 
-| Field group | Contents |
-|-------------|----------|
-| `stock` | `StockRead` summary (no embedded relations) |
-| `technical_snapshot` | Scalar indicators — RSI, SMA20, trend, support/resistance, change%, volatility |
-| `decision` | `TraderDecisionSummaryRead` — compatibility fields plus the versioned canonical result, evidence strength, stance, holder/non-holder actions, primary reason, data reliability, trading risk, and constraints |
-| `eligibility` | Shared status/reasons, exchange-session identity, traded coverage, quality counts, robust turnover and corporate-action state |
-| `scanner` | Additive `scanner-conditions-v1` condition matches with reason, server rank score, capacity score, and deterministic per-condition rank. No OHLCV arrays are added. |
-| `session` | Latest completed-session bar metadata — trade date, close, volume, turnover, change%, data quality |
+The payload deliberately excludes OHLCV arrays, chart models, patterns, swing
+points, ownership, valuation, events and page-specific briefing objects.
 
-### Forbidden in `universe:scored` Redis payload
+Stocks with no trade in the published session retain correct last-traded price
+semantics. Eligibility records the missed-session state and prevents a stale
+last trade from becoming a fake current signal.
 
-Never cache or serialize:
-
-- `prices[]` / OHLCV arrays / candle series
-- Chart models, pattern detections, swing points
-- Market events, ownership, valuation, briefing blocks
-- Consumer-specific DTO fields (`FocusStockRead`, dashboard section shapes, etc.)
-- `pulse_score` (owned by pulse presentation layer until promoted — see below)
-
-Contract tests in `test_market_universe_contract.py` enforce this denylist.
-
-Cached rows are accepted only when the envelope and every row match the latest
-finalized exchange session, that session's source-sync timestamp, strategy version, threshold
-version, input-schema version, decision-taxonomy version, scanner-condition version, and aggregate payload
-revision. Every row must carry eligibility, scanner context, and a valid input
-hash. A stock may lag that session, but its row is then explicitly
-review-only/ineligible. Old or mixed-identity caches are rebuilt. Market Pulse
-ranks only `ELIGIBLE` rows.
-
-The envelope exposes `decision_session_date` plus separate `live_data_as_of` and
-`is_live_session` metadata. The legacy `session_trade_date` field remains readable
-and equals `decision_session_date`. Price windows, exchange-session dates, regime
-summaries, cache identity, and immutable snapshot `as_of_date` are all capped at
-that same completed date.
-
-Decision summaries include Phase 2 `opportunity_quality`, `entry_readiness`,
-`entry_timing`, and ordered `blocker_codes`. Phase 3 adds the explicit
-`internal_action`, trader-facing `display_action`, `entry_condition`, and
-`decision_taxonomy_version=v2`. The embedded canonical result also includes the
-capped regime score/label/phase/confidence. `recommendation` remains readable as
-the internal compatibility action; public consumers render `display_action`.
-
-Scanner predicates are owned by `modules/market_scanner/scanner_conditions.py`. They consume only canonical eligibility, technical snapshots, and decision summaries. Frontend Scanner cards group the returned matches and preserve their server ranks; they do not mirror liquidity, breakout, rebound, breakdown, risk, or compression thresholds. See [market_scanner.md](market_scanner.md).
-
-## Pulse score ownership
-
-| Scenario | Owner |
-|----------|-------|
-| Pulse-only consumer (default) | `market_pulse_service` calls `compute_pulse_score(snapshot, decision)` per row when building the pulse response |
-| Second server-side consumer needs sort/filter/rank by pulse score | Promote `pulse_score` into `ScoredUniverseRow` in `market_universe_compute.py` |
-
-Frontend-only pulse display does **not** trigger promotion.
-
-## Cache hierarchy
+## Cache identity and retention
 
 ```text
-universe:scored:{exchange}:{strategy_version}:{threshold_version}:{input_schema_version}:{decision_taxonomy_version}
-universe:scored:prev:{exchange}:{strategy_version}:{threshold_version}:{input_schema_version}:{decision_taxonomy_version}
-dashboard:{section}:{exchange}:{decision_taxonomy_version}
-pulse:{section}:{exchange}:{strategy_version}:{threshold_version}:{input_schema_version}:{pulse_score_version}:{decision_taxonomy_version}
-                                    # versioned Pulse presentation and briefing
+universe:scored:{exchange}:{market_sync_id}:{strategy_version}:{threshold_version}:{input_schema_version}:{decision_taxonomy_version}
 ```
 
-Background rebuild (`rebuild_market_read_cache`) writes `universe:scored` as step 4 after dashboard overview, sectors, and movers. Indicator/signal jobs spawn universe-only rebuild. See [market_caching.md](market_caching.md).
+Live generations expire after 24 hours; finalized generations use a 30-day
+safety horizon. This retains a small operational window without storing every
+snapshot in PostgreSQL. Older live keys cannot overwrite the current key and
+expire naturally.
 
-After successful daily DSEX finalization, Market Pulse builds its aggregate snapshot directly from a fresh, session-capped universe computation rather than a Redis payload. This avoids stale `:prev` fallback data and records the resulting universe payload revision as lineage.
+Cache acceptance validates the generation id, session, source revision, engine
+versions, scanner version, row identities and aggregate payload revision.
+`data_state` is intentionally not part of calculation identity:
 
-## Historical price windows
+```text
+G124 LIVE → G124 STALE → G124 FINALIZATION_PENDING → G124 FINALIZED
+```
 
-Consumer modules (pulse, explorer, scanner, signals, watchlist) **must not** call `GET /market/price-windows` or `list_market_price_windows` directly. **Dashboard** uses `market_snapshot` instead — it is not a universe consumer.
+These state changes reuse G124. A new `sync_id` is required only when canonical
+inputs change.
 
-To extend historical context:
+## Rebuild fencing and overlap control
 
-1. Document the use case here.
-2. Widen the universe query window or add a new lightweight foundation field in `market_universe`.
-3. Do not add parallel price-window loops in consumer services.
+`market_cache_rebuild.py` uses the existing per-exchange Redis lock. Local
+background spawns coalesce repeated requests into at most one follow-up run.
+The rebuild resolves a generation once, calculates from that context, and checks
+the current generation both before and after the Redis write. If G124 publishes
+while G123 is calculating, the G123 result is discarded and the loop builds the
+latest generation. Lock release uses an owner token so an expired/replaced lock
+cannot be deleted by an older worker.
 
-Per-stock chart OHLCV (`GET /stock-details/{exchange}/{symbol}/workspace`) is out
-of scope. Its `stock-workspace:*` keys also include strategy version so a strategy
-release cannot reuse an older decision projection; they also include threshold,
-input-schema, and decision-taxonomy versions.
+Redis unavailability or a cold current-generation cache degrades explicitly.
+HTTP consumers do not fall back to a database-wide universe calculation.
 
-## Module files
+## Consumer rules
+
+| Consumer | Use |
+|----------|-----|
+| Signals / Explorer / Scanner | Read canonical rows directly |
+| Stock Details | Select the symbol row from one canonical snapshot; add patterns, ownership, valuation and events only |
+| Watchlist / Portfolio | Project canonical decisions; use `null`/updating when unavailable, never fabricate `WAIT` |
+| Market Pulse | Rank canonical rows and persist finalized aggregates from the same cached generation |
+| Dashboard | Uses its lightweight market snapshot, fenced to the published generation; it is not a decision consumer |
+
+Consumer modules must not call `list_market_price_windows` and run the decision
+engine independently. Backtesting remains a separate historical use case and is
+not a current trader-facing surface.
+
+## Decision-input corrections
+
+Historical OHLCV corrections, relevant stock-detail event inputs, manual daily
+prices and market summaries publish a new compact generation manifest after the
+write succeeds. That new id invalidates server and browser analysis identity.
+Profile-only presentation metadata does not advance the generation.
+
+## Main files
 
 | File | Responsibility |
 |------|----------------|
-| `market_universe_schemas.py` | `ScoredUniverseRow`, `UniverseRowsRead` |
-| `market_universe_compute.py` | `group_price_window_rows`, `build_scored_universe_rows` |
-| `market_universe_service.py` | `get_scored_universe`, `recompute_scored_universe`, Redis get/set |
-| `market_universe_router.py` | HTTP route |
-| `market_universe_cache.py` | Key helpers |
-| `market_universe_lineage.py` | Deterministic compact-payload revision |
-| `../market_scanner/scanner_conditions.py` | Versioned scanner predicates and deterministic ranking |
-| `../trading_intelligence/decision_snapshot_repository.py` | Append-only canonical decision snapshots |
-| `../trading_intelligence/monitoring.py` | Freshness, lineage, drift, and mismatch checks |
-
-## Consumers
-
-| Module | Integration |
-|--------|-------------|
-| `market_pulse_service` | `get_scored_universe()` + pulse score + briefing presentation |
-| `trader_decisions_service` | Delegates to universe service |
-| `watchlists_service` | Projects technicals, canonical decision and holder/non-holder action from universe rows; never recomputes |
-| Frontend `useMarketUniverse` | `GET /market/universe-rows` |
+| `market_universe_service.py` | Generation resolution, cache read/write, fencing and canonical snapshots |
+| `market_universe_compute.py` | One exchange-wide decision and scanner calculation |
+| `market_universe_schemas.py` | Canonical row and envelope contracts |
+| `market_universe_cache.py` | Generation/version-aware Redis keys |
+| `market_universe_lineage.py` | Deterministic payload revision |
+| `../../jobs/market_cache_rebuild.py` | Locked latest-generation rebuild |
+| `../trading_intelligence/decision_snapshot_repository.py` | Finalized audit snapshots from canonical rows |

@@ -28,6 +28,7 @@ import {
   getDashboardStaleTimeMs,
 } from "@/lib/market/market-cache-policy";
 import { isSectionLoading } from "@/lib/ui/section-loading";
+import { shouldUseDashboardInitialData } from "./dashboard-query-key";
 
 function isSectionAwaitingData<T>(
   data: T | undefined,
@@ -53,6 +54,10 @@ export function useMarketDashboard(options?: {
     initialDataUpdatedAt: initialCore?.fetchedAt,
   });
   const freshness = freshnessQuery.data;
+  const generation = freshness?.market_sync_id ?? freshness?.last_synced_at ?? null;
+  const initialGeneration =
+    initialCore?.freshness?.market_sync_id ?? initialCore?.freshness?.last_synced_at ?? null;
+  const canUseInitialData = shouldUseDashboardInitialData(initialGeneration, generation);
   const dashboardCacheTtlSeconds = freshness?.dashboard_cache_ttl_seconds ?? null;
   const marketStatus = freshness?.market_status;
   const snapshotIntervalMinutes = freshness?.snapshot_interval_minutes ?? null;
@@ -74,44 +79,53 @@ export function useMarketDashboard(options?: {
   );
 
   const overviewQuery = useDashboardOverview({
+    generation: generation ?? "pending",
     staleTimeMs,
     refetchIntervalMs,
-    initialData: initialCore?.overview ?? undefined,
-    initialDataUpdatedAt: initialCore?.fetchedAt,
+    enabled: generation !== null,
+    initialData: canUseInitialData ? initialCore?.overview ?? undefined : undefined,
+    initialDataUpdatedAt: canUseInitialData ? initialCore?.fetchedAt : undefined,
   });
   const overviewReady = Boolean(overviewQuery.data);
   const moversQuery = useDashboardMovers({
+    generation: generation ?? "pending",
     staleTimeMs,
     refetchIntervalMs,
-    enabled: overviewReady,
-    initialData: initialCore?.movers ?? undefined,
-    initialDataUpdatedAt: initialCore?.fetchedAt,
+    enabled: generation !== null && overviewReady,
+    initialData: canUseInitialData ? initialCore?.movers ?? undefined : undefined,
+    initialDataUpdatedAt: canUseInitialData ? initialCore?.fetchedAt : undefined,
   });
   const sectorsQuery = useDashboardSectors({
+    generation: generation ?? "pending",
     staleTimeMs,
     refetchIntervalMs,
-    initialData: initialCore?.sectors ?? undefined,
-    initialDataUpdatedAt: initialCore?.fetchedAt,
+    enabled: generation !== null,
+    initialData: canUseInitialData ? initialCore?.sectors ?? undefined : undefined,
+    initialDataUpdatedAt: canUseInitialData ? initialCore?.fetchedAt : undefined,
   });
   const signalsQuery = useDashboardStocksInFocus({
+    generation: generation ?? "pending",
     staleTimeMs,
     refetchIntervalMs,
-    enabled: overviewReady,
+    enabled: generation !== null && overviewReady,
   });
   const alertsQuery = useDashboardMarketAlerts({
+    generation: generation ?? "pending",
     staleTimeMs,
     refetchIntervalMs,
-    enabled: overviewReady,
+    enabled: generation !== null && overviewReady,
   });
   const heatmapQuery = useDashboardHeatmap({
+    generation: generation ?? "pending",
     staleTimeMs,
     refetchIntervalMs,
-    enabled: overviewReady,
+    enabled: generation !== null && overviewReady,
   });
   const sentimentQuery = useDashboardMarketSentiment({
+    generation: generation ?? "pending",
     staleTimeMs,
     refetchIntervalMs,
-    enabled: overviewReady,
+    enabled: generation !== null && overviewReady,
   });
 
   const mappedMovers = useMemo(

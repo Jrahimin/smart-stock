@@ -13,6 +13,7 @@ UNIVERSE_CACHE_KEY_NAMES: tuple[str, ...] = ("scored",)
 def universe_cache_key(
     section: str,
     exchange,
+    market_sync_id: str | None = None,
     strategy_version: str = TRADING_STRATEGY_VERSION,
     threshold_version: str = TRADING_THRESHOLD_VERSION,
     input_schema_version: str = TRADING_INPUT_SCHEMA_VERSION,
@@ -24,8 +25,9 @@ def universe_cache_key(
         exchange_value = exchange.value
     else:
         exchange_value = str(exchange)
+    generation = market_sync_id or "unpublished"
     return (
-        f"universe:{section}:{exchange_value}:{strategy_version}:"
+        f"universe:{section}:{exchange_value}:{generation}:{strategy_version}:"
         f"{threshold_version}:{input_schema_version}:{decision_taxonomy_version}"
     )
 
@@ -40,11 +42,19 @@ def universe_prev_cache_key(
     return universe_cache_key(
         "scored:prev",
         exchange,
+        None,
         strategy_version,
         threshold_version,
         input_schema_version,
         decision_taxonomy_version,
     )
+
+
+def universe_cache_pattern(section: str, exchange) -> str:
+    from app.core.enums import ExchangeCode
+
+    exchange_value = exchange.value if isinstance(exchange, ExchangeCode) else str(exchange)
+    return f"universe:{section}:{exchange_value}:*"
 
 
 def legacy_universe_cache_key(section: str, exchange) -> str:

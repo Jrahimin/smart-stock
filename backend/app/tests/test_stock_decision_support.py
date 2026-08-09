@@ -162,14 +162,12 @@ def test_stale_data_flag_when_old_trade_date() -> None:
 
 
 def test_zero_support_does_not_crash_warning_generation() -> None:
-    snapshot = build_technical_snapshot(
-        [
-            _price(date(2026, 1, 1), close=0.0, high=0.0, low=0.0, volume=10),
-            _price(date(2026, 1, 2), close=1.0, high=1.0, low=0.0, volume=10),
-        ]
-        * 11
-    )
+    snapshot = build_technical_snapshot(_build_uptrend_prices())
     assert snapshot is not None
+    # Zero OHLC source placeholders are intentionally excluded from the
+    # analytical series.  Exercise the warning guard directly on an otherwise
+    # valid snapshot carrying a zero support edge case.
+    snapshot = replace(snapshot, support=0.0)
     liquidity = compute_liquidity(snapshot)
     risk = compute_risk_score(snapshot, "B", liquidity.label, is_stale=False, is_sparse=False)
     opportunity = compute_opportunity_score(snapshot, risk.score, liquidity.label)

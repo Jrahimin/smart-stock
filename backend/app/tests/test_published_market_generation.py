@@ -6,6 +6,8 @@ from types import SimpleNamespace
 import pytest
 
 from app.core.enums import ExchangeCode, MarketDataState, MarketSessionStatus
+from app.core.security_config import ANONYMOUS_USER_CONTEXT
+from app.modules.market_data.market_data_service import MarketDataService
 from app.modules.market_data.published_generation import (
     resolve_published_market_generation,
 )
@@ -79,3 +81,21 @@ async def test_open_and_post_close_share_live_generation_with_phase_state() -> N
     assert live is not None and live.data_state == MarketDataState.LIVE
     assert pending is not None and pending.data_state == MarketDataState.FINALIZATION_PENDING
     assert live.sync_id == pending.sync_id == "live-sync"
+
+
+@pytest.mark.asyncio
+async def test_finalization_retry_returns_the_existing_finalized_generation() -> None:
+    finalized = SimpleNamespace(sync_id="same-generation")
+
+    class Repository:
+        async def get_latest_market_data_generation(self, *, state, trade_date, **kwargs):
+            if state == MarketDataState.FINALIZED and trade_date == TODAY:
+                return finalized
+            raise AssertionError("A finalization retry must not promote an older LIVE manifest")
+
+    service = MarketDataService(Repository(), ANONYMOUS_USER_CONTEXT)
+
+    assert await service.publish_finalized_market_generation(
+        exchange=ExchangeCode.DSE,
+        trade_date=TODAY,
+    ) == "same-generation"

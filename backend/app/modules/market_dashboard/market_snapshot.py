@@ -49,6 +49,9 @@ async def load_dashboard_market_snapshot(
             exchange=exchange,
             limit=summaries_limit,
             offset=0,
+            # The dashboard response is fenced to this published session.  Do
+            # not let a later summary join a response built from older prices.
+            end_date=session_trade_date,
         )
 
     async with async_perf_stage(perf, "db.latest_prices"):

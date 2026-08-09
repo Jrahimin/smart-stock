@@ -40,6 +40,7 @@ describe("market generation validation", () => {
   it("detects generation fields on market payloads", () => {
     expect(hasMarketGenerationField({ last_synced_at: FRESHNESS })).toBe(true);
     expect(hasMarketGenerationField({ session_trade_date: "2026-07-12" })).toBe(false);
+    expect(hasMarketGenerationField({ meta: { market_sync_id: FRESHNESS } })).toBe(true);
   });
 
   it("treats missing generation metadata as a mismatch when freshness is known", () => {
@@ -90,6 +91,45 @@ describe("evaluateMarketIndexedDbEntry", () => {
     const verdict = evaluateMarketIndexedDbEntry(
       buildMarketPayload({ last_synced_at: STALE_FRESHNESS }),
       { expectedScope: "market", freshnessLastSyncedAt: FRESHNESS },
+    );
+
+    expect(verdict).toEqual({ status: "miss", reason: "generation" });
+  });
+
+  it("rejects a stale canonical universe generation nested under meta", () => {
+    const verdict = evaluateMarketIndexedDbEntry(
+      buildMarketPayload({ meta: { market_sync_id: STALE_FRESHNESS }, rows: [] }, {
+        cacheKey: `${BASE_URL}/market/universe-rows?exchange=DSE`,
+      }),
+      { expectedScope: "market", freshnessLastSyncedAt: FRESHNESS },
+    );
+
+    expect(verdict).toEqual({ status: "miss", reason: "generation" });
+  });
+
+  it("rejects a stale dashboard entry before its TTL when freshness is newer", () => {
+    const verdict = evaluateMarketIndexedDbEntry(
+      buildMarketPayload(
+        { market_sync_id: "G123", session_trade_date: "2026-07-12", gainers: [] },
+        { cacheKey: `${BASE_URL}/dashboard/movers?exchange=DSE` },
+      ),
+      { expectedScope: "market", freshnessLastSyncedAt: "G124" },
+    );
+
+    expect(verdict).toEqual({ status: "miss", reason: "generation" });
+  });
+
+  it("rejects an unversioned dashboard entry when the query resolved a generation", () => {
+    const verdict = evaluateMarketIndexedDbEntry(
+      buildMarketPayload(
+        { session_trade_date: "2026-07-12", gainers: [] },
+        { cacheKey: `${BASE_URL}/dashboard/movers?exchange=DSE` },
+      ),
+      {
+        expectedScope: "market",
+        freshnessLastSyncedAt: "G124",
+        requireGeneration: true,
+      },
     );
 
     expect(verdict).toEqual({ status: "miss", reason: "generation" });

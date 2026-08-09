@@ -38,8 +38,11 @@ async def _run(args: argparse.Namespace) -> int:
     from app.core.enums import ExchangeCode
     from app.core.redis_client import build_redis_client
     from app.modules.market_data.market_data_repository import MarketDataRepository
-    from app.modules.market_universe.market_universe_cache import universe_cache_key
-    from app.modules.market_universe.market_universe_schemas import ScoredUniverseCacheRead
+    from app.modules.market_universe.market_universe_service import (
+        MarketUniverseService,
+        UniverseCacheUnavailableError,
+    )
+    from app.modules.stocks.stocks_repository import StocksRepository
     from app.modules.stock_details.stock_details_schemas import CanonicalDecisionResultRead
     from app.modules.trading_intelligence.decision_snapshot_repository import (
         DecisionSnapshotRepository,
@@ -51,25 +54,27 @@ async def _run(args: argparse.Namespace) -> int:
 
     exchange = ExchangeCode(args.exchange)
     redis = build_redis_client(get_settings())
-    raw_payload = await redis.get_json(universe_cache_key("scored", exchange))
-    if raw_payload is None:
-        print(json.dumps({"healthy": False, "error": "UNIVERSE_CACHE_UNAVAILABLE"}))
-        return 2
-
-    try:
-        payload = ScoredUniverseCacheRead.model_validate(raw_payload)
-    except ValueError as exc:
-        print(json.dumps({"healthy": False, "error": "INVALID_CACHE_CONTRACT", "detail": str(exc)}))
-        return 2
-
     async with AsyncSessionLocal() as session:
         market_repository = MarketDataRepository(session)
-        session_date, last_synced_at = await market_repository.get_decision_session_freshness(
-            exchange=exchange
+        snapshot_repository = DecisionSnapshotRepository(session)
+        universe_service = MarketUniverseService(
+            market_repository,
+            StocksRepository(session),
+            redis,
+            get_settings(),
+            snapshot_repository,
         )
+        try:
+            canonical = await universe_service.get_canonical_universe(exchange=exchange)
+        except UniverseCacheUnavailableError as exc:
+            print(json.dumps({"healthy": False, "error": "UNIVERSE_CACHE_UNAVAILABLE", "detail": str(exc)}))
+            return 2
+        payload = canonical.payload
+        session_date = canonical.generation.trade_date
+        last_synced_at = canonical.generation.source_last_synced_at
         snapshots = []
         if session_date is not None:
-            snapshots = await DecisionSnapshotRepository(session).list_for_session(
+            snapshots = await snapshot_repository.list_for_session(
                 exchange=exchange,
                 as_of_date=session_date,
                 strategy_version=TRADING_STRATEGY_VERSION,

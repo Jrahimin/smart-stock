@@ -68,9 +68,9 @@ Market data workflow (split):
 3. Clean and validate (optional StockNow validation when enabled)
 4. Store in database (upsert by `stock_id + trade_date`)
 5. Compute indicators and generate signals downstream
-6. **Background cache rebuild** — after snapshot ingest, `spawn_rebuild_market_read_cache()` warms Redis in priority order: `dashboard:overview` → `dashboard:sectors` → versioned `universe:scored` (fire-and-forget; scheduler does not await)
+6. **Background cache rebuild** — after snapshot publication, `spawn_rebuild_market_read_cache()` warms Redis in priority order: `dashboard:overview` → `dashboard:sectors` → `dashboard:movers` → generation/version-specific `universe:scored`. An owner-token Redis lock and local coalescing prevent overlapping full-universe calculations.
 
-`GET /market/freshness` exposes snapshot timing and `market_status` for the frontend (no hardcoded session times in UI). The app-level **market cache coordinator** polls this endpoint every ~2 minutes; when `last_synced_at` advances after a backend sync, it clears market IndexedDB entries and invalidates TanStack market queries (dashboard, universe, pulse, signals) so those surfaces refetch without a page reload. Between syncs, **generation-aware IndexedDB validation** (market schema v2 + `last_synced_at` comparison) rejects stale per-URL entries and forces network refetch. Manual refresh still wipes all IndexedDB. Market IndexedDB TTL follows `dashboard_cache_ttl_seconds` from freshness when available. See `backend/docs/market_caching.md`.
+`GET /market/freshness` exposes immutable `market_sync_id`, separate `data_state`, snapshot timing and `market_status`. The app-level **market cache coordinator** polls this endpoint every ~2 minutes; when `market_sync_id` advances it clears market IndexedDB entries and invalidates trader-facing TanStack roots. Between syncs, **generation-aware IndexedDB validation** uses market schema v3 and top-level or nested `meta.market_sync_id`. Universe, stock-workspace and portfolio query keys also include the freshness generation. See `backend/docs/market_caching.md`.
 
 The system must be reliable and repeatable.
 
@@ -231,7 +231,7 @@ Each active feature module keeps schemas, repository, service, and router files 
   * Compute: `backend/app/modules/market_universe/market_universe_compute.py`
   * Service: `backend/app/modules/market_universe/market_universe_service.py`
   * Routes: `backend/app/modules/market_universe/market_universe_router.py`
-  * `GET /api/v1/market/universe-rows` — scored rows + canonical decision; Redis identity includes exchange, strategy, thresholds, and input-schema version; envelope validation includes session/source revision; cold miss → 503
+  * `GET /api/v1/market/universe-rows` — scored rows + canonical decision; Redis identity includes exchange, `market_sync_id`, strategy, thresholds, input schema and taxonomy; cold current-generation miss → coalesced rebuild + 503, never inline full-universe compute
   * Docs: `backend/docs/market_universe.md`
 
 * Market dashboard (lightweight snapshot — no decision engine):
@@ -327,7 +327,7 @@ Pipeline jobs live under `backend/app/jobs/`:
 * Indicator computation: `backend/app/jobs/indicators/`
 * Signal generation: `backend/app/jobs/signals/`
 * Durable operations queue: `backend/app/jobs/system_job_queue.py`; manual and scheduled market/stock-details jobs use the same execution runner.
-* Market cache rebuild: `backend/app/jobs/market_cache_rebuild.py` (sequential overview → sectors → universe); spawn: `backend/app/jobs/market_cache_spawn.py`
+* Market cache rebuild: `backend/app/jobs/market_cache_rebuild.py` (overview → sectors → movers → canonical universe, generation-fenced); spawn/coalescing: `backend/app/jobs/market_cache_spawn.py`
 * Perf instrumentation: `backend/app/core/perf_timing.py`
 
 Market data ingestion context:
@@ -405,10 +405,10 @@ Root: `frontend/`
 Current frontend product flow:
 
 * Market Pulse loads the backend briefing endpoint and maps the response into editorial page sections (hero, focus stocks, insight, changes, alerts).
-* Dashboard loads section endpoints (`GET /dashboard/*`): pulse core from overview (DSEX, turnover, volume, breadth); leaders widget from sectors (non-blocking skeleton); movers, heatmap, alerts, and sentiment as secondary/deferred sections. Smart Signals loads `GET /signals/decisions/latest`. No scored-universe or decision-engine dependency on the dashboard backend read path.
+* Dashboard loads specialized section endpoints (`GET /dashboard/*`) fenced to the published market boundary. Trader-facing decision feeds use the canonical universe; dashboard statistics do not run the decision engine.
 * Stock Explorer uses TanStack Table over derived stock intelligence models for trader-focused discovery.
-* Explorer, Scanner, Signal Center, Dashboard, and Watchlist resolve **Action**, **RSI**, and **Trend** from the versioned canonical universe result. Watchlist enrichment is a projection of that row and fails closed to unavailable `WAIT`; it must not recompute a fallback decision.
-* Stock Detail Workspace uses `GET /stock-details/{exchange}/{symbol}/workspace` as the page aggregate (`StockWorkspaceRead`: stock, prices, decision_support, fundamentals, `display_metrics`). Domain layers: Stock Entity (DB + engines) → page aggregate → presentation view models. Rule #1: no competing frontend decision/valuation math when `display_metrics` / `decision_support` exist. Hybrid render: durable server summary + client chart/workspace. SEO: `generateMetadata`, JSON-LD, sitemap via `GET /stocks/active-symbols`.
+* Explorer, Scanner, Signal Center, Stock Details, Watchlist, Portfolio and Pulse resolve current **Action**, **RSI**, **Trend**, shared decision identity and input hash from one canonical universe row for `market_sync_id`. Unavailable canonical intelligence is explicit `null`/updating, never a fabricated `WAIT`.
+* Stock Detail Workspace uses `GET /stock-details/{exchange}/{symbol}/workspace` as the page aggregate. Its current decision is selected from one `CanonicalUniverseSnapshot`; only patterns, ownership, valuation, events and presentation context are calculated separately. A mid-request generation change returns updating/503 rather than mixed identities.
 * Signal Center and Scanner reuse deterministic signal and stock intelligence models instead of static placeholders.
 * Watchlist joins user items to the same `intelligenceByStockId` map; API `technical_snapshot` is fallback only when a symbol is outside the universe payload.
 * Dashboard listed-stock count should represent active stock-master coverage; price-backed analytics use latest-price snapshot rows (not the full scored universe).

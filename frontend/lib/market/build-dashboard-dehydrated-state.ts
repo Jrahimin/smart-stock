@@ -1,11 +1,9 @@
 import { QueryClient, dehydrate, type DehydratedState } from "@tanstack/react-query";
 
 import type { DashboardCorePayload } from "@/lib/api/dashboard-server";
+import { dashboardQueryKey } from "@/features/market-dashboard/hooks/dashboard-query-key";
 
 const DASHBOARD_FRESHNESS_QUERY_KEY = ["market-freshness", "DSE"] as const;
-const DASHBOARD_OVERVIEW_QUERY_KEY = ["dashboard", "overview", "DSE"] as const;
-const DASHBOARD_SECTORS_QUERY_KEY = ["dashboard", "sectors", "DSE"] as const;
-const DASHBOARD_MOVERS_QUERY_KEY = ["dashboard", "movers", "DSE"] as const;
 
 function stampQueryUpdatedAt(queryClient: QueryClient, queryKey: readonly unknown[], updatedAt: number) {
   const query = queryClient.getQueryCache().find({ queryKey });
@@ -32,19 +30,27 @@ export function buildDashboardDehydratedState(core: DashboardCorePayload | null)
     stampQueryUpdatedAt(queryClient, DASHBOARD_FRESHNESS_QUERY_KEY, core.fetchedAt);
   }
 
+  const generation = core.freshness?.market_sync_id ?? core.freshness?.last_synced_at ?? null;
+  if (!generation) {
+    return dehydrate(queryClient);
+  }
+
   if (core.overview) {
-    queryClient.setQueryData(DASHBOARD_OVERVIEW_QUERY_KEY, core.overview);
-    stampQueryUpdatedAt(queryClient, DASHBOARD_OVERVIEW_QUERY_KEY, core.fetchedAt);
+    const key = dashboardQueryKey("overview", "DSE", generation);
+    queryClient.setQueryData(key, core.overview);
+    stampQueryUpdatedAt(queryClient, key, core.fetchedAt);
   }
 
   if (core.sectors) {
-    queryClient.setQueryData(DASHBOARD_SECTORS_QUERY_KEY, core.sectors);
-    stampQueryUpdatedAt(queryClient, DASHBOARD_SECTORS_QUERY_KEY, core.fetchedAt);
+    const key = dashboardQueryKey("sectors", "DSE", generation);
+    queryClient.setQueryData(key, core.sectors);
+    stampQueryUpdatedAt(queryClient, key, core.fetchedAt);
   }
 
   if (core.movers) {
-    queryClient.setQueryData(DASHBOARD_MOVERS_QUERY_KEY, core.movers);
-    stampQueryUpdatedAt(queryClient, DASHBOARD_MOVERS_QUERY_KEY, core.fetchedAt);
+    const key = dashboardQueryKey("movers", "DSE", generation);
+    queryClient.setQueryData(key, core.movers);
+    stampQueryUpdatedAt(queryClient, key, core.fetchedAt);
   }
 
   return dehydrate(queryClient);

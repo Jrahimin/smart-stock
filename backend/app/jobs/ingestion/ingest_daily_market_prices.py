@@ -260,7 +260,12 @@ async def sync_market_snapshot(
                     state=MarketDataState.LIVE,
                     source=price_result.source,
                     fetched_count=price_result.fetched_count,
-                    accepted_count=price_result.created_count,
+                    # A complete snapshot can legitimately contain unchanged
+                    # rows.  Generation acceptance measures usable coverage,
+                    # while created_count remains the mutation/rebuild signal.
+                    accepted_count=(
+                        price_result.fetched_count - price_result.skipped_unknown_symbol_count
+                    ),
                     suspicious_count=price_result.suspicious_count,
                 )
                 published = True
@@ -474,5 +479,12 @@ async def backfill_daily_prices(
         results.append(result)
         day += timedelta(days=1)
 
-    spawn_rebuild_market_read_cache(exchange)
+    if any(result.created_count for result in results):
+        async with AsyncSessionLocal() as session:
+            service = _build_service(session)
+            await service.publish_decision_input_revision(
+                exchange=exchange,
+                source="historical-ohlcv-correction",
+            )
+        spawn_rebuild_market_read_cache(exchange)
     return _merge_ingestion_results(results)

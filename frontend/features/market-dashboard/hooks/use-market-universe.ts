@@ -35,9 +35,10 @@ export function useMarketUniverse(options: UseMarketUniverseOptions = {}) {
   const freshnessQuery = useMarketDataFreshness("DSE");
   const cacheMs = options.staleTimeMs ?? getMarketStaleTimeMs(freshnessQuery.data);
   const refetchInterval = options.refetchIntervalMs ?? getMarketRefetchIntervalMs(freshnessQuery.data);
+  const generation = freshnessQuery.data?.market_sync_id ?? freshnessQuery.data?.last_synced_at ?? "unknown";
 
   const universeQuery = useQuery({
-    queryKey: ["market-universe-rows", "DSE", stockLimit],
+    queryKey: ["market-universe-rows", "DSE", stockLimit, generation],
     queryFn: () => listUniverseRows("DSE"),
     staleTime: cacheMs,
     refetchInterval,

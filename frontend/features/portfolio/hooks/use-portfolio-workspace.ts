@@ -5,13 +5,16 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/features/auth/context/auth-context";
 import type { ExchangeCode } from "@/lib/api/backend-api-types";
 import { getPortfolioWorkspace } from "@/lib/api/portfolio-api";
+import { useMarketDataFreshness } from "@/hooks/market/use-market-data-freshness";
 
 export function usePortfolioWorkspace(exchange: ExchangeCode = "DSE") {
   const { user, isAuthenticated } = useAuth();
   const userId = user?.id ?? "anonymous";
+  const freshness = useMarketDataFreshness(exchange);
+  const generation = freshness.data?.market_sync_id ?? freshness.data?.last_synced_at ?? "unknown";
 
   return useQuery({
-    queryKey: ["portfolio", "workspace", userId, exchange],
+    queryKey: ["portfolio", "workspace", userId, exchange, generation],
     queryFn: () => getPortfolioWorkspace(exchange),
     // ProtectedRoute renders children while auth boots; keep the query idle until then.
     enabled: isAuthenticated,

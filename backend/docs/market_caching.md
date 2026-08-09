@@ -9,10 +9,10 @@ Related module docs: [market_universe.md](market_universe.md), [market_dashboard
 ## Design principles
 
 1. **PostgreSQL is the source of truth.** Caches are performance layers only.
-2. **Sync-driven freshness on the backend.** Scheduled data writes spawn background cache rebuilds; TTL is a safety net. Keys are overwritten on success — not deleted before rebuild.
+2. **Generation-driven freshness on the backend.** Every complete publication gets an immutable `market_sync_id`; the canonical universe is stored under that id. TTL is cleanup, not current identity.
 3. **Published-generation freshness in the browser.** `MarketCacheSyncCoordinator` polls `/market/freshness` and, when `market_sync_id` changes (with `last_synced_at` as a rolling-deploy fallback), clears **market-related IndexedDB entries** then invalidates TanStack market queries. Between syncs, generation-aware validation rejects mismatched market entries per URL.
-4. **Background rebuild, compute-on-miss fallback.** After sync, `spawn_rebuild_market_read_cache()` warms overview → sectors → movers → universe in priority order. HTTP misses compute inline for dashboard. Universe serves an identity-compatible primary or `universe:scored:prev`; an unusable/cold cache starts a deduplicated background rebuild before returning 503.
-5. **Redis is optional.** Unset `REDIS_URL` → backend always computes; behavior is correct, only slower.
+4. **Locked background rebuild, explicit universe miss.** After sync, `spawn_rebuild_market_read_cache()` warms overview → sectors → movers → universe. A universe miss starts a coalesced rebuild and returns 503; it never computes the exchange-wide universe inline or serves an older generation as current.
+5. **Redis is optional for specialized reads, required for canonical universe serving.** If Redis is unavailable, normal trader-facing HTTP requests degrade explicitly instead of starting uncontrolled full-universe calculations.
 6. **Browser fetches the API directly.** Next.js does not proxy or server-cache market JSON for client-side hooks; all client caching happens in the browser.
 
 **Exception (dashboard core SSR):** the Next.js server may prefetch **freshness + overview + sectors + movers** for `/` using `SERVER_API_BASE_URL` with `cache: "no-store"`. See [Dashboard core SSR (selective)](#dashboard-core-ssr-selective) below.
@@ -37,7 +37,7 @@ Related module docs: [market_universe.md](market_universe.md), [market_dashboard
 │         ↓ queryFn                                                       │
 │       backendApiGetMarket | backendApiGetFresh | backendApiGet          │
 │         ↓                                                               │
-│       IndexedDB (market schema v2, URL-keyed)                           │
+│       IndexedDB (market schema v3, URL-keyed)                           │
 │         → generation + schema validation vs freshness                   │
 │         → stale entry: delete URL only + invalidate related TanStack    │
 │         → miss ──→ fetch → FastAPI                                      │
@@ -46,7 +46,7 @@ Related module docs: [market_universe.md](market_universe.md), [market_dashboard
 ┌─────────────────────────────────────────────────────────────────────────┐
 │ FastAPI (backend-api)                                                   │
 │                                                                         │
-│  Router → Service → compute-on-miss → Redis GET                         │
+│  Router → Service → Redis GET (universe miss → 503 + background warm)  │
 │                         ↓ miss                                          │
 │                    Repository → PostgreSQL                              │
 │                         ↓                                               │
@@ -69,10 +69,10 @@ Three **independent** client-side layers (do not conflate), plus one **coordinat
 |-------|--------|-------------|-----------|
 | **Redis** | Backend services | `dashboard_cache_ttl_seconds` (default 600s) | Sync interval + invalidation |
 | **TanStack Query** | React hooks | Same as backend TTL during OPEN/PRE_OPEN | `GET /market/freshness` |
-| **IndexedDB** | `backend-api-client.ts` | From `dashboard_cache_ttl_seconds` when freshness loaded; fallback 5–10 min | Freshness hook + build-time env; **market schema v2** + generation validation |
+| **IndexedDB** | `backend-api-client.ts` | From `dashboard_cache_ttl_seconds` when freshness loaded; fallback 5–10 min | Freshness hook + build-time env; **market schema v3** + generation validation |
 | **Sync coordinator** | `market-cache-coordinator.ts` | N/A (event-driven) | `last_synced_at` change on `/market/freshness` poll; targeted per-URL bust on generation mismatch |
 
-**Coordinator invalidates TanStack roots:** `dashboard`, `market-universe-rows`, `market-pulse-summary`, `market-pulse-briefing`, `signals`. Scanner, signals, and stock explorer consume `market-universe-rows` — no separate keys.
+**Coordinator invalidates TanStack roots:** `dashboard`, `market-universe-rows`, `market-pulse-summary`, `market-pulse-briefing`, `signals`, `stock-workspace`, `stock-sector-context`, and `portfolio`. Scanner, Signals and Stock Explorer consume `market-universe-rows` — no separate calculation keys.
 
 ---
 
@@ -91,8 +91,7 @@ Storage format: `SET key JSON EX=<ttl_seconds>` (not `SETEX` by name, same effec
 ### Cache hierarchy
 
 ```text
-universe:scored:{exchange}:{strategy_version}:{threshold_version}:{input_schema_version}:{decision_taxonomy_version}
-universe:scored:prev:{exchange}:{strategy_version}:{threshold_version}:{input_schema_version}:{decision_taxonomy_version}
+universe:scored:{exchange}:{market_sync_id}:{strategy_version}:{threshold_version}:{input_schema_version}:{decision_taxonomy_version}
 dashboard:{section}:{exchange}:{decision_taxonomy_version}
 pulse:{response|summary}:{exchange}:{date}:{market_sync_id}:{versions...}
                                                        ← presentation
@@ -136,13 +135,13 @@ GET /dashboard/movers
 
 Universe rows:
 
-1. Read `universe:scored` and require the current published-generation identity.
-2. On a miss or rejection, read `universe:scored:prev`.
-3. A previous payload may bridge the same-session `LIVE`/`FINALIZATION_PENDING` → expected `FINALIZED` transition when its session, calculation versions, row structure, and `source_last_synced_at` all match. `market_sync_id` and `data_state` are intentionally allowed to differ only for this narrow phase transition.
-4. Serving `:prev` starts the deduplicated universe rebuild.
-5. If neither entry is usable, start that same rebuild before returning HTTP 503. Requests never perform the expensive universe computation inline.
+1. Resolve the current immutable published generation once.
+2. Read only that generation's fully versioned key.
+3. Validate session, source revision, engine versions, row identities and payload lineage.
+4. On a miss or rejection, start the coalesced rebuild and return HTTP 503.
+5. Never label or serve an older generation as current, and never run the expensive calculation in an HTTP request.
 
-Finalized `universe:scored` payloads use a 30-day retention safety horizon instead of the generic eight-hour closed-market TTL. Exact session/generation validation still runs on every read, so this longer retention spans overnight, weekends, and exchange holidays without permitting an older finalized session after a newer generation is published. Live and finalization-pending payloads retain the normal market-state TTL behavior.
+Live generation payloads expire after 24 hours; finalized payloads use a 30-day safety horizon. Exact generation validation runs on every read, so retained older keys are never current and expire naturally.
 
 Cache rejection logs use the `universe_cache_rejected` event and include the Redis key/TTL plus cached and expected session, state, sync ID, and source timestamp. Dashboard sections continue to compute from the lightweight snapshot only (no `get_scored_universe`).
 
@@ -155,7 +154,7 @@ Cache rejection logs use the `universe_cache_rejected` event and include the Red
 | 3 | `dashboard:movers` | ~1s (SSR movers panels) |
 | 4 | `universe:scored` | ~15s (trader surfaces only) |
 
-Spawned fire-and-forget after `sync_market_snapshot` commit via `spawn_rebuild_market_read_cache()` in `app/jobs/market_cache_spawn.py`. Scheduler does **not** await rebuild. Failed steps keep the previous Redis value (no delete-first). A best-effort Redis lock per exchange (`market:rebuild-lock:{exchange}`, TTL 180s) prevents overlapping rebuild workers; Redis failure does not block rebuild.
+Spawned fire-and-forget after `sync_market_snapshot` commit via `spawn_rebuild_market_read_cache()` in `app/jobs/market_cache_spawn.py`. A Redis owner-token lock per exchange (`market:rebuild-lock:{exchange}`, TTL 180s) prevents overlapping workers. Local requests coalesce into at most one follow-up. The universe step resolves one generation context, fences publication before and after the Redis write, and loops to the newest generation when obsolete work is discarded.
 
 ### When caches are refreshed
 
@@ -180,7 +179,7 @@ When a new finalized-session Pulse aggregate is persisted, only `pulse:*:{exchan
 - `trade_date`, `market_sync_id`, `data_state`, `last_synced_at`, `next_sync_at`, `market_status`
 - `dashboard_cache_ttl_seconds` — shared contract for backend Redis TTL and frontend TanStack `staleTime`
 
-The snapshot job writes daily prices, DSEX enrichment, and the `LIVE` manifest in one transaction. The shared state rule is: pre-open/weekend/holiday use the latest `FINALIZED` generation; `OPEN` uses the latest published `LIVE` generation; post-close uses that generation as `FINALIZATION_PENDING` until verified DSEX finalization publishes `FINALIZED`. Failed or unavailable syncs roll back rather than invent a partial generation; readers retain the last published generation and expose `STALE` when applicable.
+The snapshot job writes daily prices, DSEX enrichment, and the `LIVE` manifest in one transaction. Pre-open/weekend/holiday use the latest finalized publication; OPEN uses the latest LIVE publication; post-close exposes that same id as FINALIZATION_PENDING until verified finalization promotes it to FINALIZED. Failed syncs roll back and retain the prior id. `data_state` changes do not create a new calculation identity.
 
 Freshness and universe readers both call the shared `resolve_published_market_generation()` resolver. This keeps PRE_OPEN, OPEN, POST_CLOSE, weekend, and holiday selection semantics identical across the two APIs.
 
@@ -247,7 +246,7 @@ IndexedDB details:
 
 - Database: `smart-stock-api-cache`, store `responses`
 - Key: full request URL including query string
-- Market entries: `scope: "market"` + `marketSchemaVersion: 2` (legacy entries without v2 are ignored automatically)
+- Market entries: `scope: "market"` + `marketSchemaVersion: 3` (entries with another schema version are ignored automatically)
 - Clear all: `clearBackendApiCache()` or `invalidateMarketClientCaches(queryClient)` via `market-cache-coordinator.ts`
 - Clear market only: `clearMarketBackendApiCache()` or `syncMarketClientCachesOnBackendUpdate(queryClient)`
 
@@ -257,13 +256,13 @@ Centralized in `backend-api-client.ts` + `market-cache-coordinator.ts` — **fea
 
 | Step | Behavior |
 |------|----------|
-| Freshness observed | `setMarketFreshnessGeneration(last_synced_at)` from `useMarketCacheSyncCoordinator` |
-| IndexedDB read (`backendApiGetMarket`) | Validate `marketSchemaVersion === 2`; when freshness is known, compare response `last_synced_at` (when present) to `/market/freshness.last_synced_at` |
+| Freshness observed | `setMarketFreshnessGeneration(market_sync_id ?? last_synced_at)` from `useMarketCacheSyncCoordinator` |
+| IndexedDB read (`backendApiGetMarket`) | Validate `marketSchemaVersion === 3`; when freshness is known, compare top-level or nested `meta.market_sync_id` (timestamp fallback during rolling deploys) |
 | Schema or generation miss | Delete **only that URL's** IndexedDB entry → deferred `notifyStaleMarketCacheEntry(url)` with `refetchType: "none"` (avoids refetch deadlock inside the active `queryFn`) → fall through to network (never return the stale payload) |
-| Generation-aware TanStack reconcile | On freshness load/update, `reconcileGenerationAwareMarketQueries` invalidates in-memory queries whose cached data carries mismatched `last_synced_at` |
-| Full sync (`last_synced_at` advances) | Unchanged: `clearMarketBackendApiCache()` + invalidate all `MARKET_TANSTACK_QUERY_ROOTS` |
+| Generation-aware TanStack reconcile | On freshness load/update, invalidate in-memory queries whose cached data carries a mismatched generation |
+| Full sync (`market_sync_id` advances) | `clearMarketBackendApiCache()` + invalidate all `MARKET_TANSTACK_QUERY_ROOTS` |
 
-**Generation metadata today:** `last_synced_at` on dashboard overview and pulse summary responses. Universe, signals, scanner, and stock workspace entries do not carry generation stamps — they rely on sync coordinator busts, schema v2, and TTL. Responses without a generation field are not generation-validated.
+**Generation metadata:** universe and portfolio responses expose `meta.market_sync_id`; stock workspace and decision support expose top-level `market_sync_id`; dashboard and Pulse retain generation stamps. Query keys for universe, stock workspace and portfolio include the current freshness generation.
 
 **Shared modules:**
 
@@ -402,23 +401,23 @@ Coordinator has not fired (last_synced_at unchanged).
 ```text
 backend-scheduler:
   1. Fetch AmarStock LatestPrice + index API
-  2. MarketDataService.ingest_daily_prices(invalidate_market_cache=False) → upsert daily_prices
-  3. run_snapshot_enrichment() → DSEX summary
+  2. In one transaction, upsert daily_prices, enrich DSEX, and validate coverage
+  3. Commit and publish one market_data_generations row only when the snapshot is complete
   4. spawn_rebuild_market_read_cache(DSE)   [fire-and-forget; scheduler returns immediately]
      → rebuild overview (~2s) → sectors (~1s) → movers (~1s) → universe:scored (~15s)
-     → overwrites Redis keys on success; previous keys kept until overwrite
+     → publishes generation-specific keys; older generation keys expire
 
-PostgreSQL now has fresh prices. Redis keys update progressively (overview first).
-last_synced_at advances in DB.
+PostgreSQL contains the complete published snapshot and its new `market_sync_id`.
+Redis keys update progressively (overview first), with every write fenced to that id.
 ```
 
 ### T=15 min + ≤2 min — Coordinator detects sync (freshness poll)
 
 ```text
-MarketCacheSyncCoordinator observes new last_synced_at
+MarketCacheSyncCoordinator observes new market_sync_id
 → clearMarketBackendApiCache()
 → invalidateMarketTanStackQueries(queryClient)
-   → invalidateQueries dashboard, market-universe-rows, market-pulse-*, signals
+   → invalidateQueries dashboard, market-universe-rows, market-pulse-*, signals, stock-workspace, portfolio
 
 Active TanStack queries refetch immediately
 → backendApiGetMarket → network (market IndexedDB cleared on sync)
@@ -431,8 +430,8 @@ Active TanStack queries refetch immediately
 ```text
 useMarketUniverse → invalidated with market-universe-rows
 → backendApiGetMarket("/market/universe-rows")
-→ Backend: universe:scored hit after rebuild step 4, or stale universe:scored:prev while rebuild runs
-→ ScoredUniverseRow list in UI (may lag overview by <20s)
+→ Backend: current generation key hit after rebuild step 4
+→ Before that key exists, explicit warming/503; no older decision is shown as current
 ```
 
 An HTTP 503 from this endpoint is treated as a cache-warm signal: universe consumers wait 20 seconds and retry once, while showing “Market view is warming up.” Other failures are not retried by the universe-specific policy.
@@ -502,10 +501,10 @@ Disabled during PRE_OPEN / HOLIDAY (refresh button only; programmatic refetch st
 |-------|----------|
 | Deploy backend env change | Restart `backend-api` + `backend-scheduler` |
 | Deploy frontend cache env | `docker compose build frontend` (build-time `NEXT_PUBLIC_*`) |
-| Redis down | Backend computes every request; no user-facing error |
-| Pre-deploy browser IndexedDB | Legacy market entries (schema &lt; v2) ignored automatically; generation mismatches delete per URL; full market clear on next `last_synced_at` advance or manual refresh |
+| Redis down | Canonical trader intelligence returns explicit unavailable/updating; no HTTP full-universe fallback |
+| Pre-deploy browser IndexedDB | Legacy market entries (schema &lt; v3) ignored automatically; generation mismatches delete per URL; full market clear on next `market_sync_id` advance or manual refresh |
 | Optional legacy Redis cleanup | After schema-changing deploy, delete only affected keys (e.g. `pulse:summary:*` missing `last_synced_at`) via `redis-cli` — **never** `FLUSHDB` / `FLUSHALL`; PostgreSQL remains source of truth |
-| Stock workspace staleness | Up to Redis TTL within same trade date; not invalidated on sync |
+| Stock workspace staleness | Generation-specific key and query identity prevent same-day reuse after publication |
 | Pulse `previous_snapshot` param | Backend skips Redis read/write for that request (change-detection path) |
 
 ---
@@ -568,7 +567,7 @@ Disabled during PRE_OPEN / HOLIDAY (refresh button only; programmatic refetch st
 
 | Test file | Covers |
 |-----------|--------|
-| `lib/market/market-indexeddb-generation.test.ts` | Generation validation, schema v2, per-URL stale bust, TanStack reconcile |
+| `lib/market/market-indexeddb-generation.test.ts` | Nested/top-level generation validation, schema v3, per-URL stale bust, TanStack reconcile |
 | `lib/market/market-cache-coordinator.test.ts` | Market URL classification, sync vs manual IndexedDB clear scope |
 | `app/tests/test_dashboard_cache_ttl.py` | TTL clamp formula |
 | `app/tests/test_market_universe_contract.py` | Key naming, invalidation deletes all 10 keys |

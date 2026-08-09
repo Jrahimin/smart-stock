@@ -225,11 +225,16 @@ export async function deleteCachedApiResponse(url: string) {
 async function readCachedApiResponse<T>(
   url: string,
   persistentCache: BackendApiPersistentCache,
+  expectedMarketGeneration?: string | null,
 ): Promise<T | null> {
   const payload = await readCachedApiPayload<T>(url);
   const verdict = evaluateMarketIndexedDbEntry(payload ?? undefined, {
     expectedScope: persistentCache === "off" ? undefined : persistentCache,
-    freshnessLastSyncedAt: persistentCache === "market" ? getMarketFreshnessGeneration() : undefined,
+    freshnessLastSyncedAt:
+      persistentCache === "market"
+        ? expectedMarketGeneration ?? getMarketFreshnessGeneration()
+        : undefined,
+    requireGeneration: expectedMarketGeneration !== undefined,
     cacheKey: url,
   });
 
@@ -491,13 +496,14 @@ export async function backendApiGet<T>(
   params?: Record<string, QueryValue>,
   init?: RequestInit,
   persistentCache: BackendApiPersistentCache = "default",
+  expectedMarketGeneration?: string | null,
 ): Promise<T> {
   const url = `${frontendConfig.apiBaseUrl}${path}${buildQueryString(params)}`;
   const cacheMode = resolvePersistentCacheMode(init, persistentCache);
   const cacheTtlMs = getPersistentCacheTtlMs(cacheMode);
   const shouldUsePersistentCache = cacheTtlMs !== null;
   const cachedData = shouldUsePersistentCache
-    ? await readCachedApiResponse<T>(url, cacheMode)
+    ? await readCachedApiResponse<T>(url, cacheMode, expectedMarketGeneration)
     : null;
   if (cachedData !== null) {
     return cachedData;
@@ -531,8 +537,9 @@ export function backendApiGetMarket<T>(
   path: string,
   params?: Record<string, QueryValue>,
   init?: RequestInit,
+  expectedMarketGeneration?: string | null,
 ): Promise<T> {
-  return backendApiGet<T>(path, params, init, "market");
+  return backendApiGet<T>(path, params, init, "market", expectedMarketGeneration);
 }
 
 /** GET that always bypasses IndexedDB (for freshness and other always-live endpoints). */

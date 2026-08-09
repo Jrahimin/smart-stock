@@ -15,6 +15,7 @@ import {
 
 type UseDashboardSectionOptions = {
   exchange?: ExchangeCode;
+  generation: string;
   staleTimeMs: number;
   refetchIntervalMs?: number | false;
   enabled?: boolean;
@@ -29,12 +30,13 @@ const UNIVERSE_ROWS_QUERY_KEY_LIMIT = 500;
 
 export function useDashboardStocksInFocus({
   exchange = "DSE",
+  generation,
   staleTimeMs,
   refetchIntervalMs = false,
   enabled = true,
 }: UseDashboardSectionOptions) {
   const universeQuery = useQuery({
-    queryKey: ["market-universe-rows", exchange, UNIVERSE_ROWS_QUERY_KEY_LIMIT],
+    queryKey: ["market-universe-rows", exchange, generation, UNIVERSE_ROWS_QUERY_KEY_LIMIT],
     queryFn: () => listUniverseRows(exchange),
     staleTime: staleTimeMs,
     refetchInterval: refetchIntervalMs,

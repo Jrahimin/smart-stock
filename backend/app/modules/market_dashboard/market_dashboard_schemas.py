@@ -24,6 +24,7 @@ class DashboardMoverRead(BaseModel):
 
 class DashboardMoversRead(BaseModel):
     session_trade_date: date | None = None
+    market_sync_id: str | None = None
     gainers: list[DashboardMoverRead]
     losers: list[DashboardMoverRead]
     turnover_leaders: list[DashboardMoverRead]
@@ -34,6 +35,7 @@ class DashboardOverviewRead(BaseModel):
     exchange: ExchangeCode
     session_trade_date: date | None = None
     last_synced_at: datetime | None = None
+    market_sync_id: str | None = None
     listed_stock_count: int
     dsex_index: DsexIndexSnapshotRead
     summaries: list[DailyMarketSummaryRead]
@@ -53,6 +55,7 @@ class DashboardTopGainerRead(BaseModel):
 
 class DashboardSectorsRead(BaseModel):
     session_trade_date: date | None = None
+    market_sync_id: str | None = None
     sectors: list[DashboardSectorRead] = Field(default_factory=list)
     top_gainer: DashboardTopGainerRead | None = None
 
@@ -65,6 +68,7 @@ class DashboardTimelineItemRead(BaseModel):
 
 class DashboardMarketAlertsRead(BaseModel):
     session_trade_date: date | None = None
+    market_sync_id: str | None = None
     items: list[DashboardTimelineItemRead] = Field(default_factory=list)
 
 
@@ -104,6 +108,7 @@ class DashboardHeatmapTileRead(BaseModel):
 
 class DashboardHeatmapRead(BaseModel):
     session_trade_date: date | None = None
+    market_sync_id: str | None = None
     tiles: list[DashboardHeatmapTileRead] = Field(default_factory=list)
 
 
@@ -119,6 +124,7 @@ class DashboardInsightRead(BaseModel):
 class DashboardMarketSentimentRead(BaseModel):
     exchange: ExchangeCode
     session_trade_date: date | None = None
+    market_sync_id: str | None = None
     market_mood: str
     signal_count: int
     price_backed_count: int

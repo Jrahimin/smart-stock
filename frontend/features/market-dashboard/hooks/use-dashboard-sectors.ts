@@ -4,9 +4,11 @@ import { useQuery } from "@tanstack/react-query";
 
 import { getDashboardSectors } from "@/lib/api/market-dashboard-api";
 import type { BackendDashboardSectorsDto, ExchangeCode } from "@/lib/api/backend-api-types";
+import { dashboardQueryKey } from "./dashboard-query-key";
 
 type UseDashboardSectionOptions = {
   exchange?: ExchangeCode;
+  generation: string;
   staleTimeMs: number;
   refetchIntervalMs?: number | false;
   enabled?: boolean;
@@ -16,6 +18,7 @@ type UseDashboardSectionOptions = {
 
 export function useDashboardSectors({
   exchange = "DSE",
+  generation,
   staleTimeMs,
   refetchIntervalMs = false,
   enabled = true,
@@ -23,8 +26,8 @@ export function useDashboardSectors({
   initialDataUpdatedAt,
 }: UseDashboardSectionOptions) {
   return useQuery({
-    queryKey: ["dashboard", "sectors", exchange],
-    queryFn: () => getDashboardSectors(exchange),
+    queryKey: dashboardQueryKey("sectors", exchange, generation),
+    queryFn: () => getDashboardSectors(exchange, generation),
     initialData,
     initialDataUpdatedAt,
     staleTime: staleTimeMs,

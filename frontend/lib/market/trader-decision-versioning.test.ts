@@ -187,6 +187,7 @@ describe("canonical decision and persisted signal versioning", () => {
     unavailable.traderDecision = null;
     unavailable.signal = { ...unavailable.signal, signal: "BUY", confidence: 99 };
     expect(resolveTraderDecision(unavailable).recommendation).toBe("WAIT");
+    expect(resolveWatchlistAction(unavailable, false)).toBeNull();
 
     const bearish = buildStockIntelligenceFromUniverseRow(universeRow("SELL"));
     expect(resolveWatchlistAction(bearish, true)).toBe("SELL");

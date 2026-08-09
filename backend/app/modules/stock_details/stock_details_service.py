@@ -14,8 +14,6 @@ from app.core.enums import (
     DataQualityFlag,
     ExchangeCode,
     MetricValueType,
-    ReportPeriodType,
-    ReportStatus,
     StockDetailsSyncJobStatus,
     StockDetailsSyncScope,
     StockDetailsSyncTriggerType,
@@ -33,7 +31,10 @@ from app.jobs.ingestion.amarstock_latest_price_api_source import (
     latest_price_snapshot_date,
 )
 from app.jobs.ingestion.stock_details_api_source_base import ApiStockDetailsPayload
+from app.jobs.market_cache_spawn import spawn_rebuild_market_read_cache
 from app.models import FinancialMetricDefinition, FinancialReport, Stock, StockDetailsSyncJob
+from app.modules.market_data.market_data_repository import MarketDataRepository
+from app.modules.market_data.market_data_service import MarketDataService
 from app.modules.stock_details.stock_details_repository import (
     StockDetailsRepository,
     get_stock_details_repository,
@@ -140,6 +141,7 @@ class StockDetailsService:
         valuation_count = 0
         shareholding_count = 0
         event_count = 0
+        decision_input_changed_count = 0
         latest_price_profile_fill_count = 0
         latest_price_shareholding_count = 0
         latest_price_valuation_count = 0
@@ -172,11 +174,14 @@ class StockDetailsService:
             valuation_count += counts["valuation_count"]
             shareholding_count += counts["shareholding_count"]
             event_count += counts["event_count"]
+            decision_input_changed_count += counts["decision_input_changed"]
             latest_price_profile_fill_count += counts["latest_price_profile_fill"]
             latest_price_shareholding_count += counts["latest_price_shareholding"]
             latest_price_valuation_count += counts["latest_price_valuation"]
 
-            useful_count = sum(counts.values())
+            useful_count = sum(
+                value for key, value in counts.items() if key != "decision_input_changed"
+            )
             if useful_count == 0 and request.scope != StockDetailsSyncScope.STOCKS:
                 failed_count += 1
                 await self._finish_job(
@@ -201,7 +206,23 @@ class StockDetailsService:
                 attempt_count=fetched.attempt_count,
             )
 
-        await self.repository.commit()
+        # MarketEvent rows provide detail-page context only.  Canonical universe
+        # decisions currently consume historical OHLCV and the dedicated
+        # dividend/corporate-action tables, not generic event feed rows.
+        if decision_input_changed_count > 0:
+            market_data_service = MarketDataService(
+                MarketDataRepository(self.repository.session),
+                self.user_context,
+            )
+            revision = await market_data_service.publish_decision_input_revision(
+                exchange=request.exchange,
+                source="stock-details-decision-input-correction",
+            )
+            if revision is None:
+                await self.repository.commit()
+            spawn_rebuild_market_read_cache(request.exchange, settings=self.settings)
+        else:
+            await self.repository.commit()
         return StockDetailsSyncResult(
             exchange=request.exchange,
             scope=request.scope,
@@ -371,6 +392,7 @@ class StockDetailsService:
                 "valuation_count": valuation_count,
                 "shareholding_count": shareholding_count,
                 "event_count": event_count,
+                "decision_input_changed": 0,
                 "latest_price_profile_fill": latest_price_profile_fill,
                 "latest_price_shareholding": latest_price_shareholding,
                 "latest_price_valuation": latest_price_valuation,
@@ -404,6 +426,9 @@ class StockDetailsService:
             "valuation_count": valuation_count,
             "shareholding_count": shareholding_count,
             "event_count": event_count,
+            # Daily-price inserts are canonical OHLCV inputs.  Generic events,
+            # profile, valuation, ownership, and metric persistence are not.
+            "decision_input_changed": daily_price_count,
             "latest_price_profile_fill": latest_price_profile_fill,
             "latest_price_shareholding": latest_price_shareholding,
             "latest_price_valuation": latest_price_valuation,

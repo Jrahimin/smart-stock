@@ -41,7 +41,7 @@ class UserWatchlistRead(BaseModel):
     trader_decision: TraderDecisionSummaryRead | None = None
     technical_snapshot: TechnicalSnapshotRead | None = None
     decision_source: str = "UNAVAILABLE"
-    contextual_action: DecisionDisplayAction = DecisionDisplayAction.WAIT
+    contextual_action: DecisionDisplayAction | None = None
 
 
 class UserWatchlistSummaryRead(BaseModel):

@@ -46,7 +46,7 @@ class _CaptureRow:
 
 
 class MarketPulseSnapshotService:
-    """Persist a session aggregate from a fresh, DB-computed canonical universe."""
+    """Persist a session aggregate from the reusable canonical universe."""
 
     def __init__(
         self,
@@ -65,30 +65,25 @@ class MarketPulseSnapshotService:
         exchange: ExchangeCode,
         session_date: date,
     ) -> PulseSnapshotCaptureResult:
-        before_date, before_generation = (
-            await self.universe_service.market_repository.get_decision_session_freshness(
-                exchange=exchange
-            )
+        canonical_snapshot = await self.universe_service.get_canonical_universe(
+            exchange=exchange
         )
-        if before_date != session_date or before_generation is None:
+        generation = canonical_snapshot.generation
+        if generation.trade_date != session_date:
             return PulseSnapshotCaptureResult("not-finalized")
 
-        universe_rows = await self.universe_service.recompute_scored_universe(
-            exchange,
-            decision_session_date=session_date,
-        )
-        after_date, after_generation = (
-            await self.universe_service.market_repository.get_decision_session_freshness(
-                exchange=exchange
-            )
-        )
-        if after_date != session_date or after_generation != before_generation:
+        universe_rows = canonical_snapshot.rows
+        if not await self.universe_service.is_generation_current(
+            generation,
+            exchange=exchange,
+        ):
             logger.warning(
                 "Skipping Pulse snapshot for %s %s: source generation changed during capture",
                 exchange.value,
                 session_date,
             )
             return PulseSnapshotCaptureResult("source-generation-changed")
+        await self.universe_service.persist_finalized_decisions(universe_rows)
 
         # Avoid a module-level circular import: request-service eligibility remains
         # the single candidate-gate implementation.
@@ -139,7 +134,7 @@ class MarketPulseSnapshotService:
                 eligible_candidate_count=eligible_count,
                 excluded_candidate_count=max(0, len(universe_rows) - eligible_count),
                 eligible_population_fingerprint=aggregate.eligible_population_fingerprint,
-                source_last_synced_at=before_generation,
+                source_last_synced_at=generation.source_last_synced_at,
                 universe_payload_revision=compute_universe_payload_revision(universe_rows),
             )
         )

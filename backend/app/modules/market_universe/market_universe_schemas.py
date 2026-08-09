@@ -14,9 +14,17 @@ from app.core.constants.trading_constants import (
 )
 from app.core.enums import DataQualityFlag, ExchangeCode, MarketDataState, ScannerConditionId
 from app.modules.stock_details.stock_details_schemas import (
+    DataReliabilityRead,
+    DirectionalEvidenceRead,
     EligibilityResultRead,
+    LiquidityAnalysisRead,
+    OpportunityScoreRead,
+    PricePositionRead,
+    RiskScoreRead,
     TechnicalSnapshotRead,
+    TradePlanRead,
     TraderDecisionSummaryRead,
+    TradingRiskRead,
 )
 from app.modules.stocks.stocks_schemas import StockRead
 
@@ -46,12 +54,29 @@ class ScannerResultRead(BaseModel):
     matches: list[ScannerConditionMatchRead] = Field(default_factory=list)
 
 
+class CanonicalDecisionAnalysisRead(BaseModel):
+    """Reusable non-presentation analysis calculated with the canonical decision."""
+
+    opportunity: OpportunityScoreRead
+    risk: RiskScoreRead
+    directional_evidence: DirectionalEvidenceRead
+    data_reliability: DataReliabilityRead
+    trading_risk: TradingRiskRead
+    price_position: PricePositionRead
+    trade_plan: TradePlanRead
+    liquidity: LiquidityAnalysisRead
+    is_stale: bool = False
+    is_sparse: bool = False
+    suspected_adjustment: bool = False
+
+
 class ScoredUniverseRow(BaseModel):
     """Lightweight exchange-wide row — safe for universe:scored Redis cache."""
 
     stock: StockRead
     technical_snapshot: TechnicalSnapshotRead
     decision: TraderDecisionSummaryRead | None = None
+    analysis: CanonicalDecisionAnalysisRead | None = None
     eligibility: EligibilityResultRead | None = None
     scanner: ScannerResultRead | None = None
     session: UniverseSessionRead

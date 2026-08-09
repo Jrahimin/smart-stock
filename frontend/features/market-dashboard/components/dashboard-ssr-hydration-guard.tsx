@@ -6,6 +6,7 @@ import { useEffect, useRef } from "react";
 import type { DashboardCorePayload } from "@/lib/api/dashboard-server";
 import { useMarketDataFreshness } from "@/hooks/market/use-market-data-freshness";
 import { syncMarketClientCachesOnBackendUpdate } from "@/lib/market/market-cache-coordinator";
+import { dashboardQueryKey } from "@/features/market-dashboard/hooks/dashboard-query-key";
 
 type DashboardSsrHydrationGuardProps = {
   initialCore: DashboardCorePayload;
@@ -21,16 +22,21 @@ export function DashboardSsrHydrationGuard({ initialCore }: DashboardSsrHydratio
   const { data: freshness } = useMarketDataFreshness("DSE", { refetchInterval: false });
 
   useEffect(() => {
-    if (hasInvalidatedRef.current || !freshness?.last_synced_at) {
+    const liveGeneration = freshness?.market_sync_id ?? freshness?.last_synced_at ?? null;
+    if (hasInvalidatedRef.current || !liveGeneration) {
       return;
     }
 
-    const overview = queryClient.getQueryData<{ last_synced_at?: string | null }>(["dashboard", "overview", "DSE"]);
-    const liveFreshnessSyncedAt = freshness.last_synced_at;
+    const overview = queryClient.getQueryData<{ last_synced_at?: string | null }>(
+      dashboardQueryKey("overview", "DSE", liveGeneration),
+    );
+    const liveFreshnessSyncedAt = freshness?.last_synced_at ?? null;
     const liveOverviewSyncedAt = overview?.last_synced_at ?? null;
+    const initialGeneration =
+      initialCore.freshness?.market_sync_id ?? initialCore.freshness?.last_synced_at ?? null;
 
     const freshnessMismatch =
-      Boolean(initialCore.lastSyncedAt) && liveFreshnessSyncedAt !== initialCore.lastSyncedAt;
+      Boolean(initialGeneration) && liveGeneration !== initialGeneration;
 
     const overviewMismatch =
       Boolean(initialCore.overviewLastSyncedAt && liveOverviewSyncedAt) &&
@@ -43,7 +49,7 @@ export function DashboardSsrHydrationGuard({ initialCore }: DashboardSsrHydratio
       hasInvalidatedRef.current = true;
       void syncMarketClientCachesOnBackendUpdate(queryClient);
     }
-  }, [freshness?.last_synced_at, initialCore, queryClient]);
+  }, [freshness?.market_sync_id, freshness?.last_synced_at, initialCore, queryClient]);
 
   return null;
 }

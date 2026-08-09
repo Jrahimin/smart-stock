@@ -195,13 +195,28 @@ describe("dashboard SSR dehydrated state", () => {
       JSON.stringify(query.queryKey) === JSON.stringify(["market-freshness", "DSE"]),
     );
     const overviewEntry = dehydrated.queries.find((query) =>
-      JSON.stringify(query.queryKey) === JSON.stringify(["dashboard", "overview", "DSE"]),
+      JSON.stringify(query.queryKey) === JSON.stringify([
+        "dashboard",
+        "overview",
+        "DSE",
+        freshnessFixture.last_synced_at,
+      ]),
     );
     const sectorsEntry = dehydrated.queries.find((query) =>
-      JSON.stringify(query.queryKey) === JSON.stringify(["dashboard", "sectors", "DSE"]),
+      JSON.stringify(query.queryKey) === JSON.stringify([
+        "dashboard",
+        "sectors",
+        "DSE",
+        freshnessFixture.last_synced_at,
+      ]),
     );
     const moversEntry = dehydrated.queries.find((query) =>
-      JSON.stringify(query.queryKey) === JSON.stringify(["dashboard", "movers", "DSE"]),
+      JSON.stringify(query.queryKey) === JSON.stringify([
+        "dashboard",
+        "movers",
+        "DSE",
+        freshnessFixture.last_synced_at,
+      ]),
     );
 
     expect(freshnessEntry?.state.data).toEqual(freshnessFixture);
