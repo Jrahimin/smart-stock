@@ -210,8 +210,8 @@ async def test_universe_cache_and_snapshot_share_decision_session_date() -> None
     cached = next(iter(service.redis.storage.values()))
     assert cached["decision_session_date"] == COMPLETED_SESSION.isoformat()
     assert cached["session_trade_date"] == COMPLETED_SESSION.isoformat()
-    assert cached["is_live_session"] is True
-    assert cached["live_data_as_of"] == SYNCED_AT.isoformat()
+    assert cached["is_live_session"] is False
+    assert cached["live_data_as_of"] is None
 
 
 @pytest.mark.asyncio
@@ -228,8 +228,8 @@ async def test_freshness_exposes_provisional_live_metadata() -> None:
     ).get_market_freshness(exchange=ExchangeCode.DSE)
 
     assert freshness.decision_session_date == COMPLETED_SESSION
-    assert freshness.live_data_as_of == SYNCED_AT
-    assert freshness.is_live_session is True
+    assert freshness.live_data_as_of is None
+    assert freshness.is_live_session is False
 
 
 def test_decision_funnel_reconciles_with_final_universe_rows() -> None:

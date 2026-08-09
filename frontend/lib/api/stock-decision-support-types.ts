@@ -10,6 +10,7 @@ import type {
   DecisionDisplayAction,
   EvidenceDirection,
   ExchangeCode,
+  MarketDataState,
   HolderAction,
   NonHolderAction,
   OpportunityQuality,
@@ -33,6 +34,8 @@ export type StockDecisionSupportDto = {
   stock_id: string;
   symbol: string;
   exchange: ExchangeCode;
+  market_sync_id?: string;
+  data_state?: MarketDataState;
   decision_session_date?: string;
   live_data_as_of?: string | null;
   is_live_session?: boolean;

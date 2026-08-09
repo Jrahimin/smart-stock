@@ -108,7 +108,7 @@ def _what_next_code(
     buy_price: Decimal | None,
     current_price: Decimal | None,
     price_status: PortfolioPriceStatus,
-    action: DecisionDisplayAction,
+    action: DecisionDisplayAction | None,
     holder_action: HolderAction | None,
     trend: TrendDirection,
     risk: RiskLevelLabel | None,
@@ -124,6 +124,8 @@ def _what_next_code(
         PortfolioPriceStatus.UNAVAILABLE,
     }:
         return PortfolioWhatNextCode.PRICE_STALE_OR_SUSPENDED
+    if action is None:
+        return PortfolioWhatNextCode.DATA_INCOMPLETE
     if ScannerConditionId.BREAKDOWN in scanner_conditions:
         return PortfolioWhatNextCode.REVIEW_SUPPORT_BREAK
     if (
@@ -189,7 +191,7 @@ class PortfoliosService:
         self,
         *,
         exchange: ExchangeCode,
-    ) -> tuple[list[ScoredUniverseRow], date | None, datetime | None, MarketDataState, bool]:
+    ) -> tuple[list[ScoredUniverseRow], date | None, datetime | None, MarketDataState, bool, str | None]:
         try:
             universe = await self.universe_service.get_universe_rows(exchange=exchange)
             return (
@@ -198,6 +200,7 @@ class PortfoliosService:
                 universe.meta.live_data_as_of,
                 universe.meta.data_state,
                 universe.meta.is_live_session,
+                universe.meta.market_sync_id,
             )
         except UniverseCacheUnavailableError:
             freshness = await self.market_data_service.get_market_freshness(exchange=exchange)
@@ -207,6 +210,7 @@ class PortfoliosService:
                 freshness.live_data_as_of,
                 freshness.data_state or MarketDataState.STALE,
                 bool(freshness.is_live_session),
+                getattr(freshness, "market_sync_id", None),
             )
 
     async def _build_workspace(
@@ -218,7 +222,7 @@ class PortfoliosService:
         # Sequential awaits only — this request shares one AsyncSession across
         # repository/universe/market services; concurrent gather is not safe.
         items = await self.repository.list_items(user_id=user_id, exchange=exchange)
-        universe_rows, published_date, live_as_of, data_state, is_provisional = (
+        universe_rows, published_date, live_as_of, data_state, is_provisional, market_sync_id = (
             await self._resolve_universe_context(exchange=exchange)
         )
 
@@ -358,6 +362,7 @@ class PortfoliosService:
         )
         meta = PortfolioWorkspaceMetaRead(
             exchange=exchange,
+            market_sync_id=market_sync_id,
             published_market_date=published_date,
             live_data_as_of=live_as_of,
             data_state=data_state,
@@ -446,7 +451,7 @@ class PortfoliosService:
         elif decision is not None:
             action = decision.display_action
         else:
-            action = DecisionDisplayAction.WAIT
+            action = None
         risk = None
         if decision is not None:
             risk = (
@@ -644,6 +649,8 @@ class PortfoliosService:
         sector_exposure.sort(key=lambda row: row.current_value, reverse=True)
         action_values: dict[DecisionDisplayAction, tuple[int, Decimal]] = {}
         for holding in holdings:
+            if holding.action is None:
+                continue
             count, value = action_values.get(holding.action, (0, Decimal("0")))
             action_values[holding.action] = (
                 count + 1,
@@ -740,6 +747,8 @@ class PortfoliosService:
         }
         for item, position in positioned:
             if item.entry.is_holding:
+                continue
+            if position.action is None:
                 continue
             score = 0
             reason_code: str | None = None

@@ -9,15 +9,12 @@ from collections.abc import Awaitable, Callable
 from app.core.core_config import Settings, get_settings
 from app.core.enums import ExchangeCode
 from app.core.redis_client import OptionalRedisClient, build_redis_client
-from app.modules.market_universe.market_universe_cache import (
-    universe_cache_key,
-    universe_prev_cache_key,
-)
 
 logger = logging.getLogger(__name__)
 
 _rebuild_tasks: set[asyncio.Task[None]] = set()
 _inflight_rebuilds: dict[str, asyncio.Task[None]] = {}
+_pending_rebuilds: set[str] = set()
 
 
 def _rebuild_key(kind: str, exchange: ExchangeCode) -> str:
@@ -36,16 +33,23 @@ def _spawn_rebuild_task(
     runner: Callable[[], Awaitable[None]],
 ) -> bool:
     if _is_rebuild_in_flight(key):
-        logger.debug("Rebuild already in flight for %s; skipping duplicate spawn", key)
+        _pending_rebuilds.add(key)
+        logger.debug("Rebuild already in flight for %s; coalescing one follow-up", key)
         return False
 
     async def _run() -> None:
         try:
-            await runner()
+            while True:
+                _pending_rebuilds.discard(key)
+                await runner()
+                if key not in _pending_rebuilds:
+                    _inflight_rebuilds.pop(key, None)
+                    return
         except Exception:
             logger.exception("Background rebuild failed for %s", key)
         finally:
-            _inflight_rebuilds.pop(key, None)
+            if _inflight_rebuilds.get(key) is asyncio.current_task():
+                _inflight_rebuilds.pop(key, None)
 
     task = asyncio.create_task(_run(), name=task_name)
     _inflight_rebuilds[key] = task
@@ -60,21 +64,16 @@ async def warm_market_read_cache_if_cold(
     settings: Settings | None = None,
     redis: OptionalRedisClient | None = None,
 ) -> None:
-    """Spawn a full read-cache rebuild when Redis has no scored universe (e.g. after docker up)."""
+    """Ensure the currently published generation is warm after process startup."""
     resolved_settings = settings or get_settings()
     resolved_redis = redis if redis is not None else build_redis_client(resolved_settings)
     if not resolved_redis.is_available:
         return
 
-    scored = await resolved_redis.get_json(universe_cache_key("scored", exchange))
-    if scored is not None:
-        return
-
-    prev = await resolved_redis.get_json(universe_prev_cache_key(exchange))
-    if prev is not None:
-        return
-
-    logger.info("Cold scored-universe cache for %s; spawning background warm", exchange.value)
+    # A generation-specific key for an older publication does not prove that
+    # the current publication is warm.  The rebuild itself cheaply detects an
+    # existing current-generation universe under the shared lock.
+    logger.info("Ensuring current market generation cache is warm for %s", exchange.value)
     spawn_rebuild_market_read_cache(exchange, settings=resolved_settings)
 
 
@@ -93,6 +92,7 @@ def spawn_rebuild_market_read_cache(
             exchange,
             settings=settings,
             include_universe=include_universe,
+            wait_for_lock=True,
         )
 
     return _spawn_rebuild_task(
@@ -115,6 +115,7 @@ async def rebuild_market_read_cache_now(
         exchange,
         settings=settings,
         include_universe=include_universe,
+        wait_for_lock=True,
     )
     return result.success
 
@@ -132,7 +133,11 @@ def spawn_rebuild_universe_read_cache(exchange: ExchangeCode, *, settings: Setti
     async def _run() -> None:
         from app.jobs.market_cache_rebuild import rebuild_universe_read_cache
 
-        await rebuild_universe_read_cache(exchange, settings=settings or get_settings())
+        await rebuild_universe_read_cache(
+            exchange,
+            settings=settings or get_settings(),
+            wait_for_lock=True,
+        )
 
     return _spawn_rebuild_task(
         universe_key,

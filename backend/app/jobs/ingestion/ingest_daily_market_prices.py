@@ -474,5 +474,12 @@ async def backfill_daily_prices(
         results.append(result)
         day += timedelta(days=1)
 
+    if any(result.fetched_count for result in results):
+        async with AsyncSessionLocal() as session:
+            service = _build_service(session)
+            await service.publish_decision_input_revision(
+                exchange=exchange,
+                source="historical-ohlcv-correction",
+            )
     spawn_rebuild_market_read_cache(exchange)
     return _merge_ingestion_results(results)

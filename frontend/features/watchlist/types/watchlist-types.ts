@@ -40,7 +40,7 @@ export type WatchlistRowViewModel = {
   trendTone: "positive" | "negative" | "neutral";
   trendKey: WatchlistTrendKey;
   trendDirection: TrendDirection;
-  actionLabel: DecisionDisplayAction;
+  actionLabel: DecisionDisplayAction | null;
   entryCondition: string | null;
   lastUpdatedLabel: string;
   unrealizedGainLabel: string | null;

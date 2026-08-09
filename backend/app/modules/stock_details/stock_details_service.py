@@ -14,8 +14,6 @@ from app.core.enums import (
     DataQualityFlag,
     ExchangeCode,
     MetricValueType,
-    ReportPeriodType,
-    ReportStatus,
     StockDetailsSyncJobStatus,
     StockDetailsSyncScope,
     StockDetailsSyncTriggerType,
@@ -33,7 +31,10 @@ from app.jobs.ingestion.amarstock_latest_price_api_source import (
     latest_price_snapshot_date,
 )
 from app.jobs.ingestion.stock_details_api_source_base import ApiStockDetailsPayload
+from app.jobs.market_cache_spawn import spawn_rebuild_market_read_cache
 from app.models import FinancialMetricDefinition, FinancialReport, Stock, StockDetailsSyncJob
+from app.modules.market_data.market_data_repository import MarketDataRepository
+from app.modules.market_data.market_data_service import MarketDataService
 from app.modules.stock_details.stock_details_repository import (
     StockDetailsRepository,
     get_stock_details_repository,
@@ -201,7 +202,20 @@ class StockDetailsService:
                 attempt_count=fetched.attempt_count,
             )
 
-        await self.repository.commit()
+        if daily_price_count > 0 or event_count > 0:
+            market_data_service = MarketDataService(
+                MarketDataRepository(self.repository.session),
+                self.user_context,
+            )
+            revision = await market_data_service.publish_decision_input_revision(
+                exchange=request.exchange,
+                source="stock-details-decision-input-correction",
+            )
+            if revision is None:
+                await self.repository.commit()
+            spawn_rebuild_market_read_cache(request.exchange, settings=self.settings)
+        else:
+            await self.repository.commit()
         return StockDetailsSyncResult(
             exchange=request.exchange,
             scope=request.scope,

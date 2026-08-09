@@ -229,7 +229,7 @@ class WatchlistsService:
             trader_decision = canonical_row.decision if canonical_row is not None else None
             if canonical_row is not None:
                 current_price = canonical_row.session.close_price
-            contextual_action = "WAIT"
+            contextual_action = None
             if trader_decision is not None:
                 if entry.is_holding and trader_decision.holder_action is not None:
                     contextual_action = resolve_holder_display_action(

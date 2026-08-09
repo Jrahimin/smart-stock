@@ -260,7 +260,11 @@ export function WatchlistView() {
                     </div>
                     <div className="watchlist-cell watchlist-action-signal-cell" role="cell">
                       <div className="watchlist-action-badges">
-                        <SignalBadge signal={row.actionLabel} />
+                        {row.actionLabel ? (
+                          <SignalBadge signal={row.actionLabel} />
+                        ) : (
+                          <span className="watchlist-badge">Updating</span>
+                        )}
                         {row.entryCondition ? (
                           <span
                             aria-label={`Entry condition: ${row.entryCondition}`}

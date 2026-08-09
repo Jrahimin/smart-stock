@@ -558,7 +558,9 @@ function SignalCell({ item, locale }: { item: BackendPortfolioHoldingDto; locale
 
   return (
     <div className="portfolio-signal portfolio-signal-v2">
-      <span className={`portfolio-status action-${item.action.toLowerCase()}`}>{item.action.replaceAll("_", " ")}</span>
+      <span className={`portfolio-status ${item.action ? `action-${item.action.toLowerCase()}` : "action-updating"}`}>
+        {item.action ? item.action.replaceAll("_", " ") : "Updating"}
+      </span>
       <small>{signal.summary}</small>
       {priceState && (item.price_status === "STALE_LAST_KNOWN" || item.price_status === "SUSPICIOUS" || item.price_status === "SUSPENDED") && (
         <small className="portfolio-price-flag">{priceState}</small>
@@ -623,8 +625,8 @@ function MobileHoldingCard({
       <div className="portfolio-mobile-card-header">
         <div className="portfolio-mobile-card-identity">
           <MemoStockSymbolTile exchange={item.exchange} name={item.name} symbol={item.symbol} />
-          <span className={`portfolio-status portfolio-mobile-status action-${item.action.toLowerCase()}`}>
-            {item.action.replaceAll("_", " ")}
+          <span className={`portfolio-status portfolio-mobile-status ${item.action ? `action-${item.action.toLowerCase()}` : "action-updating"}`}>
+            {item.action ? item.action.replaceAll("_", " ") : "Updating"}
           </span>
         </div>
         <div className="portfolio-mobile-card-actions">
@@ -712,7 +714,10 @@ function HoldingsWorkspace({
     () => sortPortfolioGroupRows(filtered.filter((item) => !item.is_holding)),
     [filtered],
   );
-  const actions = useMemo(() => [...new Set(items.map((item) => item.action))], [items]);
+  const actions = useMemo(
+    () => [...new Set(items.map((item) => item.action).filter((value): value is NonNullable<typeof value> => value !== null))],
+    [items],
+  );
   const trends = useMemo(() => [...new Set(items.map((item) => item.trend))], [items]);
   const options = useMemo<Array<[PortfolioHoldingFilter, string]>>(
     () => [

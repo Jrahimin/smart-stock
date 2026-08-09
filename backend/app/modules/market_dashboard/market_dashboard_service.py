@@ -157,9 +157,18 @@ class MarketDashboardService:
         ttl_seconds = current_cache_ttl_seconds(self.settings)
         await self.redis.set_json(cache_key, payload, ttl_seconds=ttl_seconds)
 
-    async def cache_dashboard_payload(self, section: str, exchange: ExchangeCode, payload: BaseModel) -> None:
-        freshness = await self.market_data_service.get_market_freshness(exchange=exchange)
-        cache_key = dashboard_cache_key(section, exchange, freshness.market_sync_id)
+    async def cache_dashboard_payload(
+        self,
+        section: str,
+        exchange: ExchangeCode,
+        payload: BaseModel,
+        *,
+        market_sync_id: str | None = None,
+    ) -> None:
+        if market_sync_id is None:
+            freshness = await self.market_data_service.get_market_freshness(exchange=exchange)
+            market_sync_id = freshness.market_sync_id
+        cache_key = dashboard_cache_key(section, exchange, market_sync_id)
         await self._cache_set(cache_key, payload.model_dump(mode="json"))
 
     async def _get_cached(self, section: str, exchange: ExchangeCode, model: type[T], compute) -> T:
@@ -429,7 +438,6 @@ class MarketDashboardService:
         if dsex_index.advancing_issues + dsex_index.declining_issues + dsex_index.unchanged_issues > 0:
             advancing = dsex_index.advancing_issues
             declining = dsex_index.declining_issues
-            unchanged = dsex_index.unchanged_issues
 
         async with async_perf_stage(perf, "compute.sentiment"):
             market_mood = derive_market_mood_from_snapshot(

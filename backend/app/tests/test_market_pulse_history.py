@@ -66,6 +66,7 @@ async def test_history_requires_contiguous_current_snapshot_and_calculates_five_
         exchange=ExchangeCode.DSE,
         decision_date=session_dates[0],
         briefing_rows=[current_row],
+        is_finalized=True,
     )
 
     assert result.history == [60, 62, 64, 65, 68]
@@ -110,6 +111,7 @@ async def test_history_stops_at_a_missing_finalized_session() -> None:
         exchange=ExchangeCode.DSE,
         decision_date=session_dates[0],
         briefing_rows=[current_row],
+        is_finalized=True,
     )
 
     assert result.history == [60]
@@ -145,6 +147,7 @@ async def test_history_hides_the_current_series_when_current_lineage_changes() -
         exchange=ExchangeCode.DSE,
         decision_date=current_date,
         briefing_rows=[_row(60)],
+        is_finalized=True,
     )
 
     assert result.history == []

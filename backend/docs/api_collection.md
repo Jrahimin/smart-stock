@@ -915,7 +915,7 @@ Return each active stock with a recent daily OHLCV window, optionally filtered b
 
 * Only active stocks with available `daily_prices` rows are returned.
 * Prices inside each stock window are newest first.
-* `trader_decision` is computed live from the shared decision engine using the same lookback as stock workspace recommendations.
+* `trader_decision` is projected from the current canonical universe. This endpoint does not run a separate decision calculation.
 * The frontend can sort ascending before chart or indicator derivation.
 
 ---
@@ -982,7 +982,7 @@ List daily OHLCV rows for a stock. Supports pagination plus optional filters for
 ### POST /api/v1/stocks/{stock_id}/prices
 
 **Description**
-Create one daily OHLCV row for a stock. The service computes price change, percentage change, day range, turnover fallback, and VWAP before persistence.
+Create one daily OHLCV row for a stock. Requires `ADMIN` or `SUPER_ADMIN` bearer authentication. The service computes price change, percentage change, day range, turnover fallback, and VWAP before persistence, advances canonical generation identity, and schedules the shared rebuild.
 
 **Path Params**
 
@@ -1048,7 +1048,7 @@ None
 
 **Notes**
 
-* Duplicate `stock_id + trade_date` returns the existing row with message `Daily price already exists`.
+* Duplicate `stock_id + trade_date` returns the existing row with message `Daily price already exists` and republishes decision-input identity so a prior failed invalidation can be retried safely.
 * Missing previous close is allowed, but the stored row is marked `PARTIAL` when no earlier close can be found.
 
 ---
@@ -1056,7 +1056,7 @@ None
 ### POST /api/v1/market-data/ingestion/daily-prices
 
 **Description**
-Run daily price ingestion for a trade date using the **DSE day-end archive** source (`DseMarketDataSource`). Suitable for historical backfill when `trade_date` is a past session day. For live intraday snapshots use the `sync_market_data` CLI or scheduler instead. Does not run news or LatestPrice enrichment.
+Run daily price ingestion for a trade date using the **DSE day-end archive** source (`DseMarketDataSource`). Requires `ADMIN` or `SUPER_ADMIN` bearer authentication. Suitable for historical backfill when `trade_date` is a past session day. A successful decision-input change publishes a new generation revision before the canonical rebuild.
 
 **Path Params**
 
@@ -1103,7 +1103,7 @@ None
 
 **Notes**
 
-* Requires authenticated user context.
+* Requires an authenticated `ADMIN` or `SUPER_ADMIN` user.
 * `suspicious_count` reflects validation-source close mismatches when validation runs.
 * `post_*` fields summarize additive AmarStock News and LatestPrice trade-stat steps; error fields are set when the subsection fails after primary ingestion already committed.
 * Advanced retry, logging policy, and anomaly detection are intentionally not included yet.
@@ -1161,7 +1161,7 @@ None
 ### POST /api/v1/market/summaries
 
 **Description**
-Create one daily market summary row. Duplicate exchange, trade date, and index name returns the existing summary.
+Create one daily market summary row. Requires `ADMIN` or `SUPER_ADMIN` bearer authentication. Duplicate exchange, trade date, and index name returns the existing summary. The mutation advances decision-input generation identity because summaries feed regime calculation.
 
 **Path Params**
 
@@ -1227,7 +1227,7 @@ None
 ### POST /api/v1/stock-details/sync
 
 **Description**
-Run API-only AmarStock stock details ingestion for eligible active stocks. The workflow uses snapshot, historical price, and company financial APIs, tracks each selected stock in `stock_details_sync_jobs`, and when enabled performs one bulk LatestPrice fetch per batch. Request body **`scope`** defaults to `full` (persist prices, fundamentals, snapshots, events, and stock profile from snapshot). Use `stocks` to only fill empty columns on `stocks` from the snapshot mapper plus LatestPrice profile merge, skipping `daily_prices` and other tables; **`stocks` ignores the per-stock cadence cutoff** for who is selected (see `backend/docs/stock_details.md`).
+Run API-only AmarStock stock details ingestion for eligible active stocks. Requires `ADMIN` or `SUPER_ADMIN` bearer authentication. Historical OHLCV or relevant event changes advance canonical generation identity; profile-only presentation updates do not. Request body **`scope`** defaults to `full`. Use `stocks` for stocks-table-only fill-empty work.
 
 **Body**
 
@@ -1280,7 +1280,7 @@ Run API-only AmarStock stock details ingestion for eligible active stocks. The w
 **Description**
 Page aggregate / read model for the public stock details page (`StockWorkspaceRead`): `StockRead`, OHLCV window (chart series), full `decision_support`, fundamentals, valuation context, dividend intelligence, and backend-resolved `display_metrics` (live P/E, P/B, earnings yield, scaled market cap). This is **not** the Stock Entity itself — it is a composed projection over the Stock domain.
 
-Cached in Redis with versioned key `stock-workspace:core:{exchange}:{symbol}:live-{latest_trade_date}:decision-{decision_session_date}:{strategy_version}:{threshold_version}:{input_schema_version}:{decision_taxonomy_version}`. **Cross-day:** trade-date key change busts the cache. **Same-day:** TTL follows `market_dashboard_cache_ttl_seconds` as the intraday safety net. Exchange-wide sync invalidates the stock-workspace key family.
+Cached in Redis with versioned key `stock-workspace:core:{exchange}:{symbol}:live-{latest_trade_date}:generation-{market_sync_id}:decision-{decision_session_date}:{strategy_version}:{threshold_version}:{input_schema_version}:{decision_taxonomy_version}`. The workspace price boundary and canonical decision use the same generation; a mid-request generation change returns updating/503 rather than mixed data.
 
 **Lazy section endpoints**
 
@@ -1336,7 +1336,7 @@ Cached in Redis with versioned key `stock-workspace:core:{exchange}:{symbol}:liv
 ### GET /api/v1/stock-details/{exchange}/{symbol}/decision-support
 
 **Description**
-Return deterministic trader decision-support for one stock symbol. The response combines stored OHLCV, stock profile data, and optional ownership, valuation, and event snapshots into a single explainable contract suitable for the stock workspace UI.
+Return trader decision-support for one stock symbol. The current action, `shared_decision_id`, `input_hash`, decision date and strategy identity are selected from the canonical universe row for `market_sync_id`. Patterns, explanations, ownership, valuation and events are detail-only enrichment and cannot redefine the current action.
 
 No AI/LLM is used. All scores, recommendations, warnings, pattern detections, and trade-plan levels are formula-based.
 

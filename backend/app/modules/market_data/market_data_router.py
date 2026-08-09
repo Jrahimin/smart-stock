@@ -4,6 +4,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
+from app.api.dependencies.auth_dependencies import CurrentAdmin
 from app.core.enums import DataQualityFlag, ExchangeCode
 from app.core.pagination import PaginationParams, get_pagination_params
 from app.core.response_handler import ApiResponse, success_response
@@ -143,10 +144,15 @@ async def create_daily_price(
     stock_id: UUID,
     price_data: DailyPriceCreate,
     service: Annotated[MarketDataService, Depends(get_market_data_service)],
+    _: CurrentAdmin,
 ) -> ApiResponse[DailyPriceRead]:
     prepared_price_data = price_data.model_copy(update={"stock_id": stock_id})
     existing_price = await service.find_daily_price(prepared_price_data)
     if existing_price is not None:
+        await service.republish_stock_decision_input_revision(
+            stock_id=stock_id,
+            source="manual-daily-price-retry",
+        )
         return success_response(
             data=DailyPriceRead.model_validate(existing_price),
             message="Daily price already exists",
@@ -161,6 +167,7 @@ async def ingest_daily_prices(
     trade_date: date,
     service: Annotated[MarketDataService, Depends(get_market_data_service)],
     source: Annotated[MarketDataSource, Depends(get_default_market_data_source)],
+    _: CurrentAdmin,
     exchange: ExchangeCode = ExchangeCode.DSE,
 ) -> ApiResponse[DailyPriceIngestionResult]:
     result = await service.ingest_daily_prices(
@@ -199,9 +206,14 @@ async def list_daily_market_summaries(
 async def create_daily_market_summary(
     summary_data: DailyMarketSummaryCreate,
     service: Annotated[MarketDataService, Depends(get_market_data_service)],
+    _: CurrentAdmin,
 ) -> ApiResponse[DailyMarketSummaryRead]:
     existing_summary = await service.find_daily_market_summary(summary_data)
     if existing_summary is not None:
+        await service.republish_exchange_decision_input_revision(
+            exchange=summary_data.exchange,
+            source="manual-market-summary-retry",
+        )
         return success_response(
             data=DailyMarketSummaryRead.model_validate(existing_summary),
             message="Daily market summary already exists",

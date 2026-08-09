@@ -548,7 +548,7 @@ function PortfolioTab({
                         <strong>{formatPortfolioMoney(holding.unrealized_gain_amount, locale)}</strong>
                         <span>{formatSignedPercent(holding.unrealized_gain_percent)}</span>
                       </td>
-                      <td><DecisionBadge action={holding.action} /></td>
+                      <td>{holding.action ? <DecisionBadge action={holding.action} /> : "Updating"}</td>
                     </tr>
                   ))}
                 </tbody>

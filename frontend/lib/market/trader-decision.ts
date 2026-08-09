@@ -37,7 +37,7 @@ export function resolveWatchlistAction(
   intelligence: StockIntelligenceModel | null,
   isHolding: boolean,
   backendContextualAction?: string | null,
-): DecisionDisplayAction {
+): DecisionDisplayAction | null {
   const decision = intelligence?.traderDecision;
   if (decision && !isHolding) {
     return (
@@ -56,8 +56,13 @@ export function resolveWatchlistAction(
   if (contextualAction === "HOLD") {
     return "HOLD";
   }
+  if (contextualAction === "WAIT") {
+    return "WAIT";
+  }
 
-  return "WAIT";
+  // A quote/technical row without a canonical decision is an updating state,
+  // not evidence for a real WAIT action.
+  return decision ? "WAIT" : null;
 }
 
 export function getPreviousSessionRecommendation(stock: StockIntelligenceModel): DecisionDisplayAction | null {

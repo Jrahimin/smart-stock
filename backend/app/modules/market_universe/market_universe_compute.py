@@ -11,6 +11,7 @@ from app.modules.market_scanner.scanner_conditions import (
     evaluate_scanner_conditions,
 )
 from app.modules.market_universe.market_universe_schemas import (
+    CanonicalDecisionAnalysisRead,
     ScannerConditionMatchRead,
     ScannerResultRead,
     ScoredUniverseRow,
@@ -18,11 +19,24 @@ from app.modules.market_universe.market_universe_schemas import (
     UniverseSessionRead,
 )
 from app.modules.stock_details.decision.canonical import build_strategy_input
-from app.modules.stock_details.decision.engine import compute_trader_decision
+from app.modules.stock_details.decision.engine import TraderDecisionBundle, compute_trader_decision
 from app.modules.stock_details.decision.market_regime import MarketRegimeResult
 from app.modules.stock_details.decision.summary import build_trader_decision_summary
 from app.modules.stock_details.decision.technical import TechnicalSnapshot, build_technical_snapshot
-from app.modules.stock_details.stock_details_schemas import EligibilityResultRead
+from app.modules.stock_details.decision.trade_plan import compute_price_position
+from app.modules.stock_details.stock_details_schemas import (
+    DataReliabilityRead,
+    DirectionalEvidenceComponentRead,
+    DirectionalEvidenceRead,
+    EligibilityResultRead,
+    LiquidityAnalysisRead,
+    OpportunityScoreRead,
+    PricePositionRead,
+    RiskScoreRead,
+    ScoreComponentRead,
+    TradePlanRead,
+    TradingRiskRead,
+)
 from app.modules.stocks.stocks_schemas import StockRead
 
 
@@ -139,6 +153,120 @@ def session_from_latest_price(price: DailyPrice) -> UniverseSessionRead:
     )
 
 
+def canonical_analysis_to_read(
+    bundle: TraderDecisionBundle,
+) -> CanonicalDecisionAnalysisRead | None:
+    """Serialize the shared engine result once for all trader-facing consumers."""
+
+    directional = bundle.directional_evidence
+    reliability = bundle.data_reliability
+    trading_risk = bundle.trading_risk
+    if directional is None or reliability is None or trading_risk is None:
+        return None
+
+    def score_components(components) -> list[ScoreComponentRead]:
+        return [
+            ScoreComponentRead(
+                key=component.key,
+                label=component.label,
+                score=component.score,
+                weight=component.weight,
+                explanation=component.explanation,
+            )
+            for component in components
+        ]
+
+    position = compute_price_position(bundle.snapshot)
+    plan = bundle.trade_plan
+    liquidity = bundle.liquidity
+    return CanonicalDecisionAnalysisRead(
+        opportunity=OpportunityScoreRead(
+            score=bundle.opportunity.score,
+            quality=bundle.canonical_result.opportunity_quality if bundle.canonical_result else None,
+            components=score_components(bundle.opportunity.components),
+        ),
+        risk=RiskScoreRead(
+            score=bundle.risk.score,
+            label=bundle.risk.label,
+            components=score_components(bundle.risk.components),
+        ),
+        directional_evidence=DirectionalEvidenceRead(
+            direction=directional.direction,
+            bullish_score=directional.bullish_score,
+            bearish_score=directional.bearish_score,
+            coverage_percent=directional.coverage_percent,
+            components=[
+                DirectionalEvidenceComponentRead(
+                    key=component.key,
+                    label=component.label,
+                    direction=component.direction,
+                    strength=component.strength,
+                    weight=component.weight,
+                    explanation=component.explanation,
+                )
+                for component in directional.components
+            ],
+        ),
+        data_reliability=DataReliabilityRead(
+            score=reliability.score,
+            label=reliability.label,
+            reason_codes=list(reliability.reason_codes),
+            explanation=reliability.explanation,
+        ),
+        trading_risk=TradingRiskRead(
+            score=trading_risk.score,
+            label=trading_risk.label,
+            components=score_components(trading_risk.components),
+        ),
+        price_position=PricePositionRead(
+            current_price=position.current_price,
+            distance_to_support_percent=position.distance_to_support_percent,
+            distance_to_resistance_percent=position.distance_to_resistance_percent,
+            above_sma20_percent=position.above_sma20_percent,
+            above_ema20_percent=position.above_ema20_percent,
+        ),
+        trade_plan=TradePlanRead(
+            entry_zone_low=plan.entry_zone_low,
+            entry_zone_high=plan.entry_zone_high,
+            stop_loss=plan.stop_loss,
+            target_low=plan.target_low,
+            target_high=plan.target_high,
+            risk_reward_ratio=plan.risk_reward_ratio,
+            explanation=plan.explanation,
+            status=plan.status,
+            reasons=list(plan.reasons),
+            entry_readiness=plan.entry_readiness,
+            entry_timing=plan.entry_timing,
+            preferred_entry_zone_low=plan.preferred_entry_zone_low,
+            preferred_entry_zone_high=plan.preferred_entry_zone_high,
+            invalidation_price=plan.invalidation_price,
+            condition_text=plan.condition_text,
+            expiry_sessions=plan.expiry_sessions,
+            trigger_price=plan.trigger_price,
+            confirmation_rule=plan.confirmation_rule,
+            management_mode=plan.management_mode,
+            trailing_rule=plan.trailing_rule,
+            reassessment_sessions=plan.reassessment_sessions,
+            partial_profit_price=plan.partial_profit_price,
+        ),
+        liquidity=LiquidityAnalysisRead(
+            label=liquidity.label,
+            average_volume=liquidity.average_volume,
+            latest_volume_ratio=liquidity.latest_volume_ratio,
+            volume_consistency_score=liquidity.volume_consistency_score,
+            average_turnover=liquidity.average_turnover,
+            median_turnover=liquidity.median_turnover,
+            turnover_observation_count=liquidity.turnover_observation_count,
+            turnover_provenance=liquidity.turnover_provenance,
+            traded_session_ratio=liquidity.traded_session_ratio,
+            explanation=liquidity.explanation,
+        ),
+        is_stale=bundle.is_stale,
+        is_sparse=bundle.is_sparse,
+        suspected_adjustment=bundle.suspected_adjustment,
+    )
+
+
 def build_scored_universe_rows(
     grouped: dict[str, dict[str, object]],
     *,
@@ -184,6 +312,7 @@ def build_scored_universe_rows(
         )
         bundle = compute_trader_decision(strategy_input, snapshot=snapshot)
         decision = build_trader_decision_summary(bundle) if bundle is not None else None
+        analysis = canonical_analysis_to_read(bundle) if bundle is not None else None
         latest_price = sorted_prices[-1]
         eligibility_read = (
             EligibilityResultRead(
@@ -227,6 +356,7 @@ def build_scored_universe_rows(
                 stock=StockRead.model_validate(stock),
                 technical_snapshot=technical_snapshot_to_read(snapshot),
                 decision=decision,
+                analysis=analysis,
                 eligibility=eligibility_read,
                 session=session_from_latest_price(latest_price),
             )

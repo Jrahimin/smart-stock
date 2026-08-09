@@ -38,7 +38,10 @@ export const MARKET_TANSTACK_QUERY_ROOTS = [
 /** Roots whose TanStack payloads may carry `last_synced_at` generation metadata. */
 export const GENERATION_AWARE_MARKET_QUERY_ROOTS = [
   "dashboard",
+  "market-universe-rows",
   "market-pulse-summary",
+  "stock-workspace",
+  "portfolio",
 ] as const;
 
 let marketCacheQueryClient: QueryClient | null = null;

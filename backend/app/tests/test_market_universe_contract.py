@@ -138,13 +138,15 @@ def _decision(recommendation: TraderRecommendation, confidence: int = 72) -> Tra
 
 
 def test_invalidation_key_lists_cover_presentation_and_foundation() -> None:
-    assert universe_cache_key("scored", ExchangeCode.DSE) == (
-        f"universe:scored:DSE:{TRADING_STRATEGY_VERSION}:"
+    assert universe_cache_key("scored", ExchangeCode.DSE, "G123") == (
+        f"universe:scored:DSE:G123:{TRADING_STRATEGY_VERSION}:"
         f"{TRADING_THRESHOLD_VERSION}:{TRADING_INPUT_SCHEMA_VERSION}:"
         f"{DECISION_TAXONOMY_VERSION}"
     )
-    assert universe_cache_key("scored", ExchangeCode.DSE, "future-v2") != universe_cache_key(
-        "scored", ExchangeCode.DSE
+    assert universe_cache_key(
+        "scored", ExchangeCode.DSE, "G123", strategy_version="future-v2"
+    ) != universe_cache_key(
+        "scored", ExchangeCode.DSE, "G123"
     )
     decision_date = date(2026, 7, 14)
     assert pulse_module_cache_key("response", ExchangeCode.DSE, decision_date) == (
@@ -198,6 +200,7 @@ def test_scored_universe_row_serialization_has_only_allowed_keys() -> None:
         "stock",
         "technical_snapshot",
         "decision",
+        "analysis",
         "eligibility",
         "scanner",
         "session",
@@ -281,18 +284,12 @@ async def test_scored_universe_redis_cache_payload_is_lightweight() -> None:
     await service.cache_scored_universe(exchange=ExchangeCode.DSE, rows=rows)
     await service.get_scored_universe(exchange=ExchangeCode.DSE)
 
-    cache_key = universe_cache_key("scored", ExchangeCode.DSE)
+    generation_id = f"legacy-DSE-{prices[-1].trade_date.isoformat()}"
+    cache_key = universe_cache_key("scored", ExchangeCode.DSE, generation_id)
     cached = redis.storage[cache_key]
-    previous_cache_key = universe_prev_cache_key(ExchangeCode.DSE)
     assert_no_forbidden_universe_fields(cached)
-    assert redis.storage[previous_cache_key] == cached
-    assert redis.ttls[previous_cache_key] > redis.ttls[cache_key]
-    previous_payload = service._parse_cache_payload(redis.storage[previous_cache_key])
-    assert previous_payload is not None
-    assert service._previous_cache_can_bridge_rebuild(
-        previous_payload,
-        prices[-1].trade_date + timedelta(days=1),
-    )
+    assert cached["market_sync_id"] == generation_id
+    assert set(redis.storage) == {cache_key}
     for row in cached["rows"]:
         assert_no_forbidden_universe_fields(row)
 

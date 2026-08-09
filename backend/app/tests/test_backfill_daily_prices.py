@@ -87,6 +87,7 @@ async def test_backfill_daily_prices_insert_only(monkeypatch: pytest.MonkeyPatch
             skipped_unknown_symbol_count=0,
         )
     )
+    mock_service.publish_decision_input_revision = AsyncMock(return_value="G124")
 
     mock_session = MagicMock()
     mock_session_cm = MagicMock()
@@ -110,4 +111,8 @@ async def test_backfill_daily_prices_insert_only(monkeypatch: pytest.MonkeyPatch
 
     mock_service.ingest_daily_prices.assert_awaited_once()
     assert mock_service.ingest_daily_prices.await_args.kwargs["insert_only"] is True
+    mock_service.publish_decision_input_revision.assert_awaited_once_with(
+        exchange=ExchangeCode.DSE,
+        source="historical-ohlcv-correction",
+    )
     assert result.created_count == 1

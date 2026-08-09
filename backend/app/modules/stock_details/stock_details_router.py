@@ -1,8 +1,9 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 
+from app.api.dependencies.auth_dependencies import CurrentAdmin
 from app.core.enums import ExchangeCode
 from app.core.exception_handlers import NotFoundError
 from app.core.response_handler import ApiResponse, success_response
@@ -10,6 +11,7 @@ from app.modules.stock_details.stock_details_decision_service import (
     StockDetailsDecisionService,
     get_stock_details_decision_service,
 )
+from app.modules.market_universe.market_universe_service import UniverseCacheUnavailableError
 from app.modules.stock_details.stock_details_schemas import (
     StockDecisionSupportRead,
     StockDetailsSyncJobRead,
@@ -44,7 +46,10 @@ async def get_stock_decision_support(
     symbol: str,
     service: Annotated[StockDetailsDecisionService, Depends(get_stock_details_decision_service)],
 ) -> ApiResponse[StockDecisionSupportRead]:
-    result = await service.get_decision_support(exchange=exchange, symbol=symbol.upper())
+    try:
+        result = await service.get_decision_support(exchange=exchange, symbol=symbol.upper())
+    except UniverseCacheUnavailableError as exc:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
     return success_response(data=result, message="Stock decision support retrieved")
 
 
@@ -54,7 +59,10 @@ async def get_stock_workspace(
     symbol: str,
     service: Annotated[StockDetailsWorkspaceService, Depends(get_stock_details_workspace_service)],
 ) -> ApiResponse[StockWorkspaceRead]:
-    result = await service.get_workspace(exchange=exchange, symbol=symbol.upper())
+    try:
+        result = await service.get_workspace(exchange=exchange, symbol=symbol.upper())
+    except UniverseCacheUnavailableError as exc:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
     return success_response(data=result, message="Stock workspace retrieved")
 
 
@@ -94,6 +102,7 @@ async def get_stock_sector_context(
 async def sync_stock_details(
     request: StockDetailsSyncRequest,
     service: Annotated[StockDetailsService, Depends(get_stock_details_service)],
+    _: CurrentAdmin,
 ) -> ApiResponse[StockDetailsSyncResult]:
     result = await service.sync_stock_details(request)
     return success_response(data=result, message="Stock details synced")

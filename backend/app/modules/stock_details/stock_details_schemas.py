@@ -16,6 +16,7 @@ from app.core.enums import (
     ExchangeCode,
     HolderAction,
     LiquidityLabel,
+    MarketDataState,
     MarketRegimePhase,
     NonHolderAction,
     OpportunityQuality,
@@ -517,6 +518,8 @@ class StockDecisionSupportRead(BaseModel):
     stock_id: UUID
     symbol: str
     exchange: ExchangeCode
+    market_sync_id: str
+    data_state: MarketDataState
     decision_session_date: date
     live_data_as_of: datetime | None = None
     is_live_session: bool = False
@@ -601,6 +604,11 @@ class StockDecisionSupportRead(BaseModel):
             stock_id=stock.id,
             symbol=stock.symbol,
             exchange=stock.exchange,
+            market_sync_id=kwargs.get(
+                "market_sync_id",
+                f"legacy-{stock.exchange.value}-{decision_session_date.isoformat()}",
+            ),
+            data_state=kwargs.get("data_state", MarketDataState.FINALIZED),
             decision_session_date=decision_session_date,
             live_data_as_of=live_data_as_of,
             is_live_session=is_live_session,

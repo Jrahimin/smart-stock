@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Annotated
 from zoneinfo import ZoneInfo
@@ -27,10 +28,12 @@ from app.modules.market_data.market_data_repository import (
     MarketDataRepository,
     get_market_data_repository,
 )
-from app.modules.market_data.published_generation import resolve_published_market_generation
+from app.modules.market_data.published_generation import (
+    PublishedMarketGeneration,
+    resolve_published_market_generation,
+)
 from app.modules.market_universe.market_universe_cache import (
     universe_cache_key,
-    universe_prev_cache_key,
 )
 from app.modules.market_universe.market_universe_compute import (
     build_scored_universe_rows,
@@ -61,7 +64,7 @@ from app.modules.trading_intelligence.monitoring import (
 
 logger = logging.getLogger(__name__)
 
-UNIVERSE_PREVIOUS_CACHE_TTL_MULTIPLIER = 2
+LIVE_UNIVERSE_CACHE_TTL_SECONDS = 24 * 60 * 60
 FINALIZED_UNIVERSE_CACHE_TTL_SECONDS = 30 * 24 * 60 * 60
 
 
@@ -71,14 +74,27 @@ def universe_cache_ttl_seconds(
     data_state: MarketDataState,
     now: datetime | None = None,
 ) -> int:
-    ttl_seconds = current_cache_ttl_seconds(settings, now=now)
     if data_state == MarketDataState.FINALIZED:
-        return max(ttl_seconds, FINALIZED_UNIVERSE_CACHE_TTL_SECONDS)
-    return ttl_seconds
+        return FINALIZED_UNIVERSE_CACHE_TTL_SECONDS
+    return LIVE_UNIVERSE_CACHE_TTL_SECONDS
 
 
 class UniverseCacheUnavailableError(RuntimeError):
     """Raised when scored universe is not cached and no stale fallback exists."""
+
+
+@dataclass(frozen=True, slots=True)
+class CanonicalUniverseSnapshot:
+    generation: PublishedMarketGeneration
+    payload: ScoredUniverseCacheRead
+
+    @property
+    def rows(self) -> list[ScoredUniverseRow]:
+        return self.payload.rows
+
+    def row_for_symbol(self, symbol: str) -> ScoredUniverseRow | None:
+        normalized = symbol.upper()
+        return next((row for row in self.rows if row.stock.symbol.upper() == normalized), None)
 
 
 class MarketUniverseService:
@@ -143,89 +159,68 @@ class MarketUniverseService:
             expected_source_last_synced_at,
         )
 
-    async def get_scored_universe(self, *, exchange: ExchangeCode) -> list[ScoredUniverseRow]:
-        (
-            session_trade_date,
-            source_last_synced_at,
-            market_sync_id,
-            data_state,
-        ) = await self._resolve_market_context(exchange=exchange)
+    async def get_canonical_universe(
+        self,
+        *,
+        exchange: ExchangeCode,
+        generation: PublishedMarketGeneration | None = None,
+    ) -> CanonicalUniverseSnapshot:
+        context = generation or await self.resolve_generation_context(exchange=exchange)
+        if context is None:
+            raise UniverseCacheUnavailableError(
+                f"No published market generation is available for {exchange.value}"
+            )
 
         if self.redis.is_available:
-            cache_key = universe_cache_key("scored", exchange)
+            cache_key = universe_cache_key("scored", exchange, context.sync_id)
             cached = await self._cache_get(cache_key)
-            if cached is not None:
-                cached_payload = self._parse_cache_payload(cached)
-                if cached_payload is not None and self._cache_matches_identity(
-                    cached_payload,
-                    session_trade_date,
-                    source_last_synced_at,
-                    market_sync_id,
-                    data_state,
-                ):
-                    return cached_payload.rows
-                await self._log_cache_rejection(
-                    exchange=exchange,
-                    cache_key=cache_key,
-                    payload=cached_payload,
-                    expected_session_date=session_trade_date,
-                    expected_source_last_synced_at=source_last_synced_at,
-                    expected_market_sync_id=market_sync_id,
-                    expected_data_state=data_state,
-                )
-            else:
-                await self._log_cache_rejection(
-                    exchange=exchange,
-                    cache_key=cache_key,
-                    payload=None,
-                    expected_session_date=session_trade_date,
-                    expected_source_last_synced_at=source_last_synced_at,
-                    expected_market_sync_id=market_sync_id,
-                    expected_data_state=data_state,
-                )
-
-            prev_key = universe_prev_cache_key(exchange)
-            stale = await self._cache_get(prev_key)
-            if stale is not None:
-                stale_payload = self._parse_cache_payload(stale)
-                if stale_payload is not None and self._previous_cache_can_bridge_rebuild(
-                    stale_payload, session_trade_date, source_last_synced_at, data_state
-                ):
-                    logger.info(
-                        "Serving compatible universe:scored:prev for %s while rebuild runs",
-                        exchange.value,
-                    )
-                    from app.jobs.market_cache_spawn import spawn_rebuild_universe_read_cache
-
-                    spawn_rebuild_universe_read_cache(exchange, settings=self.settings)
-                    return stale_payload.rows
-                await self._log_cache_rejection(
-                    exchange=exchange,
-                    cache_key=prev_key,
-                    payload=stale_payload,
-                    expected_session_date=session_trade_date,
-                    expected_source_last_synced_at=source_last_synced_at,
-                    expected_market_sync_id=market_sync_id,
-                    expected_data_state=data_state,
-                )
-            else:
-                await self._log_cache_rejection(
-                    exchange=exchange,
-                    cache_key=prev_key,
-                    payload=None,
-                    expected_session_date=session_trade_date,
-                    expected_source_last_synced_at=source_last_synced_at,
-                    expected_market_sync_id=market_sync_id,
-                    expected_data_state=data_state,
-                )
+            cached_payload = self._parse_cache_payload(cached) if cached is not None else None
+            if cached_payload is not None and self._cache_matches_identity(
+                cached_payload,
+                context.trade_date,
+                context.source_last_synced_at,
+                context.sync_id,
+            ):
+                return CanonicalUniverseSnapshot(generation=context, payload=cached_payload)
+            await self._log_cache_rejection(
+                exchange=exchange,
+                cache_key=cache_key,
+                payload=cached_payload,
+                expected_session_date=context.trade_date,
+                expected_source_last_synced_at=context.source_last_synced_at,
+                expected_market_sync_id=context.sync_id,
+                expected_data_state=context.data_state,
+            )
 
             from app.jobs.market_cache_spawn import spawn_rebuild_universe_read_cache
 
             spawn_rebuild_universe_read_cache(exchange, settings=self.settings)
 
         raise UniverseCacheUnavailableError(
-            f"Scored universe cache is unavailable for {exchange.value}; "
-            "background rebuild required"
+            f"Canonical universe for {exchange.value} generation {context.sync_id} "
+            "is updating"
+        )
+
+    async def get_scored_universe(self, *, exchange: ExchangeCode) -> list[ScoredUniverseRow]:
+        return (await self.get_canonical_universe(exchange=exchange)).rows
+
+    async def has_cached_generation(
+        self,
+        *,
+        exchange: ExchangeCode,
+        generation: PublishedMarketGeneration,
+    ) -> bool:
+        if not self.redis.is_available:
+            return False
+        cached = await self._cache_get(
+            universe_cache_key("scored", exchange, generation.sync_id)
+        )
+        payload = self._parse_cache_payload(cached) if cached is not None else None
+        return payload is not None and self._cache_matches_identity(
+            payload,
+            generation.trade_date,
+            generation.source_last_synced_at,
+            generation.sync_id,
         )
 
     @staticmethod
@@ -241,7 +236,6 @@ class MarketUniverseService:
         session_trade_date: date | None,
         source_last_synced_at: datetime | None,
         market_sync_id: str | None,
-        data_state: MarketDataState,
     ) -> bool:
         structural_match = (
             session_trade_date is not None
@@ -254,7 +248,6 @@ class MarketUniverseService:
             and payload.decision_taxonomy_version == DECISION_TAXONOMY_VERSION
             and payload.scanner_version == SCANNER_CONDITION_VERSION
             and payload.market_sync_id == market_sync_id
-            and payload.data_state == data_state
             and all(
             row.eligibility is not None
             and row.eligibility.exchange_session_date == session_trade_date
@@ -278,69 +271,11 @@ class MarketUniverseService:
             log_monitoring_report(report, exchange="cache-read")
         return structural_match and not report.has_errors
 
-    @staticmethod
-    def _previous_cache_can_bridge_rebuild(
-        payload: ScoredUniverseCacheRead,
-        current_session_date: date | None,
-        source_last_synced_at: datetime | None = None,
-        data_state: MarketDataState | None = None,
-    ) -> bool:
-        """Allow a prior complete universe only while the canonical rebuild catches up.
-
-        The primary cache must match the current source revision exactly.  The
-        ``:prev`` key exists specifically to bridge that transition, so applying
-        the same revision check here turns normal rebuild windows into 503s.
-        """
-        if data_state in {MarketDataState.LIVE, MarketDataState.FINALIZATION_PENDING}:
-            return False
-        previous_session_date = payload.decision_session_date
-        is_same_session_finalization_bridge = (
-            data_state == MarketDataState.FINALIZED
-            and previous_session_date == current_session_date
-            and payload.data_state
-            in {MarketDataState.LIVE, MarketDataState.FINALIZATION_PENDING}
-        )
-        data_state_matches = (
-            data_state is None
-            or payload.data_state == data_state
-            or is_same_session_finalization_bridge
-        )
-        return (
-            current_session_date is not None
-            and previous_session_date is not None
-            and previous_session_date <= current_session_date
-            and (
-                source_last_synced_at is None
-                or payload.source_last_synced_at == source_last_synced_at
-            )
-            and data_state_matches
-            and bool(payload.rows)
-            and payload.session_trade_date == previous_session_date
-            and payload.strategy_version == TRADING_STRATEGY_VERSION
-            and payload.threshold_version == TRADING_THRESHOLD_VERSION
-            and payload.input_schema_version == TRADING_INPUT_SCHEMA_VERSION
-            and payload.decision_taxonomy_version == DECISION_TAXONOMY_VERSION
-            and payload.scanner_version == SCANNER_CONDITION_VERSION
-            and all(
-                row.eligibility is not None
-                and row.eligibility.exchange_session_date == previous_session_date
-                and row.decision is not None
-                and row.decision.canonical is not None
-                and row.decision.canonical.strategy_version == TRADING_STRATEGY_VERSION
-                and row.decision.canonical.threshold_version == TRADING_THRESHOLD_VERSION
-                and row.decision.canonical.decision_taxonomy_version
-                == DECISION_TAXONOMY_VERSION
-                and row.scanner is not None
-                and row.scanner.version == SCANNER_CONDITION_VERSION
-                for row in payload.rows
-            )
-        )
-
-    async def _resolve_market_context(
+    async def resolve_generation_context(
         self,
         *,
         exchange: ExchangeCode,
-    ) -> tuple[date | None, datetime | None, str | None, MarketDataState]:
+    ) -> PublishedMarketGeneration | None:
         """Choose live data only during the active/post-close publication window."""
 
         latest_finalized = await self.market_repository.get_latest_finalized_session_date(
@@ -360,12 +295,7 @@ class MarketUniverseService:
             stale_after_seconds=self.settings.market_sync_interval_seconds * 2,
         )
         if published is not None:
-            return (
-                published.trade_date,
-                published.source_last_synced_at,
-                published.sync_id,
-                published.data_state,
-            )
+            return published
 
         # Preserve the durable-finalized fallback for rolling deployments and
         # repository doubles that predate market_data_generations.
@@ -373,38 +303,78 @@ class MarketUniverseService:
             final_synced_at = (
                 await self.market_repository.get_decision_session_freshness(exchange=exchange)
             )[1]
-            return (
-                latest_finalized,
-                final_synced_at,
-                None,
-                MarketDataState.FINALIZED,
+            if final_synced_at is None:
+                return None
+            return PublishedMarketGeneration(
+                trade_date=latest_finalized,
+                source_last_synced_at=final_synced_at,
+                sync_id=f"legacy-{exchange.value}-{latest_finalized.isoformat()}",
+                data_state=MarketDataState.FINALIZED,
+                published_at=final_synced_at,
             )
-        return live_date, live_synced_at, None, MarketDataState.STALE
+        if live_date is None or live_synced_at is None:
+            return None
+        return PublishedMarketGeneration(
+            trade_date=live_date,
+            source_last_synced_at=live_synced_at,
+            sync_id=f"legacy-{exchange.value}-{live_date.isoformat()}",
+            data_state=MarketDataState.STALE,
+            published_at=live_synced_at,
+        )
+
+    async def _resolve_market_context(
+        self,
+        *,
+        exchange: ExchangeCode,
+    ) -> tuple[date | None, datetime | None, str | None, MarketDataState]:
+        """Compatibility tuple for callers/tests; new code passes the immutable context."""
+
+        context = await self.resolve_generation_context(exchange=exchange)
+        if context is None:
+            return None, None, None, MarketDataState.STALE
+        return (
+            context.trade_date,
+            context.source_last_synced_at,
+            context.sync_id,
+            context.data_state,
+        )
+
+    async def is_generation_current(
+        self,
+        generation: PublishedMarketGeneration,
+        *,
+        exchange: ExchangeCode,
+    ) -> bool:
+        current = await self.resolve_generation_context(exchange=exchange)
+        return current is not None and current.sync_id == generation.sync_id
+
+    async def persist_finalized_decisions(self, rows: list[ScoredUniverseRow]) -> int:
+        """Persist audit snapshots from the already-calculated canonical rows."""
+
+        if self.decision_snapshot_repository is None:
+            return 0
+        return await self.decision_snapshot_repository.persist_missing(rows)
 
     async def recompute_scored_universe(
         self,
         exchange: ExchangeCode,
         *,
+        generation: PublishedMarketGeneration | None = None,
         decision_session_date: date | None = None,
     ) -> list[ScoredUniverseRow]:
         perf = PerfReport("universe.rebuild")
-        (
-            active_session_date,
-            _,
-            _,
-            data_state,
-        ) = await self._resolve_market_context(exchange=exchange)
-        latest_finalized_session_date = await self.market_repository.get_latest_finalized_session_date(
-            exchange=exchange
-        )
+        context = generation or await self.resolve_generation_context(exchange=exchange)
+        active_session_date = context.trade_date if context is not None else None
+        data_state = context.data_state if context is not None else MarketDataState.STALE
         if decision_session_date is None:
             decision_session_date = active_session_date
-        elif data_state == MarketDataState.FINALIZED and decision_session_date != latest_finalized_session_date:
+        elif context is not None and decision_session_date != context.trade_date:
             logger.warning(
-                "Skipping universe rebuild for %s session %s: latest finalized session is %s",
+                "Skipping universe rebuild for %s session %s: generation %s is session %s",
                 exchange.value,
                 decision_session_date,
-                latest_finalized_session_date,
+                context.sync_id,
+                context.trade_date,
             )
             return []
         if decision_session_date is None:
@@ -477,14 +447,25 @@ class MarketUniverseService:
         self,
         exchange: ExchangeCode,
         rows: list[ScoredUniverseRow],
-    ) -> None:
-        cache_key = universe_cache_key("scored", exchange)
-        (
-            freshness_date,
-            source_last_synced_at,
-            market_sync_id,
-            data_state,
-        ) = await self._resolve_market_context(exchange=exchange)
+        *,
+        generation: PublishedMarketGeneration | None = None,
+    ) -> bool:
+        context = generation or await self.resolve_generation_context(exchange=exchange)
+        if context is None or not rows:
+            return False
+        if not await self.is_generation_current(context, exchange=exchange):
+            logger.info(
+                "Discarding obsolete universe before cache publication: exchange=%s generation=%s",
+                exchange.value,
+                context.sync_id,
+            )
+            return False
+
+        cache_key = universe_cache_key("scored", exchange, context.sync_id)
+        freshness_date = context.trade_date
+        source_last_synced_at = context.source_last_synced_at
+        market_sync_id = context.sync_id
+        data_state = context.data_state
         is_live_session = data_state in {
             MarketDataState.LIVE,
             MarketDataState.FINALIZATION_PENDING,
@@ -512,13 +493,10 @@ class MarketUniverseService:
             rows=rows,
         )
 
-        current = await self._cache_get(cache_key)
-        previous_payload = self._parse_cache_payload(current) if current is not None else None
         monitoring_report = monitor_universe_payload(
             payload,
             expected_session_date=payload.session_trade_date,
             expected_source_last_synced_at=source_last_synced_at,
-            previous_payload=previous_payload,
         )
         if monitoring_report.issues:
             log_monitoring_report(monitoring_report, exchange=exchange.value)
@@ -546,40 +524,38 @@ class MarketUniverseService:
             funnel.reconciles,
         )
         serialized_payload = payload.model_dump(mode="json")
-        ttl_seconds = current_cache_ttl_seconds(self.settings)
         primary_ttl_seconds = universe_cache_ttl_seconds(
             self.settings,
             data_state=data_state,
-        )
-        previous_ttl_seconds = max(
-            ttl_seconds * UNIVERSE_PREVIOUS_CACHE_TTL_MULTIPLIER,
-            primary_ttl_seconds * UNIVERSE_PREVIOUS_CACHE_TTL_MULTIPLIER,
-        )
-        previous_payload = current or serialized_payload
-        await self._cache_set(
-            universe_prev_cache_key(exchange),
-            previous_payload,
-            ttl_seconds=previous_ttl_seconds,
         )
         await self._cache_set(
             cache_key,
             serialized_payload,
             ttl_seconds=primary_ttl_seconds,
         )
+        if not await self.is_generation_current(context, exchange=exchange):
+            await self.redis.delete(cache_key)
+            logger.info(
+                "Discarded universe cached during a generation change: exchange=%s generation=%s",
+                exchange.value,
+                context.sync_id,
+            )
+            return False
+        return True
 
     async def get_universe_rows(self, *, exchange: ExchangeCode) -> UniverseRowsRead:
-        (
-            session_trade_date,
-            source_last_synced_at,
-            market_sync_id,
-            data_state,
-        ) = await self._resolve_market_context(exchange=exchange)
+        snapshot = await self.get_canonical_universe(exchange=exchange)
+        context = snapshot.generation
+        session_trade_date = context.trade_date
+        source_last_synced_at = context.source_last_synced_at
+        market_sync_id = context.sync_id
+        data_state = context.data_state
         is_live_session = data_state in {
             MarketDataState.LIVE,
             MarketDataState.FINALIZATION_PENDING,
             MarketDataState.STALE,
         }
-        rows = await self.get_scored_universe(exchange=exchange)
+        rows = snapshot.rows
         listed_stock_count = await self.stocks_repository.count_stocks(
             exchange=exchange,
             is_active=True,

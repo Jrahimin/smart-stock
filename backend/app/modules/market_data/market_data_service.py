@@ -126,10 +126,38 @@ class MarketDataService:
             raise NotFoundError("Stock was not found")
         prepared_values = await self._prepare_daily_price_values(price_data)
         daily_price = await self.repository.create(prepared_values)
-        await self.repository.commit()
+        revision = await self.publish_decision_input_revision(
+            exchange=stock.exchange,
+            source="manual-daily-price",
+        )
+        if revision is None:
+            await self.repository.commit()
         await self.repository.refresh(daily_price)
         spawn_rebuild_market_read_cache(stock.exchange)
         return daily_price
+
+    async def republish_stock_decision_input_revision(
+        self,
+        *,
+        stock_id: UUID,
+        source: str,
+    ) -> None:
+        stock = await self.repository.get_stock_by_id(stock_id)
+        if stock is None:
+            raise NotFoundError("Stock was not found")
+        await self.republish_exchange_decision_input_revision(
+            exchange=stock.exchange,
+            source=source,
+        )
+
+    async def republish_exchange_decision_input_revision(
+        self,
+        *,
+        exchange: ExchangeCode,
+        source: str,
+    ) -> None:
+        await self.publish_decision_input_revision(exchange=exchange, source=source)
+        spawn_rebuild_market_read_cache(exchange)
 
     async def ingest_daily_prices(
         self,
@@ -217,7 +245,16 @@ class MarketDataService:
                 suspicious_count=suspicious_count,
             )
 
-        if commit:
+        revision_published = False
+        if commit and invalidate_market_cache and upserted_count:
+            revision_published = (
+                await self.publish_decision_input_revision(
+                    exchange=exchange,
+                    source=f"manual-ingestion:{source.source_name}",
+                )
+                is not None
+            )
+        if commit and not revision_published:
             await self.repository.commit()
         logger.info(
             "Daily market ingestion completed: exchange=%s trade_date=%s source=%s total_rows=%s "
@@ -500,8 +537,14 @@ class MarketDataService:
         summary_data: DailyMarketSummaryCreate,
     ) -> DailyMarketSummary:
         summary = await self.repository.create_model(DailyMarketSummary, summary_data.model_dump())
-        await self.repository.commit()
+        revision = await self.publish_decision_input_revision(
+            exchange=summary.exchange,
+            source="manual-market-summary",
+        )
+        if revision is None:
+            await self.repository.commit()
         await self.repository.refresh(summary)
+        spawn_rebuild_market_read_cache(summary.exchange)
         return summary
 
     async def find_daily_market_summary(
@@ -888,25 +931,74 @@ class MarketDataService:
         await self.repository.commit()
         return sync_id
 
+    async def publish_decision_input_revision(
+        self,
+        *,
+        exchange: ExchangeCode,
+        source: str,
+    ) -> str | None:
+        """Advance cache identity after an out-of-band canonical input correction.
+
+        This reuses the compact generation manifest instead of introducing a
+        second revision system.  The correction and its new publication row are
+        committed together when they share this repository session.
+        """
+
+        generation_reader = getattr(self.repository, "get_latest_market_data_generation", None)
+        by_sync_reader = getattr(self.repository, "get_market_data_generation_by_sync_id", None)
+        generation_writer = getattr(self.repository, "create_market_data_generation", None)
+        if generation_reader is None or by_sync_reader is None or generation_writer is None:
+            return None
+
+        settings = get_settings()
+        now = datetime.now(ZoneInfo("Asia/Dhaka"))
+        published = await self._resolve_published_market_generation(
+            exchange=exchange,
+            market_status=resolve_market_status(now, settings),
+            today=now.date(),
+            now=now,
+            stale_after_seconds=settings.market_sync_interval_seconds * 2,
+        )
+        if published is None:
+            return None
+        current = await by_sync_reader(exchange=exchange, sync_id=published.sync_id)
+        if current is None:
+            return None
+
+        sync_id = uuid4().hex
+        await generation_writer(
+            exchange=exchange,
+            trade_date=current.trade_date,
+            sync_id=sync_id,
+            state=current.state,
+            source=source,
+            source_last_synced_at=now,
+            fetched_count=current.fetched_count,
+            accepted_count=current.accepted_count,
+            suspicious_count=current.suspicious_count,
+        )
+        await self.repository.commit()
+        return sync_id
+
     async def publish_finalized_market_generation(
         self,
         *,
         exchange: ExchangeCode,
         trade_date: date,
     ) -> str:
-        existing = await self.repository.get_latest_market_data_generation(
-            exchange=exchange,
-            state=MarketDataState.FINALIZED,
-            trade_date=trade_date,
-        )
-        if existing is not None:
-            return existing.sync_id
         live = await self.repository.get_latest_market_data_generation(
             exchange=exchange,
             state=MarketDataState.LIVE,
             trade_date=trade_date,
         )
         if live is None:
+            existing = await self.repository.get_latest_market_data_generation(
+                exchange=exchange,
+                state=MarketDataState.FINALIZED,
+                trade_date=trade_date,
+            )
+            if existing is not None:
+                return existing.sync_id
             # Safe deployment/retry fallback: the finalizer already verified the
             # price and DSEX inputs.  Older deployments have no LIVE manifest to
             # promote, but must not leave a verified session permanently hidden.
@@ -924,15 +1016,12 @@ class MarketDataService:
                 accepted_count=0,
                 suspicious_count=0,
             )
-        return await self.publish_market_generation(
-            exchange=exchange,
-            trade_date=trade_date,
+        await self.repository.update_market_data_generation_state(
+            live,
             state=MarketDataState.FINALIZED,
-            source=live.source,
-            fetched_count=live.fetched_count,
-            accepted_count=live.accepted_count,
-            suspicious_count=live.suspicious_count,
         )
+        await self.repository.commit()
+        return live.sync_id
 
     async def _resolve_published_market_generation(
         self,

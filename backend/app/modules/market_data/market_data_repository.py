@@ -454,6 +454,28 @@ class MarketDataRepository(BaseRepository[DailyPrice]):
         ).limit(1)
         return await self.session.scalar(statement)
 
+    async def get_market_data_generation_by_sync_id(
+        self,
+        *,
+        exchange: ExchangeCode,
+        sync_id: str,
+    ) -> MarketDataGeneration | None:
+        statement = select(MarketDataGeneration).where(
+            MarketDataGeneration.exchange == exchange,
+            MarketDataGeneration.sync_id == sync_id,
+        )
+        return await self.session.scalar(statement)
+
+    async def update_market_data_generation_state(
+        self,
+        generation: MarketDataGeneration,
+        *,
+        state: MarketDataState,
+    ) -> MarketDataGeneration:
+        generation.state = state
+        await self.session.flush()
+        return generation
+
     async def get_latest_finalized_session_date(
         self,
         *,

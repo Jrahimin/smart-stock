@@ -12,6 +12,7 @@ from app.modules.market_universe.market_universe_cache import (
     UNIVERSE_CACHE_KEY_NAMES,
     legacy_universe_cache_key,
     strategy_only_universe_cache_key,
+    universe_cache_pattern,
     universe_cache_key,
     universe_prev_cache_key,
 )
@@ -89,6 +90,14 @@ async def invalidate_market_caches(
         logger.warning("Failed to delete pulse cache keys for %s", exchange.value, exc_info=True)
 
     for section in UNIVERSE_CACHE_KEY_NAMES:
+        try:
+            await redis.delete_by_pattern(universe_cache_pattern(section, exchange))
+        except Exception:
+            logger.warning(
+                "Failed to delete generation-aware universe caches for %s",
+                exchange.value,
+                exc_info=True,
+            )
         for key in (
             universe_cache_key(section, exchange),
             strategy_only_universe_cache_key(section, exchange),

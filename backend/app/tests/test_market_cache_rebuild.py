@@ -106,7 +106,7 @@ async def test_warm_market_read_cache_if_cold_spawns_when_universe_missing(monke
 
 
 @pytest.mark.asyncio
-async def test_warm_market_read_cache_if_cold_skips_when_scored_present(monkeypatch) -> None:
+async def test_startup_warm_checks_current_generation_even_when_an_old_key_exists(monkeypatch) -> None:
     from app.jobs.market_cache_spawn import warm_market_read_cache_if_cold
 
     spawned: list[ExchangeCode] = []
@@ -120,7 +120,7 @@ async def test_warm_market_read_cache_if_cold_skips_when_scored_present(monkeypa
 
     await warm_market_read_cache_if_cold(ExchangeCode.DSE, settings=Settings(), redis=redis)
 
-    assert spawned == []
+    assert spawned == [ExchangeCode.DSE]
 
 
 def test_build_dashboard_service_factory() -> None:

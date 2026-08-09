@@ -28,6 +28,7 @@ class PortfolioEventRead(BaseModel):
 
 class PortfolioWorkspaceMetaRead(BaseModel):
     exchange: ExchangeCode
+    market_sync_id: str | None = None
     published_market_date: date | None = None
     live_data_as_of: datetime | None = None
     data_state: MarketDataState = MarketDataState.STALE
@@ -77,7 +78,7 @@ class PortfolioHoldingRead(BaseModel):
     portfolio_weight: Decimal | None = None
     estimated_daily_change_amount: Decimal | None = None
     estimated_daily_contribution_percent: Decimal | None = None
-    action: DecisionDisplayAction = DecisionDisplayAction.WAIT
+    action: DecisionDisplayAction | None = None
     holder_action: HolderAction | None = None
     trend: TrendDirection = TrendDirection.UNKNOWN
     risk: RiskLevelLabel | None = None

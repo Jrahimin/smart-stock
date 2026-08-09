@@ -28,12 +28,17 @@ async def test_capture_persists_one_qualified_finalized_session(monkeypatch: pyt
     session_date = date(2026, 7, 21)
     generation = datetime(2026, 7, 21, 9, tzinfo=timezone.utc)
     rows = [_universe_row() for _ in range(20)]
-    market_repository = MagicMock()
-    market_repository.get_decision_session_freshness = AsyncMock(
-        side_effect=[(session_date, generation), (session_date, generation)]
+    published = SimpleNamespace(
+        trade_date=session_date,
+        sync_id="G123",
+        source_last_synced_at=generation,
     )
-    universe_service = MagicMock(market_repository=market_repository)
-    universe_service.recompute_scored_universe = AsyncMock(return_value=rows)
+    universe_service = MagicMock()
+    universe_service.get_canonical_universe = AsyncMock(
+        return_value=SimpleNamespace(generation=published, rows=rows)
+    )
+    universe_service.is_generation_current = AsyncMock(return_value=True)
+    universe_service.persist_finalized_decisions = AsyncMock(return_value=20)
     snapshot_repository = MagicMock()
     snapshot_repository.persist_if_absent = AsyncMock(return_value=True)
     redis = MagicMock()
@@ -74,12 +79,20 @@ async def test_capture_persists_one_qualified_finalized_session(monkeypatch: pyt
 async def test_capture_skips_insufficient_or_unstable_source_data(monkeypatch: pytest.MonkeyPatch) -> None:
     session_date = date(2026, 7, 21)
     generation = datetime(2026, 7, 21, 9, tzinfo=timezone.utc)
-    market_repository = MagicMock()
-    market_repository.get_decision_session_freshness = AsyncMock(
-        side_effect=[(session_date, generation), (session_date, generation)]
+    published = SimpleNamespace(
+        trade_date=session_date,
+        sync_id="G123",
+        source_last_synced_at=generation,
     )
-    universe_service = MagicMock(market_repository=market_repository)
-    universe_service.recompute_scored_universe = AsyncMock(return_value=[_universe_row() for _ in range(19)])
+    universe_service = MagicMock()
+    universe_service.get_canonical_universe = AsyncMock(
+        return_value=SimpleNamespace(
+            generation=published,
+            rows=[_universe_row() for _ in range(19)],
+        )
+    )
+    universe_service.is_generation_current = AsyncMock(return_value=True)
+    universe_service.persist_finalized_decisions = AsyncMock(return_value=19)
     snapshot_repository = MagicMock()
     snapshot_repository.persist_if_absent = AsyncMock()
 

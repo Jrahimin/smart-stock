@@ -35,7 +35,7 @@ Exit codes: `0` success · `2` bad date · `130` interrupt · `1` error.
 |----------|------------|---------|--------|
 | Intraday snapshot | Scheduler enqueues `MARKET_SNAPSHOT`; queue runner calls `sync_market_snapshot()` | Every `market_snapshot_interval_minutes` (default 15) between `market_open_time`–`market_close_time`, Sun–Thu | `daily_prices` (upsert), DSEX summary |
 | Daily news/finality | Scheduler enqueues `MARKET_SYNC`; queue runner calls `run_daily_market_sync()` | Once per session day at `daily_market_sync_time` (default 15:15) | `market_events`; finalize DSEX session when price + index inputs exist |
-| Historical backfill | `backfill_daily_prices()` | Manual / API | `daily_prices` from DSE archive |
+| Historical backfill | `backfill_daily_prices()` | Manual / admin API | `daily_prices` from DSE archive + decision-input generation revision |
 
 ```text
 Scheduler (snapshot) → full-market MessagePack → daily_prices
@@ -129,10 +129,16 @@ Session helpers live in `market_session_schedule.py` (shared with `GET /market/f
 | `GET /api/v1/stocks/{id}/prices` | Paginated history |
 | `POST /api/v1/market-data/ingestion/daily-prices?trade_date=` | DSE archive ingest (same as backfill CLI) |
 
-`GET /market/freshness` separates live/provisional timing from canonical timing:
-`decision_session_date`, `live_data_as_of`, and `is_live_session`. Snapshot rows
-remain available to live dashboard and price UI, but canonical decision windows
-are capped at the latest DSEX summary with `is_finalized=true`.
+The POST ingestion endpoint, `POST /stocks/{id}/prices`,
+`POST /market/summaries`, and `POST /stock-details/sync` require `ADMIN` or
+`SUPER_ADMIN`. Authentication and role enforcement use the shared middleware and
+dependency layer.
+
+`GET /market/freshness` exposes `market_sync_id` as the immutable data
+publication identity and `data_state` as presentation state. During the active
+session the canonical universe uses the published LIVE generation. Finalization
+promotes the same generation id; LIVE, STALE, FINALIZATION_PENDING and FINALIZED
+state changes do not by themselves change decision identity.
 
 ## Rules
 
@@ -144,6 +150,11 @@ are capped at the latest DSEX summary with `is_finalized=true`.
 * Unknown symbols skipped — run `seed_stocks` on a fresh DB
 * Before writes, the source must meet both `market_snapshot_min_active_coverage_percent` against active DSE stocks and `market_snapshot_min_source_symbols` matched active symbols. Zero-price placeholders count; unknown symbols improve neither guard.
 * Prices, DSEX, and the `LIVE` generation commit once. Any source, validation, coverage, DSEX, or publication failure rolls back and leaves the prior generation/caches in place.
+* A successful generation triggers one locked canonical-universe rebuild. Cache
+  publication is fenced to that exact id; an obsolete calculation is discarded.
+* Historical OHLCV, relevant stock-detail event inputs and manual market-summary
+  corrections publish a new compact generation revision after the correction
+  succeeds, so old Redis and browser analysis identities cannot remain current.
 * Official breadth comes from the index API only; do not aggregate MessagePack change fields as exchange breadth.
 * Snapshot ingestion derives `price_change`, `price_change_percent`, `day_range`,
   and `vwap` on write. Per-stock historical fallback rows may retain null stored

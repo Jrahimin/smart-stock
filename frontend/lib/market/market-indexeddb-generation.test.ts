@@ -40,6 +40,7 @@ describe("market generation validation", () => {
   it("detects generation fields on market payloads", () => {
     expect(hasMarketGenerationField({ last_synced_at: FRESHNESS })).toBe(true);
     expect(hasMarketGenerationField({ session_trade_date: "2026-07-12" })).toBe(false);
+    expect(hasMarketGenerationField({ meta: { market_sync_id: FRESHNESS } })).toBe(true);
   });
 
   it("treats missing generation metadata as a mismatch when freshness is known", () => {
@@ -89,6 +90,17 @@ describe("evaluateMarketIndexedDbEntry", () => {
   it("rejects generation mismatches when freshness is known", () => {
     const verdict = evaluateMarketIndexedDbEntry(
       buildMarketPayload({ last_synced_at: STALE_FRESHNESS }),
+      { expectedScope: "market", freshnessLastSyncedAt: FRESHNESS },
+    );
+
+    expect(verdict).toEqual({ status: "miss", reason: "generation" });
+  });
+
+  it("rejects a stale canonical universe generation nested under meta", () => {
+    const verdict = evaluateMarketIndexedDbEntry(
+      buildMarketPayload({ meta: { market_sync_id: STALE_FRESHNESS }, rows: [] }, {
+        cacheKey: `${BASE_URL}/market/universe-rows?exchange=DSE`,
+      }),
       { expectedScope: "market", freshnessLastSyncedAt: FRESHNESS },
     );
 

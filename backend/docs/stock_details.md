@@ -27,7 +27,7 @@ Conceptual domain groups (not a second DTO):
 
 One calculation site per financial meaning. Many display sites.
 
-* Backend engines own recommendation, confidence, risk, trend, support/resistance, trade plan, warnings, and resolved mark-to-market **display metrics** (`display_metrics` on the workspace aggregate).
+* The canonical market universe owns the current recommendation, confidence, risk, trend, support/resistance and trade plan. Stock Details reads that row for the published generation and owns only detail enrichment such as patterns, warnings, ownership, valuation, events and resolved mark-to-market **display metrics**.
 * Frontend may format and arrange; it must not invent a competing BUY/SELL/HOLD or recompute live P/E / P/B / scaled market cap when `display_metrics` is present.
 * List surfaces keep using `universe-rows`; the detail page uses `/workspace`. Do not dual-fetch `/decision-support` and `/workspace` for the same screen.
 
@@ -43,17 +43,19 @@ Secondary endpoints:
 
 ### Cache semantics (workspace)
 
-Per-symbol keys are versioned by live date, finalized decision date, engine
-identity, and public decision taxonomy:
+Per-symbol keys are versioned by the published generation, decision date and
+engine identity:
 
 ```text
-stock-workspace:core:{exchange}:{symbol}:live-{latest_trade_date}:decision-{decision_session_date}:{strategy_version}:{threshold_version}:{input_schema_version}:{decision_taxonomy_version}
+stock-workspace:core:{exchange}:{symbol}:live-{latest_trade_date}:generation-{market_sync_id}:decision-{decision_session_date}:{strategy_version}:{threshold_version}:{input_schema_version}:{decision_taxonomy_version}
 ```
 
 * **Cross-day:** trade-date key change is hard invalidation.
-* **Same-day intraday:** the same trade date is upserted during OPEN (~15 min).
-  TTL is the same-day safety net; exchange-wide market-cache invalidation also
-  deletes the stock-workspace key family after sync.
+* **Same-day intraday:** every successful publication changes `market_sync_id`,
+  so a prior workspace cannot be reused for the new snapshot.
+* **Request consistency:** workspace prices and canonical decision use one
+  generation context. If publication changes mid-request, the service returns
+  an updating response instead of mixing identities.
 * Frontend ISR / TanStack stale times should follow market freshness TTL, not fight IndexedDB with an unrelated magic interval.
 
 ## Sources
@@ -170,7 +172,7 @@ This keeps `stock_details_sync_jobs` lightweight while making partial ingestion 
 
 ## API and CLI
 
-`POST /api/v1/stock-details/sync` runs the API-based sync for a batch or explicit symbol list.
+`POST /api/v1/stock-details/sync` runs the API-based sync for a batch or explicit symbol list. It requires an authenticated `ADMIN` or `SUPER_ADMIN` user.
 
 Example body:
 
@@ -196,13 +198,17 @@ Omit `scope` or set `"full"` for the default. Use `"stocks"` for stocks-table-on
 Per-symbol workspace sections use the same full key identity:
 
 ```text
-stock-workspace:{core|patterns|events}:{exchange}:{symbol}:live-{latest_trade_date}:decision-{decision_session_date}:{strategy_version}:{threshold_version}:{input_schema_version}:{decision_taxonomy_version}
+stock-workspace:{core|patterns|events}:{exchange}:{symbol}:live-{latest_trade_date}:generation-{market_sync_id}:decision-{decision_session_date}:{strategy_version}:{threshold_version}:{input_schema_version}:{decision_taxonomy_version}
 ```
 
 * **Invalidation:** exchange-wide cache invalidation deletes the workspace key family.
 * **Cross-day freshness:** keys miss naturally when trade date advances.
-* **Same-day intraday freshness:** TTL is the safety net while the trade date stays constant; workspace JSON may lag the latest snapshot upsert by up to that TTL unless a future explicit rebuild hook is added.
-* **Consistency:** eventually consistent within one sync interval on the same trade date.
+* **Same-day intraday freshness:** generation identity is hard invalidation; TTL remains a storage safety net.
+* **Consistency:** `decision_support.market_sync_id`, top-level `market_sync_id`, canonical decision date, `shared_decision_id` and `input_hash` all originate from the same universe snapshot.
+
+The current trader decision is copied from `ScoredUniverseRow`. Patterns,
+ownership, valuation, events and other detail-only fields are composed around
+that row and cannot redefine its current action.
 
 ## Workspace display metrics (Rule #1)
 

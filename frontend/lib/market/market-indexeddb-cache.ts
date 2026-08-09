@@ -2,7 +2,7 @@ import { isMarketApiCacheUrl } from "@/lib/market/market-cache-url-registry";
 import { responseMatchesMarketFreshness } from "@/lib/market/market-generation";
 
 /** Bump when market IndexedDB payload shape or validation rules change. */
-export const MARKET_INDEXEDDB_SCHEMA_VERSION = 2;
+export const MARKET_INDEXEDDB_SCHEMA_VERSION = 3;
 
 export type MarketIndexedDbCacheScope = "default" | "market" | "off";
 

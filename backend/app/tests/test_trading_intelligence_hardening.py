@@ -8,8 +8,6 @@ from uuid import UUID
 import pytest
 
 from app.core.constants.trading_constants import (
-    DECISION_TAXONOMY_VERSION,
-    SCANNER_CONDITION_VERSION,
     TRADING_INPUT_SCHEMA_VERSION,
     TRADING_STRATEGY_VERSION,
     TRADING_THRESHOLD_VERSION,
@@ -34,7 +32,6 @@ from app.modules.backtesting.backtesting_models import (
 )
 from app.modules.market_universe.market_universe_cache import (
     universe_cache_key,
-    universe_prev_cache_key,
 )
 from app.modules.market_universe.market_universe_compute import (
     build_scored_universe_rows,
@@ -341,9 +338,7 @@ async def test_unavailable_universe_cache_triggers_one_rebuild_before_503(
         is_available = True
 
         async def get_json(self, key):
-            if key == universe_prev_cache_key(ExchangeCode.DSE):
-                return previous_cache
-            return None
+            return previous_cache
 
     service = MarketUniverseService(
         MarketRepository(),
@@ -356,19 +351,14 @@ async def test_unavailable_universe_cache_triggers_one_rebuild_before_503(
         "app.jobs.market_cache_spawn.spawn_rebuild_universe_read_cache",
         lambda exchange, **kwargs: rebuild_calls.append(exchange),
     )
-    with pytest.raises(UniverseCacheUnavailableError, match="background rebuild required"):
+    with pytest.raises(UniverseCacheUnavailableError, match="is updating"):
         await service.get_scored_universe(exchange=ExchangeCode.DSE)
     assert rebuild_calls == [ExchangeCode.DSE]
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "previous_state",
-    [MarketDataState.LIVE, MarketDataState.FINALIZATION_PENDING],
-)
-async def test_same_session_intraday_previous_cache_bridges_finalized_generation(
+async def test_different_generation_cache_cannot_bridge_finalized_generation(
     monkeypatch: pytest.MonkeyPatch,
-    previous_state: MarketDataState,
 ) -> None:
     from types import SimpleNamespace
 
@@ -395,65 +385,35 @@ async def test_same_session_intraday_previous_cache_bridges_finalized_generation
                 )
             return None
 
-    row = SimpleNamespace(
-        eligibility=SimpleNamespace(exchange_session_date=session_date),
-        decision=SimpleNamespace(
-            canonical=SimpleNamespace(
-                strategy_version=TRADING_STRATEGY_VERSION,
-                threshold_version=TRADING_THRESHOLD_VERSION,
-                decision_taxonomy_version=DECISION_TAXONOMY_VERSION,
-            )
-        ),
-        scanner=SimpleNamespace(version=SCANNER_CONDITION_VERSION),
-    )
-    previous_payload = SimpleNamespace(
-        decision_session_date=session_date,
-        session_trade_date=session_date,
-        source_last_synced_at=source_synced_at,
-        market_sync_id="older-live-sync",
-        data_state=previous_state,
-        strategy_version=TRADING_STRATEGY_VERSION,
-        threshold_version=TRADING_THRESHOLD_VERSION,
-        input_schema_version=TRADING_INPUT_SCHEMA_VERSION,
-        decision_taxonomy_version=DECISION_TAXONOMY_VERSION,
-        scanner_version=SCANNER_CONDITION_VERSION,
-        rows=[row],
-    )
-
     class PreviousOnlyRedis:
         is_available = True
+        requested_keys: list[str] = []
 
         async def get_json(self, key):
-            if key == universe_prev_cache_key(ExchangeCode.DSE):
+            self.requested_keys.append(key)
+            if key == universe_cache_key("scored", ExchangeCode.DSE, "older-live-sync"):
                 return {"previous": True}
             return None
 
-        async def get_ttl_seconds(self, key):
-            return 42
-
+    redis = PreviousOnlyRedis()
     service = MarketUniverseService(
         MarketRepository(),
         object(),
-        PreviousOnlyRedis(),
+        redis,
         Settings(),
     )
-    monkeypatch.setattr(service, "_parse_cache_payload", lambda payload: previous_payload)
     rebuild_calls: list[ExchangeCode] = []
     monkeypatch.setattr(
         "app.jobs.market_cache_spawn.spawn_rebuild_universe_read_cache",
         lambda exchange, **kwargs: rebuild_calls.append(exchange),
     )
 
-    assert await service.get_scored_universe(exchange=ExchangeCode.DSE) == [row]
+    with pytest.raises(UniverseCacheUnavailableError, match="finalized-sync is updating"):
+        await service.get_scored_universe(exchange=ExchangeCode.DSE)
     assert rebuild_calls == [ExchangeCode.DSE]
-
-    previous_payload.source_last_synced_at = source_synced_at + timedelta(seconds=1)
-    assert not service._previous_cache_can_bridge_rebuild(
-        previous_payload,
-        session_date,
-        source_synced_at,
-        MarketDataState.FINALIZED,
-    )
+    assert redis.requested_keys == [
+        universe_cache_key("scored", ExchangeCode.DSE, "finalized-sync")
+    ]
 
 
 def test_finalized_universe_ttl_survives_overnight_and_closed_days() -> None:

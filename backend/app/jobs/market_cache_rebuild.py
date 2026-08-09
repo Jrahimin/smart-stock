@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from dataclasses import dataclass, field
+from uuid import uuid4
 
 from app.core.core_config import Settings, get_settings
 from app.core.database_session import AsyncSessionLocal
@@ -76,25 +78,116 @@ async def _cache_dashboard_section(
     section: str,
     exchange: ExchangeCode,
     payload,
+    market_sync_id: str | None = None,
 ) -> None:
-    await service.cache_dashboard_payload(section, exchange, payload)
+    if market_sync_id is None:
+        await service.cache_dashboard_payload(section, exchange, payload)
+        return
+    await service.cache_dashboard_payload(section, exchange, payload, market_sync_id=market_sync_id)
 
 
-async def _acquire_rebuild_lock(redis: OptionalRedisClient, exchange: ExchangeCode) -> bool:
-    """Best-effort per-exchange lock. Redis failure must not block rebuild."""
-    return await redis.set_if_not_exists(
-        market_rebuild_lock_key(exchange),
-        "1",
-        ttl_seconds=REBUILD_LOCK_TTL_SECONDS,
-    )
+async def _compute_and_cache_dashboard_section(
+    service: MarketDashboardService,
+    *,
+    section: str,
+    exchange: ExchangeCode,
+    compute,
+):
+    """Fence a dashboard section to one immutable publication identity."""
+
+    if not hasattr(service, "market_data_service"):
+        payload = await compute()
+        await _cache_dashboard_section(
+            service,
+            section=section,
+            exchange=exchange,
+            payload=payload,
+        )
+        return payload
+
+    for _ in range(2):
+        before = await service.market_data_service.get_market_freshness(exchange=exchange)
+        payload = await compute()
+        after = await service.market_data_service.get_market_freshness(exchange=exchange)
+        before_id = before.market_sync_id or before.last_synced_at
+        after_id = after.market_sync_id or after.last_synced_at
+        if before_id and before_id == after_id:
+            await _cache_dashboard_section(
+                service,
+                section=section,
+                exchange=exchange,
+                payload=payload,
+                market_sync_id=before.market_sync_id,
+            )
+            return payload
+    raise RuntimeError(f"Published generation changed while rebuilding dashboard {section}")
 
 
-async def _release_rebuild_lock(redis: OptionalRedisClient, exchange: ExchangeCode) -> None:
+async def _rebuild_current_universe(
+    service: MarketUniverseService,
+    *,
+    exchange: ExchangeCode,
+) -> str:
+    """Build latest generation under one context; retain old doubles for rolling tests."""
+
+    if not hasattr(service, "resolve_generation_context"):
+        rows = await service.recompute_scored_universe(exchange)
+        await service.cache_scored_universe(exchange, rows)
+        return "universe"
+
+    for _ in range(3):
+        generation = await service.resolve_generation_context(exchange=exchange)
+        if generation is None:
+            raise RuntimeError("No published market generation is available")
+        if await service.has_cached_generation(exchange=exchange, generation=generation):
+            return "universe-current"
+        rows = await service.recompute_scored_universe(exchange, generation=generation)
+        if await service.cache_scored_universe(
+            exchange,
+            rows,
+            generation=generation,
+        ):
+            return "universe"
+    raise RuntimeError("Published generation kept changing during rebuild")
+
+
+async def _acquire_rebuild_lock(
+    redis: OptionalRedisClient,
+    exchange: ExchangeCode,
+    *,
+    wait: bool,
+) -> str | None:
+    """Acquire one owned per-exchange lock; waiters coalesce behind active work."""
+    token = uuid4().hex
+    attempts = REBUILD_LOCK_TTL_SECONDS * 2 if wait and redis.is_available else 1
+    for attempt in range(attempts):
+        acquired = await redis.set_if_not_exists(
+            market_rebuild_lock_key(exchange),
+            token,
+            ttl_seconds=REBUILD_LOCK_TTL_SECONDS,
+        )
+        if acquired:
+            return token
+        if getattr(redis, "coordination_failed", False):
+            return None
+        if attempt + 1 < attempts:
+            await asyncio.sleep(0.5)
+    return None
+
+
+async def _release_rebuild_lock(
+    redis: OptionalRedisClient,
+    exchange: ExchangeCode,
+    token: str,
+) -> None:
     if not redis.is_available:
         return
 
     try:
-        await redis.delete(market_rebuild_lock_key(exchange))
+        if isinstance(redis, OptionalRedisClient):
+            await redis.delete_if_value(market_rebuild_lock_key(exchange), token)
+        else:
+            await redis.delete(market_rebuild_lock_key(exchange))
     except Exception:
         logger.warning("Failed to release rebuild lock for %s", exchange.value, exc_info=True)
 
@@ -105,13 +198,19 @@ async def rebuild_market_read_cache(
     settings: Settings | None = None,
     redis: OptionalRedisClient | None = None,
     include_universe: bool = True,
+    wait_for_lock: bool = False,
 ) -> RebuildMarketReadCacheResult:
     """Rebuild read caches in priority order: overview → sectors → movers → universe."""
     resolved_settings = settings or get_settings()
     resolved_redis = redis if redis is not None else build_redis_client(resolved_settings)
     result = RebuildMarketReadCacheResult(exchange=exchange)
 
-    if not await _acquire_rebuild_lock(resolved_redis, exchange):
+    lock_token = await _acquire_rebuild_lock(
+        resolved_redis,
+        exchange,
+        wait=wait_for_lock,
+    )
+    if lock_token is None:
         logger.info("Market read-cache rebuild already in progress for %s; skipping duplicate", exchange.value)
         result.steps.append(RebuildStepResult(step="skipped-duplicate", success=True))
         return result
@@ -124,13 +223,12 @@ async def rebuild_market_read_cache(
 
             try:
                 async with async_perf_stage(perf, "rebuild.overview"):
-                    overview = await dashboard_service.compute_overview(exchange)
-                await _cache_dashboard_section(
-                    dashboard_service,
-                    section="overview",
-                    exchange=exchange,
-                    payload=overview,
-                )
+                    await _compute_and_cache_dashboard_section(
+                        dashboard_service,
+                        section="overview",
+                        exchange=exchange,
+                        compute=lambda: dashboard_service.compute_overview(exchange),
+                    )
                 result.steps.append(RebuildStepResult(step="overview", success=True))
             except Exception as exc:
                 logger.exception("Rebuild overview failed for %s", exchange.value)
@@ -138,13 +236,12 @@ async def rebuild_market_read_cache(
 
             try:
                 async with async_perf_stage(perf, "rebuild.sectors"):
-                    sectors = await dashboard_service.compute_sectors(exchange)
-                await _cache_dashboard_section(
-                    dashboard_service,
-                    section="sectors",
-                    exchange=exchange,
-                    payload=sectors,
-                )
+                    await _compute_and_cache_dashboard_section(
+                        dashboard_service,
+                        section="sectors",
+                        exchange=exchange,
+                        compute=lambda: dashboard_service.compute_sectors(exchange),
+                    )
                 result.steps.append(RebuildStepResult(step="sectors", success=True))
             except Exception as exc:
                 logger.exception("Rebuild sectors failed for %s", exchange.value)
@@ -152,13 +249,12 @@ async def rebuild_market_read_cache(
 
             try:
                 async with async_perf_stage(perf, "rebuild.movers"):
-                    movers = await dashboard_service.compute_movers(exchange)
-                await _cache_dashboard_section(
-                    dashboard_service,
-                    section="movers",
-                    exchange=exchange,
-                    payload=movers,
-                )
+                    await _compute_and_cache_dashboard_section(
+                        dashboard_service,
+                        section="movers",
+                        exchange=exchange,
+                        compute=lambda: dashboard_service.compute_movers(exchange),
+                    )
                 result.steps.append(RebuildStepResult(step="movers", success=True))
             except Exception as exc:
                 logger.exception("Rebuild movers failed for %s", exchange.value)
@@ -168,14 +264,16 @@ async def rebuild_market_read_cache(
                 try:
                     async with async_perf_stage(perf, "rebuild.universe"):
                         universe_service = _build_universe_service(session, resolved_settings, resolved_redis)
-                        rows = await universe_service.recompute_scored_universe(exchange)
-                        await universe_service.cache_scored_universe(exchange, rows)
+                        await _rebuild_current_universe(
+                            universe_service,
+                            exchange=exchange,
+                        )
                     result.steps.append(RebuildStepResult(step="universe", success=True))
                 except Exception as exc:
                     logger.exception("Rebuild universe failed for %s", exchange.value)
                     result.steps.append(RebuildStepResult(step="universe", success=False, error=str(exc)))
     finally:
-        await _release_rebuild_lock(resolved_redis, exchange)
+        await _release_rebuild_lock(resolved_redis, exchange, lock_token)
 
     perf.log_summary()
     logger.info(
@@ -192,15 +290,24 @@ async def rebuild_universe_read_cache(
     *,
     settings: Settings | None = None,
     redis: OptionalRedisClient | None = None,
+    wait_for_lock: bool = False,
 ) -> RebuildStepResult:
     resolved_settings = settings or get_settings()
     resolved_redis = redis if redis is not None else build_redis_client(resolved_settings)
+    lock_token = await _acquire_rebuild_lock(
+        resolved_redis,
+        exchange,
+        wait=wait_for_lock,
+    )
+    if lock_token is None:
+        return RebuildStepResult(step="universe-coalesced", success=True)
     try:
         async with AsyncSessionLocal() as session:
             universe_service = _build_universe_service(session, resolved_settings, resolved_redis)
-            rows = await universe_service.recompute_scored_universe(exchange)
-            await universe_service.cache_scored_universe(exchange, rows)
-        return RebuildStepResult(step="universe", success=True)
+            step = await _rebuild_current_universe(universe_service, exchange=exchange)
+            return RebuildStepResult(step=step, success=True)
     except Exception as exc:
         logger.exception("Universe-only rebuild failed for %s", exchange.value)
         return RebuildStepResult(step="universe", success=False, error=str(exc))
+    finally:
+        await _release_rebuild_lock(resolved_redis, exchange, lock_token)
