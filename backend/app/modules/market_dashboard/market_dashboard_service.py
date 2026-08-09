@@ -168,6 +168,8 @@ class MarketDashboardService:
         if market_sync_id is None:
             freshness = await self.market_data_service.get_market_freshness(exchange=exchange)
             market_sync_id = freshness.market_sync_id
+        if market_sync_id is not None:
+            payload = payload.model_copy(update={"market_sync_id": market_sync_id})
         cache_key = dashboard_cache_key(section, exchange, market_sync_id)
         await self._cache_set(cache_key, payload.model_dump(mode="json"))
 
@@ -197,6 +199,7 @@ class MarketDashboardService:
             after = await self.market_data_service.get_market_freshness(exchange=exchange)
             if not self._same_generation(freshness, after):
                 continue
+            data = data.model_copy(update={"market_sync_id": freshness.market_sync_id})
             perf.log_summary()
             self._last_compute_ms = perf.total_ms
             await self._cache_set(cache_key, data.model_dump(mode="json"))

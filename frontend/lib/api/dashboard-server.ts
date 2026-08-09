@@ -75,8 +75,8 @@ function reconcileOverviewWithFreshness(
     return null;
   }
 
-  const freshnessSyncedAt = freshness?.last_synced_at ?? null;
-  const overviewSyncedAt = overview.last_synced_at ?? null;
+  const freshnessSyncedAt = freshness?.market_sync_id ?? freshness?.last_synced_at ?? null;
+  const overviewSyncedAt = overview.market_sync_id ?? overview.last_synced_at ?? null;
 
   if (freshnessSyncedAt && overviewSyncedAt && freshnessSyncedAt !== overviewSyncedAt) {
     return null;

@@ -107,6 +107,34 @@ describe("evaluateMarketIndexedDbEntry", () => {
     expect(verdict).toEqual({ status: "miss", reason: "generation" });
   });
 
+  it("rejects a stale dashboard entry before its TTL when freshness is newer", () => {
+    const verdict = evaluateMarketIndexedDbEntry(
+      buildMarketPayload(
+        { market_sync_id: "G123", session_trade_date: "2026-07-12", gainers: [] },
+        { cacheKey: `${BASE_URL}/dashboard/movers?exchange=DSE` },
+      ),
+      { expectedScope: "market", freshnessLastSyncedAt: "G124" },
+    );
+
+    expect(verdict).toEqual({ status: "miss", reason: "generation" });
+  });
+
+  it("rejects an unversioned dashboard entry when the query resolved a generation", () => {
+    const verdict = evaluateMarketIndexedDbEntry(
+      buildMarketPayload(
+        { session_trade_date: "2026-07-12", gainers: [] },
+        { cacheKey: `${BASE_URL}/dashboard/movers?exchange=DSE` },
+      ),
+      {
+        expectedScope: "market",
+        freshnessLastSyncedAt: "G124",
+        requireGeneration: true,
+      },
+    );
+
+    expect(verdict).toEqual({ status: "miss", reason: "generation" });
+  });
+
   it("defers generation checks until freshness is observed", () => {
     const verdict = evaluateMarketIndexedDbEntry(
       buildMarketPayload({ last_synced_at: STALE_FRESHNESS }),

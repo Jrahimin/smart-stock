@@ -260,7 +260,12 @@ async def sync_market_snapshot(
                     state=MarketDataState.LIVE,
                     source=price_result.source,
                     fetched_count=price_result.fetched_count,
-                    accepted_count=price_result.created_count,
+                    # A complete snapshot can legitimately contain unchanged
+                    # rows.  Generation acceptance measures usable coverage,
+                    # while created_count remains the mutation/rebuild signal.
+                    accepted_count=(
+                        price_result.fetched_count - price_result.skipped_unknown_symbol_count
+                    ),
                     suspicious_count=price_result.suspicious_count,
                 )
                 published = True

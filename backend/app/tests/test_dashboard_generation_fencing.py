@@ -71,5 +71,6 @@ async def test_dashboard_cache_miss_retries_on_one_resolved_generation() -> None
 
     assert computed_for == ["G123", "G124"]
     assert response.session_trade_date == date(2026, 8, 9)
+    assert response.market_sync_id == "G124"
     assert dashboard_cache_key("movers", ExchangeCode.DSE, "G123") not in redis.values
     assert dashboard_cache_key("movers", ExchangeCode.DSE, "G124") in redis.values

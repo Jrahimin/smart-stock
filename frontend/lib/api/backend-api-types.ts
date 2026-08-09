@@ -398,6 +398,7 @@ export type BackendDashboardMoverDto = {
 
 export type BackendDashboardMoversDto = {
   session_trade_date: string | null;
+  market_sync_id?: string | null;
   gainers: BackendDashboardMoverDto[];
   losers: BackendDashboardMoverDto[];
   turnover_leaders: BackendDashboardMoverDto[];
@@ -408,6 +409,7 @@ export type BackendDashboardOverviewDto = {
   exchange: ExchangeCode;
   session_trade_date: string | null;
   last_synced_at: string | null;
+  market_sync_id?: string | null;
   listed_stock_count: number;
   dsex_index: BackendDsexIndexSnapshotDto;
   summaries: BackendDailyMarketSummaryDto[];
@@ -421,6 +423,7 @@ export type BackendDashboardSectorDto = {
 
 export type BackendDashboardSectorsDto = {
   session_trade_date: string | null;
+  market_sync_id?: string | null;
   sectors: BackendDashboardSectorDto[];
   top_gainer: {
     symbol: string;
@@ -437,6 +440,7 @@ export type BackendDashboardTimelineItemDto = {
 
 export type BackendDashboardMarketAlertsDto = {
   session_trade_date: string | null;
+  market_sync_id?: string | null;
   items: BackendDashboardTimelineItemDto[];
 };
 
@@ -476,6 +480,7 @@ export type BackendDashboardHeatmapTileDto = {
 
 export type BackendDashboardHeatmapDto = {
   session_trade_date: string | null;
+  market_sync_id?: string | null;
   tiles: BackendDashboardHeatmapTileDto[];
 };
 
@@ -491,6 +496,7 @@ export type BackendDashboardInsightDto = {
 export type BackendDashboardMarketSentimentDto = {
   exchange: ExchangeCode;
   session_trade_date: string | null;
+  market_sync_id?: string | null;
   market_mood: string;
   signal_count: number;
   price_backed_count: number;

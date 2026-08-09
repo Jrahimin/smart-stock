@@ -28,8 +28,8 @@ async def test_sync_market_snapshot_runs_snapshot_enrichment_not_news(monkeypatc
         trade_date=date(2026, 6, 11),
         source="AMARSTOCK_LATEST_PRICE_API",
         fetched_count=100,
-        created_count=100,
-        skipped_existing_count=0,
+        created_count=0,
+        skipped_existing_count=100,
         skipped_unknown_symbol_count=0,
         suspicious_count=0,
     )
@@ -64,6 +64,7 @@ async def test_sync_market_snapshot_runs_snapshot_enrichment_not_news(monkeypatc
     mock_service.run_snapshot_enrichment.assert_awaited_once()
     mock_service.run_daily_news_sync.assert_not_called()
     mock_service.publish_market_generation.assert_awaited_once()
+    assert mock_service.publish_market_generation.await_args.kwargs["accepted_count"] == 100
     assert result.index_summary_upserted is True
     assert result.fetched_count == 100
 
@@ -172,6 +173,7 @@ async def test_manual_snapshot_waits_for_cache_rebuild(monkeypatch: pytest.Monke
     )
 
     assert result.fetched_count == 426
+    assert mock_service.publish_market_generation.await_args.kwargs["accepted_count"] == 425
     awaited_rebuild.assert_awaited_once()
     background_spawn.assert_not_called()
 

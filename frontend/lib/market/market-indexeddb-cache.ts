@@ -1,5 +1,8 @@
 import { isMarketApiCacheUrl } from "@/lib/market/market-cache-url-registry";
-import { responseMatchesMarketFreshness } from "@/lib/market/market-generation";
+import {
+  hasMarketGenerationField,
+  responseMatchesMarketFreshness,
+} from "@/lib/market/market-generation";
 
 /** Bump when market IndexedDB payload shape or validation rules change. */
 export const MARKET_INDEXEDDB_SCHEMA_VERSION = 3;
@@ -21,6 +24,7 @@ export type MarketIndexedDbReadVerdict =
 export type MarketIndexedDbEvaluateOptions = {
   expectedScope?: Exclude<MarketIndexedDbCacheScope, "off">;
   freshnessLastSyncedAt?: string | null | undefined;
+  requireGeneration?: boolean;
   cacheKey?: string;
 };
 
@@ -58,6 +62,15 @@ export function evaluateMarketIndexedDbEntry(
 
   if (isMarketEntry && payload.marketSchemaVersion !== MARKET_INDEXEDDB_SCHEMA_VERSION) {
     return { status: "miss", reason: "schema" };
+  }
+
+  if (
+    isMarketEntry &&
+    options.freshnessLastSyncedAt !== undefined &&
+    options.requireGeneration &&
+    !hasMarketGenerationField(payload.data)
+  ) {
+    return { status: "miss", reason: "generation" };
   }
 
   if (

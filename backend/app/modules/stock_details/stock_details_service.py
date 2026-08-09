@@ -141,6 +141,7 @@ class StockDetailsService:
         valuation_count = 0
         shareholding_count = 0
         event_count = 0
+        decision_input_changed_count = 0
         latest_price_profile_fill_count = 0
         latest_price_shareholding_count = 0
         latest_price_valuation_count = 0
@@ -173,11 +174,14 @@ class StockDetailsService:
             valuation_count += counts["valuation_count"]
             shareholding_count += counts["shareholding_count"]
             event_count += counts["event_count"]
+            decision_input_changed_count += counts["decision_input_changed"]
             latest_price_profile_fill_count += counts["latest_price_profile_fill"]
             latest_price_shareholding_count += counts["latest_price_shareholding"]
             latest_price_valuation_count += counts["latest_price_valuation"]
 
-            useful_count = sum(counts.values())
+            useful_count = sum(
+                value for key, value in counts.items() if key != "decision_input_changed"
+            )
             if useful_count == 0 and request.scope != StockDetailsSyncScope.STOCKS:
                 failed_count += 1
                 await self._finish_job(
@@ -202,7 +206,10 @@ class StockDetailsService:
                 attempt_count=fetched.attempt_count,
             )
 
-        if daily_price_count > 0 or event_count > 0:
+        # MarketEvent rows provide detail-page context only.  Canonical universe
+        # decisions currently consume historical OHLCV and the dedicated
+        # dividend/corporate-action tables, not generic event feed rows.
+        if decision_input_changed_count > 0:
             market_data_service = MarketDataService(
                 MarketDataRepository(self.repository.session),
                 self.user_context,
@@ -385,6 +392,7 @@ class StockDetailsService:
                 "valuation_count": valuation_count,
                 "shareholding_count": shareholding_count,
                 "event_count": event_count,
+                "decision_input_changed": 0,
                 "latest_price_profile_fill": latest_price_profile_fill,
                 "latest_price_shareholding": latest_price_shareholding,
                 "latest_price_valuation": latest_price_valuation,
@@ -418,6 +426,9 @@ class StockDetailsService:
             "valuation_count": valuation_count,
             "shareholding_count": shareholding_count,
             "event_count": event_count,
+            # Daily-price inserts are canonical OHLCV inputs.  Generic events,
+            # profile, valuation, ownership, and metric persistence are not.
+            "decision_input_changed": daily_price_count,
             "latest_price_profile_fill": latest_price_profile_fill,
             "latest_price_shareholding": latest_price_shareholding,
             "latest_price_valuation": latest_price_valuation,
