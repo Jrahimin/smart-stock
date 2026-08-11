@@ -11,7 +11,13 @@ logger = logging.getLogger(__name__)
 
 
 class OptionalRedisClient:
-    def __init__(self, redis_url: str | None) -> None:
+    def __init__(
+        self,
+        redis_url: str | None,
+        *,
+        socket_connect_timeout_seconds: float = 1.0,
+        socket_timeout_seconds: float = 2.0,
+    ) -> None:
         self._redis = None
         self._available = False
         self._coordination_failed = False
@@ -21,7 +27,13 @@ class OptionalRedisClient:
         try:
             import redis.asyncio as redis
 
-            self._redis = redis.from_url(redis_url, decode_responses=True)
+            self._redis = redis.from_url(
+                redis_url,
+                decode_responses=True,
+                socket_connect_timeout=socket_connect_timeout_seconds,
+                socket_timeout=socket_timeout_seconds,
+                health_check_interval=30,
+            )
             self._available = True
         except Exception:
             logger.warning("Redis client could not be initialized", exc_info=True)
@@ -159,8 +171,16 @@ class OptionalRedisClient:
 @lru_cache
 def get_redis_client() -> OptionalRedisClient:
     settings = get_settings()
-    return OptionalRedisClient(settings.redis_url)
+    return OptionalRedisClient(
+        settings.redis_url,
+        socket_connect_timeout_seconds=settings.redis_socket_connect_timeout_seconds,
+        socket_timeout_seconds=settings.redis_socket_timeout_seconds,
+    )
 
 
 def build_redis_client(settings: Settings) -> OptionalRedisClient:
-    return OptionalRedisClient(settings.redis_url)
+    return OptionalRedisClient(
+        settings.redis_url,
+        socket_connect_timeout_seconds=settings.redis_socket_connect_timeout_seconds,
+        socket_timeout_seconds=settings.redis_socket_timeout_seconds,
+    )

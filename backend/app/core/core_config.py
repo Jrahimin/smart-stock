@@ -85,6 +85,10 @@ class Settings(BaseSettings):
     # DSE day-end archive often serves an incomplete TLS chain; disable verify only for that host.
     dse_archive_ssl_verify: bool = False
     redis_url: str | None = None
+    # Redis backs caches and coordination only. Bound network waits so a stalled
+    # cache cannot keep an API request's database transaction open.
+    redis_socket_connect_timeout_seconds: float = Field(default=1.0, gt=0, le=30)
+    redis_socket_timeout_seconds: float = Field(default=2.0, gt=0, le=60)
 
     @property
     def market_sync_interval_seconds(self) -> int:
