@@ -227,8 +227,17 @@ class PortfoliosService:
         )
 
         universe_by_stock = {row.stock.id: row for row in universe_rows}
+        # The published universe can include a stock with a zero close-price
+        # placeholder for the current session (for example, when it did not
+        # trade).  That row cannot value a holding, so it needs the same
+        # latest-positive-price fallback as a stock missing from the universe.
         fallback_stock_ids = [
-            item.stock.id for item in items if item.stock.id not in universe_by_stock
+            item.stock.id
+            for item in items
+            if (
+                (universe_row := universe_by_stock.get(item.stock.id)) is None
+                or universe_row.session.close_price <= 0
+            )
         ]
         fallback_prices = await self.repository.list_latest_positive_prices(
             stock_ids=fallback_stock_ids,

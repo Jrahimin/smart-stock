@@ -34,7 +34,7 @@ Money and percentages are rounded with `ROUND_HALF_UP`; quantities and prices re
 - Missing quantity excludes a holding from every quantity-based amount.
 - Missing average price still permits current value and position weight, but not investment or unrealized P/L.
 - Missing/zero price excludes value-dependent calculations.
-- A stale positive last-known price can show a visibly stale current value but cannot produce daily movement.
+- A stale positive last-known price can show a visibly stale current value but cannot produce daily movement. This fallback also applies when the published universe contains a current-session zero-price placeholder.
 - Suspicious prices do not produce strong guidance or ranking claims.
 - Positive zero-volume rows remain visible as `NON_TRADED` and may use the published price; daily movement is still based on the published row's price change.
 - Position concentration is emitted only when every holding has reliable current-value coverage.

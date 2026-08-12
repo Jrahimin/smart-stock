@@ -48,6 +48,31 @@ class MissingUniverse:
         raise UniverseCacheUnavailableError()
 
 
+class ZeroCloseUniverse:
+    def __init__(self, stock_id):
+        self.stock_id = stock_id
+
+    async def get_universe_rows(self, *, exchange):
+        return SimpleNamespace(
+            rows=[
+                SimpleNamespace(
+                    stock=SimpleNamespace(id=self.stock_id),
+                    session=SimpleNamespace(close_price=Decimal("0")),
+                    technical_snapshot=None,
+                    decision=None,
+                    scanner=None,
+                )
+            ],
+            meta=SimpleNamespace(
+                session_trade_date=date(2026, 7, 20),
+                live_data_as_of=datetime(2026, 7, 20, 18, 0, tzinfo=UTC),
+                data_state=MarketDataState.FINALIZED,
+                is_live_session=False,
+                market_sync_id="test-market-sync",
+            ),
+        )
+
+
 class FinalizedFreshness:
     async def get_market_freshness(self, *, exchange):
         return SimpleNamespace(
@@ -101,7 +126,7 @@ def _price(
     )
 
 
-def _service(items, prices):
+def _service(items, prices, *, universe=None):
     repository = FakePortfolioRepository(items, prices)
     user_id = uuid4()
     service = PortfoliosService(
@@ -111,7 +136,7 @@ def _service(items, prices):
             display_name="Portfolio User",
             is_authenticated=True,
         ),
-        MissingUniverse(),
+        universe or MissingUniverse(),
         FinalizedFreshness(),
     )
     return service, repository, user_id
@@ -169,6 +194,34 @@ def test_stale_price_keeps_value_but_suppresses_daily_movement():
     assert holding.what_next_code == PortfolioWhatNextCode.PRICE_STALE_OR_SUSPENDED
     assert workspace.pulse.current_value_is_complete is False
     assert workspace.pulse.daily_change_is_complete is False
+
+
+def test_zero_close_universe_row_falls_back_to_last_positive_price():
+    item = _item(quantity=Decimal("25"), buy_price=Decimal("8"))
+    prices = {
+        item.stock.id: _price(
+            item.stock.id,
+            close="10",
+            previous="9",
+            change="1",
+            trade_date=date(2026, 7, 17),
+        )
+    }
+    service, repository, _ = _service(
+        [item],
+        prices,
+        universe=ZeroCloseUniverse(item.stock.id),
+    )
+
+    workspace = asyncio.run(service.get_workspace(exchange=ExchangeCode.DSE))
+    holding = workspace.holdings[0]
+
+    assert repository.calls[1] == ("prices", (item.stock.id,), date(2026, 7, 20))
+    assert holding.current_price == Decimal("10.0000")
+    assert holding.current_value == Decimal("250.00")
+    assert holding.price_status == PortfolioPriceStatus.STALE_LAST_KNOWN
+    assert workspace.pulse.known_current_value == Decimal("250.00")
+    assert workspace.pulse.valued_holding_count == 1
 
 
 def test_guidance_priority_is_deterministic():
