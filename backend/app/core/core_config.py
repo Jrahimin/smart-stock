@@ -67,6 +67,8 @@ class Settings(BaseSettings):
     amarstock_snapshot_token: str = "1981d726120d"
     amarstock_historical_token: str = "5ee4d332a90e"
     amarstock_company_token: str = "2b5e8cfdd75f"
+    # Deprecated: AmarStock's former /LatestPrice/{token} endpoint now returns 404.
+    # Stock-details bulk enrichment uses amarstock_market_snapshot_path instead.
     amarstock_latest_price_token: str = "dbfd2587c77f"
     amarstock_market_snapshot_path: str = "/823af3f1ebdd"
     amarstock_market_snapshot_max_response_bytes: int = Field(

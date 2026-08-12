@@ -1,4 +1,4 @@
-"""AmarStock LatestPrice JSON as a primary daily market data source."""
+"""Compatibility market source backed by AmarStock's current full-market feed."""
 
 from __future__ import annotations
 

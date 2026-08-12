@@ -1,4 +1,9 @@
-"""AmarStock bulk LatestPrice JSON feed (`/LatestPrice/{token}`)."""
+"""AmarStock bulk current-market feed used for stock-details enrichment.
+
+The browser's current Latest Share Price bundle resolves ``LatestPrice`` through
+the full-market structured snapshot.  It is a columnar mapping, not the former
+``/LatestPrice/{token}`` JSON list.
+"""
 
 from __future__ import annotations
 
@@ -16,6 +21,54 @@ from app.jobs.ingestion.amarstock_turnover import normalize_amarstock_turnover_t
 from app.jobs.ingestion.ingestion_source_base import IngestedDailyPrice
 
 DHAKA_TZ = ZoneInfo("Asia/Dhaka")
+
+# Current column names observed in AmarStock's latest-share-price bundle and
+# confirmed against the 2026-08-12 HAR.  Keep this mapping local to the optional
+# stock-details enrichment path; primary market-snapshot validation owns the
+# required OHLCV contract separately.
+_COLUMNAR_FIELD_NAMES = {
+    "aa": "Scrip",
+    "ab": "FullName",
+    "ad": "Volume",
+    "aj": "YCP",
+    "ak": "MarketCap",
+    "an": "Change",
+    "ap": "AuthorizedCap",
+    "aq": "PaidUpCap",
+    "ar": "TotalSecurities",
+    "at": "ReserveSurplus",
+    "av": "MarketCategory",
+    "ay": "SponsorDirector",
+    "az": "Govt",
+    "ba": "Institute",
+    "bb": "Foreign",
+    "bc": "Public",
+    "bz": "ChangePer",
+    "cb": "EPS",
+    "cc": "AuditedPE",
+    "cd": "UnAuditedPE",
+    "ce": "Q1Eps",
+    "cf": "Q2Eps",
+    "cg": "Q3Eps",
+    "ch": "Q4Eps",
+    "ci": "NAV",
+    "cj": "NavPrice",
+    "ck": "freefloat",
+    "cm": "DividentYield",
+    "dp": "BusinessSegment",
+    "ea": "LTP",
+    "eb": "Open",
+    "ec": "High",
+    "ed": "Low",
+    "ee": "Close",
+    "eh": "Trade",
+    "ei": "Value",
+    "ej": "PE",
+    "ek": "FreeFloat",
+    "en": "Eps",
+    "ff": "OpenChangePer",
+    "fg": "VolChangePer",
+}
 
 
 @dataclass(frozen=True)
@@ -64,12 +117,12 @@ class AmarStockLatestPriceApiSource:
         self,
         *,
         base_url: str,
-        latest_price_token: str,
+        market_snapshot_path: str,
         max_retries: int,
         retry_delay_seconds: float,
     ) -> None:
         self._base_url = base_url.rstrip("/")
-        self._token = latest_price_token.strip().strip("/")
+        self._market_snapshot_path = "/" + market_snapshot_path.strip().strip("/")
         self._client = AmarStockHttpClient(
             max_retries=max_retries,
             retry_delay_seconds=retry_delay_seconds,
@@ -79,19 +132,18 @@ class AmarStockLatestPriceApiSource:
     def from_settings(cls, settings: Settings) -> AmarStockLatestPriceApiSource:
         return cls(
             base_url=settings.amarstock_api_base_url,
-            latest_price_token=settings.amarstock_latest_price_token,
+            market_snapshot_path=settings.amarstock_market_snapshot_path,
             max_retries=settings.amarstock_bulk_api_max_retries,
             retry_delay_seconds=settings.amarstock_bulk_api_retry_delay_seconds,
         )
 
     def build_url(self) -> str:
-        return f"{self._base_url}/LatestPrice/{self._token}"
+        return f"{self._base_url}{self._market_snapshot_path}"
 
     async def fetch_all_rows(self) -> list[AmarStockLatestPriceRow]:
         data = await self._client.fetch_structured(self.build_url(), source_name=self.source_name)
-        if not isinstance(data, list):
-            return []
-        parsed_rows = (_parse_row(dict(row)) for row in data if isinstance(row, dict))
+        rows = _decode_columnar_rows(data)
+        parsed_rows = (_parse_row(row) for row in rows)
         return [row for row in parsed_rows if row is not None]
 
     async def fetch_by_scrip(self) -> dict[str, AmarStockLatestPriceRow]:
@@ -126,14 +178,14 @@ def _parse_row(row: dict[str, Any]) -> AmarStockLatestPriceRow | None:
         institute=_to_decimal(row.get("Institute")),
         foreign=_to_decimal(row.get("Foreign")),
         public_pct=_to_decimal(row.get("Public")),
-        free_float=_to_decimal(row.get("FreeFloat")),
+        free_float=_first_decimal(row, "FreeFloat", "freefloat"),
         total_securities=_to_int(row.get("TotalSecurities")),
         reserve_surplus=_to_decimal(row.get("ReserveSurplus")),
         business_segment=_clean_text(row.get("BusinessSegment")),
         market_category=_clean_text(row.get("MarketCategory")),
         full_name=_clean_text(row.get("FullName")),
         paid_up_cap=_to_decimal(row.get("PaidUpCap")),
-        eps=_to_decimal(row.get("Eps")),
+        eps=_first_decimal(row, "Eps", "EPS"),
         q1_eps=_to_decimal(row.get("Q1Eps")),
         q2_eps=_to_decimal(row.get("Q2Eps")),
         q3_eps=_to_decimal(row.get("Q3Eps")),
@@ -151,6 +203,50 @@ def latest_price_snapshot_date(row: AmarStockLatestPriceRow, *, fallback: date) 
         except (OSError, ValueError, OverflowError):
             pass
     return fallback
+
+
+def _decode_columnar_rows(data: Any) -> list[dict[str, Any]]:
+    if not isinstance(data, dict):
+        raise ValueError("AmarStock current-market payload must be a columnar mapping")
+
+    symbols = data.get("aa")
+    if not isinstance(symbols, list) or not symbols:
+        raise ValueError("AmarStock current-market payload is missing non-empty symbol column 'aa'")
+
+    row_count = len(symbols)
+    columns: dict[str, list[Any]] = {}
+    for source_key, target_key in _COLUMNAR_FIELD_NAMES.items():
+        values = data.get(source_key)
+        if values is None:
+            continue
+        if not isinstance(values, list):
+            raise ValueError(f"AmarStock current-market field {source_key!r} must be an array")
+        if len(values) != row_count:
+            raise ValueError(
+                "AmarStock current-market arrays have unequal lengths: "
+                f"aa={row_count} {source_key}={len(values)}"
+            )
+        columns[target_key] = values
+
+    rows: list[dict[str, Any]] = []
+    for index in range(row_count):
+        row = {target_key: values[index] for target_key, values in columns.items()}
+        _add_snapshot_compatibility_aliases(row)
+        rows.append(row)
+    return rows
+
+
+def _add_snapshot_compatibility_aliases(row: dict[str, Any]) -> None:
+    """Expose current full-market fields under the old detail-snapshot names."""
+    for target_key, source_key in (
+        ("ClosePrice", "Close"),
+        ("AuditedPE", "PE"),
+        ("NavPrice", "NAV"),
+        ("EPS", "Eps"),
+        ("freefloat", "FreeFloat"),
+    ):
+        if row.get(target_key) is None and row.get(source_key) is not None:
+            row[target_key] = row[source_key]
 
 
 def row_to_ingested_daily_price(
@@ -232,6 +328,14 @@ def _to_decimal(value: Any) -> Decimal | None:
         return Decimal(text)
     except Exception:
         return None
+
+
+def _first_decimal(row: dict[str, Any], *keys: str) -> Decimal | None:
+    for key in keys:
+        value = _to_decimal(row.get(key))
+        if value is not None:
+            return value
+    return None
 
 
 def _to_int(value: Any) -> int | None:

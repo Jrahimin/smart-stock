@@ -65,9 +65,9 @@ The implementation uses only JSON APIs documented in `backend/app/scraping_sourc
 * Snapshot API: `https://www.amarstock.com/data/1981d726120d/{SYMBOL}`
 * Historical price API: `https://www.amarstock.com/data/5ee4d332a90e/?scrip={SYMBOL}&cycle=Day1&dtFrom=YYYY-MM-DD`
 * Company financials API: `https://www.amarstock.com/company/2b5e8cfdd75f/?symbol={SYMBOL}`
-* **Bulk LatestPrice JSON** (one fetch per batch): `https://www.amarstock.com/LatestPrice/{token}` — fill-empty stock profile fields and additive `shareholding_snapshots` / `valuation_snapshots` under `source = AMARSTOCK_LATEST_PRICE_API` (see **Bulk LatestPrice enrichment** below).
+* **Bulk current-market snapshot** (one fetch per batch): `https://www.amarstock.com/823af3f1ebdd` (configurable) — AmarStock's current Latest Share Price bundle resolves its rows through this columnar structured feed. It fills empty stock profile fields and adds `shareholding_snapshots` / `valuation_snapshots` under the compatibility provenance `AMARSTOCK_LATEST_PRICE_API` (see **Bulk current-market enrichment** below).
 
-**Note:** The same LatestPrice feed also powers **intraday market snapshots** (`sync_market_snapshot` → `daily_prices` via `AmarStockLatestPriceMarketDataSource`). That path is separate from this module's `sync_stock_details` job and cadence. News ingestion runs on the **daily** market job only, not on the 15-minute snapshot loop.
+**Note:** The same full-market feed powers **intraday market snapshots** (`sync_market_snapshot` → `daily_prices`). The stock-details bulk reader is a separate compatibility consumer of that payload; news ingestion runs on the **daily** market job only, not on the 15-minute snapshot loop.
 
 There is no stock-details HTML scraping path. Do not reintroduce `/stock/{SYMBOL}` fetches, DOM parsing, `data-key` parsing, BeautifulSoup, or `lxml` for this feature.
 
@@ -132,16 +132,16 @@ Company API:
 * Supported sections include balance sheet, income statement, and cash flow statement rows.
 * Financial report cache keys include `stock_id + fiscal_year + statement_section` to avoid cross-stock collisions during batch runs.
 
-## Bulk LatestPrice enrichment
+## Bulk current-market enrichment
 
-After sync jobs are created and the batch transaction commits, the service performs **one** `LatestPrice` JSON fetch (see `AmarStockLatestPriceApiSource` in `backend/app/jobs/ingestion/`). For each stock that successfully parses the snapshot/historical/company pipeline:
+After sync jobs are created and the batch transaction commits, the service performs **one** full-market structured fetch (see `AmarStockLatestPriceApiSource` in `backend/app/jobs/ingestion/`). The current browser contract exposes this as `/823af3f1ebdd`, rather than the retired `/LatestPrice/{token}` feed. For each matching stock, its decoded bulk row is also used as the stock-details snapshot so a stale per-symbol snapshot URL cannot prevent profile/valuation/ownership enrichment.
 
 * **Stock profile (fill-empty only)**: `BusinessSegment` → `sector`, `MarketCategory` → `category`, `PaidUpCap` / `MarketCap` when DB columns are null; `FullName` → `name` only when the current name still matches the **symbol placeholder** from seeding (same symbol as name), so curated display names are not overwritten.
 * **Shareholding / valuation (additive)**: Upserts use `source = AMARSTOCK_LATEST_PRICE_API` with natural keys `stock_id + snapshot_date/valuation_date + source`, so rows from the snapshot API (`AMARSTOCK_API`) remain separate. Snapshot date prefers `CreatedOn` interpreted in **Asia/Dhaka**, falling back to the snapshot scrape date.
 
 The sync API response includes `latest_price_profile_fill_count`, `latest_price_shareholding_count`, and `latest_price_valuation_count` for batch-level observability.
 
-Daily market sync uses the same LatestPrice feed for optional `trade_count` / `turnover` patches only; see `backend/docs/market_data.md` (**AmarStock post-ingestion**).
+Daily market sync uses the same full-market feed for optional `trade_count` / `turnover` patches only; see `backend/docs/market_data.md` (**AmarStock post-ingestion**).
 
 ## Idempotency
 

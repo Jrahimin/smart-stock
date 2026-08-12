@@ -124,12 +124,19 @@ class StockDetailsService:
                 latest_by_symbol = await lp_source.fetch_by_scrip()
             except Exception as exc:
                 logger.warning(
-                    "AmarStock LatestPrice bulk fetch failed; continuing per-stock snapshot sync: %s",
+                    "AmarStock current-market bulk fetch failed; "
+                    "continuing per-stock snapshot sync: %s",
                     exc,
                     exc_info=True,
                 )
 
-        fetched_results = await self._fetch_batch(jobs, resolved_source, request)
+        fetched_results = await self._fetch_batch(
+            jobs,
+            resolved_source,
+            request,
+            latest_by_symbol=latest_by_symbol,
+            latest_snapshot_url=(lp_source.build_url() if latest_by_symbol else None),
+        )
 
         synced_count = 0
         partial_count = 0
@@ -323,6 +330,9 @@ class StockDetailsService:
         jobs: list[tuple[Stock, StockDetailsSyncJob]],
         source: AmarStockApiStockDetailsSource,
         request: StockDetailsSyncRequest,
+        *,
+        latest_by_symbol: dict[str, AmarStockLatestPriceRow],
+        latest_snapshot_url: str | None,
     ) -> list[_FetchedDetails]:
         semaphore = asyncio.Semaphore(self.settings.stock_details_sync_max_concurrency)
         for _, job in jobs:
@@ -345,11 +355,18 @@ class StockDetailsService:
                     )
                 )
                 last_error: Exception | None = None
+                latest_price = latest_by_symbol.get(stock.symbol.upper())
                 for attempt in range(1, self.settings.stock_details_sync_job_max_attempts + 1):
                     try:
                         payload = await source.fetch_stock_details(
                             stock.symbol,
                             historical_window_days=request.historical_window_days,
+                            snapshot_override=(
+                                latest_price.raw if latest_price is not None else None
+                            ),
+                            snapshot_url_override=(
+                                latest_snapshot_url if latest_price is not None else None
+                            ),
                         )
                     except Exception as exc:
                         last_error = exc

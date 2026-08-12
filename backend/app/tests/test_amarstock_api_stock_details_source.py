@@ -56,6 +56,36 @@ async def test_stock_details_sources_use_shared_structured_transport() -> None:
     assert fetch_structured.await_args.kwargs["source_name"] == "AMARSTOCK_API"
 
 
+@pytest.mark.asyncio
+async def test_current_market_snapshot_row_replaces_stale_per_symbol_snapshot() -> None:
+    source = _source()
+    source.snapshot_source.fetch = AsyncMock()
+    source.historical_source.fetch = AsyncMock(return_value=[])
+    source.company_source.fetch = AsyncMock(return_value=[])
+
+    payload = await source.fetch_stock_details(
+        "SONALILIFE",
+        snapshot_override={
+            "FullName": "Sonali Life Insurance PLC",
+            "MarketCategory": "A",
+            "PaidUpCap": 1000,
+            "MarketCap": 5000,
+            "ClosePrice": 12.7,
+            "AuditedPE": 10.5,
+            "NavPrice": 14.5,
+        },
+        snapshot_url_override="https://www.amarstock.com/823af3f1ebdd",
+    )
+
+    source.snapshot_source.fetch.assert_not_awaited()
+    assert payload.snapshot_url == "https://www.amarstock.com/823af3f1ebdd"
+    assert payload.stock_profile is not None
+    assert payload.stock_profile.name == "Sonali Life Insurance PLC"
+    assert payload.valuation is not None
+    assert payload.valuation.close_price == Decimal("12.7")
+    assert payload.metadata["diagnostics"]["snapshot_source"] == "current_market_snapshot"
+
+
 def test_snapshot_maps_expanded_shareholding_fields() -> None:
     snapshot = {
         "SponsorDirector": 31.44,

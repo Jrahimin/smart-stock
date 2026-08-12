@@ -1,11 +1,15 @@
 """Unit tests for AmarStock News / LatestPrice enrichment helpers."""
 
+from datetime import date
 from decimal import Decimal
+from unittest.mock import AsyncMock
+
+import pytest
 
 from app.core.enums import MarketEventType
-from datetime import date
-
 from app.jobs.ingestion.amarstock_latest_price_api_source import (
+    AmarStockLatestPriceApiSource,
+    _decode_columnar_rows,
     _parse_row,
     row_to_ingested_daily_price,
 )
@@ -83,3 +87,62 @@ def test_row_to_ingested_daily_price_skips_zero_close() -> None:
     row = _parse_row({"Scrip": "BAD", "Close": 0, "LTP": 0})
     assert row is not None
     assert row_to_ingested_daily_price(row, trade_date=date(2026, 6, 11)) is None
+
+
+@pytest.mark.asyncio
+async def test_current_market_snapshot_replaces_expired_latest_price_token() -> None:
+    source = AmarStockLatestPriceApiSource(
+        base_url="https://www.amarstock.com",
+        market_snapshot_path="/823af3f1ebdd",
+        max_retries=1,
+        retry_delay_seconds=0,
+    )
+    source._client.fetch_structured = AsyncMock(
+        return_value={
+            "aa": ["SONALILIFE"],
+            "ab": ["Sonali Life Insurance PLC"],
+            "ad": [1000],
+            "aj": [12.5],
+            "ak": [5000],
+            "aq": [1000],
+            "ar": [1000000],
+            "av": ["A"],
+            "ay": [25],
+            "az": [0],
+            "ba": [30],
+            "bb": [1],
+            "bc": [44],
+            "cb": [1.2],
+            "ce": [0.3],
+            "ci": [14.5],
+            "dp": ["Insurance"],
+            "ea": [12.7],
+            "eb": [12.5],
+            "ec": [12.8],
+            "ed": [12.4],
+            "ee": [12.7],
+            "eh": [45],
+            "ei": [1.23],
+            "ej": [10.5],
+            "ek": [60],
+        }
+    )
+
+    rows = await source.fetch_all_rows()
+
+    assert source.build_url() == "https://www.amarstock.com/823af3f1ebdd"
+    assert rows[0].scrip == "SONALILIFE"
+    assert rows[0].full_name == "Sonali Life Insurance PLC"
+    assert rows[0].close == Decimal("12.7")
+    assert rows[0].free_float == Decimal("60")
+    assert rows[0].raw["ClosePrice"] == 12.7
+    assert rows[0].raw["AuditedPE"] == 10.5
+    source._client.fetch_structured.assert_awaited_once_with(  # type: ignore[attr-defined]
+        "https://www.amarstock.com/823af3f1ebdd",
+        source_name="AMARSTOCK_LATEST_PRICE_API",
+    )
+
+
+def test_current_market_snapshot_rejects_unequal_column_lengths() -> None:
+    with pytest.raises(ValueError, match="unequal lengths"):
+        _decode_columnar_rows({"aa": ["ONE", "TWO"], "ab": ["One"]})

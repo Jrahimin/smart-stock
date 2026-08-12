@@ -182,19 +182,38 @@ class AmarStockApiStockDetailsSource:
         *,
         scrape_date: date | None = None,
         historical_window_days: int | None = None,
+        snapshot_override: Mapping[str, Any] | None = None,
+        snapshot_url_override: str | None = None,
     ) -> ApiStockDetailsPayload:
         normalized_symbol = symbol.strip().upper()
         resolved_scrape_date = scrape_date or datetime.now(UTC).date()
         window_days = historical_window_days or self.historical_window_days
         start_date = resolved_scrape_date - timedelta(days=window_days)
 
-        snapshot_result, historical_result, company_result = await asyncio.gather(
-            self.snapshot_source.fetch(normalized_symbol),
-            self.historical_source.fetch(normalized_symbol, start_date=start_date),
-            self.company_source.fetch(normalized_symbol),
-            return_exceptions=True,
-        )
-        snapshot = self._mapping_or_empty(snapshot_result, "snapshot", normalized_symbol)
+        if snapshot_override is None:
+            fetched_sections = await asyncio.gather(
+                self.snapshot_source.fetch(normalized_symbol),
+                self.historical_source.fetch(normalized_symbol, start_date=start_date),
+                self.company_source.fetch(normalized_symbol),
+                return_exceptions=True,
+            )
+            snapshot_result: object = fetched_sections[0]
+            historical_result: object = fetched_sections[1]
+            company_result: object = fetched_sections[2]
+            snapshot = self._mapping_or_empty(
+                snapshot_result,
+                "snapshot",
+                normalized_symbol,
+            )
+        else:
+            fetched_sections = await asyncio.gather(
+                self.historical_source.fetch(normalized_symbol, start_date=start_date),
+                self.company_source.fetch(normalized_symbol),
+                return_exceptions=True,
+            )
+            historical_result = fetched_sections[0]
+            company_result = fetched_sections[1]
+            snapshot = dict(snapshot_override)
         historical_rows = self._rows_or_empty(historical_result, "historical", normalized_symbol)
         company_rows = self._rows_or_empty(company_result, "company", normalized_symbol)
 
@@ -205,7 +224,7 @@ class AmarStockApiStockDetailsSource:
         payload = ApiStockDetailsPayload(
             symbol=normalized_symbol,
             source=self.source_name,
-            snapshot_url=self.snapshot_source.build_url(normalized_symbol),
+            snapshot_url=snapshot_url_override or self.snapshot_source.build_url(normalized_symbol),
             historical_url=self.historical_source.build_url(
                 normalized_symbol, start_date=start_date
             ),
@@ -220,6 +239,11 @@ class AmarStockApiStockDetailsSource:
             metadata={
                 "diagnostics": {
                     "snapshot_keys": sorted(snapshot.keys()),
+                    "snapshot_source": (
+                        "current_market_snapshot"
+                        if snapshot_override is not None
+                        else "per_symbol_api"
+                    ),
                     "historical_rows": len(historical_rows),
                     "historical_window_days": window_days,
                     "company_rows": len(company_rows),

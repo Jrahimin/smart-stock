@@ -102,6 +102,12 @@ returned HTTP 200 as MessagePack. It remains the explicitly documented dependenc
 summary enrichment only. Its failure is recorded and does not block a complete, validated price
 snapshot from publishing; DSEX session finalization still requires a stored DSEX summary.
 
+The same HAR's Latest Share Price browser bundle maps its `LatestPrice` rows to
+`/823af3f1ebdd`; the former `/LatestPrice/{token}` endpoint is retired (HTTP 404).
+Stock-details bulk enrichment therefore reads the current structured full-market payload and
+uses its matching row as the per-stock snapshot. Do not restore the former token without fresh
+browser evidence.
+
 **Optional / alternate** (via `core_config.py`):
 
 * The old `amarstock_latest_price_json` source remains available for compatibility but is not primary.
