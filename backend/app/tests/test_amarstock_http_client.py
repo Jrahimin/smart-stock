@@ -1,24 +1,37 @@
 from __future__ import annotations
 
 import gzip
+import json
+import logging
 from email.message import Message
 from urllib.error import HTTPError
 
+import msgpack
 import pytest
 
 from app.jobs.ingestion.amarstock_http_client import (
     AmarStockHttpClient,
     AmarStockHttpError,
     AmarStockHttpResponse,
+    AmarStockUnsupportedPayloadError,
+    decode_structured_payload,
 )
 
 
 class _FakeResponse:
-    def __init__(self, body: bytes) -> None:
+    def __init__(
+        self,
+        body: bytes,
+        *,
+        content_type: str | None = "application/x-msgpack",
+        content_encoding: str | None = "gzip",
+    ) -> None:
         self.status = 200
         self.headers = Message()
-        self.headers["Content-Type"] = "application/x-msgpack"
-        self.headers["Content-Encoding"] = "gzip"
+        if content_type is not None:
+            self.headers["Content-Type"] = content_type
+        if content_encoding is not None:
+            self.headers["Content-Encoding"] = content_encoding
         self._body = body
 
     def __enter__(self) -> _FakeResponse:
@@ -51,6 +64,86 @@ def test_fetch_bytes_decompresses_gzip_and_requires_msgpack(
     )
 
     assert response.body == b"messagepack-body"
+
+
+@pytest.mark.parametrize(
+    ("body", "content_type", "expected", "expected_decoder"),
+    [
+        pytest.param(
+            json.dumps({"format": "json"}).encode(),
+            "application/json; charset=utf-8",
+            {"format": "json"},
+            "json",
+            id="gzip-json",
+        ),
+        pytest.param(
+            msgpack.packb({"format": "msgpack"}, use_bin_type=True),
+            "application/x-msgpack",
+            {"format": "msgpack"},
+            "msgpack",
+            id="gzip-msgpack-single-request-fallback",
+        ),
+    ],
+)
+@pytest.mark.asyncio
+async def test_fetch_structured_decodes_gzip_payload_with_one_request(
+    body: bytes,
+    content_type: str,
+    expected: dict[str, str],
+    expected_decoder: str,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.INFO)
+    client = AmarStockHttpClient(max_retries=1, retry_delay_seconds=0)
+    requests = 0
+
+    def fake_urlopen(*_args: object, **_kwargs: object) -> _FakeResponse:
+        nonlocal requests
+        requests += 1
+        return _FakeResponse(gzip.compress(body), content_type=content_type)
+
+    monkeypatch.setattr("app.jobs.ingestion.amarstock_http_client.urlopen", fake_urlopen)
+
+    payload = await client.fetch_structured("https://example.test/Info/DSE")
+
+    assert payload == expected
+    assert requests == 1
+    assert f"decoder={expected_decoder}" in caplog.text
+    if expected_decoder == "msgpack":
+        fallback_records = [
+            record
+            for record in caplog.records
+            if "MessagePack fallback succeeded" in record.getMessage()
+        ]
+        assert len(fallback_records) == 1
+        assert fallback_records[0].levelno == logging.INFO
+
+
+@pytest.mark.asyncio
+async def test_fetch_json_remains_a_structured_compatibility_wrapper(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = AmarStockHttpClient(max_retries=1, retry_delay_seconds=0)
+
+    async def fake_fetch_structured(url: str, *, source_name: str) -> dict[str, str]:
+        assert url == "https://example.test/Info/DSE"
+        assert source_name == "TEST_SOURCE"
+        return {"format": "json"}
+
+    monkeypatch.setattr(client, "fetch_structured", fake_fetch_structured)
+
+    assert await client.fetch_json("https://example.test/Info/DSE", source_name="TEST_SOURCE") == {
+        "format": "json"
+    }
+
+
+def test_corrupt_payload_reports_both_decoder_failures() -> None:
+    with pytest.raises(AmarStockUnsupportedPayloadError) as exc_info:
+        decode_structured_payload(b"\xc1", "application/octet-stream")
+
+    assert exc_info.value.json_error.__cause__ is not None
+    assert exc_info.value.msgpack_error.__cause__ is not None
 
 
 def test_retry_after_is_respected_for_429() -> None:

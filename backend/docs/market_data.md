@@ -38,7 +38,7 @@ Exit codes: `0` success · `2` bad date · `130` interrupt · `1` error.
 | Historical backfill | `backfill_daily_prices()` | Manual / admin API | `daily_prices` from DSE archive + decision-input generation revision |
 
 ```text
-Scheduler (snapshot) → full-market MessagePack → daily_prices
+Scheduler (snapshot) → full-market JSON (MessagePack fallback) → daily_prices
                     → Index API → daily_market_summaries (DSEX)
 
 Scheduler (daily)    → News API → market_events
@@ -53,12 +53,26 @@ Each snapshot upserts the same `stock_id + trade_date` row; `updated_at` drives 
 
 | Data | Source | When |
 |------|--------|------|
-| Per-stock OHLCV (live) | AmarStock configurable MessagePack path (`AMARSTOCK_MARKET_MSGPACK`) | Snapshot scheduler / `sync_market_data` |
+| Per-stock OHLCV (live) | AmarStock configurable structured snapshot path (JSON preferred, MessagePack fallback; persisted source remains `AMARSTOCK_MARKET_MSGPACK`) | Snapshot scheduler / `sync_market_data` |
 | Per-stock OHLCV (historical) | DSE `day_end_archive.php` (`DSE`) | `backfill_daily_prices` / `POST .../ingestion/daily-prices` |
-| DSEX, breadth, exchange turnover | AmarStock index API (`/info/DSE` + `/data/index/summery`) | Every snapshot |
+| Session gate | AmarStock `/Info/DSE` (`DseTime`, `IsTradeDay`, `MarketStatus`) | Before snapshot/daily writes |
+| DSEX, breadth, exchange turnover | AmarStock `/Info/DSE` plus rich `/data/index/summery` | Best-effort snapshot enrichment |
 | News | AmarStock `/info/News` | Daily job only |
 
-**Not in the MessagePack snapshot:** authoritative trade date and DSEX session authority. The index API remains the hard session gate and supplies DSEX/breadth.
+**Not in the full-market snapshot:** authoritative trade date and DSEX session authority. The
+lightweight `/Info/DSE` feed is the hard session gate. Rich DSEX enrichment remains separate.
+
+### AmarStock index endpoint contract
+
+The current HAR shows `/Info/DSE`, `/data/lastIndexEx`, and `/info/market/status-ex` as
+MessagePack. `/data/lastIndexEx` contains timestamp-to-value series for `00DSEX`, `00DSES`,
+and `00DS30`; it does not provide the `Quote` OHLC, `Returns`, or `Range52Week` fields consumed
+by the backend. It is therefore not a safe replacement for `/data/index/summery`.
+
+`/data/index/summery` was absent from that browser HAR but was live-checked on 2026-08-12 and
+returned HTTP 200 as MessagePack. It remains the explicitly documented dependency for rich DSEX
+summary enrichment only. Its failure is recorded and does not block a complete, validated price
+snapshot from publishing; DSEX session finalization still requires a stored DSEX summary.
 
 **Optional / alternate** (via `core_config.py`):
 
@@ -68,7 +82,13 @@ Each snapshot upserts the same `stock_id + trade_date` row; `updated_at` drives 
 
 Factory: `market_data_source_factory.build_primary_market_data_source()`.
 
-### MessagePack → `daily_prices`
+### Structured snapshot → `daily_prices`
+
+The response body is fetched once. Decoding always tries strict UTF-8 JSON first and
+then MessagePack, regardless of a missing or incorrect `Content-Type`. The selected
+decoder, HTTP status, endpoint, and observed content type are logged without logging
+the upstream body. Both formats must decode to the same columnar mapping and pass the
+same validation below.
 
 | Field | Column |
 |-------|--------|
@@ -146,10 +166,10 @@ state changes do not by themselves change decision identity.
 * Snapshot ingest: upsert; backfill default: insert-only (skip existing rows)
 * Snapshot DSEX upserts always set `is_finalized=false`. The after-close daily path
   sets it true only when both a DSEX summary and at least one exchange price row exist.
-* **Session gate:** before snapshot or daily sync writes, `validate_market_session()` calls the AmarStock index API and requires `DateEpoch` trade date to equal today (Asia/Dhaka). Mismatch (public holiday, stale feed, API lag) skips all writes for that run. `MarketStatus` is logged only. Override: `skip_session_validation=True` on sync functions or `--skip-session-validation` on the CLI.
+* **Session gate:** before snapshot or daily sync writes, `validate_market_session()` fetches only `/Info/DSE`. It requires `IsTradeDay=true` and the authoritative `DseTime` date to equal today (Asia/Dhaka); a mismatch, holiday, stale feed, or malformed session payload skips writes. `MarketStatus` is diagnostic metadata. Override: `skip_session_validation=True` on sync functions or `--skip-session-validation` on the CLI.
 * Unknown symbols skipped — run `seed_stocks` on a fresh DB
 * Before writes, the source must meet both `market_snapshot_min_active_coverage_percent` against active DSE stocks and `market_snapshot_min_source_symbols` matched active symbols. Zero-price placeholders count; unknown symbols improve neither guard.
-* Prices, DSEX, and the `LIVE` generation commit once. Any source, validation, coverage, DSEX, or publication failure rolls back and leaves the prior generation/caches in place.
+* A complete, coverage-validated price snapshot and its `LIVE` generation commit once. Source, session, structural validation, coverage, or publication failures roll back and retain the prior generation. Rich DSEX enrichment is best-effort: an error leaves the prior DSEX summary in place, is surfaced in sync diagnostics, and does not publish partial price rows.
 * A successful generation triggers one locked canonical-universe rebuild. Cache
   publication is fenced to that exact id; an obsolete calculation is discarded.
 * Historical OHLCV, relevant stock-detail event inputs and manual market-summary
@@ -164,7 +184,7 @@ state changes do not by themselves change decision identity.
 
 `amarstock_daily_enrichment.py`:
 
-* Snapshot path → DSEX summary only (`run_snapshot_market_enrichment`)
+* Snapshot path → best-effort DSEX summary only (`run_snapshot_market_enrichment`)
 * Daily path → news only (`run_daily_news_enrichment`)
 * `amarstock_daily_latest_price_patch_enabled` defaults to `false`
 
@@ -174,7 +194,7 @@ Key settings in `backend/app/core/core_config.py`:
 
 | Setting | Default | Notes |
 |---------|---------|-------|
-| `daily_market_primary_source` | `amarstock_msgpack` | compatibility: `amarstock_latest_price_json`; explicit only: `amarstock_html` |
+| `daily_market_primary_source` | `amarstock_msgpack` | Legacy configuration value for the transport-neutral snapshot source; compatibility: `amarstock_latest_price_json`; explicit only: `amarstock_html` |
 | `amarstock_market_snapshot_path` | `/823af3f1ebdd` | Opaque upstream path; configurable because it may rotate |
 | `market_snapshot_min_active_coverage_percent` | `95` | Active DSE match threshold before writes |
 | `market_snapshot_min_source_symbols` | `300` | Absolute matched-active-symbol floor before writes |

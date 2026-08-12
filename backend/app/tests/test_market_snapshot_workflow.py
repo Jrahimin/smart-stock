@@ -22,7 +22,9 @@ from app.modules.market_data.market_data_service import MarketSnapshotCoverageEr
 
 
 @pytest.mark.asyncio
-async def test_sync_market_snapshot_runs_snapshot_enrichment_not_news(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_sync_market_snapshot_runs_snapshot_enrichment_not_news(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     price_result = DailyPriceIngestionResult(
         exchange=ExchangeCode.DSE,
         trade_date=date(2026, 6, 11),
@@ -70,7 +72,9 @@ async def test_sync_market_snapshot_runs_snapshot_enrichment_not_news(monkeypatc
 
 
 @pytest.mark.asyncio
-async def test_sync_market_snapshot_spawns_rebuild_without_awaiting(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_sync_market_snapshot_spawns_rebuild_without_awaiting(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     price_result = DailyPriceIngestionResult(
         exchange=ExchangeCode.DSE,
         trade_date=date(2026, 6, 11),
@@ -118,7 +122,10 @@ async def test_sync_market_snapshot_spawns_rebuild_without_awaiting(monkeypatch:
     )
 
     spawn_mock.assert_called_once()
-    assert spawn_mock.call_args.kwargs.get("settings") is not None or len(spawn_mock.call_args.args) >= 1
+    assert (
+        spawn_mock.call_args.kwargs.get("settings") is not None
+        or len(spawn_mock.call_args.args) >= 1
+    )
     assert result.fetched_count == 10
 
 
@@ -179,7 +186,9 @@ async def test_manual_snapshot_waits_for_cache_rebuild(monkeypatch: pytest.Monke
 
 
 @pytest.mark.asyncio
-async def test_run_daily_market_sync_runs_news_not_snapshot_enrichment(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_run_daily_market_sync_runs_news_not_snapshot_enrichment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     enrich_stats = PostDailyAmarstockStats(news_upserted=3, news_skipped=1)
 
     mock_service = MagicMock()
@@ -333,7 +342,7 @@ async def test_failed_coverage_never_publishes_generation(monkeypatch: pytest.Mo
 
 
 @pytest.mark.asyncio
-async def test_failed_dsex_rolls_back_without_generation_or_cache_rebuild(
+async def test_failed_optional_dsex_summary_publishes_complete_price_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     price_result = DailyPriceIngestionResult(
@@ -383,9 +392,10 @@ async def test_failed_dsex_rolls_back_without_generation_or_cache_rebuild(
     )
 
     assert result.index_summary_upserted is False
-    mock_service.rollback_transaction.assert_awaited_once()
-    mock_service.publish_market_generation.assert_not_awaited()
-    spawn_mock.assert_not_called()
+    assert result.index_summary_error == "upstream failed"
+    mock_service.rollback_transaction.assert_not_awaited()
+    mock_service.publish_market_generation.assert_awaited_once()
+    spawn_mock.assert_called_once()
 
 
 @pytest.mark.asyncio

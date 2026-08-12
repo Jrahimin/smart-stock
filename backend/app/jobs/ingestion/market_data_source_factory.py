@@ -9,7 +9,7 @@ from app.jobs.ingestion.amarstock_latest_price_market_data_source import (
 )
 from app.jobs.ingestion.amarstock_market_data_source import AmarStockMarketDataSource
 from app.jobs.ingestion.amarstock_msgpack_market_data_source import (
-    AmarStockMsgpackMarketDataSource,
+    AmarStockMarketSnapshotSource,
 )
 from app.jobs.ingestion.ingestion_source_base import MarketDataSource
 from app.jobs.ingestion.stocknow_market_data_source import StockNowMarketDataSource
@@ -18,7 +18,7 @@ from app.jobs.ingestion.stocknow_market_data_source import StockNowMarketDataSou
 def build_primary_market_data_source(settings: Settings) -> MarketDataSource:
     source_key = settings.daily_market_primary_source.strip().lower()
     if source_key == DailyMarketPrimarySource.AMARSTOCK_MSGPACK:
-        return AmarStockMsgpackMarketDataSource.from_settings(settings)
+        return AmarStockMarketSnapshotSource.from_settings(settings)
     if source_key == DailyMarketPrimarySource.AMARSTOCK_HTML:
         return AmarStockMarketDataSource()
     if source_key == DailyMarketPrimarySource.AMARSTOCK_LATEST_PRICE_JSON:

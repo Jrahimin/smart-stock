@@ -1,7 +1,11 @@
 from datetime import date
 from decimal import Decimal
+from unittest.mock import AsyncMock
+
+import pytest
 
 from app.jobs.ingestion.amarstock_api_stock_details_source import AmarStockApiStockDetailsSource
+from app.jobs.ingestion.amarstock_http_client import AmarStockHttpClient
 
 
 def _source() -> AmarStockApiStockDetailsSource:
@@ -36,6 +40,20 @@ def test_snapshot_maps_base_stock_profile_fields() -> None:
     assert profile.listing_date == date(1993, 1, 1)
     assert profile.is_active is True
     assert profile.metadata["source_fields"]["category"] == "MarketCategory"
+
+
+@pytest.mark.asyncio
+async def test_stock_details_sources_use_shared_structured_transport() -> None:
+    source = _source()
+    fetch_structured = AsyncMock(return_value={"FullName": "Eastern Bank PLC."})
+    source.snapshot_source.client.fetch_structured = fetch_structured
+
+    snapshot = await source.snapshot_source.fetch("EBL")
+
+    assert isinstance(source.snapshot_source.client, AmarStockHttpClient)
+    assert snapshot == {"FullName": "Eastern Bank PLC."}
+    fetch_structured.assert_awaited_once()
+    assert fetch_structured.await_args.kwargs["source_name"] == "AMARSTOCK_API"
 
 
 def test_snapshot_maps_expanded_shareholding_fields() -> None:

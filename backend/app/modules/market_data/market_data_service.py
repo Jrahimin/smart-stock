@@ -896,7 +896,7 @@ class MarketDataService:
         accepted_count: int,
         suspicious_count: int,
     ) -> str:
-        """Publish one completed source run after prices and DSEX enrichment commit."""
+        """Publish one complete price source run after its transaction commits."""
 
         _, source_last_synced_at = await self.repository.get_market_price_freshness(exchange=exchange)
         if source_last_synced_at is None:

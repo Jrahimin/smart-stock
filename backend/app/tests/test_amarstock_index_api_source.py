@@ -1,8 +1,61 @@
+import json
+from datetime import date, datetime
 from decimal import Decimal
+from zoneinfo import ZoneInfo
 
+import msgpack
 import pytest
 
+from app.jobs.ingestion.amarstock_http_client import AmarStockHttpResponse
 from app.jobs.ingestion.amarstock_index_api_source import AmarStockIndexApiSource
+
+
+@pytest.mark.parametrize("serialization", ["json", "msgpack"])
+@pytest.mark.asyncio
+async def test_fetch_market_session_accepts_json_or_msgpack_fallback(
+    serialization: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = AmarStockIndexApiSource(
+        base_url="https://www.amarstock.com",
+        max_retries=1,
+        retry_delay_seconds=0.1,
+        historical_token="5ee4d332a90e",
+    )
+    dse_time = int(datetime(2026, 8, 12, 10, tzinfo=ZoneInfo("Asia/Dhaka")).timestamp() * 1000)
+    info = {
+        "IndexValue": 5897.27422,
+        "MarketStatus": "Open",
+        "IsTradeDay": True,
+        "DseTime": f"/Date({dse_time})/",
+    }
+    requests: list[str] = []
+
+    async def fake_fetch_bytes(url: str, **_kwargs: object) -> AmarStockHttpResponse:
+        requests.append(url)
+        assert url.endswith("/Info/DSE")
+        if serialization == "msgpack":
+            return AmarStockHttpResponse(
+                body=msgpack.packb(info, use_bin_type=True),
+                status=200,
+                content_type="application/x-msgpack",
+                headers={},
+            )
+        return AmarStockHttpResponse(
+            body=json.dumps(info).encode(),
+            status=200,
+            content_type="application/json",
+            headers={},
+        )
+
+    monkeypatch.setattr(source._client, "fetch_bytes", fake_fetch_bytes)
+
+    market_session = await source.fetch_market_session()
+
+    assert market_session.trade_date == date(2026, 8, 12)
+    assert market_session.market_status == "Open"
+    assert market_session.is_trade_day is True
+    assert requests == ["https://www.amarstock.com/Info/DSE"]
 
 
 @pytest.mark.asyncio
@@ -62,7 +115,9 @@ async def test_fetch_dsex_snapshot_parses_info_and_summery(monkeypatch: pytest.M
 
 
 @pytest.mark.asyncio
-async def test_fetch_dsex_performance_metrics_parses_returns_and_range(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_fetch_dsex_snapshot_keeps_summery_as_rich_summary_dependency(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     source = AmarStockIndexApiSource(
         base_url="https://www.amarstock.com",
         max_retries=1,
@@ -70,7 +125,27 @@ async def test_fetch_dsex_performance_metrics_parses_returns_and_range(monkeypat
         historical_token="5ee4d332a90e",
     )
 
-    async def fake_fetch_json(url: str) -> dict[str, object]:
+    async def fail_summary() -> tuple[dict[str, object], dict[str, object]]:
+        raise RuntimeError("summery unavailable")
+
+    monkeypatch.setattr(source, "_fetch_payloads", fail_summary)
+
+    with pytest.raises(RuntimeError, match="summery unavailable"):
+        await source.fetch_dsex_snapshot()
+
+
+@pytest.mark.asyncio
+async def test_fetch_dsex_performance_metrics_parses_returns_and_range(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = AmarStockIndexApiSource(
+        base_url="https://www.amarstock.com",
+        max_retries=1,
+        retry_delay_seconds=0.1,
+        historical_token="5ee4d332a90e",
+    )
+
+    async def fake_fetch_structured(url: str, **_kwargs: object) -> dict[str, object]:
         assert url.endswith("/data/index/summery")
         return {
             "Returns": {
@@ -83,7 +158,7 @@ async def test_fetch_dsex_performance_metrics_parses_returns_and_range(monkeypat
             },
         }
 
-    monkeypatch.setattr(source._client, "fetch_json", fake_fetch_json)
+    monkeypatch.setattr(source._client, "fetch_structured", fake_fetch_structured)
 
     async def fake_return_1m() -> Decimal:
         return Decimal("2.5")

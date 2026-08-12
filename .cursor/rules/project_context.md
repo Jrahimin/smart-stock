@@ -332,9 +332,9 @@ Pipeline jobs live under `backend/app/jobs/`:
 
 Market data ingestion context:
 
-* **Primary snapshot source** (default): AmarStock full-market MessagePack (`AMARSTOCK_MARKET_MSGPACK`) at configurable `amarstock_market_snapshot_path`. The old LatestPrice JSON source remains compatibility-only. HTML is explicit-only and never an automatic fallback.
+* **Primary snapshot source** (default): AmarStock full-market structured snapshot at configurable `amarstock_market_snapshot_path`; JSON is decoded first and MessagePack is the transparent fallback after one HTTP fetch. The persisted provenance value remains `AMARSTOCK_MARKET_MSGPACK` for compatibility. The old LatestPrice JSON source remains compatibility-only. HTML is explicit-only and never an automatic fallback.
 * Manual snapshot CLI: `python -m app.jobs.sync_market_data` (prices + DSEX; `--news-only` / `--with-news`). Historical gaps: `python -m app.jobs.backfill_daily_prices --date YYYY-MM-DD`.
-* DSEX / official breadth and authoritative session date come from the AmarStock **index API**, not MessagePack headers or payload metadata.
+* Session authority comes from lightweight AmarStock `/Info/DSE` (`DseTime` + `IsTradeDay`), not snapshot headers or payload metadata. Rich DSEX/breadth enrichment may additionally depend on `/data/index/summery` but must not block a validated price snapshot.
 * Daily price ingestion uses replaceable source classes that return `IngestedDailyPrice`.
 * `AmarStockMarketDataSource` fetches live AmarStock latest-share-price HTML, parses with BeautifulSoup plus `lxml`, detects the table from minimal headers (`TRADING CODE`, `LTP`), and maps by header name rather than fixed column positions.
 * AmarStock `LTP` maps to `close_price`; `OPEN` is optional, otherwise `YCP` is used as the open-price proxy and rows are marked `PARTIAL`.
