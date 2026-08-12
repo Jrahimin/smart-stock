@@ -1,17 +1,14 @@
 import asyncio
-import json
 import logging
-import random
 import re
 from collections.abc import Mapping
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any
-from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
-from urllib.request import Request, urlopen
 
 from app.core.enums import DataQualityFlag, MarketEventType, ReportPeriodType, ReportStatus
+from app.jobs.ingestion.amarstock_http_client import AmarStockHttpClient
 from app.jobs.ingestion.stock_details_api_source_base import (
     ApiDailyPrice,
     ApiFinancialMetric,
@@ -89,46 +86,8 @@ COMPANY_METRIC_MAP = {
 }
 
 
-class AmarStockApiClient:
-    def __init__(self, *, max_retries: int, retry_delay_seconds: float) -> None:
-        self.max_retries = max_retries
-        self.retry_delay_seconds = retry_delay_seconds
-
-    async def fetch_json(self, url: str) -> Any:
-        last_error: Exception | None = None
-        for attempt in range(1, self.max_retries + 1):
-            try:
-                return await asyncio.to_thread(self._fetch_json, url)
-            except (TimeoutError, HTTPError, URLError, OSError, json.JSONDecodeError) as exc:
-                last_error = exc
-                logger.warning(
-                    "AmarStock API fetch attempt %s/%s failed: url=%s error=%s",
-                    attempt,
-                    self.max_retries,
-                    url,
-                    exc,
-                )
-                if attempt < self.max_retries:
-                    await asyncio.sleep(self.retry_delay_seconds * (2 ** (attempt - 1)) + random.random())
-        raise RuntimeError("AmarStock API fetch failed") from last_error
-
-    def _fetch_json(self, url: str) -> Any:
-        request = Request(
-            url,
-            headers={
-                "User-Agent": (
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
-                ),
-                "Accept": "application/json,text/plain,*/*",
-            },
-        )
-        with urlopen(request, timeout=20) as response:
-            return json.loads(response.read().decode("utf-8", errors="replace"))
-
-
 class AmarStockSnapshotSource:
-    def __init__(self, *, base_url: str, token: str, client: AmarStockApiClient) -> None:
+    def __init__(self, *, base_url: str, token: str, client: AmarStockHttpClient) -> None:
         self.base_url = base_url.rstrip("/")
         self.token = token
         self.client = client
@@ -137,38 +96,49 @@ class AmarStockSnapshotSource:
         return f"{self.base_url}/data/{self.token}/{symbol.strip().upper()}"
 
     async def fetch(self, symbol: str) -> dict[str, Any]:
-        data = await self.client.fetch_json(self.build_url(symbol))
+        data = await self.client.fetch_structured(
+            self.build_url(symbol), source_name=AMARSTOCK_SOURCE
+        )
         return dict(data) if isinstance(data, Mapping) else {}
 
 
 class AmarStockHistoricalSource:
-    def __init__(self, *, base_url: str, token: str, client: AmarStockApiClient) -> None:
+    def __init__(self, *, base_url: str, token: str, client: AmarStockHttpClient) -> None:
         self.base_url = base_url.rstrip("/")
         self.token = token
         self.client = client
 
     def build_url(self, symbol: str, *, start_date: date) -> str:
-        query = urlencode({"scrip": symbol.strip().upper(), "cycle": "Day1", "dtFrom": start_date.isoformat()})
+        query = urlencode(
+            {"scrip": symbol.strip().upper(), "cycle": "Day1", "dtFrom": start_date.isoformat()}
+        )
         return f"{self.base_url}/data/{self.token}/?{query}"
 
     async def fetch(self, symbol: str, *, start_date: date) -> list[dict[str, Any]]:
-        data = await self.client.fetch_json(self.build_url(symbol, start_date=start_date))
+        data = await self.client.fetch_structured(
+            self.build_url(symbol, start_date=start_date),
+            source_name=AMARSTOCK_SOURCE,
+        )
         if isinstance(data, list):
             return [dict(row) for row in data if isinstance(row, Mapping)]
         return []
 
 
 class AmarStockCompanySource:
-    def __init__(self, *, base_url: str, token: str, client: AmarStockApiClient) -> None:
+    def __init__(self, *, base_url: str, token: str, client: AmarStockHttpClient) -> None:
         self.base_url = base_url.rstrip("/")
         self.token = token
         self.client = client
 
     def build_url(self, symbol: str) -> str:
-        return f"{self.base_url}/company/{self.token}/?{urlencode({'symbol': symbol.strip().upper()})}"
+        return (
+            f"{self.base_url}/company/{self.token}/?{urlencode({'symbol': symbol.strip().upper()})}"
+        )
 
     async def fetch(self, symbol: str) -> list[dict[str, Any]]:
-        data = await self.client.fetch_json(self.build_url(symbol))
+        data = await self.client.fetch_structured(
+            self.build_url(symbol), source_name=AMARSTOCK_SOURCE
+        )
         if isinstance(data, list):
             return [dict(row) for row in data if isinstance(row, Mapping)]
         return []
@@ -188,10 +158,19 @@ class AmarStockApiStockDetailsSource:
         max_retries: int,
         retry_delay_seconds: float,
     ) -> None:
-        client = AmarStockApiClient(max_retries=max_retries, retry_delay_seconds=retry_delay_seconds)
-        self.snapshot_source = AmarStockSnapshotSource(base_url=base_url, token=snapshot_token, client=client)
-        self.historical_source = AmarStockHistoricalSource(base_url=base_url, token=historical_token, client=client)
-        self.company_source = AmarStockCompanySource(base_url=base_url, token=company_token, client=client)
+        client = AmarStockHttpClient(
+            max_retries=max_retries,
+            retry_delay_seconds=retry_delay_seconds,
+        )
+        self.snapshot_source = AmarStockSnapshotSource(
+            base_url=base_url, token=snapshot_token, client=client
+        )
+        self.historical_source = AmarStockHistoricalSource(
+            base_url=base_url, token=historical_token, client=client
+        )
+        self.company_source = AmarStockCompanySource(
+            base_url=base_url, token=company_token, client=client
+        )
         self.historical_window_days = historical_window_days
 
     def source_url(self, symbol: str) -> str:
@@ -227,7 +206,9 @@ class AmarStockApiStockDetailsSource:
             symbol=normalized_symbol,
             source=self.source_name,
             snapshot_url=self.snapshot_source.build_url(normalized_symbol),
-            historical_url=self.historical_source.build_url(normalized_symbol, start_date=start_date),
+            historical_url=self.historical_source.build_url(
+                normalized_symbol, start_date=start_date
+            ),
             company_url=self.company_source.build_url(normalized_symbol),
             scrape_date=resolved_scrape_date,
             stock_profile=self._map_stock_profile(snapshot),
@@ -247,7 +228,9 @@ class AmarStockApiStockDetailsSource:
                     "unmapped_company_sample": unknown_company_rows[:20],
                 }
             },
-            data_quality_flag=DataQualityFlag.PARTIAL if unknown_company_rows else DataQualityFlag.OK,
+            data_quality_flag=DataQualityFlag.PARTIAL
+            if unknown_company_rows
+            else DataQualityFlag.OK,
         )
         logger.info(
             "Parsed AmarStock API stock details: symbol=%s prices=%s metrics=%s valuation=%s "
@@ -287,7 +270,9 @@ class AmarStockApiStockDetailsSource:
             )
         return prices
 
-    def _map_valuation(self, snapshot: dict[str, Any], scrape_date: date) -> ApiValuationSnapshot | None:
+    def _map_valuation(
+        self, snapshot: dict[str, Any], scrape_date: date
+    ) -> ApiValuationSnapshot | None:
         values: dict[str, Decimal] = {}
         source_fields: dict[str, str] = {}
         for source_field, target_field in SNAPSHOT_VALUATION_FIELDS.items():
@@ -297,7 +282,9 @@ class AmarStockApiStockDetailsSource:
                 source_fields[target_field] = source_field
         if not values:
             return None
-        return ApiValuationSnapshot(valuation_date=scrape_date, metadata={"source_fields": source_fields}, **values)
+        return ApiValuationSnapshot(
+            valuation_date=scrape_date, metadata={"source_fields": source_fields}, **values
+        )
 
     def _map_stock_profile(self, snapshot: dict[str, Any]) -> ApiStockProfile | None:
         values: dict[str, Any] = {}
@@ -319,7 +306,9 @@ class AmarStockApiStockDetailsSource:
             source_fields["market_cap"] = "MarketCap"
 
         listing_year = self._to_int(snapshot.get("ListingYear"))
-        listing_date = date(listing_year, 1, 1) if listing_year is not None and listing_year >= 1900 else None
+        listing_date = (
+            date(listing_year, 1, 1) if listing_year is not None and listing_year >= 1900 else None
+        )
         if listing_date is not None:
             values["listing_date"] = listing_date
             source_fields["listing_date"] = "ListingYear"
@@ -334,7 +323,9 @@ class AmarStockApiStockDetailsSource:
             return None
         return ApiStockProfile(metadata=metadata, **values)
 
-    def _map_snapshot_metrics(self, snapshot: dict[str, Any], scrape_date: date) -> list[ApiFinancialMetric]:
+    def _map_snapshot_metrics(
+        self, snapshot: dict[str, Any], scrape_date: date
+    ) -> list[ApiFinancialMetric]:
         metrics: list[ApiFinancialMetric] = []
         for source_field, metric_code in SNAPSHOT_METRIC_FIELDS.items():
             value = self._to_decimal(snapshot.get(source_field))
@@ -350,14 +341,20 @@ class AmarStockApiStockDetailsSource:
                     as_of_date=scrape_date,
                     source_label=source_field,
                     source_value=str(snapshot.get(source_field)),
-                    period_type=ReportPeriodType.QUARTERLY if is_quarterly_eps else ReportPeriodType.ANNUAL,
-                    report_status=ReportStatus.UNAUDITED if is_quarterly_eps else ReportStatus.AUDITED,
+                    period_type=ReportPeriodType.QUARTERLY
+                    if is_quarterly_eps
+                    else ReportPeriodType.ANNUAL,
+                    report_status=ReportStatus.UNAUDITED
+                    if is_quarterly_eps
+                    else ReportStatus.AUDITED,
                     metadata={"source": "snapshot_api"},
                 )
             )
         return metrics
 
-    def _map_shareholding(self, snapshot: dict[str, Any], scrape_date: date) -> ApiShareholdingSnapshot | None:
+    def _map_shareholding(
+        self, snapshot: dict[str, Any], scrape_date: date
+    ) -> ApiShareholdingSnapshot | None:
         values: dict[str, Any] = {}
         for source_field, target_field in SHAREHOLDING_FIELDS.items():
             value = self._to_decimal(snapshot.get(source_field))
@@ -368,12 +365,15 @@ class AmarStockApiStockDetailsSource:
             values["total_shares"] = total_shares
         free_float_percent = values.get("free_float_percent")
         if total_shares is not None and isinstance(free_float_percent, Decimal):
-            values["circulating_shares"] = int(Decimal(total_shares) * free_float_percent / Decimal("100"))
+            values["circulating_shares"] = int(
+                Decimal(total_shares) * free_float_percent / Decimal("100")
+            )
         history = self._indexed_shareholding(snapshot)
         metadata = {
             "indexed_history": history,
             "source_fields": {
-                target_field: source_field for source_field, target_field in SHAREHOLDING_FIELDS.items()
+                target_field: source_field
+                for source_field, target_field in SHAREHOLDING_FIELDS.items()
             },
         }
         if total_shares is not None:
@@ -420,7 +420,8 @@ class AmarStockApiStockDetailsSource:
             events.append(
                 ApiMarketEvent(
                     event_type=MarketEventType.NEWS,
-                    event_date=self._date_from_aspnet(snapshot.get(f"news{index}stdate")) or scrape_date,
+                    event_date=self._date_from_aspnet(snapshot.get(f"news{index}stdate"))
+                    or scrape_date,
                     title=title[:255],
                     summary=str(snapshot.get(f"news{index}stbody") or "").strip() or None,
                     metadata={"news_index": index},

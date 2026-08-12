@@ -86,7 +86,7 @@ def test_fetch_bytes_decompresses_gzip_and_requires_msgpack(
     ],
 )
 @pytest.mark.asyncio
-async def test_fetch_json_decodes_gzip_structured_payload_with_one_request(
+async def test_fetch_structured_decodes_gzip_payload_with_one_request(
     body: bytes,
     content_type: str,
     expected: dict[str, str],
@@ -105,11 +105,37 @@ async def test_fetch_json_decodes_gzip_structured_payload_with_one_request(
 
     monkeypatch.setattr("app.jobs.ingestion.amarstock_http_client.urlopen", fake_urlopen)
 
-    payload = await client.fetch_json("https://example.test/Info/DSE")
+    payload = await client.fetch_structured("https://example.test/Info/DSE")
 
     assert payload == expected
     assert requests == 1
     assert f"decoder={expected_decoder}" in caplog.text
+    if expected_decoder == "msgpack":
+        fallback_records = [
+            record
+            for record in caplog.records
+            if "MessagePack fallback succeeded" in record.getMessage()
+        ]
+        assert len(fallback_records) == 1
+        assert fallback_records[0].levelno == logging.INFO
+
+
+@pytest.mark.asyncio
+async def test_fetch_json_remains_a_structured_compatibility_wrapper(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = AmarStockHttpClient(max_retries=1, retry_delay_seconds=0)
+
+    async def fake_fetch_structured(url: str, *, source_name: str) -> dict[str, str]:
+        assert url == "https://example.test/Info/DSE"
+        assert source_name == "TEST_SOURCE"
+        return {"format": "json"}
+
+    monkeypatch.setattr(client, "fetch_structured", fake_fetch_structured)
+
+    assert await client.fetch_json("https://example.test/Info/DSE", source_name="TEST_SOURCE") == {
+        "format": "json"
+    }
 
 
 def test_corrupt_payload_reports_both_decoder_failures() -> None:

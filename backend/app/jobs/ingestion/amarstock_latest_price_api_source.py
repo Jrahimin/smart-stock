@@ -88,7 +88,7 @@ class AmarStockLatestPriceApiSource:
         return f"{self._base_url}/LatestPrice/{self._token}"
 
     async def fetch_all_rows(self) -> list[AmarStockLatestPriceRow]:
-        data = await self._client.fetch_json(self.build_url(), source_name=self.source_name)
+        data = await self._client.fetch_structured(self.build_url(), source_name=self.source_name)
         if not isinstance(data, list):
             return []
         parsed_rows = (_parse_row(dict(row)) for row in data if isinstance(row, dict))

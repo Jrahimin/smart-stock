@@ -47,7 +47,7 @@ class AmarStockNewsApiSource:
         return f"{self._base_url}{self._news_path}"
 
     async def fetch_news(self) -> list[AmarStockNewsItem]:
-        data = await self._client.fetch_json(self.build_url(), source_name=self.source_name)
+        data = await self._client.fetch_structured(self.build_url(), source_name=self.source_name)
         if not isinstance(data, list):
             return []
         items: list[AmarStockNewsItem] = []

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
@@ -17,6 +18,7 @@ TRADING_DAYS_1M = 21
 HISTORICAL_LOOKBACK_CALENDAR_DAYS = 45
 INFO_PATH = "/Info/DSE"
 SUMMARY_PATH = "/data/index/summery"
+_ASPNET_EPOCH_PATTERN = re.compile(r"^/Date\((-?\d+)(?:[+-]\d{4})?\)/$")
 
 
 @dataclass(frozen=True)
@@ -50,6 +52,15 @@ class AmarStockDsexPerformanceMetrics:
     range_52w_high: Decimal | None
 
 
+@dataclass(frozen=True)
+class AmarStockMarketSession:
+    """Authoritative lightweight session state from `/Info/DSE` only."""
+
+    trade_date: date
+    market_status: str
+    is_trade_day: bool
+
+
 class AmarStockIndexApiSource:
     source_name = "AMARSTOCK_INDEX_API"
 
@@ -79,7 +90,7 @@ class AmarStockIndexApiSource:
 
     async def fetch_dsex_performance_metrics(self) -> AmarStockDsexPerformanceMetrics:
         """Lightweight read for multi-horizon returns and 52-week range (summery endpoint only)."""
-        summery = await self._client.fetch_json(
+        summery = await self._client.fetch_structured(
             f"{self._base_url}{SUMMARY_PATH}",
             source_name=self.source_name,
         )
@@ -95,6 +106,28 @@ class AmarStockIndexApiSource:
             return_1y_percent=_decimal(returns.get("1Year")),
             range_52w_low=_decimal(range_52w.get("low")),
             range_52w_high=_decimal(range_52w.get("high")),
+        )
+
+    async def fetch_market_session(self) -> AmarStockMarketSession:
+        """Fetch only the current session contract; no rich summary dependency."""
+        info = await self._client.fetch_structured(
+            f"{self._base_url}{INFO_PATH}",
+            source_name=self.source_name,
+        )
+        if not isinstance(info, dict):
+            raise RuntimeError("AmarStock market session returned unexpected payload")
+
+        trade_date = _parse_info_trade_date(info.get("DseTime"))
+        if trade_date is None:
+            raise RuntimeError("AmarStock market session missing authoritative DseTime")
+        is_trade_day = _bool(info.get("IsTradeDay"))
+        if is_trade_day is None:
+            raise RuntimeError("AmarStock market session missing IsTradeDay")
+
+        return AmarStockMarketSession(
+            trade_date=trade_date,
+            market_status=str(info.get("MarketStatus") or "Unknown"),
+            is_trade_day=is_trade_day,
         )
 
     async def _fetch_return_1m_from_index_history(self) -> Decimal | None:
@@ -170,11 +203,11 @@ class AmarStockIndexApiSource:
         )
 
     async def _fetch_payloads(self) -> tuple[dict[str, Any], dict[str, Any]]:
-        info = await self._client.fetch_json(
+        info = await self._client.fetch_structured(
             f"{self._base_url}{INFO_PATH}",
             source_name=self.source_name,
         )
-        summery = await self._client.fetch_json(
+        summery = await self._client.fetch_structured(
             f"{self._base_url}{SUMMARY_PATH}",
             source_name=self.source_name,
         )
@@ -199,6 +232,8 @@ def _decimal(value: object) -> Decimal | None:
 def _int(value: object) -> int | None:
     if value is None or value == "":
         return None
+    if isinstance(value, bool) or not isinstance(value, (str, bytes, bytearray, int, float)):
+        return None
     try:
         return int(value)
     except (TypeError, ValueError):
@@ -206,10 +241,10 @@ def _int(value: object) -> int | None:
 
 
 def _parse_trade_date(epoch_ms: object, date_string: object) -> date:
-    if epoch_ms is not None:
+    if isinstance(epoch_ms, (str, bytes, bytearray, int, float)) and not isinstance(epoch_ms, bool):
         try:
             return datetime.fromtimestamp(int(epoch_ms) / 1000, tz=DHAKA_TZ).date()
-        except (TypeError, ValueError, OSError):
+        except (OverflowError, TypeError, ValueError, OSError):
             pass
 
     if isinstance(date_string, str):
@@ -220,3 +255,36 @@ def _parse_trade_date(epoch_ms: object, date_string: object) -> date:
                 continue
 
     return datetime.now(tz=DHAKA_TZ).date()
+
+
+def _parse_info_trade_date(value: object) -> date | None:
+    epoch_ms: int | None = None
+    if isinstance(value, int) and not isinstance(value, bool):
+        epoch_ms = value
+    elif isinstance(value, str):
+        match = _ASPNET_EPOCH_PATTERN.fullmatch(value.strip())
+        if match is not None:
+            try:
+                epoch_ms = int(match.group(1))
+            except ValueError:
+                return None
+    if epoch_ms is None:
+        return None
+    try:
+        return datetime.fromtimestamp(epoch_ms / 1000, tz=DHAKA_TZ).date()
+    except (OverflowError, OSError, ValueError):
+        return None
+
+
+def _bool(value: object) -> bool | None:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, int) and value in (0, 1):
+        return bool(value)
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"true", "1"}:
+            return True
+        if normalized in {"false", "0"}:
+            return False
+    return None

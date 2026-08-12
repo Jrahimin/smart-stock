@@ -108,9 +108,7 @@ async def _ingest_with_optional_fallback(
 ) -> DailyPriceIngestionResult:
     primary = source or build_primary_market_data_source(settings)
     validation = (
-        validation_source
-        if validation_source is not None
-        else resolve_validation_source(settings)
+        validation_source if validation_source is not None else resolve_validation_source(settings)
     )
 
     primary_error: BaseException | None = None
@@ -219,7 +217,7 @@ async def sync_market_snapshot(
     skip_session_validation: bool = False,
     wait_for_cache_rebuild: bool = False,
 ) -> MarketSnapshotSyncResult:
-    """Intraday snapshot: per-stock prices + DSEX summary (no news)."""
+    """Intraday snapshot: complete prices plus best-effort DSEX enrichment (no news)."""
     resolved_settings = settings or get_settings()
     resolved_trade_date = trade_date or datetime.now(DHAKA_TIMEZONE).date()
 
@@ -253,7 +251,7 @@ async def sync_market_snapshot(
                 trade_date=resolved_trade_date,
                 commit=False,
             )
-            if price_result.fetched_count > 0 and enrich.index_summary_upserted:
+            if price_result.fetched_count > 0:
                 await service.publish_market_generation(
                     exchange=exchange,
                     trade_date=resolved_trade_date,
@@ -269,17 +267,23 @@ async def sync_market_snapshot(
                     suspicious_count=price_result.suspicious_count,
                 )
                 published = True
+                if not enrich.index_summary_upserted:
+                    logger.warning(
+                        "Market snapshot published without optional DSEX summary: "
+                        "exchange=%s date=%s error=%s",
+                        exchange.value,
+                        resolved_trade_date,
+                        enrich.index_summary_error,
+                    )
             else:
-                # Price rows and DSEX enrichment share this transaction. If either
-                # side is incomplete, keep the prior published generation visible.
+                # A failed coverage/price ingest must never create a partial publication.
                 await service.rollback_transaction()
                 published = False
                 logger.error(
-                    "Market snapshot was not published: exchange=%s date=%s prices=%s dsex=%s",
+                    "Market snapshot was not published: exchange=%s date=%s prices=%s",
                     exchange.value,
                     resolved_trade_date,
                     price_result.fetched_count,
-                    enrich.index_summary_upserted,
                 )
         except Exception:
             await service.rollback_transaction()

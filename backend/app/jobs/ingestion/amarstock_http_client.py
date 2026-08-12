@@ -79,7 +79,7 @@ class AmarStockHttpClient:
         self.max_retries = max_retries
         self.retry_delay_seconds = retry_delay_seconds
 
-    async def fetch_json(
+    async def fetch_structured(
         self,
         url: str,
         *,
@@ -114,6 +114,15 @@ class AmarStockHttpClient:
             response=response,
         )
         return decoded.payload
+
+    async def fetch_json(
+        self,
+        url: str,
+        *,
+        source_name: str = "AMARSTOCK_STRUCTURED_API",
+    ) -> Any:
+        """Compatibility wrapper for callers written before MessagePack fallback."""
+        return await self.fetch_structured(url, source_name=source_name)
 
     async def fetch_bytes(
         self,
@@ -322,7 +331,7 @@ def _log_successful_decoder(
         decoded.decoder,
     )
     if decoded.decoder == "msgpack":
-        logger.warning(
+        logger.info(
             "AmarStock JSON decode failed; MessagePack fallback succeeded: "
             "source=%s endpoint=%s status=%s content_type=%s decoder=%s",
             *metadata,
