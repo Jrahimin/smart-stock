@@ -1,4 +1,4 @@
-"""AmarStock DSEX index feeds (`/info/DSE` + `/data/index/summery`)."""
+"""AmarStock DSEX index feeds (`/Info/DSE` + `/data/index/summery`)."""
 
 from __future__ import annotations
 
@@ -15,6 +15,8 @@ DHAKA_TZ = ZoneInfo("Asia/Dhaka")
 DSEX_SYMBOL = "00DSEX"
 TRADING_DAYS_1M = 21
 HISTORICAL_LOOKBACK_CALENDAR_DAYS = 45
+INFO_PATH = "/Info/DSE"
+SUMMARY_PATH = "/data/index/summery"
 
 
 @dataclass(frozen=True)
@@ -77,7 +79,10 @@ class AmarStockIndexApiSource:
 
     async def fetch_dsex_performance_metrics(self) -> AmarStockDsexPerformanceMetrics:
         """Lightweight read for multi-horizon returns and 52-week range (summery endpoint only)."""
-        summery = await self._client.fetch_json(f"{self._base_url}/data/index/summery")
+        summery = await self._client.fetch_json(
+            f"{self._base_url}{SUMMARY_PATH}",
+            source_name=self.source_name,
+        )
         if not isinstance(summery, dict):
             raise RuntimeError("AmarStock DSEX performance metrics returned unexpected payload")
 
@@ -97,7 +102,9 @@ class AmarStockIndexApiSource:
 
         from app.jobs.ingestion.amarstock_api_stock_details_source import AmarStockHistoricalSource
 
-        start_date = datetime.now(tz=DHAKA_TZ).date() - timedelta(days=HISTORICAL_LOOKBACK_CALENDAR_DAYS)
+        start_date = datetime.now(tz=DHAKA_TZ).date() - timedelta(
+            days=HISTORICAL_LOOKBACK_CALENDAR_DAYS
+        )
         historical = AmarStockHistoricalSource(
             base_url=self._base_url,
             token=self._historical_token,
@@ -163,8 +170,14 @@ class AmarStockIndexApiSource:
         )
 
     async def _fetch_payloads(self) -> tuple[dict[str, Any], dict[str, Any]]:
-        info = await self._client.fetch_json(f"{self._base_url}/info/DSE")
-        summery = await self._client.fetch_json(f"{self._base_url}/data/index/summery")
+        info = await self._client.fetch_json(
+            f"{self._base_url}{INFO_PATH}",
+            source_name=self.source_name,
+        )
+        summery = await self._client.fetch_json(
+            f"{self._base_url}{SUMMARY_PATH}",
+            source_name=self.source_name,
+        )
         if not isinstance(info, dict) or not isinstance(summery, dict):
             raise RuntimeError("AmarStock DSEX snapshot returned unexpected payload")
         return info, summery

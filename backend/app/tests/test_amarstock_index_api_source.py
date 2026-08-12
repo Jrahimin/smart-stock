@@ -1,8 +1,56 @@
+import json
 from decimal import Decimal
 
+import msgpack
 import pytest
 
+from app.jobs.ingestion.amarstock_http_client import AmarStockHttpResponse
 from app.jobs.ingestion.amarstock_index_api_source import AmarStockIndexApiSource
+
+
+@pytest.mark.parametrize("serialization", ["json", "msgpack"])
+@pytest.mark.asyncio
+async def test_info_dse_accepts_json_or_msgpack_fallback(
+    serialization: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = AmarStockIndexApiSource(
+        base_url="https://www.amarstock.com",
+        max_retries=1,
+        retry_delay_seconds=0.1,
+        historical_token="5ee4d332a90e",
+    )
+    info = {"IndexValue": 5897.27422, "MarketStatus": "Open"}
+    summery = {"Quote": {"Close": 5897.27422}}
+    requests: list[str] = []
+
+    async def fake_fetch_bytes(url: str, **_kwargs: object) -> AmarStockHttpResponse:
+        requests.append(url)
+        payload = info if url.endswith("/Info/DSE") else summery
+        if url.endswith("/Info/DSE") and serialization == "msgpack":
+            return AmarStockHttpResponse(
+                body=msgpack.packb(payload, use_bin_type=True),
+                status=200,
+                content_type="application/x-msgpack",
+                headers={},
+            )
+        return AmarStockHttpResponse(
+            body=json.dumps(payload).encode(),
+            status=200,
+            content_type="application/json",
+            headers={},
+        )
+
+    monkeypatch.setattr(source._client, "fetch_bytes", fake_fetch_bytes)
+
+    decoded_info, decoded_summery = await source._fetch_payloads()
+
+    assert decoded_info == info
+    assert decoded_summery == summery
+    assert requests == [
+        "https://www.amarstock.com/Info/DSE",
+        "https://www.amarstock.com/data/index/summery",
+    ]
 
 
 @pytest.mark.asyncio
@@ -62,7 +110,9 @@ async def test_fetch_dsex_snapshot_parses_info_and_summery(monkeypatch: pytest.M
 
 
 @pytest.mark.asyncio
-async def test_fetch_dsex_performance_metrics_parses_returns_and_range(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_fetch_dsex_performance_metrics_parses_returns_and_range(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     source = AmarStockIndexApiSource(
         base_url="https://www.amarstock.com",
         max_retries=1,
@@ -70,7 +120,7 @@ async def test_fetch_dsex_performance_metrics_parses_returns_and_range(monkeypat
         historical_token="5ee4d332a90e",
     )
 
-    async def fake_fetch_json(url: str) -> dict[str, object]:
+    async def fake_fetch_json(url: str, **_kwargs: object) -> dict[str, object]:
         assert url.endswith("/data/index/summery")
         return {
             "Returns": {

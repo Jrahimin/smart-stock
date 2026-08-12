@@ -38,7 +38,7 @@ Exit codes: `0` success · `2` bad date · `130` interrupt · `1` error.
 | Historical backfill | `backfill_daily_prices()` | Manual / admin API | `daily_prices` from DSE archive + decision-input generation revision |
 
 ```text
-Scheduler (snapshot) → full-market MessagePack → daily_prices
+Scheduler (snapshot) → full-market JSON (MessagePack fallback) → daily_prices
                     → Index API → daily_market_summaries (DSEX)
 
 Scheduler (daily)    → News API → market_events
@@ -53,12 +53,12 @@ Each snapshot upserts the same `stock_id + trade_date` row; `updated_at` drives 
 
 | Data | Source | When |
 |------|--------|------|
-| Per-stock OHLCV (live) | AmarStock configurable MessagePack path (`AMARSTOCK_MARKET_MSGPACK`) | Snapshot scheduler / `sync_market_data` |
+| Per-stock OHLCV (live) | AmarStock configurable structured snapshot path (JSON preferred, MessagePack fallback; persisted source remains `AMARSTOCK_MARKET_MSGPACK`) | Snapshot scheduler / `sync_market_data` |
 | Per-stock OHLCV (historical) | DSE `day_end_archive.php` (`DSE`) | `backfill_daily_prices` / `POST .../ingestion/daily-prices` |
-| DSEX, breadth, exchange turnover | AmarStock index API (`/info/DSE` + `/data/index/summery`) | Every snapshot |
+| DSEX, breadth, exchange turnover | AmarStock index API (`/Info/DSE` + `/data/index/summery`) | Every snapshot |
 | News | AmarStock `/info/News` | Daily job only |
 
-**Not in the MessagePack snapshot:** authoritative trade date and DSEX session authority. The index API remains the hard session gate and supplies DSEX/breadth.
+**Not in the full-market snapshot:** authoritative trade date and DSEX session authority. The index API remains the hard session gate and supplies DSEX/breadth.
 
 **Optional / alternate** (via `core_config.py`):
 
@@ -68,7 +68,13 @@ Each snapshot upserts the same `stock_id + trade_date` row; `updated_at` drives 
 
 Factory: `market_data_source_factory.build_primary_market_data_source()`.
 
-### MessagePack → `daily_prices`
+### Structured snapshot → `daily_prices`
+
+The response body is fetched once. Decoding always tries strict UTF-8 JSON first and
+then MessagePack, regardless of a missing or incorrect `Content-Type`. The selected
+decoder, HTTP status, endpoint, and observed content type are logged without logging
+the upstream body. Both formats must decode to the same columnar mapping and pass the
+same validation below.
 
 | Field | Column |
 |-------|--------|
@@ -174,7 +180,7 @@ Key settings in `backend/app/core/core_config.py`:
 
 | Setting | Default | Notes |
 |---------|---------|-------|
-| `daily_market_primary_source` | `amarstock_msgpack` | compatibility: `amarstock_latest_price_json`; explicit only: `amarstock_html` |
+| `daily_market_primary_source` | `amarstock_msgpack` | Legacy configuration value for the transport-neutral snapshot source; compatibility: `amarstock_latest_price_json`; explicit only: `amarstock_html` |
 | `amarstock_market_snapshot_path` | `/823af3f1ebdd` | Opaque upstream path; configurable because it may rotate |
 | `market_snapshot_min_active_coverage_percent` | `95` | Active DSE match threshold before writes |
 | `market_snapshot_min_source_symbols` | `300` | Absolute matched-active-symbol floor before writes |

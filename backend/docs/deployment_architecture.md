@@ -251,8 +251,8 @@ Browser ──TLS──► Cloudflare ──TLS──► Host Nginx ──HTTP�
 | `JWT_SECRET_KEY`, `DATABASE_URL`, etc. | **Runtime** (root `.env`) | Never commit secrets; feeds `get_settings()` |
 | `RUN_SCHEDULER` | **Per service** in compose | `false` on api, `true` on scheduler |
 | `FORWARDED_ALLOW_IPS` | **backend-api** runtime | Docker internal subnet |
-| `DAILY_MARKET_PRIMARY_SOURCE` | **API + scheduler runtime** | Set `amarstock_msgpack` for live snapshots |
-| `AMARSTOCK_MARKET_SNAPSHOT_PATH` | **API + scheduler runtime** | Opaque MessagePack path; update root `.env` if AmarStock rotates it |
+| `DAILY_MARKET_PRIMARY_SOURCE` | **API + scheduler runtime** | Set `amarstock_msgpack` for the transport-neutral live snapshot source (JSON preferred, MessagePack fallback) |
+| `AMARSTOCK_MARKET_SNAPSHOT_PATH` | **API + scheduler runtime** | Opaque structured snapshot path; update root `.env` if AmarStock rotates it |
 | `AMARSTOCK_MARKET_SNAPSHOT_MAX_RESPONSE_BYTES` | **API + scheduler runtime** | Default `5000000`; bounds compressed and decoded response size |
 | `AMARSTOCK_MARKET_SNAPSHOT_MAX_LAST_MODIFIED_AGE_DAYS` | **API + scheduler runtime** | Default `7`; rejects clearly stale advisory metadata |
 | `MARKET_SNAPSHOT_MIN_ACTIVE_COVERAGE_PERCENT` | **API + scheduler runtime** | Default `95`; blocks partial publication before writes |

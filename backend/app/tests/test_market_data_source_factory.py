@@ -7,7 +7,7 @@ from app.jobs.ingestion.amarstock_latest_price_market_data_source import (
 )
 from app.jobs.ingestion.amarstock_market_data_source import AmarStockMarketDataSource
 from app.jobs.ingestion.amarstock_msgpack_market_data_source import (
-    AmarStockMsgpackMarketDataSource,
+    AmarStockMarketSnapshotSource,
 )
 from app.jobs.ingestion.market_data_source_factory import (
     build_primary_market_data_source,
@@ -19,7 +19,7 @@ from app.jobs.ingestion.market_data_source_factory import (
 def test_build_primary_defaults_to_msgpack() -> None:
     settings = Settings(_env_file=None)
     source = build_primary_market_data_source(settings)
-    assert isinstance(source, AmarStockMsgpackMarketDataSource)
+    assert isinstance(source, AmarStockMarketSnapshotSource)
 
 
 def test_build_primary_latest_price_json_compatibility() -> None:

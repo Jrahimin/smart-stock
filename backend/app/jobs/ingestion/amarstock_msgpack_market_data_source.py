@@ -1,4 +1,4 @@
-"""Full-market AmarStock MessagePack snapshot source."""
+"""Full-market AmarStock snapshot source with transport-neutral validation."""
 
 from __future__ import annotations
 
@@ -11,11 +11,14 @@ from decimal import Decimal, InvalidOperation
 from email.utils import parsedate_to_datetime
 from typing import Any
 
-import msgpack  # type: ignore[import-not-found, import-untyped]
-
 from app.core.core_config import Settings
 from app.core.enums import DataQualityFlag
-from app.jobs.ingestion.amarstock_http_client import AmarStockHttpClient, AmarStockHttpResponse
+from app.jobs.ingestion.amarstock_http_client import (
+    AmarStockHttpClient,
+    AmarStockHttpResponse,
+    decode_structured_payload,
+    log_structured_decoder,
+)
 from app.jobs.ingestion.ingestion_source_base import IngestedDailyPrice, MarketDataSource
 
 logger = logging.getLogger(__name__)
@@ -25,11 +28,11 @@ TURNOVER_MILLIONS_TO_BDT = Decimal("1000000")
 
 
 class MarketSnapshotValidationError(RuntimeError):
-    """The MessagePack payload is structurally or numerically unsafe to publish."""
+    """The decoded snapshot is structurally or numerically unsafe to publish."""
 
 
 @dataclass(frozen=True)
-class AmarStockMsgpackRow:
+class AmarStockMarketSnapshotRow:
     raw_symbol: str
     symbol: str
     ltp: Decimal
@@ -70,13 +73,14 @@ class AmarStockMsgpackRow:
 
 
 @dataclass(frozen=True)
-class AmarStockMsgpackSnapshot:
-    rows: tuple[AmarStockMsgpackRow, ...]
+class AmarStockMarketSnapshot:
+    rows: tuple[AmarStockMarketSnapshotRow, ...]
     raw_symbols: tuple[str, ...]
     normalized_symbols: frozenset[str]
 
 
-class AmarStockMsgpackMarketDataSource(MarketDataSource):
+class AmarStockMarketSnapshotSource(MarketDataSource):
+    # Stable persisted provenance value; the transport can be JSON or MessagePack.
     source_name = "AMARSTOCK_MARKET_MSGPACK"
 
     def __init__(
@@ -98,10 +102,10 @@ class AmarStockMsgpackMarketDataSource(MarketDataSource):
             max_retries=max_retries,
             retry_delay_seconds=retry_delay_seconds,
         )
-        self.last_snapshot: AmarStockMsgpackSnapshot | None = None
+        self.last_snapshot: AmarStockMarketSnapshot | None = None
 
     @classmethod
-    def from_settings(cls, settings: Settings) -> AmarStockMsgpackMarketDataSource:
+    def from_settings(cls, settings: Settings) -> AmarStockMarketSnapshotSource:
         return cls(
             base_url=settings.amarstock_api_base_url,
             snapshot_path=settings.amarstock_market_snapshot_path,
@@ -119,21 +123,31 @@ class AmarStockMsgpackMarketDataSource(MarketDataSource):
     async def fetch_daily_prices(self, trade_date: date) -> list[IngestedDailyPrice]:
         response = await self._client.fetch_bytes(
             self.build_url(),
-            accept="application/x-msgpack, application/json;q=0.9, */*;q=0.5",
-            expected_content_type="application/x-msgpack",
+            accept="application/json, application/x-msgpack;q=0.9, */*;q=0.5",
+            expected_content_type=None,
             max_response_bytes=self._max_response_bytes,
             source_name=self.source_name,
             endpoint_path=self._snapshot_path,
             referer=f"{self._base_url}/latest-share-price",
         )
         self._validate_advisory_freshness(response, trade_date=trade_date)
+        decoded = decode_structured_payload(response.body, response.content_type)
+        log_structured_decoder(
+            decoded,
+            source_name=self.source_name,
+            endpoint_path=self._snapshot_path,
+            response=response,
+        )
         try:
-            snapshot = decode_amarstock_msgpack_snapshot(response.body)
+            snapshot = decode_amarstock_market_snapshot(decoded.payload)
         except MarketSnapshotValidationError:
             logger.exception(
-                "AmarStock MessagePack validation failed: source=%s endpoint_path=%s",
+                "AmarStock market snapshot validation failed: source=%s endpoint_path=%s "
+                "decoder=%s content_type=%s",
                 self.source_name,
                 self._snapshot_path,
+                decoded.decoder,
+                response.content_type or "missing",
             )
             raise
         self.last_snapshot = snapshot
@@ -155,11 +169,15 @@ class AmarStockMsgpackMarketDataSource(MarketDataSource):
             if row.ltp > 0 and row.source_close > 0 and row.ltp != row.source_close
         )
         logger.info(
-            "AmarStock MessagePack snapshot decoded: source=%s endpoint_path=%s "
+            "AmarStock market snapshot accepted: source=%s endpoint_path=%s decoder=%s "
+            "content_type=%s status=%s "
             "source_symbols=%s accepted_rows=%s rejected_rows=0 no_trade_rows=%s "
             "ltp_fallback_rows=%s ltp_close_difference_rows=%s",
             self.source_name,
             self._snapshot_path,
+            decoded.decoder,
+            response.content_type or "missing",
+            response.status,
             len(snapshot.normalized_symbols),
             len(prices),
             no_trade_rows,
@@ -185,7 +203,7 @@ class AmarStockMsgpackMarketDataSource(MarketDataSource):
             oldest_allowed = trade_date - timedelta(days=self._max_last_modified_age_days)
             if last_modified.date() < oldest_allowed:
                 raise MarketSnapshotValidationError(
-                    "AmarStock MessagePack Last-Modified is too old: "
+                    "AmarStock market snapshot Last-Modified is too old: "
                     f"source={self.source_name} endpoint_path={self._snapshot_path} "
                     f"last_modified={last_modified.isoformat()} trade_date={trade_date.isoformat()}"
                 )
@@ -209,37 +227,33 @@ class AmarStockMsgpackMarketDataSource(MarketDataSource):
             )
 
 
-def decode_amarstock_msgpack_snapshot(payload: bytes) -> AmarStockMsgpackSnapshot:
-    try:
-        unpacked = msgpack.unpackb(payload, raw=False, strict_map_key=False)
-    except (msgpack.ExtraData, msgpack.FormatError, msgpack.StackError, ValueError) as exc:
-        raise MarketSnapshotValidationError("Corrupt AmarStock MessagePack payload") from exc
-    if not isinstance(unpacked, Mapping):
-        raise MarketSnapshotValidationError("AmarStock MessagePack payload must be a mapping")
+def decode_amarstock_market_snapshot(payload: object) -> AmarStockMarketSnapshot:
+    if not isinstance(payload, Mapping):
+        raise MarketSnapshotValidationError("AmarStock market snapshot must be a mapping")
 
-    missing = [field for field in REQUIRED_FIELDS if field not in unpacked]
+    missing = [field for field in REQUIRED_FIELDS if field not in payload]
     if missing:
         raise MarketSnapshotValidationError(
-            f"AmarStock MessagePack payload is missing required fields: {', '.join(missing)}"
+            f"AmarStock market snapshot is missing required fields: {', '.join(missing)}"
         )
 
     columns: dict[str, Sequence[Any]] = {}
     for field in REQUIRED_FIELDS:
-        value = unpacked[field]
+        value = payload[field]
         if not isinstance(value, (list, tuple)):
             raise MarketSnapshotValidationError(
-                f"AmarStock MessagePack field {field!r} must be an array"
+                f"AmarStock market snapshot field {field!r} must be an array"
             )
         columns[field] = value
 
     lengths = {field: len(values) for field, values in columns.items()}
     if len(set(lengths.values())) != 1:
         raise MarketSnapshotValidationError(
-            f"AmarStock MessagePack required arrays have unequal lengths: {lengths}"
+            f"AmarStock market snapshot required arrays have unequal lengths: {lengths}"
         )
     row_count = next(iter(lengths.values()))
     if row_count == 0:
-        raise MarketSnapshotValidationError("AmarStock MessagePack payload contains no instruments")
+        raise MarketSnapshotValidationError("AmarStock market snapshot contains no instruments")
 
     raw_symbols: list[str] = []
     normalized_symbols: list[str] = []
@@ -260,7 +274,7 @@ def decode_amarstock_msgpack_snapshot(payload: bytes) -> AmarStockMsgpackSnapsho
             f"Duplicate normalized AmarStock symbols: {', '.join(duplicates[:10])}"
         )
 
-    rows: list[AmarStockMsgpackRow] = []
+    rows: list[AmarStockMarketSnapshotRow] = []
     rejected: list[str] = []
     for index, symbol in enumerate(normalized_symbols):
         try:
@@ -275,18 +289,18 @@ def decode_amarstock_msgpack_snapshot(payload: bytes) -> AmarStockMsgpackSnapsho
             reason = rejection.rsplit("reason=", 1)[-1]
             reason_counts[reason] = reason_counts.get(reason, 0) + 1
         logger.error(
-            "AmarStock MessagePack rows rejected; refusing partial snapshot: "
+            "AmarStock market snapshot rows rejected; refusing partial snapshot: "
             "rejected_count=%s reasons=%s examples=%s",
             len(rejected),
             reason_counts,
             rejected[:5],
         )
         raise MarketSnapshotValidationError(
-            f"AmarStock MessagePack contains {len(rejected)} invalid rows; "
+            f"AmarStock market snapshot contains {len(rejected)} invalid rows; "
             "partial publication refused"
         )
 
-    return AmarStockMsgpackSnapshot(
+    return AmarStockMarketSnapshot(
         rows=tuple(rows),
         raw_symbols=tuple(raw_symbols),
         normalized_symbols=frozenset(normalized_symbols),
@@ -299,8 +313,8 @@ def _decode_row(
     index: int,
     raw_symbol: str,
     symbol: str,
-) -> AmarStockMsgpackRow:
-    return AmarStockMsgpackRow(
+) -> AmarStockMarketSnapshotRow:
+    return AmarStockMarketSnapshotRow(
         raw_symbol=raw_symbol,
         symbol=symbol,
         ltp=_decimal(columns["ea"][index], field="ea"),
@@ -317,7 +331,7 @@ def _decode_row(
     )
 
 
-def _validate_normalized_row(row: AmarStockMsgpackRow) -> None:
+def _validate_normalized_row(row: AmarStockMarketSnapshotRow) -> None:
     non_negative = {
         "ea": row.ltp,
         "eb": row.open_price,
