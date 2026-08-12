@@ -62,7 +62,6 @@ stock-workspace:core:{exchange}:{symbol}:live-{latest_trade_date}:generation-{ma
 
 The implementation uses only JSON APIs documented in `backend/app/scraping_sources/amarstock_api_sample.md`:
 
-* Snapshot API: `https://www.amarstock.com/data/1981d726120d/{SYMBOL}`
 * Historical price API: `https://www.amarstock.com/data/5ee4d332a90e/?scrip={SYMBOL}&cycle=Day1&dtFrom=YYYY-MM-DD`
 * Company financials API: `https://www.amarstock.com/company/2b5e8cfdd75f/?symbol={SYMBOL}`
 * **Bulk current-market snapshot** (one fetch per batch): `https://www.amarstock.com/823af3f1ebdd` (configurable) — AmarStock's current Latest Share Price bundle resolves its rows through this columnar structured feed. It fills empty stock profile fields and adds `shareholding_snapshots` / `valuation_snapshots` under the compatibility provenance `AMARSTOCK_LATEST_PRICE_API` (see **Bulk current-market enrichment** below).
@@ -134,7 +133,7 @@ Company API:
 
 ## Bulk current-market enrichment
 
-After sync jobs are created and the batch transaction commits, the service performs **one** full-market structured fetch (see `AmarStockLatestPriceApiSource` in `backend/app/jobs/ingestion/`). The current browser contract exposes this as `/823af3f1ebdd`, rather than the retired `/LatestPrice/{token}` feed. For each matching stock, its decoded bulk row is also used as the stock-details snapshot so a stale per-symbol snapshot URL cannot prevent profile/valuation/ownership enrichment.
+After sync jobs are created and the batch transaction commits, the service performs **one** full-market structured fetch (see `AmarStockLatestPriceApiSource` in `backend/app/jobs/ingestion/`). The current browser contract exposes this as `/823af3f1ebdd`, rather than the retired `/LatestPrice/{token}` feed. For each matching stock, its decoded bulk row is also used as the stock-details snapshot. When the bulk fetch fails or a symbol is missing, the snapshot section is marked unavailable; the retired `/data/1981d726120d/{symbol}` endpoint is never called, while historical and company sections continue.
 
 * **Stock profile (fill-empty only)**: `BusinessSegment` → `sector`, `MarketCategory` → `category`, `PaidUpCap` / `MarketCap` when DB columns are null; `FullName` → `name` only when the current name still matches the **symbol placeholder** from seeding (same symbol as name), so curated display names are not overwritten.
 * **Shareholding / valuation (additive)**: Upserts use `source = AMARSTOCK_LATEST_PRICE_API` with natural keys `stock_id + snapshot_date/valuation_date + source`, so rows from the snapshot API (`AMARSTOCK_API`) remain separate. Snapshot date prefers `CreatedOn` interpreted in **Asia/Dhaka**, falling back to the snapshot scrape date.

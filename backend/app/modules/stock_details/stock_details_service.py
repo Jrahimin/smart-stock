@@ -125,7 +125,7 @@ class StockDetailsService:
             except Exception as exc:
                 logger.warning(
                     "AmarStock current-market bulk fetch failed; "
-                    "continuing per-stock snapshot sync: %s",
+                    "continuing historical/company stock-details sync without snapshot data: %s",
                     exc,
                     exc_info=True,
                 )
@@ -367,6 +367,7 @@ class StockDetailsService:
                             snapshot_url_override=(
                                 latest_snapshot_url if latest_price is not None else None
                             ),
+                            skip_snapshot_fetch=True,
                         )
                     except Exception as exc:
                         last_error = exc
@@ -823,7 +824,6 @@ class StockDetailsService:
     def _default_source(self) -> AmarStockApiStockDetailsSource:
         return AmarStockApiStockDetailsSource(
             base_url=self.settings.amarstock_api_base_url,
-            snapshot_token=self.settings.amarstock_snapshot_token,
             historical_token=self.settings.amarstock_historical_token,
             company_token=self.settings.amarstock_company_token,
             historical_window_days=self.settings.stock_details_historical_window_days,

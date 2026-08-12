@@ -4,15 +4,14 @@ Below are representative API endpoints and trimmed sample responses for designin
 
 ---
 
-## 1. Snapshot / Real-time + Mixed Fundamentals API
+## Retired per-symbol snapshot API
 
-**URL**
+The following historical sample documents the old endpoint only. It now returns
+404 for active symbols and must not be restored as a runtime dependency. Current
+stock-details snapshot enrichment comes from the full-market `/823af3f1ebdd`
+payload; historical and company endpoints remain separate.
 
-```
-https://www.amarstock.com/data/1981d726120d/{SYMBOL}
-```
-
-**Sample (EBL)**
+**Historical sample (EBL)**
 
 ```json
 {

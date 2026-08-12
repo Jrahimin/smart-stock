@@ -26,7 +26,11 @@ class AmarStockLatestPriceMarketDataSource(MarketDataSource):
         rows = await self._api.fetch_all_rows()
         parsed: list[IngestedDailyPrice] = []
         for row in rows:
-            mapped = row_to_ingested_daily_price(row, trade_date=trade_date, source_name=self.source_name)
+            mapped = row_to_ingested_daily_price(
+                row,
+                trade_date=trade_date,
+                source_name=self.source_name,
+            )
             if mapped is not None:
                 parsed.append(mapped)
         return parsed

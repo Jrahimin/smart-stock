@@ -86,22 +86,6 @@ COMPANY_METRIC_MAP = {
 }
 
 
-class AmarStockSnapshotSource:
-    def __init__(self, *, base_url: str, token: str, client: AmarStockHttpClient) -> None:
-        self.base_url = base_url.rstrip("/")
-        self.token = token
-        self.client = client
-
-    def build_url(self, symbol: str) -> str:
-        return f"{self.base_url}/data/{self.token}/{symbol.strip().upper()}"
-
-    async def fetch(self, symbol: str) -> dict[str, Any]:
-        data = await self.client.fetch_structured(
-            self.build_url(symbol), source_name=AMARSTOCK_SOURCE
-        )
-        return dict(data) if isinstance(data, Mapping) else {}
-
-
 class AmarStockHistoricalSource:
     def __init__(self, *, base_url: str, token: str, client: AmarStockHttpClient) -> None:
         self.base_url = base_url.rstrip("/")
@@ -151,7 +135,6 @@ class AmarStockApiStockDetailsSource:
         self,
         *,
         base_url: str,
-        snapshot_token: str,
         historical_token: str,
         company_token: str,
         historical_window_days: int,
@@ -162,9 +145,6 @@ class AmarStockApiStockDetailsSource:
             max_retries=max_retries,
             retry_delay_seconds=retry_delay_seconds,
         )
-        self.snapshot_source = AmarStockSnapshotSource(
-            base_url=base_url, token=snapshot_token, client=client
-        )
         self.historical_source = AmarStockHistoricalSource(
             base_url=base_url, token=historical_token, client=client
         )
@@ -174,7 +154,8 @@ class AmarStockApiStockDetailsSource:
         self.historical_window_days = historical_window_days
 
     def source_url(self, symbol: str) -> str:
-        return self.snapshot_source.build_url(symbol)
+        start_date = datetime.now(UTC).date() - timedelta(days=self.historical_window_days)
+        return self.historical_source.build_url(symbol, start_date=start_date)
 
     async def fetch_stock_details(
         self,
@@ -184,36 +165,30 @@ class AmarStockApiStockDetailsSource:
         historical_window_days: int | None = None,
         snapshot_override: Mapping[str, Any] | None = None,
         snapshot_url_override: str | None = None,
+        skip_snapshot_fetch: bool = True,
     ) -> ApiStockDetailsPayload:
         normalized_symbol = symbol.strip().upper()
         resolved_scrape_date = scrape_date or datetime.now(UTC).date()
         window_days = historical_window_days or self.historical_window_days
         start_date = resolved_scrape_date - timedelta(days=window_days)
 
-        if snapshot_override is None:
-            fetched_sections = await asyncio.gather(
-                self.snapshot_source.fetch(normalized_symbol),
-                self.historical_source.fetch(normalized_symbol, start_date=start_date),
-                self.company_source.fetch(normalized_symbol),
-                return_exceptions=True,
+        if not skip_snapshot_fetch:
+            raise ValueError(
+                "AmarStock per-symbol snapshot fetching is retired; "
+                "use a current-market snapshot_override or skip_snapshot_fetch=True"
             )
-            snapshot_result: object = fetched_sections[0]
-            historical_result: object = fetched_sections[1]
-            company_result: object = fetched_sections[2]
-            snapshot = self._mapping_or_empty(
-                snapshot_result,
-                "snapshot",
-                normalized_symbol,
-            )
-        else:
-            fetched_sections = await asyncio.gather(
-                self.historical_source.fetch(normalized_symbol, start_date=start_date),
-                self.company_source.fetch(normalized_symbol),
-                return_exceptions=True,
-            )
-            historical_result = fetched_sections[0]
-            company_result = fetched_sections[1]
-            snapshot = dict(snapshot_override)
+
+        fetched_sections = await asyncio.gather(
+            self.historical_source.fetch(normalized_symbol, start_date=start_date),
+            self.company_source.fetch(normalized_symbol),
+            return_exceptions=True,
+        )
+        historical_result: object = fetched_sections[0]
+        company_result: object = fetched_sections[1]
+        snapshot = dict(snapshot_override) if snapshot_override is not None else {}
+        snapshot_source = (
+            "current_market_snapshot" if snapshot_override is not None else "unavailable"
+        )
         historical_rows = self._rows_or_empty(historical_result, "historical", normalized_symbol)
         company_rows = self._rows_or_empty(company_result, "company", normalized_symbol)
 
@@ -224,7 +199,7 @@ class AmarStockApiStockDetailsSource:
         payload = ApiStockDetailsPayload(
             symbol=normalized_symbol,
             source=self.source_name,
-            snapshot_url=snapshot_url_override or self.snapshot_source.build_url(normalized_symbol),
+            snapshot_url=snapshot_url_override or "unavailable",
             historical_url=self.historical_source.build_url(
                 normalized_symbol, start_date=start_date
             ),
@@ -239,11 +214,7 @@ class AmarStockApiStockDetailsSource:
             metadata={
                 "diagnostics": {
                     "snapshot_keys": sorted(snapshot.keys()),
-                    "snapshot_source": (
-                        "current_market_snapshot"
-                        if snapshot_override is not None
-                        else "per_symbol_api"
-                    ),
+                    "snapshot_source": snapshot_source,
                     "historical_rows": len(historical_rows),
                     "historical_window_days": window_days,
                     "company_rows": len(company_rows),
@@ -481,12 +452,6 @@ class AmarStockApiStockDetailsSource:
                 )
             )
         return metrics
-
-    def _mapping_or_empty(self, result: Any, source_name: str, symbol: str) -> dict[str, Any]:
-        if isinstance(result, Exception):
-            logger.warning("AmarStock %s API failed for symbol=%s: %s", source_name, symbol, result)
-            return {}
-        return dict(result) if isinstance(result, Mapping) else {}
 
     def _rows_or_empty(self, result: Any, source_name: str, symbol: str) -> list[dict[str, Any]]:
         if isinstance(result, Exception):

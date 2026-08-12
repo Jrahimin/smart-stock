@@ -64,7 +64,6 @@ class Settings(BaseSettings):
     stock_details_sync_job_max_attempts: int = Field(default=2, ge=1)
     stock_details_historical_window_days: int = Field(default=90, ge=1)
     amarstock_api_base_url: str = "https://www.amarstock.com"
-    amarstock_snapshot_token: str = "1981d726120d"
     amarstock_historical_token: str = "5ee4d332a90e"
     amarstock_company_token: str = "2b5e8cfdd75f"
     # Deprecated: AmarStock's former /LatestPrice/{token} endpoint now returns 404.

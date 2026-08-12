@@ -11,7 +11,6 @@ from app.jobs.ingestion.amarstock_http_client import AmarStockHttpClient
 def _source() -> AmarStockApiStockDetailsSource:
     return AmarStockApiStockDetailsSource(
         base_url="https://www.amarstock.com",
-        snapshot_token="snapshot",
         historical_token="historical",
         company_token="company",
         historical_window_days=90,
@@ -45,13 +44,13 @@ def test_snapshot_maps_base_stock_profile_fields() -> None:
 @pytest.mark.asyncio
 async def test_stock_details_sources_use_shared_structured_transport() -> None:
     source = _source()
-    fetch_structured = AsyncMock(return_value={"FullName": "Eastern Bank PLC."})
-    source.snapshot_source.client.fetch_structured = fetch_structured
+    fetch_structured = AsyncMock(return_value=[])
+    source.historical_source.client.fetch_structured = fetch_structured
 
-    snapshot = await source.snapshot_source.fetch("EBL")
+    historical = await source.historical_source.fetch("EBL", start_date=date(2026, 1, 1))
 
-    assert isinstance(source.snapshot_source.client, AmarStockHttpClient)
-    assert snapshot == {"FullName": "Eastern Bank PLC."}
+    assert isinstance(source.historical_source.client, AmarStockHttpClient)
+    assert historical == []
     fetch_structured.assert_awaited_once()
     assert fetch_structured.await_args.kwargs["source_name"] == "AMARSTOCK_API"
 
@@ -59,7 +58,6 @@ async def test_stock_details_sources_use_shared_structured_transport() -> None:
 @pytest.mark.asyncio
 async def test_current_market_snapshot_row_replaces_stale_per_symbol_snapshot() -> None:
     source = _source()
-    source.snapshot_source.fetch = AsyncMock()
     source.historical_source.fetch = AsyncMock(return_value=[])
     source.company_source.fetch = AsyncMock(return_value=[])
 
@@ -77,13 +75,79 @@ async def test_current_market_snapshot_row_replaces_stale_per_symbol_snapshot() 
         snapshot_url_override="https://www.amarstock.com/823af3f1ebdd",
     )
 
-    source.snapshot_source.fetch.assert_not_awaited()
     assert payload.snapshot_url == "https://www.amarstock.com/823af3f1ebdd"
     assert payload.stock_profile is not None
     assert payload.stock_profile.name == "Sonali Life Insurance PLC"
     assert payload.valuation is not None
     assert payload.valuation.close_price == Decimal("12.7")
     assert payload.metadata["diagnostics"]["snapshot_source"] == "current_market_snapshot"
+
+
+@pytest.mark.asyncio
+async def test_missing_bulk_snapshot_symbol_skips_retired_endpoint_and_keeps_other_sections() -> (
+    None
+):
+    source = _source()
+    source.historical_source.fetch = AsyncMock(
+        return_value=[
+            {
+                "DateEpoch": 1767225600000,
+                "Open": 10,
+                "High": 12,
+                "Low": 9,
+                "Close": 11,
+                "Volume": 1000,
+            }
+        ]
+    )
+    source.company_source.fetch = AsyncMock(
+        return_value=[{"k": "Revenue", "l": 500, "y": 2025, "r": "income"}]
+    )
+
+    payload = await source.fetch_stock_details(
+        "MISSING",
+        snapshot_override=None,
+        skip_snapshot_fetch=True,
+    )
+
+    source.historical_source.fetch.assert_awaited_once()
+    source.company_source.fetch.assert_awaited_once()
+    assert payload.snapshot_url == "unavailable"
+    assert payload.metadata["diagnostics"]["snapshot_source"] == "unavailable"
+    assert len(payload.daily_prices) == 1
+    assert [metric.metric_code for metric in payload.financial_metrics] == ["REVENUE"]
+
+
+@pytest.mark.asyncio
+async def test_bulk_snapshot_fetch_failure_still_allows_historical_and_company_sections() -> None:
+    source = _source()
+    source.historical_source.fetch = AsyncMock(return_value=[])
+    source.company_source.fetch = AsyncMock(
+        return_value=[{"k": "EPS", "l": 2.5, "y": 2025, "r": "income"}]
+    )
+
+    payload = await source.fetch_stock_details(
+        "SONALILIFE",
+        skip_snapshot_fetch=True,
+    )
+
+    source.historical_source.fetch.assert_awaited_once()
+    source.company_source.fetch.assert_awaited_once()
+    assert payload.metadata["diagnostics"]["snapshot_source"] == "unavailable"
+    assert [metric.metric_code for metric in payload.financial_metrics] == ["EPS"]
+
+
+@pytest.mark.asyncio
+async def test_retired_per_symbol_snapshot_cannot_be_requested() -> None:
+    source = _source()
+    source.historical_source.fetch = AsyncMock()
+    source.company_source.fetch = AsyncMock()
+
+    with pytest.raises(ValueError, match="retired"):
+        await source.fetch_stock_details("SONALILIFE", skip_snapshot_fetch=False)
+
+    source.historical_source.fetch.assert_not_awaited()
+    source.company_source.fetch.assert_not_awaited()
 
 
 def test_snapshot_maps_expanded_shareholding_fields() -> None:
