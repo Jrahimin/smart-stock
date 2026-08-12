@@ -275,11 +275,17 @@ docker compose up -d --force-recreate backend-api backend-scheduler
 
 The manual snapshot CLI waits for overview, sectors, movers, and universe cache
 rebuilds before exiting, while the long-running scheduler keeps the normal
-background rebuild behavior:
+background rebuild behavior. For a missed final sync, include news so the same
+manual run performs snapshot, news ingestion, and finalization:
 
 ```bash
-docker compose exec -T backend-scheduler python -m app.jobs.sync_market_data
+docker compose exec -T backend-scheduler python -m app.jobs.sync_market_data --with-news
 ```
+
+The CLI and scheduler use the same shared AmarStock structured decoder: one response
+fetch, JSON first, MessagePack fallback, then the existing structural and coverage
+guards. `Content-Type` is logged as advisory metadata because AmarStock has changed
+formats without a stable endpoint-wide contract.
 
 ---
 

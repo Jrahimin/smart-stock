@@ -4,6 +4,34 @@
 
 Stores per-stock daily OHLCV (`daily_prices`) and exchange summaries (`daily_market_summaries`). Feeds indicators, signals, scanner, and dashboard features.
 
+## AmarStock ingestion history and decision record
+
+AmarStock has changed the wire format of its structured feeds more than once. The
+older contract was JSON; commit `4225e62e9c93d2eec3d86c93b66e33c4c6050f92`
+added MessagePack support when several feeds switched formats. The fresh browser
+HAR reviewed on 2026-08-12 showed a mixed contract again: the full-market snapshot
+`/823af3f1ebdd` was JSON, while `/Info/DSE`, `/data/lastIndexEx`, and
+`/info/market/status-ex` were MessagePack. Therefore the client deliberately does
+not make `Content-Type` authoritative and does not probe twice: it fetches the body
+once, tries JSON first, then MessagePack, and sends both formats through the same
+logical mapping and validation pipeline. This lets AmarStock move endpoint-by-endpoint
+without another application change while preserving coverage and no-partial-publication
+guards.
+
+This is also constrained by the canonical-generation work in
+`9d1ee26ac275a04df0176512c5a78fc18191ef99`: a transport fallback may change only
+serialization decoding, never the accepted-row, coverage, generation, or cache-fencing
+rules downstream.
+
+Session validity is intentionally separate from rich DSEX enrichment. `/Info/DSE`
+(`IsTradeDay`, authoritative `DseTime`, and diagnostic `MarketStatus`) is the
+lightweight session gate. `/data/index/summery` remains only the rich DSEX summary
+dependency because `/data/lastIndexEx` was confirmed to contain index time-series
+values, not the quote/returns/52-week fields consumed by the backend. If that rich
+endpoint fails, a complete validated price snapshot may still publish; final DSEX
+session finalization waits for a stored summary. Revisit this decision only after a
+new HAR or live contract check proves field equivalence.
+
 ## Operator quick reference
 
 Run from **`backend/`** with venv and `.env` loaded.

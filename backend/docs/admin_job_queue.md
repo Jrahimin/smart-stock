@@ -56,8 +56,10 @@ Pending/running rows are never age-deleted.
 
 Market Snapshot and Daily Close/News/Finalization schedulers enqueue `SCHEDULER` executions
 instead of calling ingestion functions directly. The queue runner still calls the existing
-`sync_market_snapshot()` and `run_daily_market_sync()` entrypoints, so atomic MessagePack
-publication, coverage guards, DSEX finalization, and cache-rebuild ownership are unchanged.
+`sync_market_snapshot()` and `run_daily_market_sync()` entrypoints, so structured-feed
+decoding (JSON preferred, MessagePack fallback), atomic publication, coverage guards, DSEX
+finalization, and cache-rebuild ownership remain in the ingestion layer. See
+[`market_data.md`](market_data.md) for the AmarStock contract history and rationale.
 
 The optional Stock Details scheduler:
 

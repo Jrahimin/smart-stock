@@ -294,6 +294,25 @@ produces market snapshot, daily sync, and due stock-details work, executes the
 durable PostgreSQL queue, and records its heartbeat (`RUN_SCHEDULER=true`).
 Restarting only `backend-api` does **not** reload scheduler jobs.
 
+#### AmarStock manual recovery
+
+AmarStock feed formats are not stable: the system historically consumed JSON,
+temporarily required MessagePack (`4225e62e9c93d2eec3d86c93b66e33c4c6050f92`),
+and currently observes a mixed JSON/MessagePack contract. The shared client fetches
+each response once, prefers JSON, falls back to MessagePack, and applies identical
+validation. If a scheduled final sync is missed, run the combined recovery command
+from the scheduler container:
+
+```bash
+docker compose exec backend-scheduler \
+  python -m app.jobs.sync_market_data --with-news
+```
+
+This runs a complete price snapshot first, then news ingestion and finalization.
+The daily scheduler job remains news/finality-only; it does not repair a missed
+price snapshot. See [`market_data.md`](../backend/docs/market_data.md) for the
+endpoint history and the `/Info/DSE` session-gate versus rich-summary boundary.
+
 | Command | Purpose | Key flags / params | Outcome |
 |---------|---------|-------------------|---------|
 | `bash deploy/scripts/deploy.sh` | **Recommended** full deploy | Build all → recreate all → migration service → `/system` + market API smoke checks | API + scheduler + frontend all updated |

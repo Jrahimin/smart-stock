@@ -63,7 +63,7 @@ Signals are based on:
 
 Market data workflow (split):
 
-1. **Intraday snapshots** (`sync_market_snapshot`) — full-market AmarStock MessagePack → coverage guard → `daily_prices`; index API → DSEX `daily_market_summaries`; every ~15 min during Sun–Thu session window.
+1. **Intraday snapshots** (`sync_market_snapshot`) — full-market AmarStock structured feed (JSON preferred, MessagePack fallback) → coverage guard → `daily_prices`; index API → DSEX `daily_market_summaries`; every ~15 min during Sun–Thu session window.
 2. **Daily orchestration** (`run_daily_market_sync`) — AmarStock News → `market_events` once per session day after close.
 3. Clean and validate (optional StockNow validation when enabled)
 4. Store in database (upsert by `stock_id + trade_date`)
@@ -73,6 +73,13 @@ Market data workflow (split):
 `GET /market/freshness` exposes immutable `market_sync_id`, separate `data_state`, snapshot timing and `market_status`. The app-level **market cache coordinator** polls this endpoint every ~2 minutes; when `market_sync_id` advances it clears market IndexedDB entries and invalidates trader-facing TanStack roots. Between syncs, **generation-aware IndexedDB validation** uses market schema v3 and top-level or nested `meta.market_sync_id`. Universe, stock-workspace and portfolio query keys also include the freshness generation. See `backend/docs/market_caching.md`.
 
 The system must be reliable and repeatable.
+
+**AmarStock contract history:** the upstream has moved feeds between JSON and
+MessagePack (including a mixed state observed in the 2026-08-12 HAR). Keep
+`Content-Type` advisory, fetch once, decode JSON first then MessagePack, and reuse
+the same logical validation. Keep lightweight `/Info/DSE` session validation
+independent from optional `/data/index/summery` DSEX enrichment. The detailed
+rationale and endpoint evidence live in `backend/docs/market_data.md`.
 
 ---
 
