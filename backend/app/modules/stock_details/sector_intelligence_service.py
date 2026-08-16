@@ -133,7 +133,7 @@ class SectorIntelligenceService:
         exchange_stock_ids = [item.id for item in exchange_stocks]
         all_stock_ids = list({*sector_stock_ids, *exchange_stock_ids})
 
-        valuations, prices_by_stock, eps_growth = await self._gather_batch_data(all_stock_ids)
+        valuations, prices_by_stock, eps_growth = await self._load_batch_data(all_stock_ids)
 
         changes_5d = _build_price_changes(prices_by_stock, sector_stock_ids, 5)
         changes_20d = _build_price_changes(prices_by_stock, sector_stock_ids, 20)
@@ -196,14 +196,14 @@ class SectorIntelligenceService:
             comparative_snapshot=comparative,
         )
 
-    async def _gather_batch_data(self, stock_ids: list[UUID]):
-        import asyncio
-
-        return await asyncio.gather(
-            self.repository.list_latest_valuation_snapshots_for_stocks(stock_ids),
-            self.repository.list_recent_daily_prices_for_stocks(stock_ids, limit_per_stock=21),
-            self.repository.list_eps_yoy_growth_for_stocks(stock_ids),
+    async def _load_batch_data(self, stock_ids: list[UUID]):
+        valuations = await self.repository.list_latest_valuation_snapshots_for_stocks(stock_ids)
+        prices_by_stock = await self.repository.list_recent_daily_prices_for_stocks(
+            stock_ids,
+            limit_per_stock=21,
         )
+        eps_growth = await self.repository.list_eps_yoy_growth_for_stocks(stock_ids)
+        return valuations, prices_by_stock, eps_growth
 
     def _to_read(self, result: SectorContextResult) -> SectorContextRead:
         return SectorContextRead(

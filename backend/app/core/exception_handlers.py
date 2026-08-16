@@ -3,6 +3,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
 
+from app.core.database_session import recycle_pool_after_poisoned_connection
 from app.core.logging_config import get_logger
 from app.core.response_handler import ApiErrorResponse
 
@@ -89,6 +90,7 @@ async def validation_error_handler(_: Request, exc: RequestValidationError) -> J
 
 async def database_error_handler(_: Request, exc: SQLAlchemyError) -> JSONResponse:
     logger.exception("Database operation failed", exc_info=exc)
+    await recycle_pool_after_poisoned_connection(exc)
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content=_error_payload(

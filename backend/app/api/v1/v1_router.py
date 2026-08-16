@@ -1,8 +1,10 @@
+import logging
+
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import text
 
 from app.core.core_config import get_settings
-from app.core.database_session import async_engine
+from app.core.database_session import async_engine, recycle_pool_after_poisoned_connection
 from app.core.response_handler import ApiResponse, success_response
 from app.modules.admin_configuration.admin_configuration_router import (
     router as admin_configuration_router,
@@ -28,6 +30,8 @@ from app.modules.watchlists.watchlists_router import router as watchlists_router
 from app.modules.wealth.tax_config.tax_config_admin_router import router as tax_config_admin_router
 from app.modules.wealth.wealth_router import router as wealth_router
 from app.schemas.system_version import SystemVersionData
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 router.include_router(auth_router)
@@ -74,7 +78,10 @@ async def health_ready() -> ApiResponse[dict[str, str]]:
     try:
         async with async_engine.connect() as connection:
             await connection.execute(text("SELECT 1"))
+            await connection.rollback()
     except Exception as exc:
+        logger.exception("Readiness probe failed")
+        await recycle_pool_after_poisoned_connection(exc)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Database is not ready",

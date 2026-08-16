@@ -22,6 +22,10 @@ import { useMarketCacheRefresh } from "@/hooks/market/use-market-cache-coordinat
 import { useMarketDataFreshness } from "@/hooks/market/use-market-data-freshness";
 import { getMarketRefetchIntervalMs, getMarketStaleTimeMs } from "@/lib/market/market-cache-policy";
 import {
+  shouldRetryUniverseCache,
+  UNIVERSE_CACHE_WARM_RETRY_DELAY_MS,
+} from "@/lib/market/universe-cache-retry";
+import {
   buildPulseBriefingQueryKey,
   buildPulseSummaryQueryKey,
   normalizeDisplayName,
@@ -111,6 +115,8 @@ export function useMarketPulse(options?: {
       }),
     staleTime,
     refetchInterval,
+    retry: shouldRetryUniverseCache,
+    retryDelay: () => UNIVERSE_CACHE_WARM_RETRY_DELAY_MS,
     initialData: initialCore?.summary ?? undefined,
     initialDataUpdatedAt: initialCore?.fetchedAt,
   });
@@ -129,6 +135,8 @@ export function useMarketPulse(options?: {
       }),
     staleTime,
     refetchInterval,
+    retry: shouldRetryUniverseCache,
+    retryDelay: () => UNIVERSE_CACHE_WARM_RETRY_DELAY_MS,
     enabled: hasPersonalizationInputs,
   });
 
@@ -148,6 +156,8 @@ export function useMarketPulse(options?: {
       }),
     staleTime,
     refetchInterval,
+    retry: shouldRetryUniverseCache,
+    retryDelay: () => UNIVERSE_CACHE_WARM_RETRY_DELAY_MS,
     enabled: Boolean(resolvedSummary),
     initialData: initialCore?.briefing ?? undefined,
     initialDataUpdatedAt: initialCore?.fetchedAt,
@@ -162,6 +172,8 @@ export function useMarketPulse(options?: {
       }),
     staleTime,
     refetchInterval,
+    retry: shouldRetryUniverseCache,
+    retryDelay: () => UNIVERSE_CACHE_WARM_RETRY_DELAY_MS,
     enabled: hasBriefingPersonalization && Boolean(resolvedSummary),
   });
 

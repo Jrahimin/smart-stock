@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import asyncio
-
 from fastapi import Depends
 
 from app.core.constants.trading_constants import DECISION_PATTERN_RESPONSE_LIMIT
@@ -122,15 +120,11 @@ class StockDetailsDecisionService:
         if not prices:
             raise NotFoundError("Insufficient OHLCV data for decision support")
 
-        dividend_events, corporate_actions, shareholding, valuation, market_events = (
-            await asyncio.gather(
-                self.repository.list_dividend_events(stock_id=stock.id),
-                self.repository.list_corporate_actions(stock_id=stock.id),
-                self.repository.get_latest_shareholding_snapshot(stock.id),
-                self.repository.get_latest_valuation_snapshot(stock.id),
-                self.repository.list_market_events(stock_id=stock.id),
-            )
-        )
+        dividend_events = await self.repository.list_dividend_events(stock_id=stock.id)
+        corporate_actions = await self.repository.list_corporate_actions(stock_id=stock.id)
+        shareholding = await self.repository.get_latest_shareholding_snapshot(stock.id)
+        valuation = await self.repository.get_latest_valuation_snapshot(stock.id)
+        market_events = await self.repository.list_market_events(stock_id=stock.id)
 
         snapshot = technical_snapshot_from_read(row.technical_snapshot)
         analysis = row.analysis

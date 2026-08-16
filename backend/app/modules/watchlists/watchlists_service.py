@@ -1,4 +1,3 @@
-import asyncio
 from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID
@@ -203,12 +202,10 @@ class WatchlistsService:
                 key=lambda exchange: exchange.value,
             )
             try:
-                universe_results = await asyncio.gather(
-                    *(
-                        self.universe_service.get_scored_universe(exchange=exchange)
-                        for exchange in exchanges
-                    )
-                )
+                universe_results = [
+                    await self.universe_service.get_scored_universe(exchange=exchange)
+                    for exchange in exchanges
+                ]
             except UniverseCacheUnavailableError:
                 universe_results = []
             canonical_rows = {

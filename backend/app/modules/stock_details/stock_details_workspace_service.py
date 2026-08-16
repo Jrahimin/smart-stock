@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 from typing import Annotated
 
 from fastapi import Depends
@@ -138,30 +137,24 @@ class StockDetailsWorkspaceService:
         # flat, zero-volume no-trade session at the correct date.  Use only
         # tradable rows for every displayed/calculated price metric.
         tradable_prices = select_valid_ohlc_rows(raw_prices)
-        (
-            decision_support,
-            metric_rows,
-            metric_histories,
-            dividend_events,
-            market_events,
-        ) = await asyncio.gather(
-            self.decision_service.get_decision_support(
-                exchange=exchange,
-                symbol=symbol,
-                canonical_snapshot=canonical_snapshot,
-            ),
-            self.repository.list_latest_metric_values(
-                stock_id=stock.id,
-                metric_codes=list(FUNDAMENTALS_SNAPSHOT_QUERY_METRIC_CODES),
-            ),
-            self.repository.list_metric_histories(
-                stock_id=stock.id,
-                metric_codes=list(FUNDAMENTALS_PERFORMANCE_METRIC_CODES),
-                limit_per_code=5,
-            ),
-            self.repository.list_dividend_events(stock_id=stock.id, limit=10),
-            self.repository.list_market_events(stock_id=stock.id, limit=20),
+        # Sequential awaits only — this request shares one AsyncSession.
+        # Concurrent gather poisons the asyncpg connection and later requests.
+        decision_support = await self.decision_service.get_decision_support(
+            exchange=exchange,
+            symbol=symbol,
+            canonical_snapshot=canonical_snapshot,
         )
+        metric_rows = await self.repository.list_latest_metric_values(
+            stock_id=stock.id,
+            metric_codes=list(FUNDAMENTALS_SNAPSHOT_QUERY_METRIC_CODES),
+        )
+        metric_histories = await self.repository.list_metric_histories(
+            stock_id=stock.id,
+            metric_codes=list(FUNDAMENTALS_PERFORMANCE_METRIC_CODES),
+            limit_per_code=5,
+        )
+        dividend_events = await self.repository.list_dividend_events(stock_id=stock.id, limit=10)
+        market_events = await self.repository.list_market_events(stock_id=stock.id, limit=20)
         fundamentals_result = build_fundamentals_snapshot(metric_rows)
         fundamentals_snapshot = FundamentalsSnapshotRead(
             metrics=[
