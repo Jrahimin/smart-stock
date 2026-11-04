@@ -7,10 +7,10 @@ export function DashboardSidebar() {
     <aside className="dashboard-sidebar">
       <div className="dashboard-brand">
         <Image
-          alt="Stock Intelligence"
-          height={56}
+          alt="StockWealth BD"
+          height={42}
           priority
-          src="/stock-icon-wide.png"
+          src="/dashboard/stockwealth-lockup.webp"
           width={224}
         />
       </div>

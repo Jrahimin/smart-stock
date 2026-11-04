@@ -17,11 +17,11 @@ export function MarketTopbar({ model }: MarketTopbarProps) {
     <header className="market-topbar">
       <div className="market-tape">
         <Image
-          alt="Stock Intelligence"
+          alt="StockWealth BD"
           className="market-topbar-logo"
-          height={40}
+          height={30}
           priority
-          src="/stock-icon-wide.png"
+          src="/dashboard/stockwealth-lockup.webp"
           width={160}
         />
         <strong className="market-tape-index">{model.exchange}X</strong>

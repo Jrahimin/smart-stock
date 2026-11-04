@@ -1,7 +1,6 @@
 "use client";
 
 import { Menu, Search } from "lucide-react";
-import Image from "next/image";
 import { StockWealthLockup } from "@/components/layout/stockwealth-lockup";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -60,11 +59,8 @@ export function MobileAppHeader({
       >
         <Menu aria-hidden="true" size={22} strokeWidth={2.1} />
       </button>
-      <Link aria-label={dashboard ? "StockWealth BD" : "Smart Stock home"} className="mobile-app-header-brand" href="/">
-        {dashboard ? <StockWealthLockup className="sw-mobile-lockup" decorative /> : <>
-          <Image alt="" aria-hidden="true" className="mobile-app-header-brand-icon" height={32} src="/stock-icon.png" width={32} />
-          <span className="mobile-app-header-brand-text">Stock Intelligence</span>
-        </>}
+      <Link aria-label="StockWealth BD" className="mobile-app-header-brand" href="/">
+        <StockWealthLockup className="sw-mobile-lockup" decorative />
       </Link>
       <div className="mobile-app-header-actions">
         {guideLauncher === "dashboard" ? (

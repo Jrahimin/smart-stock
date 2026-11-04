@@ -1,5 +1,18 @@
 @import "tailwindcss";
 
+.sw-lockup { position: relative; max-width: 100%; }
+.sw-lockup img { display: block; width: 100%; height: auto; }
+.sw-mobile-lockup { width: 146px; }
+:root[data-theme="dark"] .sw-lockup::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: url("/dashboard/stockwealth-lockup.webp") center / 100% 100% no-repeat;
+  clip-path: inset(0 0 0 22%);
+  filter: brightness(0) invert(.94);
+  pointer-events: none;
+}
+
 :root {
   color-scheme: dark;
   --background: #0a0b10;

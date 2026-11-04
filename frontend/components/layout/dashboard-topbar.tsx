@@ -4,11 +4,11 @@ export function DashboardTopbar() {
   return (
     <header className="dashboard-topbar">
       <Image
-        alt="Stock Intelligence"
+        alt="StockWealth BD"
         className="dashboard-topbar-logo"
-        height={40}
+        height={30}
         priority
-        src="/stock-icon-wide.png"
+        src="/dashboard/stockwealth-lockup.webp"
         width={160}
       />
       <div>

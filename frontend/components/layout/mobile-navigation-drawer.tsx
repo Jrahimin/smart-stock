@@ -8,7 +8,7 @@ import {
   User,
   X,
 } from "lucide-react";
-import Image from "next/image";
+import { StockWealthLockup } from "@/components/layout/stockwealth-lockup";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type RefObject } from "react";
@@ -132,7 +132,7 @@ export function MobileNavigationDrawer({
       >
         <header className="mobile-nav-drawer-header">
           <Link className="mobile-nav-drawer-brand" href="/" onClick={onClose}>
-            <Image alt="Stock Intelligence" height={40} src="/stock-icon-wide.png" width={160} />
+            <StockWealthLockup className="sw-mobile-lockup" />
           </Link>
           <button
             ref={closeButtonRef}

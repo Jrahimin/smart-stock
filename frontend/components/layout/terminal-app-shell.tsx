@@ -84,21 +84,14 @@ export function TerminalAppShell({ children, dashboardLocale = DEFAULT_LOCALE }:
         onMouseLeave={() => setSidebarHoverExpanded(false)}
       >
         <div className="terminal-sidebar-top">
-          <Link aria-label={mobileGuideLauncher === "dashboard" ? "StockWealth BD" : "Smart Stock home"} className="terminal-brand" href="/">
-            {mobileGuideLauncher === "dashboard" ? <StockWealthLockup className="terminal-brand-wide" decorative /> : <Image
-              alt="Stock Intelligence"
-              className="terminal-brand-wide"
-              height={64}
-              priority
-              src="/stock-icon-wide.png"
-              width={256}
-            />}
+          <Link aria-label="StockWealth BD" className="terminal-brand" href="/">
+            <StockWealthLockup className="terminal-brand-wide" decorative />
             <Image
               alt=""
               aria-hidden="true"
               className="terminal-brand-icon"
               height={40}
-              src={mobileGuideLauncher === "dashboard" ? "/dashboard/stockwealth-symbol.webp" : "/stock-icon.png"}
+              src="/dashboard/stockwealth-symbol.webp"
               width={40}
             />
           </Link>
