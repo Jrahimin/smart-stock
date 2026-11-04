@@ -1,5 +1,6 @@
 "use client";
 
+import { freshnessGenerationToken } from "@/lib/market/market-generation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef } from "react";
 
@@ -17,8 +18,9 @@ import {
 /** Watches `/market/freshness` and busts client caches when a dataset is published. */
 export function useMarketCacheSyncCoordinator(exchange: ExchangeCode = "DSE") {
   const queryClient = useQueryClient();
-  const previousLastSyncedAtRef = useRef<string | null>(null);
+  const previousToken = useRef<string | null>(null);
   const { data } = useMarketDataFreshness(exchange);
+  const current = freshnessGenerationToken(data);
 
   useEffect(() => {
     registerMarketCacheQueryClient(queryClient);
@@ -26,22 +28,21 @@ export function useMarketCacheSyncCoordinator(exchange: ExchangeCode = "DSE") {
   }, [queryClient]);
 
   useEffect(() => {
-    const current = data?.market_sync_id ?? data?.last_synced_at ?? null;
     if (!current) {
       return;
     }
 
     setMarketFreshnessGeneration(current);
 
-    const previous = previousLastSyncedAtRef.current;
+    const previous = previousToken.current;
     if (previous && previous !== current) {
       void syncMarketClientCachesOnBackendUpdate(queryClient);
     } else {
       void reconcileGenerationAwareMarketQueries(queryClient, current);
     }
 
-    previousLastSyncedAtRef.current = current;
-  }, [data?.market_sync_id, data?.last_synced_at, queryClient]);
+    previousToken.current = current;
+  }, [current, queryClient]);
 }
 
 export function useMarketCacheRefresh() {

@@ -5,7 +5,7 @@ import {
 } from "@/lib/market/market-generation";
 
 /** Bump when market IndexedDB payload shape or validation rules change. */
-export const MARKET_INDEXEDDB_SCHEMA_VERSION = 3;
+export const MARKET_INDEXEDDB_SCHEMA_VERSION = 4;
 
 export type MarketIndexedDbCacheScope = "default" | "market" | "off";
 

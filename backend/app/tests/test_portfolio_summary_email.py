@@ -45,11 +45,11 @@ def test_build_portfolio_summary_email_includes_pulse_and_attention_in_english()
         locale="en",
     )
 
-    assert "Your portfolio summary" in subject
+    assert subject == "Your portfolio at a glance · today"
     assert "৳2,450.00" in body
     assert "Incomplete holding information" in body
     assert "TRUSTBANK" in body
-    assert "Open My Portfolio" in body_html
+    assert "Review My Portfolio" in body_html
     assert 'lang="en"' in body_html
 
 
@@ -61,8 +61,8 @@ def test_build_portfolio_summary_email_localizes_bangla_copy() -> None:
         locale="bn",
     )
 
-    assert "আপনার পোর্টফোলিও সারাংশ" in subject
+    assert subject == "আজ আপনার পোর্টফোলিও কোথায় দাঁড়াল · today"
     assert "হ্যালো Rahim" in body
     assert "Holding-এর কিছু তথ্য বাকি" in body
-    assert "আমার পোর্টফোলিও খুলুন" in body_html
+    assert "My Portfolio দেখুন" in body_html
     assert 'lang="bn"' in body_html

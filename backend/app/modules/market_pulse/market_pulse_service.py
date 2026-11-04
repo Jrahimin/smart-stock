@@ -289,6 +289,13 @@ def _to_focus_stock_read(row: PulsePresentationRow, rank: int) -> FocusStockRead
     change = row.snapshot.price_change_percent
     breakdown = row.score
     return FocusStockRead(
+        entry_readiness=row.decision.entry_readiness or "NOT_READY",
+        controlling_reason_code=row.decision.primary_reason_code,
+        controlling_reason=row.decision.primary_reason,
+        decision_session_date=row.decision.canonical.as_of_date if row.decision.canonical else None,
+        watch_level=row.snapshot.resistance,
+        actionable_trigger=row.decision.display_action == DecisionDisplayAction.POTENTIAL_BUY
+        and bool(row.decision.entry_condition),
         rank=rank,
         stock_id=getattr(row.stock, "id"),
         symbol=getattr(row.stock, "symbol"),
@@ -669,6 +676,8 @@ class MarketPulseService:
                 coverage=stamped_pulse.coverage,
                 last_synced_at=stamped_pulse.last_synced_at,
                 market_sync_id=stamped_pulse.market_sync_id,
+                decision_generation_id=stamped_pulse.decision_generation_id,
+                decision_status=stamped_pulse.decision_status,
                 data_state=stamped_pulse.data_state,
             )
             if uses_shared_pulse_cache(previous, display_name):
@@ -691,7 +700,18 @@ class MarketPulseService:
             previous=None,
             display_name=display_name,
         )
-        return pulse.briefing
+        if pulse.briefing is None:
+            return None
+        return pulse.briefing.model_copy(
+            update={
+                "decision_generation_id": pulse.market_sync_id,
+                "market_sync_id": pulse.market_sync_id,
+                "decision_status": pulse.decision_status,
+                "decision_session_date": pulse.coverage.decision_session_date
+                if pulse.coverage
+                else None,
+            }
+        )
 
     @staticmethod
     def _stamp_pulse(
@@ -705,6 +725,8 @@ class MarketPulseService:
                 "trade_date": generation.trade_date,
                 "session_trade_date": generation.trade_date,
                 "market_sync_id": generation.sync_id,
+                "decision_generation_id": generation.sync_id,
+                "decision_status": "UPDATING" if snapshot.updating else "CURRENT",
                 "data_state": generation.data_state,
             }
         )
@@ -713,6 +735,8 @@ class MarketPulseService:
                 "coverage": coverage,
                 "last_synced_at": generation.source_last_synced_at,
                 "market_sync_id": generation.sync_id,
+                "decision_generation_id": generation.sync_id,
+                "decision_status": "UPDATING" if snapshot.updating else "CURRENT",
                 "data_state": generation.data_state,
             }
         )
@@ -729,6 +753,8 @@ class MarketPulseService:
                 "trade_date": generation.trade_date,
                 "session_trade_date": generation.trade_date,
                 "market_sync_id": generation.sync_id,
+                "decision_generation_id": generation.sync_id,
+                "decision_status": "UPDATING" if snapshot.updating else "CURRENT",
                 "data_state": generation.data_state,
             }
         )
@@ -737,6 +763,8 @@ class MarketPulseService:
                 "coverage": coverage,
                 "last_synced_at": generation.source_last_synced_at,
                 "market_sync_id": generation.sync_id,
+                "decision_generation_id": generation.sync_id,
+                "decision_status": "UPDATING" if snapshot.updating else "CURRENT",
                 "data_state": generation.data_state,
             }
         )
@@ -749,6 +777,7 @@ class MarketPulseService:
         display_name: str | None = None,
         snapshot: CanonicalUniverseSnapshot,
     ) -> MarketPulseRead:
+        decision_updating = snapshot.updating
         generation = snapshot.generation
         decision_date = generation.trade_date
         universe_rows = snapshot.rows
@@ -762,6 +791,13 @@ class MarketPulseService:
         # Client snapshots created before this score version are accepted for
         # compatibility, but are not comparable enough to drive deltas or labels.
         previous = _comparable_previous_snapshot(previous)
+        # Source corrections are not a new session or a new-session signal.
+        if (
+            previous is not None
+            and previous.last_synced_at is not None
+            and previous.last_synced_at.date() >= decision_date
+        ):
+            previous = None
 
         scored_rows: list[PulsePresentationRow] = []
         previous_recommendations = previous.recommendations if previous else {}
@@ -772,7 +808,12 @@ class MarketPulseService:
             snapshot = technical_snapshot_from_read(universe_row.technical_snapshot)
             decision = universe_row.decision
             score = compute_pulse_score(snapshot, decision)
-            prev_rec = previous_recommendations.get(str(universe_row.stock.id))
+            previous_finalized = universe_row.previous_finalized_decision
+            prev_rec = (
+                previous_finalized.display_action.value if previous_finalized is not None
+                and previous_finalized.as_of_date < decision_date
+                else previous_recommendations.get(str(universe_row.stock.id))
+            )
             previous_enum: DecisionDisplayAction | None = None
             if prev_rec:
                 try:
@@ -901,6 +942,8 @@ class MarketPulseService:
                 data_state=generation.data_state,
             ),
             market_sync_id=generation.sync_id,
+            decision_generation_id=generation.sync_id,
+            decision_status="UPDATING" if decision_updating else "CURRENT",
             data_state=generation.data_state,
         )
 
@@ -1206,9 +1249,11 @@ class MarketPulseService:
                     id=f"alert-sector-{name}",
                     alert_type=MarketAlertType.SECTOR_ROTATION,
                     event_title="Sector Price Leadership",
-                    event_explanation="Several eligible stocks in the sector are advancing.",
+                    event_explanation=(
+                        "Average of eligible sector winners above +0.4%; not the whole sector."
+                    ),
                     why_it_matters="The price move is broader than a single eligible stock.",
-                    metric_label=f"{len(values)} movers",
+                    metric_label=f"{len(values)} winners only",
                     significance=_alert_significance(MarketAlertType.SECTOR_ROTATION, float(len(values))),
                     time_label=time_label,
                     symbol=name,

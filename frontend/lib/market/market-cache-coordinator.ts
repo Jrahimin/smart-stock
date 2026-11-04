@@ -40,6 +40,7 @@ export const GENERATION_AWARE_MARKET_QUERY_ROOTS = [
   "dashboard",
   "market-universe-rows",
   "market-pulse-summary",
+  "market-pulse-briefing",
   "stock-workspace",
   "portfolio",
 ] as const;

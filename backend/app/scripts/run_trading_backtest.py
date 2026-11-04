@@ -17,6 +17,7 @@ from datetime import date
 from enum import Enum
 from pathlib import Path
 from typing import Any
+from uuid import UUID
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
 os.chdir(BACKEND_ROOT)
@@ -34,7 +35,15 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument("--start", type=date.fromisoformat, required=True)
     parser.add_argument("--end", type=date.fromisoformat, required=True)
     parser.add_argument("--one-way-cost-bps", type=float, default=50)
-    parser.add_argument("--order-value-bdt", type=float, default=100_000)
+    parser.add_argument("--order-value-bdt", type=float, default=50_000)
+    parser.add_argument(
+        "--dataset-input",
+        type=Path,
+        help="Replay a frozen local archive without a database connection",
+    )
+    parser.add_argument(
+        "--dataset-output", type=Path, help="Write the exact loaded raw input archive"
+    )
     parser.add_argument("--maximum-turnover-fraction", type=float, default=0.01)
     parser.add_argument("--execution-price", choices=("open", "close"), default="open")
     parser.add_argument(
@@ -64,11 +73,12 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
 def _json_default(value: Any) -> Any:
     if isinstance(value, (date, Enum)):
         return value.isoformat() if isinstance(value, date) else value.value
+    if isinstance(value, UUID):
+        return str(value)
     raise TypeError(f"Cannot serialize {type(value).__name__}")
 
 
 async def _run(args: argparse.Namespace) -> int:
-    from app.core.database_session import AsyncSessionLocal
     from app.core.enums import ExchangeCode
     from app.modules.backtesting.backtesting_manifest import replay_manifest_mismatches
     from app.modules.backtesting.backtesting_models import BacktestConfig
@@ -86,8 +96,23 @@ async def _run(args: argparse.Namespace) -> int:
         walk_forward_mode=args.walk_forward_mode,
         use_current_category_proxy=args.use_current_category_proxy,
     )
-    async with AsyncSessionLocal() as session:
-        report = await BacktestingService(BacktestingRepository(session)).run(config)
+    if args.dataset_input:
+        from app.modules.backtesting.backtesting_archive import restore_dataset
+        from app.modules.backtesting.backtesting_service import run_dataset
+
+        report = run_dataset(
+            restore_dataset(json.loads(args.dataset_input.read_text(encoding="utf-8"))), config
+        )
+    else:
+        from app.core.database_session import AsyncSessionLocal
+
+        async with AsyncSessionLocal() as session:
+            report = await BacktestingService(BacktestingRepository(session)).run(config)
+    if args.dataset_output:
+        args.dataset_output.parent.mkdir(parents=True, exist_ok=True)
+        args.dataset_output.write_text(
+            json.dumps(report.audit["dataset"], indent=2, sort_keys=True), encoding="utf-8"
+        )
 
     if args.verify_manifest:
         expected_payload = json.loads(args.verify_manifest.read_text(encoding="utf-8"))

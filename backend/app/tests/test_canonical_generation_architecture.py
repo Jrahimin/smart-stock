@@ -55,7 +55,7 @@ SYNCED_AT = datetime(2026, 8, 9, 6, 30, tzinfo=UTC)
 
 def _generation(
     sync_id: str,
-    state: MarketDataState = MarketDataState.LIVE,
+    state: MarketDataState = MarketDataState.FINALIZED,
 ) -> PublishedMarketGeneration:
     return PublishedMarketGeneration(
         trade_date=SESSION_DATE,
@@ -114,8 +114,8 @@ def _canonical_fixture():
         scanner_version=SCANNER_CONDITION_VERSION,
         session_trade_date=SESSION_DATE,
         decision_session_date=SESSION_DATE,
-        live_data_as_of=SYNCED_AT,
-        is_live_session=True,
+        live_data_as_of=None,
+        is_live_session=False,
         source_last_synced_at=SYNCED_AT,
         market_sync_id=generation.sync_id,
         data_state=generation.data_state,
@@ -163,6 +163,9 @@ class _CanonicalUniverseDouble:
 
     async def get_scored_universe(self, **kwargs):
         return self.snapshot.rows
+
+    async def get_decision_event_observations(self, stock_id):
+        return ()
 
     async def is_generation_current(self, generation, **kwargs):
         return self.current
@@ -235,21 +238,25 @@ async def test_old_generation_cannot_overwrite_newer_generation() -> None:
 
 
 @pytest.mark.asyncio
-async def test_state_only_transition_reuses_same_generation_cache() -> None:
-    _, _, _, live_snapshot = _canonical_fixture()
+async def test_provisional_cache_cannot_be_promoted_to_finalized_decisions() -> None:
+    _, _, _, snapshot = _canonical_fixture()
     redis = _MemoryRedis()
     cache_key = universe_cache_key("scored", ExchangeCode.DSE, "G123")
-    redis.storage[cache_key] = live_snapshot.payload.model_dump(mode="json")
+    redis.storage[cache_key] = snapshot.payload.model_copy(update={
+        "data_state": MarketDataState.LIVE, "is_live_session": True,
+    }).model_dump(mode="json")
     service = MarketUniverseService(object(), object(), redis, Settings())
-
-    stale = await service.get_canonical_universe(
-        exchange=ExchangeCode.DSE,
-        generation=_generation("G123", MarketDataState.STALE),
+    with pytest.raises(UniverseCacheUnavailableError):
+        await service.get_canonical_universe(
+            exchange=ExchangeCode.DSE, generation=_generation("G123"), allow_rebuild=False
+        )
+    assert (
+        await service.promote_cached_generation(
+            exchange=ExchangeCode.DSE, generation=_generation("G123")
+        )
+        is False
     )
-
-    assert stale.generation.data_state == MarketDataState.STALE
-    assert stale.payload.market_sync_id == "G123"
-    assert redis.deleted == []
+    assert redis.storage[cache_key]["data_state"] == "LIVE"
 
 
 @pytest.mark.asyncio

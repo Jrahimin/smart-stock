@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from typing import Annotated
+from uuid import UUID
 from zoneinfo import ZoneInfo
 
 from fastapi import Depends
@@ -43,11 +44,13 @@ from app.modules.market_universe.market_universe_lineage import (
     compute_universe_payload_revision,
 )
 from app.modules.market_universe.market_universe_schemas import (
+    DisplayQuoteRead,
     ScoredUniverseCacheRead,
     ScoredUniverseRow,
     UniverseRowsMetaRead,
     UniverseRowsRead,
 )
+from app.modules.stock_details.decision.display_metrics import build_quote_projection
 from app.modules.stock_details.decision.market_regime import (
     resolve_regime_result_from_summaries,
 )
@@ -91,6 +94,7 @@ class UniverseCachePublicationError(RuntimeError):
 class CanonicalUniverseSnapshot:
     generation: PublishedMarketGeneration
     payload: ScoredUniverseCacheRead
+    updating: bool = False
 
     @property
     def rows(self) -> list[ScoredUniverseRow]:
@@ -116,6 +120,7 @@ class MarketUniverseService:
         self.settings = settings
         self.decision_snapshot_repository = decision_snapshot_repository
         self._last_compute_ms: float | None = None
+        self._input_captures: dict = {}
 
     @property
     def last_compute_ms(self) -> float | None:
@@ -170,12 +175,23 @@ class MarketUniverseService:
         *,
         exchange: ExchangeCode,
         generation: PublishedMarketGeneration | None = None,
+        allow_rebuild: bool = True,
     ) -> CanonicalUniverseSnapshot:
         context = generation or await self.resolve_generation_context(exchange=exchange)
-        if context is None:
+        if context is None or context.data_state != MarketDataState.FINALIZED:
             raise UniverseCacheUnavailableError(
                 f"No published market generation is available for {exchange.value}"
             )
+
+        publication = None
+        if self.decision_snapshot_repository is not None:
+            publication = await self.decision_snapshot_repository.latest_publication(
+                exchange=exchange, generation_id=context.sync_id
+            )
+            if publication is not None and publication.invalidated_at is not None:
+                raise UniverseCacheUnavailableError(
+                    "The prior decision generation has been invalidated"
+                )
 
         if self.redis.is_available:
             cache_key = universe_cache_key("scored", exchange, context.sync_id)
@@ -200,7 +216,25 @@ class MarketUniverseService:
 
             from app.jobs.market_cache_spawn import spawn_rebuild_universe_read_cache
 
-            spawn_rebuild_universe_read_cache(exchange, settings=self.settings)
+            if allow_rebuild:
+                spawn_rebuild_universe_read_cache(exchange, settings=self.settings)
+
+        if publication is not None:
+            payload = self._parse_cache_payload(publication.result_payload)
+            if payload is not None and self._cache_matches_identity(
+                payload,
+                publication.session_date,
+                payload.source_last_synced_at,
+                publication.generation_id,
+            ):
+                prior = PublishedMarketGeneration(
+                    trade_date=publication.session_date, sync_id=publication.generation_id,
+                    source_last_synced_at=payload.source_last_synced_at,
+                    published_at=publication.observed_at, data_state=MarketDataState.FINALIZED,
+                )
+                return CanonicalUniverseSnapshot(
+                    generation=prior, payload=payload, updating=prior.sync_id != context.sync_id,
+                )
 
         raise UniverseCacheUnavailableError(
             f"Canonical universe for {exchange.value} generation {context.sync_id} "
@@ -285,7 +319,9 @@ class MarketUniverseService:
         market_sync_id: str | None,
     ) -> bool:
         structural_match = (
-            session_trade_date is not None
+            payload.data_state == MarketDataState.FINALIZED
+            and not payload.is_live_session
+            and session_trade_date is not None
             and bool(payload.rows)
             and payload.session_trade_date == session_trade_date
             and payload.decision_session_date == session_trade_date
@@ -318,7 +354,7 @@ class MarketUniverseService:
             log_monitoring_report(report, exchange="cache-read")
         return structural_match and not report.has_errors
 
-    async def resolve_generation_context(
+    async def resolve_quote_context(
         self,
         *,
         exchange: ExchangeCode,
@@ -369,6 +405,18 @@ class MarketUniverseService:
             published_at=live_synced_at,
         )
 
+    async def resolve_generation_context(
+        self, *, exchange: ExchangeCode
+    ) -> PublishedMarketGeneration | None:
+        """Decisions exclusively consume a finalized exchange session, never quote state."""
+        from app.modules.market_data.published_generation import (
+            resolve_finalized_decision_generation,
+        )
+
+        return await resolve_finalized_decision_generation(
+            self.market_repository, exchange=exchange
+        )
+
     async def _resolve_market_context(
         self,
         *,
@@ -386,7 +434,7 @@ class MarketUniverseService:
             context.data_state,
         )
 
-    async def is_generation_current(
+    async def is_input_generation_current(
         self,
         generation: PublishedMarketGeneration,
         *,
@@ -394,6 +442,23 @@ class MarketUniverseService:
     ) -> bool:
         current = await self.resolve_generation_context(exchange=exchange)
         return current is not None and current.sync_id == generation.sync_id
+
+    async def is_generation_current(self, generation, *, exchange: ExchangeCode) -> bool:
+        try:
+            selected = await self.get_canonical_universe(exchange=exchange, allow_rebuild=False)
+        except UniverseCacheUnavailableError:
+            return False
+        return selected.generation.sync_id == generation.sync_id
+
+    async def previous_finalized_publication(self, *, exchange: ExchangeCode, before_date: date):
+        if self.decision_snapshot_repository is None:
+            return None
+        publication = await self.decision_snapshot_repository.latest_publication(
+            exchange=exchange, before_date=before_date
+        )
+        if publication is None or publication.invalidated_at is not None:
+            return None
+        return self._parse_cache_payload(publication.result_payload)
 
     async def persist_finalized_decisions(self, rows: list[ScoredUniverseRow]) -> int:
         """Persist audit snapshots from the already-calculated canonical rows."""
@@ -413,6 +478,8 @@ class MarketUniverseService:
         context = generation or await self.resolve_generation_context(exchange=exchange)
         active_session_date = context.trade_date if context is not None else None
         data_state = context.data_state if context is not None else MarketDataState.STALE
+        if context is None or context.data_state != MarketDataState.FINALIZED:
+            return []
         if decision_session_date is None:
             decision_session_date = active_session_date
         elif context is not None and decision_session_date != context.trade_date:
@@ -468,14 +535,39 @@ class MarketUniverseService:
                     stock_ids=stock_ids,
                 )
             )
+        event_reader = getattr(self.market_repository, "list_decision_event_observations", None)
+        event_observations = await event_reader(stock_ids=stock_ids) if event_reader else {}
+        self._input_captures = {}
         async with async_perf_stage(perf, "compute.scored_rows"):
             rows = build_scored_universe_rows(
                 grouped,
                 market_regime=market_regime,
                 exchange_session_dates=exchange_session_dates,
                 corporate_action_dates_by_stock=corporate_action_dates,
+                input_captures=self._input_captures,
+                event_observations_by_stock=event_observations,
                 decision_session_date=decision_session_date,
             )
+        if self.decision_snapshot_repository is not None and hasattr(
+            self.decision_snapshot_repository, "latest_publication"
+        ):
+            prior = await self.previous_finalized_publication(
+                exchange=exchange, before_date=decision_session_date
+            )
+            prior_rows = {str(row.stock.id): row for row in prior.rows} if prior else {}
+            rows = [
+                row.model_copy(
+                    update={
+                        "previous_finalized_decision": (
+                            prior_rows[str(row.stock.id)].decision.canonical
+                            if str(row.stock.id) in prior_rows
+                            and prior_rows[str(row.stock.id)].decision
+                            else None
+                        )
+                    }
+                )
+                for row in rows
+            ]
         if data_state == MarketDataState.FINALIZED and self.decision_snapshot_repository is not None:
             try:
                 async with async_perf_stage(perf, "db.decision_snapshots"):
@@ -498,9 +590,9 @@ class MarketUniverseService:
         generation: PublishedMarketGeneration | None = None,
     ) -> bool:
         context = generation or await self.resolve_generation_context(exchange=exchange)
-        if context is None or not rows:
+        if context is None or context.data_state != MarketDataState.FINALIZED or not rows:
             return False
-        if not await self.is_generation_current(context, exchange=exchange):
+        if not await self.is_input_generation_current(context, exchange=exchange):
             logger.info(
                 "Discarding obsolete universe before cache publication: exchange=%s generation=%s",
                 exchange.value,
@@ -570,7 +662,29 @@ class MarketUniverseService:
             funnel.other_or_unblocked,
             funnel.reconciles,
         )
+        if monitoring_report.has_errors:
+            raise UniverseCachePublicationError("Canonical generation failed validation")
         serialized_payload = payload.model_dump(mode="json")
+        if self.decision_snapshot_repository is not None:
+            if not self._input_captures or len(self._input_captures) != len(rows):
+                raise UniverseCachePublicationError("Complete immutable input capture is required")
+            await self.decision_snapshot_repository.publish_generation(
+                exchange=exchange,
+                generation_id=context.sync_id,
+                session_date=context.trade_date,
+                inputs={
+                    "universe_membership": [str(row.stock.id) for row in rows],
+                    "stocks": {
+                        str(row.stock.id): row.stock.model_dump(mode="json") for row in rows
+                    },
+                    "inputs": self._input_captures,
+                    "quote_generation": (
+                        await self.resolve_quote_context(exchange=exchange)
+                    ).sync_id,
+                    "capture_started_at": datetime.now(UTC).isoformat(),
+                },
+                payload=serialized_payload,
+            )
         primary_ttl_seconds = universe_cache_ttl_seconds(
             self.settings,
             data_state=data_state,
@@ -580,11 +694,16 @@ class MarketUniverseService:
             serialized_payload,
             ttl_seconds=primary_ttl_seconds,
         ):
+            if self.decision_snapshot_repository is not None:
+                logger.warning(
+                    "Redis unavailable; serving the atomically published durable generation"
+                )
+                return await self.is_input_generation_current(context, exchange=exchange)
             raise UniverseCachePublicationError(
                 f"Failed to publish canonical universe cache for {exchange.value} "
                 f"generation {context.sync_id}"
             )
-        if not await self.is_generation_current(context, exchange=exchange):
+        if not await self.is_input_generation_current(context, exchange=exchange):
             await self.redis.delete(cache_key)
             logger.info(
                 "Discarded universe cached during a generation change: exchange=%s generation=%s",
@@ -607,10 +726,27 @@ class MarketUniverseService:
             MarketDataState.STALE,
         }
         rows = snapshot.rows
+        quote_context = await self.resolve_quote_context(exchange=exchange)
+        if quote_context is not None:
+            quotes = await self.get_display_quotes(
+                {row.stock.id for row in rows}, context=quote_context
+            )
+            rows = [row.model_copy(update={"display_quote": quotes[row.stock.id]}) for row in rows]
         listed_stock_count = await self.stocks_repository.count_stocks(
             exchange=exchange,
             is_active=True,
         )
+        if not await self.is_generation_current(context, exchange=exchange):
+            raise UniverseCacheUnavailableError(
+                "Decision generation changed while universe rows were loading"
+            )
+        current_quote = await self.resolve_quote_context(exchange=exchange)
+        if quote_context and (
+            current_quote is None or current_quote.sync_id != quote_context.sync_id
+        ):
+            raise UniverseCacheUnavailableError(
+                "Quote generation changed while universe rows were loading"
+            )
         return UniverseRowsRead(
             meta=UniverseRowsMetaRead(
                 exchange=exchange,
@@ -622,10 +758,35 @@ class MarketUniverseService:
                 source_last_synced_at=source_last_synced_at,
                 market_sync_id=market_sync_id,
                 data_state=data_state,
+                decision_status="UPDATING" if snapshot.updating else "CURRENT",
+                decision_generation_id=market_sync_id,
+                quote_generation_id=quote_context.sync_id if quote_context else None,
                 payload_revision=compute_universe_payload_revision(rows),
             ),
             rows=rows,
         )
+
+    async def get_display_quotes(
+        self, stock_ids: set[UUID], *, context: PublishedMarketGeneration,
+    ) -> dict[UUID, DisplayQuoteRead]:
+        prices = await self.market_repository.list_quote_price_observations(
+            stock_ids=stock_ids, end_date=context.trade_date,
+        )
+        by_stock: dict[UUID, list] = {}
+        for price in prices:
+            by_stock.setdefault(price.stock_id, []).append(price)
+        return {
+            stock_id: DisplayQuoteRead(**build_quote_projection(
+                by_stock.get(stock_id, []),
+                finality=context.data_state.value,
+                session_date=context.trade_date,
+            ))
+            for stock_id in stock_ids
+        }
+
+    async def get_decision_event_observations(self, stock_id: UUID) -> tuple[dict, ...]:
+        events = await self.market_repository.list_decision_event_observations(stock_ids={stock_id})
+        return tuple(events.get(stock_id, ()))
 
 
 def get_market_universe_service(

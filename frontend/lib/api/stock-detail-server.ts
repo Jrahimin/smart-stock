@@ -1,7 +1,6 @@
 import type { ExchangeCode, ApiResponse } from "@/lib/api/backend-api-types";
 import type { StockWorkspaceDto } from "@/lib/api/stock-decision-support-types";
 import { frontendConfig } from "@/lib/frontend-config";
-import { STOCK_DETAIL_REVALIDATE_SECONDS } from "@/lib/seo/stock-detail-cache";
 import { encodeStockSymbolSegment } from "@/lib/seo/stock-page-seo";
 
 export type StockWorkspaceLoadResult =
@@ -23,7 +22,7 @@ export async function loadStockWorkspace(
 
   try {
     const response = await fetch(`${frontendConfig.apiBaseUrl}${path}`, {
-      next: { revalidate: STOCK_DETAIL_REVALIDATE_SECONDS },
+      cache: "no-store",
     });
 
     if (response.status === 404) {

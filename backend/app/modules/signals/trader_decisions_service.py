@@ -6,6 +6,7 @@ from datetime import date
 from fastapi import Depends
 
 from app.core.enums import ExchangeCode
+from app.modules.market_universe.market_universe_schemas import ShortlistRead
 from app.modules.market_universe.market_universe_service import MarketUniverseService, get_market_universe_service
 from app.modules.stock_details.stock_details_schemas import TraderDecisionSummaryRead
 from app.modules.stocks.stocks_schemas import StockRead
@@ -16,6 +17,9 @@ class StockTraderDecisionRow:
     stock: StockRead
     decision: TraderDecisionSummaryRead
     latest_trade_date: date | None
+    shortlist: ShortlistRead | None = None
+    decision_generation_id: str | None = None
+    decision_status: str = "CURRENT"
 
 
 class TraderDecisionsService:
@@ -32,7 +36,8 @@ class TraderDecisionsService:
     ) -> list[StockTraderDecisionRow]:
         del price_window_limit  # universe service uses canonical window from trading_constants
         resolved_exchange = exchange or ExchangeCode.DSE
-        rows = await self.universe_service.get_scored_universe(exchange=resolved_exchange)
+        snapshot = await self.universe_service.get_canonical_universe(exchange=resolved_exchange)
+        rows = snapshot.rows
         sliced = rows[offset : offset + limit]
 
         results: list[StockTraderDecisionRow] = []
@@ -44,6 +49,9 @@ class TraderDecisionsService:
                     stock=row.stock,
                     decision=row.decision,
                     latest_trade_date=row.session.latest_trade_date,
+                    decision_generation_id=snapshot.generation.sync_id,
+                    shortlist=row.shortlist,
+                    decision_status="UPDATING" if snapshot.updating else "CURRENT",
                 )
             )
         return results

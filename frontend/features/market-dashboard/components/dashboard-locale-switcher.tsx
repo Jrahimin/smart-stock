@@ -9,12 +9,14 @@ type DashboardLocaleSwitcherProps = {
   locale: AppLocale;
   ariaLabel?: string;
   variant?: "default" | "compact";
+  onLocaleChange?: (locale: AppLocale) => void;
 };
 
 export function DashboardLocaleSwitcher({
   locale,
   ariaLabel = "Dashboard language",
   variant = "default",
+  onLocaleChange,
 }: DashboardLocaleSwitcherProps) {
   const router = useRouter();
 
@@ -24,6 +26,7 @@ export function DashboardLocaleSwitcher({
     }
 
     writeAppLocaleCookie(nextLocale);
+    onLocaleChange?.(nextLocale);
     router.refresh();
   }
 

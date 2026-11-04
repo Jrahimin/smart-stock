@@ -9,6 +9,7 @@ import Link from "next/link";
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, memo, type ReactNode, type RefObject } from "react";
 
 import { MarketDataFreshnessBar } from "@/components/layout/market-data-freshness-bar";
+import { DecisionPublicationLabel, QuotePublicationLabel } from "@/components/ui/market-publication-label";
 import { DashboardLocaleSwitcher } from "@/features/market-dashboard/components/dashboard-locale-switcher";
 import { AddHoldingModal } from "@/features/portfolio/components/add-holding-modal";
 import { PortfolioMutationsProvider, usePortfolioMutations } from "@/features/portfolio/hooks/portfolio-mutations-context";
@@ -1061,7 +1062,7 @@ function PortfolioShape({ data, locale }: { data: BackendPortfolioWorkspaceDto; 
   );
 }
 
-function WatchlistToReview({ data, locale }: { data: BackendPortfolioWorkspaceDto; locale: AppLocale }) {
+export function WatchlistToReview({ data, locale }: { data: BackendPortfolioWorkspaceDto; locale: AppLocale }) {
   const t = portfolioLanguage[locale];
   const items = data.watchlist_to_review.slice(0, 4);
 
@@ -1070,10 +1071,15 @@ function WatchlistToReview({ data, locale }: { data: BackendPortfolioWorkspaceDt
       <div className="portfolio-section-heading">
         <div className="portfolio-section-icon"><Eye size={17} /></div>
         <h2 id="portfolio-watchlist-title">{t.watchlist}</h2>
+        <DecisionPublicationLabel decision={data.meta} locale={locale} />
       </div>
       {items.length ? (
         <div className="portfolio-ideas portfolio-ideas-v2">
-          {items.map((item) => (
+          {items.map((item) => {
+            const quote = item.display_quote;
+            const change = quote ? quote.price_change_percent ?? null : item.price_change_percent;
+            const price = quote ? quote.current_price : item.current_price;
+            return (
             <Link className="portfolio-idea" href={buildStockDetailPath(item.exchange, item.symbol)} key={item.stock_id}>
               <div className="portfolio-idea-head">
                 <span className="portfolio-symbol-tile is-compact">
@@ -1084,12 +1090,14 @@ function WatchlistToReview({ data, locale }: { data: BackendPortfolioWorkspaceDt
               <p>{t.reasonLabels[item.reason_code] ?? item.reason_code.replaceAll("_", " ")}</p>
               <footer>
                 <span className={`portfolio-status action-${item.action.toLowerCase()}`}>{item.action.replaceAll("_", " ")}</span>
-                <span className={`portfolio-idea-change is-${financialTone(item.price_change_percent)}`}>{formatSignedPercent(item.price_change_percent)}</span>
-                <span>{formatPortfolioMoney(item.current_price, locale)}</span>
+                <span className={`portfolio-idea-change is-${financialTone(change)}`}>{formatSignedPercent(change)}</span>
+                <span>{formatPortfolioMoney(price, locale)}</span>
                 <em>{t.viewStock}<ArrowRight size={13} /></em>
               </footer>
+              <QuotePublicationLabel locale={locale} quote={quote} />
             </Link>
-          ))}
+            );
+          })}
         </div>
       ) : (
         <div className="portfolio-quiet-empty">{t.watchlistEmpty}</div>

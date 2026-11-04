@@ -54,7 +54,7 @@ function buildIntelligenceFromSnapshot(
           : decision?.display_action === "SELL"
             ? "SELL"
             : "HOLD",
-      confidence: decision?.confidence ?? 48,
+      confidence: decision?.confidence ?? 0,
       risk: decision?.risk_label === "LOW" || decision?.risk_label === "MEDIUM" || decision?.risk_label === "HIGH" ? decision.risk_label : "MEDIUM",
       reason: decision?.reason ?? "Awaiting decision data",
       supportingContext: [],

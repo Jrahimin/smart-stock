@@ -1,17 +1,20 @@
 import Link from "next/link";
 
+import { DecisionPublicationLabel, QuotePublicationLabel } from "@/components/ui/market-publication-label";
 import { SignalBadge } from "@/components/ui/signal-badge";
 import { WatchlistStarToggle } from "@/features/watchlist/components/watchlist-star-toggle";
 import type { StockDecisionViewModel } from "@/features/stock-workspace/view-models/stock-decision-view-model";
 import type { StockWorkspaceModel } from "@/features/stock-workspace/view-models/stock-workspace-view-model";
 import type { StockWorkspaceLanguage } from "@/features/stock-workspace/stock-workspace-language";
 import type { DecisionDisplayAction } from "@/lib/api/backend-api-types";
+import { DEFAULT_LOCALE, type AppLocale } from "@/lib/locale/app-locale";
 
 type StockWorkspaceHeaderProps = {
   model: StockWorkspaceModel;
   decision?: StockDecisionViewModel;
   stockId?: string;
   copy: StockWorkspaceLanguage["header"];
+  locale?: AppLocale;
 };
 
 function getChangeTone(changePercent: string): "positive" | "negative" | "neutral" {
@@ -24,7 +27,7 @@ function getChangeTone(changePercent: string): "positive" | "negative" | "neutra
   return "neutral";
 }
 
-export function StockWorkspaceHeader({ model, decision, stockId, copy }: StockWorkspaceHeaderProps) {
+export function StockWorkspaceHeader({ model, decision, stockId, copy, locale = DEFAULT_LOCALE }: StockWorkspaceHeaderProps) {
   const action: DecisionDisplayAction = decision?.available
     ? decision.recommendation.replace(" ", "_") as DecisionDisplayAction
     : model.header.chartContextSignal.replace(" ", "_") as DecisionDisplayAction;
@@ -57,6 +60,7 @@ export function StockWorkspaceHeader({ model, decision, stockId, copy }: StockWo
         <div className="stock-header-metric stock-header-metric-price">
           <span>{copy.last}</span>
           <strong>{model.header.latestPrice}</strong>
+          <QuotePublicationLabel locale={locale} quote={model.header.quotePublication} />
         </div>
         <div className={`stock-header-metric stock-header-metric-change stock-header-metric-change-${getChangeTone(model.header.changePercent)}`}>
           <span>{copy.change}</span>
@@ -70,6 +74,7 @@ export function StockWorkspaceHeader({ model, decision, stockId, copy }: StockWo
           <span>{copy.action}</span>
           <SignalBadge signal={action} />
           <small>{confidence}</small>
+          <DecisionPublicationLabel decision={model.header.decisionPublication} locale={locale} />
         </div>
       </div>
     </section>

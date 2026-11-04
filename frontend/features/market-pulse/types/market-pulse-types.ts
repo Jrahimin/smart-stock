@@ -17,6 +17,14 @@ export type PulseScoreBreakdownModel = {
 };
 
 export type FocusStockModel = {
+  recommendation?: string;
+  readiness?: string;
+  controllingReasonCode?: string | null;
+  controllingReason?: string | null;
+  decisionDate?: string | null;
+  watchLevel?: number | null;
+  actionableTrigger?: boolean;
+  decisionContext?: string;
   rank: number;
   stockId: string;
   symbol: string;

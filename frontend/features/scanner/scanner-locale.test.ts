@@ -37,7 +37,7 @@ describe("scanner language", () => {
       "bn",
     );
 
-    expect(localized).toContain("entry নিতে পারেন");
+    expect(localized).toContain("entry ভাবতে পারেন");
     expect(localized).not.toContain("Enter only while");
   });
 });

@@ -65,6 +65,7 @@ function makeDecision(recommendation: ResolvedTraderDecision["recommendation"]):
     entryTiming: null,
     entryCondition: null,
     source: "unavailable",
+    evidenceStatus: "UNAVAILABLE",
   };
 }
 

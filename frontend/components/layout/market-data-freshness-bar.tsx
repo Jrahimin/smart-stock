@@ -160,7 +160,7 @@ export function MarketDataFreshnessBar({
     });
   };
 
-  if (isLoading && !model.lastUpdatedLabel) {
+  if (!hasMounted || (isLoading && !model.lastUpdatedLabel)) {
     return (
       <div className={wrapperClass}>
         <FreshnessChip className="market-freshness-chip-loading" label={labels.syncing} />

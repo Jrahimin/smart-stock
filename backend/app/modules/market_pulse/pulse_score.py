@@ -225,28 +225,9 @@ def derive_pulse_focus_label(
 
 
 def build_pulse_trigger(snapshot: TechnicalSnapshot, decision: TraderDecisionSummaryRead) -> str:
-    if decision.entry_condition:
+    if decision.display_action == DecisionDisplayAction.POTENTIAL_BUY and decision.entry_condition:
         return decision.entry_condition
-    volume_ratio = get_volume_ratio(snapshot)
-
-    if snapshot.resistance is not None and snapshot.latest_price is not None:
-        if snapshot.latest_price < snapshot.resistance:
-            return f"Break above {snapshot.resistance:.2f}"
-        return f"Hold above {snapshot.resistance:.2f}"
-
-    if volume_ratio is not None and volume_ratio >= 1.5:
-        return f"Volume stays above {max(1.5, volume_ratio - 0.3):.1f}x average"
-
-    if snapshot.sma20 is not None:
-        return f"Close holds above {snapshot.sma20:.2f}"
-
-    if snapshot.rsi is not None and snapshot.rsi < 55:
-        return "RSI crosses above 55"
-
-    if snapshot.return_5d_percent is not None and snapshot.return_5d_percent > 0:
-        return "Five-session momentum remains positive"
-
-    return "Await fresh technical confirmation"
+    return "No permitted entry trigger"
 
 
 def build_conviction_insight(
@@ -303,7 +284,7 @@ def build_why_here(
 
     if label == PulseFocusLabel.POTENTIAL_BUY_SETUP:
         reasons.append(
-            f"Potential-buy setup with {decision.confidence}/100 evidence strength"
+            "Potential-buy setup with a canonical entry condition"
         )
     elif label == PulseFocusLabel.SIGNAL_UPGRADE:
         reasons.append("Trader decision upgraded to POTENTIAL_BUY")

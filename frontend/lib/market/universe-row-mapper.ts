@@ -28,9 +28,9 @@ export function mapUniverseRowToListRow(row: BackendScoredUniverseRowDto): Stock
   const session = row.session;
   const stock = row.stock;
   const decision = row.decision;
-  const latestPrice = snapshot.latest_price ?? Number(session.close_price);
+  const latestPrice = row.display_quote ? row.display_quote.current_price : snapshot.latest_price;
   const priceChangePercent =
-    snapshot.price_change_percent ?? (session.change_percent != null ? Number(session.change_percent) : null);
+    row.display_quote ? row.display_quote.price_change_percent ?? null : snapshot.price_change_percent;
 
   const signal: DerivedSignalModel = {
     stockId: stock.id,
@@ -38,7 +38,7 @@ export function mapUniverseRowToListRow(row: BackendScoredUniverseRowDto): Stock
     name: stock.name,
     exchange: stock.exchange,
     signal: mapRecommendationToSignal(decision?.display_action),
-    confidence: decision?.confidence ?? 48,
+    confidence: decision?.confidence ?? 0,
     risk: mapRiskLabel(decision?.risk_label),
     reason: decision?.reason ?? "Awaiting decision data",
     supportingContext: [],
@@ -48,13 +48,16 @@ export function mapUniverseRowToListRow(row: BackendScoredUniverseRowDto): Stock
   };
 
   return {
+    shortlist: row.shortlist,
+    displayQuote: row.display_quote,
+    previousFinalizedDecision: row.previous_finalized_decision,
     stock,
     prices: [],
     candles: [],
     volumeBars: [],
     latestPrice,
     previousClose: snapshot.previous_close,
-    priceChange: snapshot.price_change,
+    priceChange: row.display_quote ? row.display_quote.price_change ?? null : snapshot.price_change,
     priceChangePercent,
     volume: snapshot.volume ?? session.volume,
     averageVolume: snapshot.average_volume,

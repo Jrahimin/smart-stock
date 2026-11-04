@@ -22,19 +22,6 @@ import {
  * intelligence map (same source as explorer, scanner, and signal center).
  */
 
-function formatShortTradeDate(tradeDate: string | null | undefined): string {
-  if (!tradeDate) {
-    return "—";
-  }
-
-  const parsed = new Date(tradeDate);
-  if (Number.isNaN(parsed.getTime())) {
-    return tradeDate;
-  }
-
-  return parsed.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-}
-
 export function buildWatchlistRowViewModel(
   item: BackendUserWatchlistDto,
   intelligence: StockIntelligenceModel | null,
@@ -56,7 +43,7 @@ export function buildWatchlistRowViewModel(
     decision,
     companyName: intelligence?.stock.name ?? item.stock_symbol,
     buyPriceLabel,
-    latestPriceLabel: formatNumber(intelligence?.latestPrice ?? item.current_price),
+    latestPriceLabel: formatNumber(intelligence?.displayQuote ? intelligence.latestPrice : intelligence?.latestPrice ?? item.current_price),
     changePercentLabel: formatPercent(intelligence?.priceChangePercent),
     rsiLabel: formatNumber(intelligence?.rsi),
     trendLabel: intelligence ? formatTrendLabel(trendDirection) : "Unknown",
@@ -67,7 +54,6 @@ export function buildWatchlistRowViewModel(
     entryCondition:
       actionLabel === "POTENTIAL_BUY" ? decision?.entryCondition ?? null : null,
     previousActionLabel,
-    lastUpdatedLabel: formatShortTradeDate(intelligence?.latestTradeDate),
     unrealizedGainLabel:
       item.unrealized_gain_percent !== null && item.unrealized_gain_percent !== undefined
         ? formatPercent(Number(item.unrealized_gain_percent))

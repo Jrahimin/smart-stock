@@ -1,3 +1,5 @@
+import { evidenceLabel } from "@/lib/market/decision-presentation";
+import { DecisionPublicationLabel, QuotePublicationLabel } from "@/components/ui/market-publication-label";
 import { formatNumber, formatPercent, formatMarketCapBdt } from "@/lib/formatters/financial-formatters";
 import type { StockWorkspaceDto } from "@/lib/api/stock-decision-support-types";
 import { getStockWorkspaceLanguage } from "@/features/stock-workspace/stock-workspace-language";
@@ -19,11 +21,8 @@ export function StockDurableSummary({ workspace, locale = DEFAULT_LOCALE }: Stoc
   const decision = workspace.decision_support;
   const display = workspace.display_metrics;
   const freshness = decision.data_freshness;
-  const prices = [...(workspace.prices ?? [])].sort((a, b) => a.trade_date.localeCompare(b.trade_date));
-  const latest = prices.at(-1);
-  const latestPrice = display?.current_price ?? (latest ? Number(latest.close_price) : null);
-  const changePercent =
-    latest?.price_change_percent != null ? Number(latest.price_change_percent) : null;
+  const latestPrice = display?.current_price ?? null;
+  const changePercent = display?.price_change_percent ?? null;
   const marketCap =
     display?.market_cap ??
     decision.valuation?.market_cap ??
@@ -55,7 +54,7 @@ export function StockDurableSummary({ workspace, locale = DEFAULT_LOCALE }: Stoc
       <dl className="stock-durable-summary-metrics">
         <div>
           <dt>{copy.header.last}</dt>
-          <dd>{formatNumber(latestPrice)}</dd>
+          <dd>{formatNumber(latestPrice)} <QuotePublicationLabel locale={locale} quote={display} /></dd>
         </div>
         <div>
           <dt>{copy.header.change}</dt>
@@ -73,19 +72,19 @@ export function StockDurableSummary({ workspace, locale = DEFAULT_LOCALE }: Stoc
             ).replace("_", " ")}
             <span className="stock-durable-summary-confidence">
               {" "}
-              · {copy.durableSummary.modelConfidence(decision.decision.confidence)}
+              · {evidenceLabel(decision.decision.evidence_status, locale)}
             </span>
           </dd>
         </div>
         <div>
           <dt>{copy.decision.risk}</dt>
-          <dd>{decision.risk.label}</dd>
+          <dd>{decision.trading_risk?.label ?? decision.risk.label}</dd>
         </div>
         <div>
           <dt>{copy.durableSummary.data}</dt>
           <dd>
             {freshnessLabel}
-            {freshness.latest_trade_date ? copy.durableSummary.asOf(freshness.latest_trade_date) : ""}
+            {" "}<DecisionPublicationLabel decision={decision} locale={locale} />
           </dd>
         </div>
       </dl>

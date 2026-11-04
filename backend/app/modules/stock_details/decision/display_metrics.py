@@ -149,3 +149,30 @@ def build_display_metrics(
         pe_helper=pe_helper,
         as_of_trade_date=as_of_trade_date,
     )
+
+
+def build_quote_projection(prices, *, finality="FINALIZED", session_date=None) -> dict:
+    """Publish a price/change/date unit; a placeholder never supplies a raw -100% return."""
+    from app.modules.stock_details.decision.technical import select_valid_ohlc_rows
+    ordered = sorted(prices, key=lambda row: row.trade_date)
+    valid = select_valid_ohlc_rows(ordered)
+    latest = valid[-1] if valid else None
+    observed = ordered[-1] if ordered else None
+    status = "UNAVAILABLE"
+    if observed is not None and (session_date is None or observed.trade_date == session_date):
+        if observed.volume == 0:
+            status = "NO_TRADE"
+        elif latest is observed:
+            status = "FINALIZED" if finality == "FINALIZED" else "PROVISIONAL"
+    return {
+        "current_price": float(latest.close_price) if latest else None,
+        "price_change_percent": float(latest.price_change_percent)
+        if latest and latest.price_change_percent is not None
+        else None,
+        "price_change": float(latest.price_change)
+        if latest and latest.price_change is not None
+        else None,
+        "as_of_trade_date": latest.trade_date.isoformat() if latest else None,
+        "observation_session_date": observed.trade_date.isoformat() if observed else None,
+        "observation_status": status,
+    }

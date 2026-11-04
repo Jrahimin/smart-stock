@@ -36,7 +36,9 @@ function buildCorePayload(
 ): MarketPulseCorePayload {
   const reconciledSummary =
     freshness && summary && summaryMatchesFreshness(summary, freshness) ? summary : null;
-  const reconciledBriefing = reconciledSummary && briefing ? briefing : null;
+  const reconciledBriefing = reconciledSummary && briefing && freshness &&
+    summaryMatchesFreshness(briefing, freshness) &&
+    briefing.decision_generation_id === reconciledSummary.decision_generation_id ? briefing : null;
 
   return {
     fetchedAt: Date.now(),

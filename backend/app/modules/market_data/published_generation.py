@@ -76,3 +76,54 @@ async def resolve_published_market_generation(
         source_last_synced_at=selected.source_last_synced_at,
         published_at=selected.published_at,
     )
+
+
+async def resolve_finalized_decision_generation(
+    repository: Any, *, exchange: ExchangeCode
+) -> PublishedMarketGeneration | None:
+    reader = getattr(repository, "get_latest_market_data_generation", None)
+    finalized = await reader(exchange=exchange, state=MarketDataState.FINALIZED) if reader else None
+    if finalized is not None:
+        context = PublishedMarketGeneration(
+            trade_date=finalized.trade_date,
+            sync_id=finalized.sync_id,
+            data_state=MarketDataState.FINALIZED,
+            source_last_synced_at=finalized.source_last_synced_at,
+            published_at=finalized.published_at,
+        )
+    else:
+        session_date, synced_at = await repository.get_decision_session_freshness(exchange=exchange)
+        if session_date is None or synced_at is None:
+            return None
+        context = PublishedMarketGeneration(
+            trade_date=session_date,
+            sync_id=f"legacy-{exchange.value}-{session_date}",
+            data_state=MarketDataState.FINALIZED,
+            source_last_synced_at=synced_at,
+            published_at=synced_at,
+        )
+    revision_reader = getattr(repository, "finalized_input_revision", None)
+    if revision_reader is not None:
+        from dataclasses import replace
+        revision = await revision_reader(exchange=exchange, end_date=context.trade_date)
+        context = replace(context, sync_id=f"{context.sync_id}:{revision[:24]}")
+    from dataclasses import replace
+
+    from app.core.audit_hashing import stable_audit_hash
+    from app.core.constants.trading_constants import (
+        DECISION_TAXONOMY_VERSION,
+        SHORTLIST_RANKING_VERSION,
+        TRADING_INPUT_SCHEMA_VERSION,
+        TRADING_STRATEGY_VERSION,
+        TRADING_THRESHOLD_VERSION,
+    )
+    policy = stable_audit_hash(
+        (
+            TRADING_INPUT_SCHEMA_VERSION,
+            TRADING_STRATEGY_VERSION,
+            TRADING_THRESHOLD_VERSION,
+            DECISION_TAXONOMY_VERSION,
+            SHORTLIST_RANKING_VERSION,
+        )
+    )[:12]
+    return replace(context, sync_id=f"{context.sync_id}:{policy}")

@@ -34,6 +34,9 @@ export type StockDecisionSupportDto = {
   stock_id: string;
   symbol: string;
   exchange: ExchangeCode;
+  decision_generation_id?: string | null;
+  quote_generation_id?: string | null;
+  decision_status?: "CURRENT" | "UPDATING" | "UNAVAILABLE";
   market_sync_id?: string;
   data_state?: MarketDataState;
   decision_session_date?: string;
@@ -47,6 +50,7 @@ export type StockDecisionSupportDto = {
     confidence: number;
     reasoning: string[];
     confidence_semantics?: "HEURISTIC_EVIDENCE";
+    evidence_status?: "UNAVAILABLE" | "MIXED" | "BULLISH" | "BEARISH";
     evidence_strength?: number | null;
     evidence_strength_semantics?: "HEURISTIC_DIRECTIONAL_EVIDENCE";
     primary_reason?: string | null;
@@ -285,6 +289,10 @@ export type DividendIntelligenceDto = {
 
 /** Backend-resolved mark-to-market metrics (Rule #1). Format only on the client. */
 export type DisplayMetricsDto = {
+  price_change_percent?: number | null;
+  price_change?: number | null;
+  observation_session_date?: string | null;
+  observation_status?: string;
   current_price: number | null;
   pe_ratio: number | null;
   pb_ratio: number | null;

@@ -199,6 +199,9 @@ def test_scored_universe_row_serialization_has_only_allowed_keys() -> None:
     assert set(payload.keys()) == {
         "stock",
         "technical_snapshot",
+        "previous_finalized_decision",
+        "shortlist",
+        "display_quote",
         "decision",
         "analysis",
         "eligibility",
@@ -284,7 +287,8 @@ async def test_scored_universe_redis_cache_payload_is_lightweight() -> None:
     await service.cache_scored_universe(exchange=ExchangeCode.DSE, rows=rows)
     await service.get_scored_universe(exchange=ExchangeCode.DSE)
 
-    generation_id = f"legacy-DSE-{prices[-1].trade_date.isoformat()}"
+    generation_id = (await service.resolve_generation_context(exchange=ExchangeCode.DSE)).sync_id
+    assert generation_id.startswith(f"legacy-DSE-{prices[-1].trade_date.isoformat()}:")
     cache_key = universe_cache_key("scored", ExchangeCode.DSE, generation_id)
     cached = redis.storage[cache_key]
     assert_no_forbidden_universe_fields(cached)

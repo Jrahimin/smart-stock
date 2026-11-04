@@ -17,6 +17,7 @@ from app.core.enums import (
     ScannerConditionId,
     TrendDirection,
 )
+from app.modules.market_universe.market_universe_schemas import DisplayQuoteRead
 
 
 class PortfolioEventRead(BaseModel):
@@ -29,6 +30,8 @@ class PortfolioEventRead(BaseModel):
 class PortfolioWorkspaceMetaRead(BaseModel):
     exchange: ExchangeCode
     market_sync_id: str | None = None
+    decision_session_date: date | None = None
+    decision_status: str = "UNAVAILABLE"
     published_market_date: date | None = None
     live_data_as_of: datetime | None = None
     data_state: MarketDataState = MarketDataState.STALE
@@ -139,6 +142,7 @@ class PortfolioWatchlistSuggestionRead(BaseModel):
     sector: str | None = None
     current_price: Decimal | None = None
     price_change_percent: Decimal | None = None
+    display_quote: DisplayQuoteRead | None = None
     action: DecisionDisplayAction = DecisionDisplayAction.WAIT
     trend: TrendDirection = TrendDirection.UNKNOWN
     risk: RiskLevelLabel | None = None

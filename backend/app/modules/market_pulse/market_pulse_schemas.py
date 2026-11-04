@@ -31,6 +31,12 @@ class PulseScoreBreakdownRead(BaseModel):
 
 
 class FocusStockRead(BaseModel):
+    entry_readiness: str = "NOT_READY"
+    controlling_reason_code: str | None = None
+    controlling_reason: str | None = None
+    decision_session_date: date | None = None
+    watch_level: float | None = None
+    actionable_trigger: bool = False
     model_config = ConfigDict(from_attributes=True)
 
     rank: int
@@ -180,6 +186,8 @@ class PulseCoverageRead(BaseModel):
     universe_candidate_count: int = 0
     eligible_candidate_count: int = 0
     excluded_candidate_count: int = 0
+    decision_generation_id: str | None = None
+    decision_status: str = "CURRENT"
     market_sync_id: str | None = None
     data_state: MarketDataState = MarketDataState.STALE
 
@@ -253,6 +261,10 @@ class MarketSummaryRead(BaseModel):
 
 
 class MarketBriefingRead(BaseModel):
+    decision_generation_id: str | None = None
+    decision_status: str = "CURRENT"
+    decision_session_date: date | None = None
+    market_sync_id: str | None = None
     story: MarketStoryRead
     state: MarketStateRead
     money_flow: MoneyFlowRead
@@ -288,6 +300,8 @@ class MarketPulseRead(BaseModel):
     data_quality_note: str | None
     coverage: PulseCoverageRead | None = None
     last_synced_at: datetime | None = None
+    decision_generation_id: str | None = None
+    decision_status: str = "CURRENT"
     market_sync_id: str | None = None
     data_state: MarketDataState = MarketDataState.STALE
 
@@ -303,5 +317,7 @@ class MarketPulseSummaryRead(BaseModel):
     data_quality_note: str | None
     coverage: PulseCoverageRead | None = None
     last_synced_at: datetime | None = None
+    decision_generation_id: str | None = None
+    decision_status: str = "CURRENT"
     market_sync_id: str | None = None
     data_state: MarketDataState = MarketDataState.STALE

@@ -2,20 +2,25 @@ import Link from "next/link";
 import { memo } from "react";
 
 import { SignalBadge } from "@/components/ui/signal-badge";
+import { DecisionPublicationLabel, type DecisionPublication } from "@/components/ui/market-publication-label";
 import type { DashboardLanguage } from "@/features/market-dashboard/dashboard-language";
 import type { SignalFeedItemModel } from "@/features/market-dashboard/types/market-dashboard-types";
+import { DEFAULT_LOCALE, type AppLocale } from "@/lib/locale/app-locale";
 
 type SmartSignalFeedProps = {
   signals: SignalFeedItemModel[];
   copy: DashboardLanguage["signals"];
+  decision?: DecisionPublication;
+  locale?: AppLocale;
 };
 
-export const SmartSignalFeed = memo(function SmartSignalFeed({ signals, copy }: SmartSignalFeedProps) {
+export const SmartSignalFeed = memo(function SmartSignalFeed({ signals, copy, decision, locale = DEFAULT_LOCALE }: SmartSignalFeedProps) {
   return (
     <section className="workspace-card" data-guide="smart-signals">
       <div className="section-heading">
         <p className="eyebrow">{copy.eyebrow}</p>
         <h2>{copy.title}</h2>
+        <DecisionPublicationLabel decision={decision} locale={locale} />
       </div>
       <div className="signal-feed">
         {signals.length ? (
@@ -34,9 +39,7 @@ export const SmartSignalFeed = memo(function SmartSignalFeed({ signals, copy }: 
               </div>
               <p>{signal.reason}</p>
               <div className="signal-visual-row">
-                <div aria-label={copy.confidence(signal.confidence)} className="signal-confidence-meter">
-                  <span style={{ width: `${signal.confidenceValue}%` }} />
-                </div>
+                <div className="signal-confidence-meter">{copy.confidence(signal.confidence)}</div>
                 <span className={`risk-pill risk-pill-${signal.risk.toLowerCase()}`}>{copy.risk(signal.risk)}</span>
               </div>
               <small>

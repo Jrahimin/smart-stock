@@ -7,6 +7,7 @@ import type { StockIntelligenceModel } from "@/lib/market/market-intelligence-ty
 export type ResolvedTraderDecision = {
   recommendation: DecisionDisplayAction;
   confidence: number;
+  evidenceStatus: string;
   reason: string;
   reasonCode: string | null;
   riskLabel: string;
@@ -66,6 +67,10 @@ export function resolveWatchlistAction(
 }
 
 export function getPreviousSessionRecommendation(stock: StockIntelligenceModel): DecisionDisplayAction | null {
+  const previousFinalized = stock.previousFinalizedDecision;
+  if (previousFinalized && previousFinalized.as_of_date === stock.traderDecision?.canonical?.previous_session_date) {
+    return previousFinalized.display_action ?? null;
+  }
   const persisted = stock.persistedSignal;
   const canonical = stock.traderDecision?.canonical;
   if (
@@ -106,9 +111,10 @@ export function resolveTraderDecision(stock: StockIntelligenceModel): ResolvedTr
         stock.traderDecision.display_action ??
         (stock.traderDecision.recommendation === "SELL" ? "SELL" : "WAIT"),
       confidence: stock.traderDecision.confidence,
+      evidenceStatus: stock.traderDecision.evidence_status ?? "UNAVAILABLE",
       reason: stock.traderDecision.reason,
       reasonCode: stock.traderDecision.primary_reason_code ?? null,
-      riskLabel: stock.traderDecision.risk_label,
+      riskLabel: stock.traderDecision.trading_risk?.label ?? stock.traderDecision.risk_label,
       opportunityScore: stock.traderDecision.opportunity_score,
       entryTiming: stock.traderDecision.entry_timing ?? null,
       entryCondition: stock.traderDecision.entry_condition ?? null,
@@ -118,8 +124,9 @@ export function resolveTraderDecision(stock: StockIntelligenceModel): ResolvedTr
 
   return {
     recommendation: "WAIT",
-    confidence: Math.min(68, Math.max(45, stock.signal.confidence)),
-    reason: "Decision engine unavailable for this row; defaulting to wait.",
+    confidence: 0,
+    evidenceStatus: "UNAVAILABLE",
+    reason: "Decision unavailable; awaiting a validated finalized result.",
     reasonCode: null,
     riskLabel: stock.signal.risk,
     opportunityScore: null,
@@ -142,20 +149,16 @@ export function getDecisionPriority(confidence: number): "high" | "medium" | "lo
 }
 
 export function getRiskAdjustedDecisionScore(stock: StockIntelligenceModel): number {
-  const decision = resolveTraderDecision(stock);
-  const riskPenalty =
-    decision.riskLabel === "HIGH" || decision.riskLabel === "SPECULATIVE"
-      ? 24
-      : decision.riskLabel === "MEDIUM"
-        ? 10
-        : 0;
-  return decision.confidence - riskPenalty;
+  return -(stock.shortlist?.risk_rank ?? Number.MAX_SAFE_INTEGER);
 }
 
 export function getVolumeConfirmationScore(stock: StockIntelligenceModel): number {
-  const decision = resolveTraderDecision(stock);
-  const volumeRatio = stock.averageVolume && stock.averageVolume > 0 ? stock.volume / stock.averageVolume : 1;
-  return decision.confidence + Math.min(30, volumeRatio * 10);
+  return -(stock.shortlist?.volume_rank ?? Number.MAX_SAFE_INTEGER);
+}
+
+export function compareCanonicalShortlist(a: StockIntelligenceModel, b: StockIntelligenceModel): number {
+  return (a.shortlist?.entry_rank ?? Number.MAX_SAFE_INTEGER) - (b.shortlist?.entry_rank ?? Number.MAX_SAFE_INTEGER)
+    || a.stock.symbol.localeCompare(b.stock.symbol) || a.stock.id.localeCompare(b.stock.id);
 }
 
 export function getDecisionMomentumHint(stock: StockIntelligenceModel): string {

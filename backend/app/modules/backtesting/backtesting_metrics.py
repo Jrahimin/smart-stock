@@ -107,12 +107,10 @@ def _strategy_summary(
     ]
     status_counts = Counter(outcome.status for outcome in candidate_outcomes)
     expired_count = sum(
-        outcome.execution_status == "EXPIRED_WITHOUT_ENTRY"
-        for outcome in candidate_outcomes
+        outcome.execution_status == "EXPIRED_WITHOUT_ENTRY" for outcome in candidate_outcomes
     )
     invalidated_count = sum(
-        outcome.execution_status == "INVALIDATED_BEFORE_ENTRY"
-        for outcome in candidate_outcomes
+        outcome.execution_status == "INVALIDATED_BEFORE_ENTRY" for outcome in candidate_outcomes
     )
     breakout_returns = [
         outcome.net_return_percent
@@ -127,9 +125,7 @@ def _strategy_summary(
         "execution_fill_count": len(filled),
         "execution_fill_rate": _round(len(filled) / len(candidates) if candidates else None),
         "available_outcome_count": len(available),
-        "trigger_activation_rate": _round(
-            len(filled) / len(candidates) if candidates else None
-        ),
+        "trigger_activation_rate": _round(len(filled) / len(candidates) if candidates else None),
         "expired_without_entry_rate": _round(
             expired_count / len(candidates) if candidates else None
         ),
@@ -140,13 +136,9 @@ def _strategy_summary(
         "median_net_return_percent": _round(median(net_returns) if net_returns else None),
         "average_net_return_percent": _round(mean(net_returns) if net_returns else None),
         "expectancy_percent": _round(mean(net_returns) if net_returns else None),
-        "median_excess_return_percent": _round(
-            median(excess_returns) if excess_returns else None
-        ),
+        "median_excess_return_percent": _round(median(excess_returns) if excess_returns else None),
         "positive_net_hit_rate": _round(
-            sum(value > 0 for value in net_returns) / len(net_returns)
-            if net_returns
-            else None
+            sum(value > 0 for value in net_returns) / len(net_returns) if net_returns else None
         ),
         "positive_excess_hit_rate": _round(
             sum(value > 0 for value in excess_returns) / len(excess_returns)
@@ -156,7 +148,6 @@ def _strategy_summary(
         "median_mfe_percent": _round(median(mfe) if mfe else None),
         "median_mae_percent": _round(median(mae) if mae else None),
         "worst_mae_percent": _round(min(mae) if mae else None),
-        "maximum_drawdown_percent": _round(min(mae) if mae else None),
         "false_breakout_rate": _round(
             sum(value < 0 for value in breakout_returns) / len(breakout_returns)
             if breakout_returns
@@ -178,15 +169,9 @@ def build_decision_metrics(
     )
     eligibility = Counter(item.eligibility_status.value for item in observations)
     eligibility_reasons = Counter(
-        reason
-        for item in observations
-        for reason in item.eligibility_reason_codes
+        reason for item in observations for reason in item.eligibility_reason_codes
     )
-    blockers = Counter(
-        blocker
-        for item in observations
-        for blocker in item.blocker_codes
-    )
+    blockers = Counter(blocker for item in observations for blocker in item.blocker_codes)
     eligible_count = eligibility.get(EligibilityStatus.ELIGIBLE.value, 0)
     return {
         "action_counts": dict(sorted(display_actions.items())),
@@ -195,9 +180,7 @@ def build_decision_metrics(
         "eligibility_counts": dict(sorted(eligibility.items())),
         "eligibility_reason_counts": dict(sorted(eligibility_reasons.items())),
         "blocker_code_counts": dict(sorted(blockers.items())),
-        "eligible_coverage": _round(
-            eligible_count / len(observations) if observations else None
-        ),
+        "eligible_coverage": _round(eligible_count / len(observations) if observations else None),
     }
 
 
@@ -209,9 +192,7 @@ def build_strategy_metrics(
     horizon = 10 if 10 in config.horizons else config.horizons[0]
     outcome_by_key = _outcome_index(outcomes, horizon)
     eligible = tuple(
-        item
-        for item in observations
-        if item.eligibility_status == EligibilityStatus.ELIGIBLE
+        item for item in observations if item.eligibility_status == EligibilityStatus.ELIGIBLE
     )
     strategies: dict[str, Callable[[ReplayObservation], bool]] = {
         "potential_buy_all": lambda item: (
@@ -227,11 +208,14 @@ def build_strategy_metrics(
             for timing in EntryTiming
         },
         "price_above_sma20": lambda item: (
-            item.sma20 is not None and item.close_price > item.sma20
+            item.sma20 is not None
+            and item.close_price is not None
+            and item.close_price > item.sma20
         ),
         "price_above_sma20_above_sma50": lambda item: (
             item.sma20 is not None
             and item.sma50 is not None
+            and item.close_price is not None
             and item.close_price > item.sma20 > item.sma50
         ),
         "rsi_oversold": lambda item: item.rsi is not None and item.rsi < 30,
@@ -263,9 +247,7 @@ def build_strategy_metrics(
             benchmark_returns.append(outcome.benchmark_return_percent)
     metrics["dsex_benchmark_on_potential_buy_dates"] = {
         "sample_count": len(benchmark_returns),
-        "median_return_percent": _round(
-            median(benchmark_returns) if benchmark_returns else None
-        ),
+        "median_return_percent": _round(median(benchmark_returns) if benchmark_returns else None),
         "description": "DSEX close-to-close return over the same signal horizons.",
     }
     metrics["no_trade"] = {
@@ -302,7 +284,6 @@ def build_stratified_metrics(
 ) -> dict[str, object]:
     """Stratify v2 potential-buy outcomes; current category remains a snapshot proxy."""
     horizon = 10 if 10 in config.horizons else config.horizons[0]
-    outcome_by_key = _outcome_index(outcomes, horizon)
     potential_buys = tuple(
         item
         for item in observations
@@ -393,8 +374,7 @@ def _spearman(left: list[float], right: list[float]) -> float | None:
     left_mean = mean(left_ranks)
     right_mean = mean(right_ranks)
     numerator = sum(
-        (x - left_mean) * (y - right_mean)
-        for x, y in zip(left_ranks, right_ranks, strict=True)
+        (x - left_mean) * (y - right_mean) for x, y in zip(left_ranks, right_ranks, strict=True)
     )
     denominator_left = sum((value - left_mean) ** 2 for value in left_ranks)
     denominator_right = sum((value - right_mean) ** 2 for value in right_ranks)
@@ -522,8 +502,7 @@ def build_calibration_diagnostic(
         bucket = [
             (score, label)
             for score, label in samples
-            if lower / 100 <= score <= upper / 100
-            and (upper == 100 or score < upper / 100)
+            if lower / 100 <= score <= upper / 100 and (upper == 100 or score < upper / 100)
         ]
         if not bucket:
             continue

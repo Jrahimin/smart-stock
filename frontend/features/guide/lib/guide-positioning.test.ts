@@ -37,7 +37,7 @@ describe("resolveGuideBox", () => {
     const edgeTarget = { ...target, left: 980, right: 1180 };
 
     expect(resolveGuideBox(edgeTarget, ["right", "left"], 180, 160, 1200, 800)).toMatchObject({
-      left: 784,
+      left: 780,
       top: 150,
     });
   });

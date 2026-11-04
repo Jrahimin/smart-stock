@@ -103,13 +103,17 @@ class StockDetailsWorkspaceService:
             await self._resolve_latest_trade_date(exchange=exchange, symbol=symbol)
         )
         generation = canonical_snapshot.generation
+        quote_generation = await self.decision_service.universe_service.resolve_quote_context(
+            exchange=exchange
+        )
+        quote_generation = quote_generation or generation
         cache_key = stock_workspace_cache_key(
-            "core",
+            "core-v2",
             exchange,
             symbol,
             latest_trade_date,
             decision_session_key,
-            generation.sync_id,
+            f"{generation.sync_id}:{quote_generation.sync_id}",
         )
         cached = await self._cache_get(cache_key)
         if cached is not None:
@@ -120,7 +124,28 @@ class StockDetailsWorkspaceService:
                 raise UniverseCacheUnavailableError(
                     "Published market generation changed while Stock Details workspace was loading"
                 )
-            return StockWorkspaceRead.model_validate(cached)
+            current_quote = await self.decision_service.universe_service.resolve_quote_context(
+                exchange=exchange
+            )
+            if current_quote is not None and current_quote.sync_id != quote_generation.sync_id:
+                raise UniverseCacheUnavailableError(
+                    "Quote generation changed while workspace was loading"
+                )
+            cached_workspace = StockWorkspaceRead.model_validate(cached)
+            if (
+                cached_workspace.decision_generation_id != generation.sync_id
+                or cached_workspace.quote_generation_id != quote_generation.sync_id
+            ):
+                raise UniverseCacheUnavailableError("Workspace cache identity is invalid")
+            status = "UPDATING" if canonical_snapshot.updating else "CURRENT"
+            return cached_workspace.model_copy(
+                update={
+                    "decision_status": status,
+                    "decision_support": cached_workspace.decision_support.model_copy(
+                        update={"decision_status": status}
+                    ),
+                }
+            )
 
         stock = await self.repository.get_stock_by_exchange_symbol(exchange=exchange, symbol=symbol)
         if stock is None:
@@ -131,12 +156,9 @@ class StockDetailsWorkspaceService:
         # Pulse, Dashboard and scanners still expose the prior generation.
         raw_prices = await self.repository.list_daily_prices_window(
             stock_id=stock.id,
-            end_date=generation.trade_date,
+            end_date=quote_generation.trade_date,
         )
-        # Retain source rows in the workspace payload so the chart can show a
-        # flat, zero-volume no-trade session at the correct date.  Use only
-        # tradable rows for every displayed/calculated price metric.
-        tradable_prices = select_valid_ohlc_rows(raw_prices)
+        # The chart retains the source rows; the shared quote owns all price metrics.
         # Sequential awaits only — this request shares one AsyncSession.
         # Concurrent gather poisons the asyncpg connection and later requests.
         decision_support = await self.decision_service.get_decision_support(
@@ -201,14 +223,17 @@ class StockDetailsWorkspaceService:
             else None
         )
 
+        quotes = await self.decision_service.universe_service.get_display_quotes(
+            {stock.id}, context=quote_generation
+        )
+        quote = quotes[stock.id]
         display_metrics = self._build_display_metrics(
-            prices=tradable_prices,
-            latest_trade_date=latest_trade_date,
+            current_price=quote.current_price,
+            as_of_trade_date=quote.as_of_trade_date,
             decision_support=decision_support,
             fundamentals_snapshot=fundamentals_snapshot,
             stock=stock,
-        )
-
+        ).model_copy(update=quote.model_dump())
         payload = StockWorkspaceRead(
             stock=stock_read,
             prices=[DailyPriceRead.model_validate(price) for price in raw_prices],
@@ -220,6 +245,9 @@ class StockDetailsWorkspaceService:
             dividend_intelligence=dividend_intelligence,
             display_metrics=display_metrics,
             market_sync_id=generation.sync_id,
+            decision_generation_id=generation.sync_id,
+            quote_generation_id=quote_generation.sync_id,
+            decision_status="UPDATING" if canonical_snapshot.updating else "CURRENT",
             data_state=generation.data_state,
         )
         if not await self.decision_service.universe_service.is_generation_current(
@@ -229,20 +257,25 @@ class StockDetailsWorkspaceService:
             raise UniverseCacheUnavailableError(
                 "Published market generation changed while Stock Details workspace was loading"
             )
+        current_quote = await self.decision_service.universe_service.resolve_quote_context(
+            exchange=exchange
+        )
+        if current_quote is not None and current_quote.sync_id != quote_generation.sync_id:
+            raise UniverseCacheUnavailableError(
+                "Quote generation changed while workspace was loading"
+            )
         await self._cache_set(cache_key, payload.model_dump(mode="json"))
         return payload
 
     def _build_display_metrics(
         self,
         *,
-        prices,
-        latest_trade_date: str,
+        current_price: float | None,
+        as_of_trade_date: str | None,
         decision_support,
         fundamentals_snapshot: FundamentalsSnapshotRead,
         stock,
     ) -> DisplayMetricsRead:
-        sorted_prices = sorted(prices, key=lambda price: price.trade_date)
-        current_price = float(sorted_prices[-1].close_price) if sorted_prices else None
         valuation = decision_support.valuation
         metrics_by_code = {
             metric.metric_code: metric.value for metric in fundamentals_snapshot.metrics
@@ -264,7 +297,7 @@ class StockDetailsWorkspaceService:
             valuation_earnings_yield=valuation.earnings_yield if valuation else None,
             valuation_close=valuation.close_price if valuation else None,
             stored_market_cap=stored_market_cap,
-            as_of_trade_date=latest_trade_date if latest_trade_date != "unknown" else None,
+            as_of_trade_date=as_of_trade_date,
         )
         return DisplayMetricsRead(
             current_price=result.current_price,

@@ -6,12 +6,13 @@ import { useAuth } from "@/features/auth/context/auth-context";
 import type { ExchangeCode } from "@/lib/api/backend-api-types";
 import { getPortfolioWorkspace } from "@/lib/api/portfolio-api";
 import { useMarketDataFreshness } from "@/hooks/market/use-market-data-freshness";
+import { freshnessGenerationToken } from "@/lib/market/market-generation";
 
 export function usePortfolioWorkspace(exchange: ExchangeCode = "DSE") {
   const { user, isAuthenticated } = useAuth();
   const userId = user?.id ?? "anonymous";
   const freshness = useMarketDataFreshness(exchange);
-  const generation = freshness.data?.market_sync_id ?? freshness.data?.last_synced_at ?? "unknown";
+  const generation = freshnessGenerationToken(freshness.data) ?? "unknown";
 
   return useQuery({
     queryKey: ["portfolio", "workspace", userId, exchange, generation],
@@ -21,7 +22,10 @@ export function usePortfolioWorkspace(exchange: ExchangeCode = "DSE") {
     staleTime: 30_000,
     // Soften refresh blips without masking real failures.
     retry: 1,
-    placeholderData: (previousData) => previousData,
+    placeholderData: (previousData) => {
+      if (freshness.data?.decision_status === "UNAVAILABLE") return undefined;
+      return previousData?.meta.decision_status === freshness.data?.decision_status ? previousData : undefined;
+    },
   });
 }
 

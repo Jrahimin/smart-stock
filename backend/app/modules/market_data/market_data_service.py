@@ -835,6 +835,20 @@ class MarketDataService:
             now=now,
             stale_after_seconds=settings.market_sync_interval_seconds * 2,
         )
+        publication_reader = getattr(self.repository, "get_latest_decision_publication", None)
+        context_reader = getattr(self.repository, "get_decision_publication_context", None)
+        if context_reader:
+            publication, decision_target = await context_reader(exchange=exchange)
+        else:
+            publication = (
+                await publication_reader(exchange=exchange) if publication_reader else None
+            )
+            decision_target = None
+        decision_generation_id = (
+            publication.generation_id
+            if publication is not None and publication.invalidated_at is None
+            else None
+        )
         trade_date, last_synced_at = await self.repository.get_market_price_freshness(exchange=exchange)
         decision_session_date, _ = await self.repository.get_decision_session_freshness(
             exchange=exchange
@@ -853,12 +867,24 @@ class MarketDataService:
                 published.source_last_synced_at if published is not None else last_synced_at
             ),
             market_sync_id=published.sync_id if published is not None else None,
+            decision_generation_id=decision_generation_id,
+            decision_status=(
+                "UNAVAILABLE"
+                if decision_generation_id is None
+                else "UPDATING"
+                if decision_target and decision_target.sync_id != decision_generation_id
+                else "CURRENT"
+            ),
             data_state=published.data_state if published is not None else MarketDataState.STALE,
             published_at=published.published_at if published is not None else None,
-            decision_session_date=decision_session_date,
+            decision_session_date=publication.session_date
+            if decision_generation_id is not None
+            else None,
             live_data_as_of=(
                 published.source_last_synced_at
-                if published is not None and published.data_state in {
+                if published is not None
+                and published.data_state
+                in {
                     MarketDataState.LIVE,
                     MarketDataState.FINALIZATION_PENDING,
                     MarketDataState.STALE,

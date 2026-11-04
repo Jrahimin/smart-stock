@@ -104,6 +104,11 @@ def _config(prices: list[DailyPrice], **changes: object) -> BacktestConfig:
         "validation_sessions": 5,
         "frozen_test_sessions": 5,
         "horizons": (5, 10),
+        # These legacy unit fixtures intentionally model synthetic rules. Production
+        # replay now excludes unknown exchange-rule coverage by default.
+        "unknown_rule_policy": "assume",
+        "assumed_tick_size": 0.01,
+        "assumed_settlement_sessions": 0,
     }
     values.update(changes)
     return BacktestConfig(**values)

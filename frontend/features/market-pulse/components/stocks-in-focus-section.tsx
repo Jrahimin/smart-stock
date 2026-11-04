@@ -44,11 +44,14 @@ export function FocusStockCard({ stock, copy, scoreCopy }: FocusStockCardProps) 
       <p className="pulse-focus-conviction">
         <span className="pulse-focus-conviction-label">{copy.conviction}</span>
         <strong>{stock.actionSummary}</strong>
+        <small>{stock.decisionContext}</small>
+        {stock.controllingReason ? <small>{stock.controllingReason}</small> : null}
       </p>
 
       <div className="pulse-focus-trigger-block">
         <span>{copy.nextTrigger}</span>
         <strong>{stock.trigger}</strong>
+        {stock.watchLevel != null ? <small>{copy.watchLevel}: {stock.watchLevel.toFixed(2)}</small> : null}
       </div>
 
       <div className="pulse-focus-card-footer">

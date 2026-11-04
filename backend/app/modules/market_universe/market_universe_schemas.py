@@ -14,6 +14,7 @@ from app.core.constants.trading_constants import (
 )
 from app.core.enums import DataQualityFlag, ExchangeCode, MarketDataState, ScannerConditionId
 from app.modules.stock_details.stock_details_schemas import (
+    CanonicalDecisionResultRead,
     DataReliabilityRead,
     DirectionalEvidenceRead,
     EligibilityResultRead,
@@ -70,9 +71,29 @@ class CanonicalDecisionAnalysisRead(BaseModel):
     suspected_adjustment: bool = False
 
 
+class DisplayQuoteRead(BaseModel):
+    current_price: float | None
+    price_change: float | None = None
+    price_change_percent: float | None = None
+    as_of_trade_date: str | None = None
+    observation_session_date: str | None = None
+    observation_status: str = "UNAVAILABLE"
+
+
+class ShortlistRead(BaseModel):
+    version: str
+    entry_rank: int
+    holder_exit_rank: int
+    risk_rank: int
+    volume_rank: int
+
+
 class ScoredUniverseRow(BaseModel):
     """Lightweight exchange-wide row — safe for universe:scored Redis cache."""
 
+    display_quote: DisplayQuoteRead | None = None
+    shortlist: ShortlistRead | None = None
+    previous_finalized_decision: CanonicalDecisionResultRead | None = None
     stock: StockRead
     technical_snapshot: TechnicalSnapshotRead
     decision: TraderDecisionSummaryRead | None = None
@@ -97,6 +118,9 @@ class UniverseRowsMetaRead(BaseModel):
     source_last_synced_at: datetime | None = None
     market_sync_id: str | None = None
     data_state: MarketDataState = MarketDataState.STALE
+    decision_status: str = "CURRENT"
+    decision_generation_id: str | None = None
+    quote_generation_id: str | None = None
     payload_revision: str | None = None
 
 
@@ -118,5 +142,8 @@ class ScoredUniverseCacheRead(BaseModel):
     source_last_synced_at: datetime | None = None
     market_sync_id: str | None = None
     data_state: MarketDataState = MarketDataState.STALE
+    decision_status: str = "CURRENT"
+    decision_generation_id: str | None = None
+    quote_generation_id: str | None = None
     payload_revision: str | None = None
     rows: list[ScoredUniverseRow] = Field(default_factory=list)

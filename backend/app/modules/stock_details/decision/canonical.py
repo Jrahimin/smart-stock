@@ -18,6 +18,7 @@ from app.core.enums import (
     ExchangeCode,
     HolderAction,
     MarketRegimePhase,
+    MarketDataState,
     NonHolderAction,
     OpportunityQuality,
     RiskLevelLabel,
@@ -26,8 +27,13 @@ from app.core.enums import (
     TraderStance,
 )
 from app.models import DailyPrice, Stock
-from app.modules.stock_details.decision.lineage import build_decision_input_lineage
 from app.modules.stock_details.decision.display_taxonomy import resolve_display_decision
+from app.modules.stock_details.decision.event_availability import (
+    available_event_revisions,
+    effective_event_dates,
+    utc_instant,
+)
+from app.modules.stock_details.decision.lineage import build_decision_input_lineage
 from app.modules.stock_details.decision.market_regime import (
     MarketRegimeResult,
     normalize_market_regime,
@@ -64,6 +70,11 @@ class StrategyInput:
     is_active: bool
     market_regime: MarketRegimeResult
     calculated_at: datetime
+    symbol: str = ""
+    finality: MarketDataState = MarketDataState.FINALIZED
+    event_observations: tuple[dict, ...] = ()
+    event_coverage_status: str = "UNKNOWN"
+    adjustment_coverage: str = "UNVERIFIED"
 
     @property
     def as_of_date(self) -> date:
@@ -112,6 +123,7 @@ class CanonicalDecisionResult:
     internal_action: TraderRecommendation
     display_action: DecisionDisplayAction
     evidence_strength: int
+    evidence_status: str
     opportunity_score: int
     opportunity_quality: OpportunityQuality
     entry_readiness: EntryReadiness
@@ -145,6 +157,10 @@ def build_strategy_input(
     exchange_session_dates: list[date] | tuple[date, ...] | None = None,
     market_regime: MarketRegimeResult | str | None = None,
     calculated_at: datetime | None = None,
+    finality: MarketDataState = MarketDataState.FINALIZED,
+    event_observations: tuple[dict, ...] = (),
+    symbol: str = "",
+    adjustment_coverage: str = "UNVERIFIED",
 ) -> StrategyInput:
     return build_strategy_input_from_prices(
         prices,
@@ -158,6 +174,10 @@ def build_strategy_input(
         is_active=stock.is_active,
         market_regime=market_regime,
         calculated_at=calculated_at,
+        finality=finality,
+        event_observations=event_observations,
+        symbol=stock.symbol,
+        adjustment_coverage=adjustment_coverage,
     )
 
 
@@ -174,7 +194,13 @@ def build_strategy_input_from_prices(
     is_active: bool = True,
     market_regime: MarketRegimeResult | str | None = None,
     calculated_at: datetime | None = None,
+    finality: MarketDataState = MarketDataState.FINALIZED,
+    event_observations: tuple[dict, ...] = (),
+    symbol: str = "",
+    adjustment_coverage: str = "UNVERIFIED",
 ) -> StrategyInput:
+    if finality != MarketDataState.FINALIZED:
+        raise ValueError("Canonical decisions require FINALIZED inputs")
     if not prices:
         raise ValueError("Strategy input requires at least one daily price")
 
@@ -183,9 +209,33 @@ def build_strategy_input_from_prices(
     action_dates = frozenset(ex_dividend_dates or ()) | frozenset(
         known_corporate_action_dates or ()
     )
+    observed_at = utc_instant(calculated_at) if calculated_at is not None else datetime.now(UTC)
+    event_coverage_status = "UNKNOWN"
+    if event_observations:
+        event_dates = effective_event_dates(event_observations)
+        event_observations, revision_missing = available_event_revisions(
+            event_observations, cutoff=observed_at
+        )
+        if revision_missing:
+            event_coverage_status = "REVISION_UNAVAILABLE"
+        available_dates = effective_event_dates(event_observations)
+        action_dates = frozenset((set(action_dates) - event_dates) | available_dates)
     session_dates = tuple(sorted(set(exchange_session_dates or ())))
     if not session_dates and reference_date is not None:
         session_dates = (reference_date,)
+
+    boundary = reference_date or (
+        session_dates[-1] if session_dates else sorted_prices[-1].trade_date
+    )
+    action_dates = frozenset(day for day in action_dates if day <= boundary)
+    event_observations = tuple(
+        event
+        for event in event_observations
+        if event.get("effective_date")
+        and date.fromisoformat(str(event["effective_date"])) <= boundary
+    )
+    if any(price.trade_date > boundary for price in sorted_prices):
+        raise ValueError("Provisional prices exceed the finalized decision boundary")
 
     return StrategyInput(
         stock_id=resolved_stock_id,
@@ -197,7 +247,12 @@ def build_strategy_input_from_prices(
         exchange_session_dates=session_dates,
         is_active=is_active,
         market_regime=normalize_market_regime(market_regime),
-        calculated_at=calculated_at or datetime.now(UTC),
+        calculated_at=observed_at,
+        symbol=symbol,
+        adjustment_coverage=adjustment_coverage,
+        finality=finality,
+        event_observations=event_observations,
+        event_coverage_status=event_coverage_status,
     )
 
 
@@ -206,6 +261,7 @@ def build_canonical_decision_result(
     *,
     recommendation: TraderRecommendation,
     evidence_strength: int,
+    evidence_status: str,
     opportunity_score: int,
     opportunity_quality: OpportunityQuality,
     entry_readiness: EntryReadiness,
@@ -257,6 +313,7 @@ def build_canonical_decision_result(
         internal_action=display.internal_action,
         display_action=display.display_action,
         evidence_strength=evidence_strength,
+        evidence_status=evidence_status,
         opportunity_score=opportunity_score,
         opportunity_quality=opportunity_quality,
         entry_readiness=entry_readiness,

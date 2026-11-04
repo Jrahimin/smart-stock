@@ -186,6 +186,9 @@ async def test_universe_cache_and_snapshot_share_decision_session_date() -> None
         def __init__(self):
             self.rows = []
 
+        async def publish_generation(self, **kwargs):
+            self.publication = kwargs
+
         async def persist_missing(self, rows):
             self.rows = rows
             return len(rows)
@@ -227,7 +230,8 @@ async def test_freshness_exposes_provisional_live_metadata() -> None:
         FakeRepository(), ANONYMOUS_USER_CONTEXT
     ).get_market_freshness(exchange=ExchangeCode.DSE)
 
-    assert freshness.decision_session_date == COMPLETED_SESSION
+    assert freshness.decision_session_date is None
+    assert freshness.decision_status == "UNAVAILABLE"
     assert freshness.live_data_as_of is None
     assert freshness.is_live_session is False
 

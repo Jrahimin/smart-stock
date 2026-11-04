@@ -61,6 +61,10 @@ class DividendIntelligenceRead(BaseModel):
 
 
 class DisplayMetricsRead(BaseModel):
+    price_change: float | None = None
+    price_change_percent: float | None = None
+    observation_session_date: str | None = None
+    observation_status: str = "UNAVAILABLE"
     """Backend-resolved mark-to-market metrics for page display (Rule #1)."""
 
     current_price: float | None = None
@@ -124,6 +128,9 @@ class StockWorkspaceRead(BaseModel):
     display_metrics: DisplayMetricsRead | None = None
     # The market-data projection that supplied the quoted prices.  Decision
     # support retains its own finalized-session lineage.
+    quote_generation_id: str | None = None
+    decision_generation_id: str | None = None
+    decision_status: str = "CURRENT"
     market_sync_id: str | None = None
     data_state: MarketDataState = MarketDataState.STALE
 

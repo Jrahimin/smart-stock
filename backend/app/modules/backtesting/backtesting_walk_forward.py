@@ -55,4 +55,3 @@ def build_walk_forward_splits(
         fold_number += 1
         validation_start += config.validation_sessions
     return tuple(folds), frozen
-

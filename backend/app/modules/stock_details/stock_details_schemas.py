@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -186,6 +186,7 @@ class CanonicalDecisionResultRead(BaseModel):
     recommendation: TraderRecommendation
     internal_action: TraderRecommendation | None = None
     display_action: DecisionDisplayAction = DecisionDisplayAction.WAIT
+    evidence_status: str = "UNAVAILABLE"
     evidence_strength: int
     opportunity_score: int
     opportunity_quality: OpportunityQuality | None = None
@@ -230,6 +231,7 @@ def canonical_decision_to_read(result: Any) -> CanonicalDecisionResultRead:
         internal_action=result.internal_action,
         display_action=result.display_action,
         evidence_strength=result.evidence_strength,
+        evidence_status=result.evidence_status,
         opportunity_score=result.opportunity_score,
         opportunity_quality=result.opportunity_quality,
         entry_readiness=result.entry_readiness,
@@ -259,6 +261,7 @@ class TraderDecisionRead(BaseModel):
     confidence: int
     reasoning: list[str]
     confidence_semantics: str = "HEURISTIC_EVIDENCE"
+    evidence_status: str = "UNAVAILABLE"
     evidence_strength: int | None = None
     evidence_strength_semantics: str = "HEURISTIC_DIRECTIONAL_EVIDENCE"
     primary_reason: str | None = None
@@ -285,6 +288,7 @@ class TraderDecisionSummaryRead(BaseModel):
     opportunity_score: int
     risk_label: RiskLevelLabel
     confidence_semantics: str = "HEURISTIC_EVIDENCE"
+    evidence_status: str = "UNAVAILABLE"
     evidence_strength: int | None = None
     evidence_strength_semantics: str = "HEURISTIC_DIRECTIONAL_EVIDENCE"
     primary_reason: str | None = None
@@ -341,6 +345,10 @@ class TechnicalSnapshotRead(BaseModel):
     turnover_provenance: TurnoverProvenance = TurnoverProvenance.UNKNOWN
     analytical_price_basis: str = "RAW_UNADJUSTED"
     adjusted_close_coverage_ratio: float = 0.0
+    expected_session_count: int = 0
+    observed_session_count: int = 0
+    missing_session_count: int = 0
+    calendar_status: str = "OBSERVED_ROWS_ONLY"
     volume_behavior: VolumeBehavior = VolumeBehavior.UNKNOWN
 
 
@@ -408,6 +416,10 @@ class EligibilityResultRead(BaseModel):
     turnover_observation_count: int = 0
     turnover_provenance: TurnoverProvenance = TurnoverProvenance.UNKNOWN
     analytical_price_basis: str = "RAW_UNADJUSTED"
+    expected_session_count: int = 0
+    observed_session_count: int = 0
+    missing_session_count: int = 0
+    event_coverage_status: str = "UNKNOWN"
     corporate_action_status: str = "NONE"
 
 
@@ -521,6 +533,7 @@ class StockDecisionSupportRead(BaseModel):
     market_sync_id: str
     data_state: MarketDataState
     decision_session_date: date
+    decision_status: Literal["CURRENT", "UPDATING", "UNAVAILABLE"] = "CURRENT"
     live_data_as_of: datetime | None = None
     is_live_session: bool = False
     decision: TraderDecisionRead

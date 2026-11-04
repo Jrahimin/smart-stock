@@ -34,6 +34,7 @@ export function useEnrichedUniverseIntelligence(options: UseEnrichedUniverseInte
 
   return {
     universe: universeQuery.universe,
+    decisionPublication: universeQuery.decisionPublication,
     intelligenceByStockId,
     listedStockCount: universeQuery.listedStockCount,
     loadedPriceCount: universeQuery.loadedPriceCount,

@@ -431,3 +431,15 @@ After completing tasks:
 * update checkboxes
 * update feature progress (B/M/A)
 * move 🔵 CURRENT to next feature
+
+
+## Trading intelligence Phase 1 — November 4, 2026
+
+- [x] Local 1A: finalized-only canonical inputs, calendar participation, full-window action guards, coherent quote projection, complete publication/fallback, append-only capture migration, non-rebuilding inspection.
+- [x] Local 1A focused checkpoint before 1B implementation.
+- [x] Local 1B: backend shortlist/holder ranks, evidence semantics, controlling reasons, Pulse watch/entry distinction, bilingual existing-component presentation.
+- [x] Focused regression fixtures and API/feature documentation (`trading_intelligence_phase1.md`).
+- [ ] Independent review and authorized isolated PostgreSQL migration/trigger acceptance.
+- [ ] Authorized deployment and current-data/browser acceptance; prospective capture starts only after migration.
+- [x] Local Phase 2A replay correctness and frozen baseline; Phase 2B predeclared shadow research and separate gates (`trading_intelligence_phase2.md`).
+- [ ] Phase 2 independent review, verified real-data coverage, prospective shadow and separately authorized promotion.

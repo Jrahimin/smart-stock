@@ -21,6 +21,7 @@ import { SmartWarningsPanel } from "@/features/stock-workspace/components/smart-
 import { StockResearchSection } from "@/features/stock-workspace/components/stock-research-section";
 import { StockSectionNav } from "@/features/stock-workspace/components/stock-section-nav";
 import { StockWorkspaceHeader } from "@/features/stock-workspace/components/stock-workspace-header";
+import { StockDurableSummary } from "@/features/stock-workspace/components/stock-durable-summary";
 import { TechnicalSummaryPanel } from "@/features/stock-workspace/components/technical-summary-panel";
 import { TradePlanPanel } from "@/features/stock-workspace/components/trade-plan-panel";
 import { TraderDecisionCard } from "@/features/stock-workspace/components/trader-decision-card";
@@ -70,8 +71,9 @@ export function StockDetailWorkspaceView({
   exchange,
   symbol,
   initialWorkspace = null,
-  locale = DEFAULT_LOCALE,
+  locale: initialLocale = DEFAULT_LOCALE,
 }: StockDetailWorkspaceViewProps) {
+  const [locale, setLocale] = useState(initialLocale);
   const language = getStockWorkspaceLanguage(locale);
   const [relatedLoadEnabled, setRelatedLoadEnabled] = useState(false);
   const [sectorContextEnabled, setSectorContextEnabled] = useState(false);
@@ -88,6 +90,7 @@ export function StockDetailWorkspaceView({
     fundamentalsModel,
     decisionRaw,
     displayMetrics,
+    workspace,
     isError,
     isLoading,
     isDecisionLoading,
@@ -217,14 +220,15 @@ export function StockDetailWorkspaceView({
 
   return (
     <div className="stock-workspace-view stock-workspace-view-v2 trader-workspace-fade-in" data-testid="stock-workspace-loaded">
+      {workspace ? <StockDurableSummary locale={locale} workspace={workspace} /> : null}
       {isError ? <div className="data-warning">{language.states.workspaceError(symbol)}</div> : null}
       {isDecisionError ? <div className="data-warning">{language.states.decisionError}</div> : null}
       <div className="trader-workspace-topbar stock-workspace-topbar">
-        <StockWorkspaceHeader copy={language.header} decision={decisionModel} model={model} stockId={model.intelligence?.stock.id} />
+        <StockWorkspaceHeader copy={language.header} decision={decisionModel} locale={locale} model={model} stockId={model.intelligence?.stock.id} />
         <div className="stock-workspace-topbar-status-row">
           <MarketDataFreshnessBar locale={locale} variant="status" />
           <div aria-label={language.localeSwitcherAria} className="explorer-hero-locale-switcher">
-            <DashboardLocaleSwitcher locale={locale} />
+            <DashboardLocaleSwitcher locale={locale} onLocaleChange={setLocale} />
           </div>
         </div>
         <div className="stock-workspace-topbar-search">
