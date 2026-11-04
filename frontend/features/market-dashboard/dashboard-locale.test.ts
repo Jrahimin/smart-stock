@@ -203,8 +203,8 @@ describe("dashboard signal localization", () => {
       signals,
     });
 
-    expect(model.signals[0]?.reason).toContain("Uptrend-এ ভালো সুযোগ আছে");
-    expect(model.signals[0]?.reason).toContain("Volume স্বাভাবিকের তুলনায় 1.5 গুণ");
+    expect(model.signals[0]?.reason).toContain("দাম ঊর্ধ্বমুখী");
+    expect(model.signals[0]?.reason).toContain("কেনাবেচার পরিমাণ গড়ের 1.5 গুণ");
     expect(model.signals[0]?.reason).not.toContain("acceptable reward potential");
   });
 });

@@ -24,7 +24,7 @@ describe("signals language", () => {
       language.signalReasons,
     );
 
-    expect(reason).toContain("Uptrend");
+    expect(reason).toContain("দাম ঊর্ধ্বমুখী");
     expect(reason).toContain("সুযোগ");
   });
 
@@ -39,8 +39,8 @@ describe("signals language", () => {
       language.signalReasons,
     );
 
-    expect(reason).toContain("bearish trend");
-    expect(reason).toContain("exit");
+    expect(reason).toContain("দামের প্রবণতা ও গতি দুটোই নিম্নমুখী");
+    expect(reason).toContain("বিক্রি বা এড়িয়ে যাওয়ার");
     expect(reason).not.toContain("supports exit or avoidance");
   });
 });

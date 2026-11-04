@@ -1,5 +1,6 @@
 "use client";
 
+import { Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useState } from "react";
@@ -25,6 +26,7 @@ export function LoginPageClient() {
   const { login, loginWithGoogleToken, loginWithFacebookToken } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -70,10 +72,18 @@ export function LoginPageClient() {
           Email
           <input value={email} onChange={(event) => setEmail(event.target.value)} type="email" required />
         </label>
-        <label>
-          Password
-          <input value={password} onChange={(event) => setPassword(event.target.value)} type="password" required />
-        </label>
+        <div className="auth-password-field">
+          <label htmlFor="login-password">
+            Password
+            <input id="login-password" autoComplete="current-password" value={password}
+              onChange={(event) => setPassword(event.target.value)} type={showPassword ? "text" : "password"} required />
+          </label>
+          <button className="auth-password-toggle" type="button"
+            aria-label={showPassword ? "Hide password" : "Show password"}
+            aria-controls="login-password" onClick={() => setShowPassword((visible) => !visible)}>
+            {showPassword ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
+          </button>
+        </div>
         {error ? <p className="auth-error">{error}</p> : null}
         <button className="auth-primary-button" type="submit" disabled={isSubmitting}>
           {isSubmitting ? "Signing in..." : "Sign in"}

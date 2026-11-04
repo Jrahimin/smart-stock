@@ -14,6 +14,16 @@ import { useMarketCacheRefresh } from "@/hooks/market/use-market-cache-coordinat
 import type { ExchangeCode } from "@/lib/api/backend-api-types";
 import type { AppLocale } from "@/lib/locale/app-locale";
 
+const sessionBn = { PRE_OPEN: "লেনদেন শুরুর আগে", OPEN: "লেনদেন চলছে", POST_CLOSE: "লেনদেন শেষে", HOLIDAY: "বাজার বন্ধ" } as const;
+
+function localizeRelativeTime(relative: string) {
+  if (relative === "just now") return "এইমাত্র";
+  const match = /^(\d+) (minute|hour|day)s? ago$/.exec(relative);
+  if (!match) return relative;
+  const units = { minute: "মিনিট", hour: "ঘণ্টা", day: "দিন" };
+  return `${match[1]} ${units[match[2] as keyof typeof units]} আগে`;
+}
+
 const englishFreshnessLabels: DashboardLanguage["freshness"] = {
   syncing: "Syncing…",
   statusUnavailable: "Status unavailable",
@@ -35,15 +45,18 @@ function buildFreshnessTooltip(
   model: ReturnType<typeof buildMarketFreshnessViewModel>,
   labels: DashboardLanguage["freshness"],
   staleDisclaimer?: string,
+  locale?: AppLocale,
 ) {
+  const bn = locale === "bn";
+  const session = bn && model.raw ? sessionBn[model.raw.market_status] : model.sessionLabel;
   const parts = [
     model.lastUpdatedLabel ? labels.synced(model.lastUpdatedLabel) : null,
-    model.freshnessLabel,
-    model.sessionLabel ? labels.session(model.sessionLabel) : null,
+    bn ? null : model.freshnessLabel,
+    session ? labels.session(session) : null,
     model.nextUpdateLabel ? labels.nextUpdate(model.nextUpdateLabel) : null,
-    model.delayDisclaimer,
+    bn && model.delayDisclaimer && model.raw ? `দাম সর্বোচ্চ ${model.raw.expected_delay_minutes} মিনিট দেরিতে দেখা যেতে পারে।` : model.delayDisclaimer,
     model.isLiveSession
-      ? labels.provisional(model.decisionSessionLabel ?? "the last completed session")
+      ? labels.provisional(model.decisionSessionLabel ?? (bn ? "সর্বশেষ সম্পন্ন কার্যদিবস" : "the last completed session"))
       : null,
     staleDisclaimer,
   ].filter(Boolean);
@@ -145,7 +158,7 @@ export function MarketDataFreshnessBar({
   }, []);
 
   const model = buildMarketFreshnessViewModel(data, isLoading, isError);
-  const tooltip = buildFreshnessTooltip(model, labels, staleDisclaimer);
+  const tooltip = buildFreshnessTooltip(model, labels, staleDisclaimer, locale);
   const wrapperClass = [resolveFreshnessWrapperClass(variant), "market-freshness-bar-with-refresh", className]
     .filter(Boolean)
     .join(" ");
@@ -188,7 +201,7 @@ export function MarketDataFreshnessBar({
   }
 
   const label = relativeLabel
-    ? labels.lastUpdated(relativeLabel)
+    ? labels.lastUpdated(locale === "bn" ? localizeRelativeTime(relativeLabel) : relativeLabel)
     : hasMounted
       ? labels.noSnapshotYet
       : model.lastUpdatedLabel

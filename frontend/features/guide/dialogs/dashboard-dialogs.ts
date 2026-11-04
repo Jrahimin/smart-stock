@@ -13,6 +13,7 @@ export type GuideControls = {
   previous: string;
   skip: string;
   next: string;
+  startMenuTour?: string;
   finish: string;
   dashboardPhase: string;
   menuPhase: string;
@@ -36,66 +37,78 @@ export type GuideLauncherCopy = {
 const dashboardGuideDialogsBn = {
   welcome: {
     eyebrow: "👋 স্বাগতম",
-    message:
-      "চলুন, মাত্র এক মিনিটে আজকের বাজারের গল্পটা দেখে নিই— কোথায় গতি কিংবা দুর্গতি, আর কোথায় সুযোগ।",
+    message: "সূচক থেকে সিগন্যাল পর্যন্ত, বাজারের সর্বশেষ তথ্য কোথায় পাবেন চলুন দেখে নিই।",
   },
   pulse: {
-    eyebrow: "📈 বাজারের মুড",
-    message:
-      "বাজার আজ বেশ আত্মবিশ্বাসী, নাকি একটু সাবধানে চলছে? DSEX, লেনদেন আর অংশগ্রহণ মিলিয়ে এখানেই প্রথম ধারণা পাবেন।",
+    eyebrow: "বাজারের সারাংশ",
+    message: "DSEX সূচকের মান ও পরিবর্তন দিয়ে শুরু করুন। পাশের তারিখ ও সময় দেখে বুঝবেন তথ্যটি কোন কার্যদিবসের। শুরুর মান, সর্বোচ্চ ও সর্বনিম্ন দেখতে সূচকের বিস্তারিত খুলুন।",
   },
   breadth: {
-    eyebrow: "🌿 ভেতরের আসল চিত্র",
-    message:
-      "শুধু কয়েকটি শেয়ার উঠলেই বাজার শক্তিশালী হয় না। কতগুলো শেয়ার উঠছে, নামছে বা স্থির আছে—এখানে দেখুন পুরো ছবিটা।",
+    eyebrow: "কতগুলো শেয়ার উঠল?",
+    message: "দণ্ডটির তিন অংশ দেখায় কতগুলো শেয়ারের দাম বেড়েছে, কমেছে বা একই আছে। সংখ্যাগুলো সূচকের বাইরেও বাজারের চিত্র বুঝতে সাহায্য করে।",
   },
-  signals: {
-    eyebrow: "🎯 স্মার্ট সিগন্যাল",
-    message:
-      "সিগন্যাল সম্ভাবনার দিক দেখায়, নিশ্চয়তা দেয় না। সিদ্ধান্তের আগে কারণ, আত্মবিশ্বাস আর ঝুঁকিটাও দেখে নিন।",
+  pulseLink: {
+    eyebrow: "মার্কেট পালস",
+    message: "কোন খাত এগিয়েছে আর কোন শেয়ারের পরিস্থিতি নজরে রাখা যায়, বিস্তারিত দেখতে মার্কেট পালস খুলুন।",
+  },
+  map: {
+    eyebrow: "খাতের মানচিত্র",
+    message: "বাজারমূল্য বা তারল্য অনুযায়ী খাত ও শেয়ার সাজান। সব খাত দেখতে পুরো মানচিত্র খুলুন। দাম ও লেনদেনের মূল্য জানতে শেয়ারের তথ্য দেখুন।",
+  },
+  tiles: {
+    eyebrow: "শেয়ারের দামের পরিবর্তন",
+    message: "প্রতিটি ঘরে শেয়ারের প্রতীক ও দামের পরিবর্তন আছে। দাম ও লেনদেনের মূল্য জানতে কার্সর রাখুন, কিবোর্ড দিয়ে ঘর বাছুন বা শেয়ারের তথ্য দেখুন। ঘরটি খুললে শেয়ারের বিস্তারিত পাবেন।",
   },
   discovery: {
-    eyebrow: "🔍 আজ কারা নজরে?",
-    message:
-      "আজকের আলোচিত ও নজরকাড়া শেয়ারগুলো এখানে পাবেন। আগ্রহী কোনো শেয়ার খুলে তার ভেতরের গল্পটা দেখে নিন।",
+    eyebrow: "নজরকাড়া শেয়ার",
+    message: "দাম বেড়েছে, কমেছে বা লেনদেনে শীর্ষে—যে তালিকাটি দরকার সেটি খুলুন। মানচিত্রের সাজানোর পদ্ধতি এই তালিকাগুলো বদলায় না।",
+  },
+  signals: {
+    eyebrow: "চূড়ান্ত সিগন্যাল",
+    message: "সিদ্ধান্তের তারিখ দেখুন, তারপর প্রথম শেয়ারটির তথ্য বা শর্ত এবং ঝুঁকি পড়ুন। বাকি সিদ্ধান্তগুলো সিগন্যাল সেন্টারে পাবেন।",
   },
   sidebar: {
-    eyebrow: "🚀 এরপর কোথায়?",
-    message:
-      "বাজারের ছবি দেখা হয়ে গেল! এবার শেয়ার খুঁজতে Stocks, সুযোগ ধরতে Scanner কিংবা নিজের তালিকা দেখতে Watchlist-এ যান।",
+    eyebrow: "ড্যাশবোর্ড পরিচিতি শেষ",
+    message: "এবার আলাদা মেনু পরিচিতি শুরু করে দেখুন, কোথায় শেয়ারের বিস্তারিত, স্ক্যানার, পোর্টফোলিও আর সঞ্চয়ের হিসাব পাবেন।",
   },
 } as const satisfies Record<string, GuideDialog>;
 
 const dashboardGuideDialogsEn = {
   welcome: {
     eyebrow: "👋 Welcome",
-    message:
-      "Let's take one minute to read today's market—where momentum is building, where caution is needed, and where opportunities may be forming.",
+    message: "Take a quick tour of the latest market snapshot, from DSEX to finalized signals.",
   },
   pulse: {
-    eyebrow: "📈 Market Mood",
-    message:
-      "Is the market feeling confident today, or moving carefully? Start with DSEX, turnover, and participation for the first clear picture.",
+    eyebrow: "Read the market",
+    message: "Start with DSEX and its move. The session and date tell you when the numbers are from. Open Index details for the day’s range and longer-term returns.",
   },
   breadth: {
-    eyebrow: "🌿 What's happening underneath?",
-    message:
-      "A few rising stocks do not make the whole market strong. See how many stocks are advancing, declining, or staying flat.",
+    eyebrow: "Look beyond the index",
+    message: "Each part of this bar shows how many stocks rose, stayed flat, or fell. Use the counts to see how widely the market moved.",
   },
-  signals: {
-    eyebrow: "🎯 Smart Signals",
-    message:
-      "Signals point to possibilities, not guarantees. Check the reason, heuristic evidence, and risk before making a decision.",
+  pulseLink: {
+    eyebrow: "Open Market Pulse",
+    message: "Open Market Pulse to see which sectors led and which setups are worth watching.",
+  },
+  map: {
+    eyebrow: "Explore the sector map",
+    message: "Market cap and liquidity reorder the sectors and their tiles. Open the full map to see every sector, or use Inspect a stock to check price and turnover.",
+  },
+  tiles: {
+    eyebrow: "Read the stock tiles",
+    message: "Each tile shows a ticker and its price change. Hover or focus for price and turnover, or use Inspect a stock on touch. Open a tile for the stock’s workspace.",
   },
   discovery: {
-    eyebrow: "🔍 Who deserves attention today?",
-    message:
-      "Find today's active and noteworthy stocks here. Open any stock that interests you and explore the full story behind it.",
+    eyebrow: "Switch between mover lists",
+    message: "See gainers, losers, or the stocks with the highest turnover. Changing the map’s sort order leaves these lists as they are.",
+  },
+  signals: {
+    eyebrow: "Read the finalized signals",
+    message: "Check the decision date, then read the first stock’s evidence or condition and its risk. Find the full list in Signal Center.",
   },
   sidebar: {
-    eyebrow: "🚀 Where next?",
-    message:
-      "You've seen the market picture. Now explore Stocks, find opportunities with Scanner, or check your Watchlist.",
+    eyebrow: "Dashboard tour complete",
+    message: "Start the separate menu tour to see where to research stocks, open Scanner, manage your portfolio, and explore Wealth.",
   },
 } as const satisfies Record<string, GuideDialog>;
 
@@ -125,10 +138,10 @@ const sidebarGuideDialogsBn = {
     message:
       "শুধু POTENTIAL BUY, WAIT বা SELL দেখেই থামবেন না। সিদ্ধান্তটি কেন এসেছে এবং ঝুঁকি কোথায়—সেটাও বুঝে নিন।",
   },
-  watchlist: {
-    eyebrow: "⭐ ওয়াচলিস্ট",
+  portfolio: {
+    eyebrow: "আমার পোর্টফোলিও",
     message:
-      "যেসব শেয়ার চোখে রাখতে চান, সেগুলো এখানে জমা রাখুন। দাম, ট্রেন্ড বা সিদ্ধান্ত বদলালে দ্রুত নজরে পড়বে।",
+      "নিজের বিনিয়োগ আর নজরে রাখা শেয়ারগুলো একসঙ্গে দেখুন। দাম ও সিগন্যাল বদলালে এখান থেকে খোঁজ নিতে পারবেন।",
   },
   wealthWorkspace: {
     eyebrow: "💰 ওয়েলথ",
@@ -163,10 +176,10 @@ const sidebarGuideDialogsEn = {
     message:
       "Do not stop at POTENTIAL BUY, WAIT, or SELL. Understand the condition and where the risk sits.",
   },
-  watchlist: {
-    eyebrow: "⭐ Watchlist",
+  portfolio: {
+    eyebrow: "My Portfolio",
     message:
-      "Save the stocks you want to track. Price, trend, or decision changes stay easy to spot.",
+      "Review your holdings and the stocks you’re watching. Use this workspace to follow changes in prices and signals.",
   },
   wealthWorkspace: {
     eyebrow: "💰 Wealth",
@@ -183,10 +196,11 @@ const guideControlsBn: GuideControls = {
   mobileSkipConfirmMessage: "এখন বন্ধ করলে পরে হেডারের ম্যাসকট বাটন থেকে আবার দেখতে পারবেন।",
   suppressPrompts: "ভবিষ্যতে স্বয়ংক্রিয়ভাবে এই গাইড দেখাবেন না",
   continue: "চালিয়ে যান",
-  dismiss: "Tour বন্ধ করুন",
+  dismiss: "গাইড বন্ধ করুন",
   previous: "পেছনে",
   skip: "বাদ দিন",
   next: "পরেরটা",
+  startMenuTour: "মেনু পরিচিতি শুরু",
   finish: "শেষ করি",
   dashboardPhase: "ড্যাশবোর্ড",
   menuPhase: "মেনু",
@@ -205,6 +219,7 @@ const guideControlsEn: GuideControls = {
   previous: "Back",
   skip: "Skip",
   next: "Next",
+  startMenuTour: "Start menu tour",
   finish: "Finish",
   dashboardPhase: "Dashboard",
   menuPhase: "Menu",
@@ -215,12 +230,12 @@ const mobileIntroDialogsBn = {
   welcome: {
     eyebrow: "👋 স্বাগতম",
     message:
-      "স্মার্ট স্টকে স্বাগতম! চলুন, এক মিনিটে কোথায় কী আছে দেখে নিই—তারপর নিজের মতো করে ঘুরে দেখবেন।",
+      "স্বাগতম! বাজারের সারাংশ, সিগন্যাল আর মূল মেনু কোথায় পাবেন, চলুন দেখে নিই।",
   },
   mainMenu: {
     eyebrow: "📱 সবকিছু এই মেনুতে",
     message:
-      "Stocks থেকে Wealth—স্মার্ট স্টকের সব গুরুত্বপূর্ণ জায়গার পথ এখানেই। প্রয়োজন হলে শুধু মেনুটি খুলুন।",
+      "শেয়ার, সিগন্যাল আর সঞ্চয়ের টুল এখানে পাবেন। বাজারের সারাংশে ফিরতে ড্যাশবোর্ড বেছে নিন।",
   },
   wealth: {
     eyebrow: "💰 ভবিষ্যতের হিসাব",
@@ -243,12 +258,12 @@ const mobileIntroDialogsEn = {
   welcome: {
     eyebrow: "👋 Welcome",
     message:
-      "Welcome to Smart Stock! Let's take one minute to see what's here—then explore at your own pace.",
+      "Welcome! Here’s where to find the market snapshot, signals, and main menu.",
   },
   mainMenu: {
     eyebrow: "📱 Everything in this menu",
     message:
-      "From Stocks to Wealth—the main paths through Smart Stock live here. Open the menu whenever you need them.",
+      "Use the menu to find stocks, signals, and Wealth tools. Choose Dashboard to return to the market snapshot.",
   },
   wealth: {
     eyebrow: "💰 Plan ahead",

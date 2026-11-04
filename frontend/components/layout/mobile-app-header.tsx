@@ -2,6 +2,7 @@
 
 import { Menu, Search } from "lucide-react";
 import Image from "next/image";
+import { StockWealthLockup } from "@/components/layout/stockwealth-lockup";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { RefObject } from "react";
@@ -31,12 +32,14 @@ export function MobileAppHeader({
   guideLauncher = null,
 }: MobileAppHeaderProps) {
   const router = useRouter();
+  const dashboard = guideLauncher === "dashboard";
+  const bn = dashboard && guideLocale === "bn";
 
   function handleSearchShortcut() {
     const searchInput = document.querySelector<HTMLInputElement>(".explorer-command-search input");
     if (searchInput) {
       searchInput.focus({ preventScroll: true });
-      searchInput.scrollIntoView({ behavior: "smooth", block: "start" });
+      searchInput.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "nearest" });
       return;
     }
 
@@ -49,7 +52,7 @@ export function MobileAppHeader({
         ref={menuButtonRef}
         aria-controls={MOBILE_NAV_DRAWER_ID}
         aria-expanded={isMenuOpen}
-        aria-label={isMenuOpen ? "Close navigation menu" : "Open navigation menu"}
+        aria-label={bn ? isMenuOpen ? "মেনু বন্ধ করুন" : "মেনু খুলুন" : isMenuOpen ? "Close navigation menu" : "Open navigation menu"}
         className="mobile-app-header-menu-button"
         id={MOBILE_NAV_MENU_BUTTON_ID}
         onClick={onMenuToggle}
@@ -57,16 +60,18 @@ export function MobileAppHeader({
       >
         <Menu aria-hidden="true" size={22} strokeWidth={2.1} />
       </button>
-      <Link aria-label="Smart Stock home" className="mobile-app-header-brand" href="/">
-        <Image alt="" aria-hidden="true" className="mobile-app-header-brand-icon" height={32} src="/stock-icon.png" width={32} />
-        <span className="mobile-app-header-brand-text">Stock Intelligence</span>
+      <Link aria-label={dashboard ? "StockWealth BD" : "Smart Stock home"} className="mobile-app-header-brand" href="/">
+        {dashboard ? <StockWealthLockup className="sw-mobile-lockup" decorative /> : <>
+          <Image alt="" aria-hidden="true" className="mobile-app-header-brand-icon" height={32} src="/stock-icon.png" width={32} />
+          <span className="mobile-app-header-brand-text">Stock Intelligence</span>
+        </>}
       </Link>
       <div className="mobile-app-header-actions">
         {guideLauncher === "dashboard" ? (
           <DashboardGuideLauncher className="mobile-app-header-guide-button" locale={guideLocale} />
         ) : guideLauncher === "wealth" ? <WealthGuideLauncher className="mobile-app-header-guide-button" locale={guideLocale} /> : guideLauncher === "tax-planner" ? <TaxPlannerGuideLauncher className="mobile-app-header-guide-button" locale={guideLocale} /> : null}
         <button
-          aria-label="Search stocks and symbols"
+          aria-label={bn ? "শেয়ার বা প্রতীক খুঁজুন" : "Search stocks and symbols"}
           className="mobile-app-header-search-button"
           onClick={handleSearchShortcut}
           type="button"

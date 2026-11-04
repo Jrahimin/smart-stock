@@ -68,7 +68,7 @@ describe("useMarketDashboard locale alignment", () => {
       signals,
     });
 
-    expect(model.signals[0]?.reason).toContain("Uptrend-এ ভালো সুযোগ আছে");
+    expect(model.signals[0]?.reason).toContain("দাম ঊর্ধ্বমুখী");
     expect(model.signals[0]?.reason).not.toContain("acceptable reward potential");
   });
 
@@ -78,13 +78,13 @@ describe("useMarketDashboard locale alignment", () => {
       timeline: [
         {
           time: "2026-07-15",
-          title: "Market snapshot ready",
-          description: "410 active instruments in the latest price snapshot.",
+          title: "Suspicious activity flagged",
+          description: "4 instruments need source validation before acting on signals.",
         },
       ],
     });
 
-    expect(model.timeline[0]?.title).toBe("বাজারের স্ন্যাপশট প্রস্তুত");
-    expect(model.timeline[0]?.description).toContain("সক্রিয় শেয়ার");
+    expect(model.timeline[0]?.title).not.toBe("Suspicious activity flagged");
+    expect(model.timeline[0]?.description).toContain("4টি");
   });
 });

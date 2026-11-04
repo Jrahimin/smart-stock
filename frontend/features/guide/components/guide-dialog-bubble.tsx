@@ -22,6 +22,8 @@ type GuideDialogBubbleProps = {
   isLastStep: boolean;
   isSkipConfirmationOpen: boolean;
   nextDisabled?: boolean;
+  nextLabel?: string;
+  maxHeight?: number;
   suppressContextualPrompts: boolean;
   onCancelSkip: () => void;
   onConfirmSkip: () => void;
@@ -46,6 +48,8 @@ export function GuideDialogBubble({
   isLastStep,
   isSkipConfirmationOpen,
   nextDisabled = false,
+  nextLabel,
+  maxHeight,
   suppressContextualPrompts,
   onCancelSkip,
   onConfirmSkip,
@@ -59,7 +63,7 @@ export function GuideDialogBubble({
   const dialogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    dialogRef.current?.focus();
+    dialogRef.current?.focus({ preventScroll: true });
   }, [stepIndex]);
 
   function trapFocus(event: KeyboardEvent<HTMLDivElement>) {
@@ -95,7 +99,7 @@ export function GuideDialogBubble({
       onKeyDown={trapFocus}
       ref={dialogRef}
       role="dialog"
-      style={{ left: position.left, top: position.top, width: position.width }}
+      style={{ left: position.left, top: position.top, width: position.width, maxHeight, overflowY: maxHeight ? "auto" : undefined }}
       tabIndex={-1}
     >
       <div className="product-guide-dialog-head">
@@ -174,7 +178,7 @@ export function GuideDialogBubble({
               {controls.skip}
             </button>
             <button className="product-guide-primary-button" disabled={nextDisabled} onClick={onNext} type="button">
-              {isLastStep ? controls.finish : controls.next}
+              {isLastStep ? controls.finish : nextLabel ?? controls.next}
               <ArrowRight aria-hidden="true" size={14} />
             </button>
           </div>

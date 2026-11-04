@@ -102,7 +102,7 @@ describe("stock decision localization", () => {
     expect(model.riskLabel).toBe("মাঝারি");
     expect(model.liquidity.label).toBe("কম");
     expect(model.liquidity.volumeRatio).toBe("গড়ের 0.6x");
-    expect(model.freshness.label).toBe("তাজা");
+    expect(model.freshness.label).toBe("বাদ পড়া কার্যদিবস শনাক্ত হয়নি");
     expect(model.confidenceLabel).toBe("মিশ্র সংকেত");
   });
 

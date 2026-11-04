@@ -502,13 +502,13 @@ const stockWorkspaceLanguage = {
         "Decision support",
       modelConfidence: (value) =>
         `${value}/100 heuristic evidence`,
-      data: "Data",
+      data: "Decision data",
       asOf: (date) =>
         ` · as of ${date}`,
       freshness: {
         stale: "Stale",
         sparse: "Sparse",
-        fresh: "Fresh",
+        fresh: "No missed sessions flagged",
       },
       disclaimer:
         "Snapshot-based market data and rule-based decision support — not live quotes and not investment advice.",
@@ -870,13 +870,13 @@ const stockWorkspaceLanguage = {
         "Decision support",
       modelConfidence: (value) =>
         `Heuristic evidence ${value}/100`,
-      data: "Data",
+      data: "সিদ্ধান্তের তথ্য",
       asOf: (date) =>
         ` · ${date} পর্যন্ত`,
       freshness: {
         stale: "পুরনো",
         sparse: "তথ্য কম",
-        fresh: "সর্বশেষ",
+        fresh: "বাদ পড়া কার্যদিবস শনাক্ত হয়নি",
       },
       disclaimer:
         "এটি সর্বশেষ পাওয়া market data ও rule-based analysis-এর ওপর তৈরি—live price নয়, বিনিয়োগ পরামর্শও নয়।",

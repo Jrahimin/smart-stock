@@ -56,7 +56,7 @@ export function DashboardLocaleSwitcher({
         onClick={() => selectLocale("bn")}
         type="button"
       >
-        বাং
+        বাংলা
       </button>
     </div>
   );

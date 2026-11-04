@@ -183,7 +183,7 @@ const stockDecisionLanguage = {
     freshness: {
       stale: "Stale",
       sparse: "Sparse",
-      fresh: "Fresh",
+      fresh: "No missed sessions flagged",
       unavailable: "Unavailable",
       helper: (candles, tradeDate) => `${candles} candles · ${tradeDate}`,
       volumeRatio: (ratio) => `${ratio}x avg`,
@@ -323,7 +323,7 @@ const stockDecisionLanguage = {
     freshness: {
       stale: "পুরনো",
       sparse: "তথ্য কম",
-      fresh: "তাজা",
+      fresh: "বাদ পড়া কার্যদিবস শনাক্ত হয়নি",
       unavailable: "পাওয়া যায়নি",
       helper: (candles, tradeDate) => `${candles}টি candle · ${tradeDate}`,
       volumeRatio: (ratio) => `গড়ের ${ratio}x`,
@@ -400,8 +400,9 @@ function resolveEntryConditionKey(entryCondition: string): {
 export function localizeEntryCondition(
   entryCondition: string | null,
   locale: AppLocale,
+  overrides?: StockDecisionLanguage["entryConditions"],
 ): string | null {
-  if (!entryCondition || locale === "en") {
+  if (!entryCondition || (locale === "en" && !overrides)) {
     return entryCondition;
   }
 
@@ -410,8 +411,7 @@ export function localizeEntryCondition(
     return entryCondition;
   }
 
-  const language = getStockDecisionLanguage(locale);
-  const template = language.entryConditions[resolved.key];
+  const template = (overrides ?? getStockDecisionLanguage(locale).entryConditions)[resolved.key];
   return resolveTemplate(template, resolved.params ?? {});
 }
 
@@ -518,7 +518,7 @@ export function applyStockDecisionLocalization(
           ? language.freshness.stale
           : model.freshness.label === "Sparse"
             ? language.freshness.sparse
-            : model.freshness.label === "Fresh"
+            : model.freshness.label === "No missed sessions flagged"
               ? language.freshness.fresh
               : model.freshness.label === "Unavailable"
                 ? language.freshness.unavailable

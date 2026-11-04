@@ -58,7 +58,7 @@ export function buildStockSemanticSummary(model: StockWorkspaceModel, decision: 
   }
 
   if (decision.available && decision.freshness.label) {
-    parts.push(`Market data status: ${decision.freshness.label} (${decision.freshness.helper}).`);
+    parts.push(`Decision data: ${decision.freshness.label} (${decision.freshness.helper}).`);
   }
 
   return parts.join(" ");
