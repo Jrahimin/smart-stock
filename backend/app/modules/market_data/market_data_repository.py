@@ -3,7 +3,7 @@ from decimal import Decimal
 from uuid import UUID
 
 from fastapi import Depends
-from sqlalchemy import func, or_, select, update
+from sqlalchemy import String, and_, cast, func, or_, select, true, union, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,6 +17,7 @@ from app.models import (
     DividendEvent,
     MarketDataGeneration,
     Stock,
+    TradingSourceObservation,
 )
 
 
@@ -105,6 +106,36 @@ class MarketDataRepository(BaseRepository[DailyPrice]):
         result = await self.session.execute(statement)
         return [(stock, price) for stock, price in result.all()]
 
+    async def list_quote_price_observations(
+        self, *, stock_ids: set[UUID], end_date: date,
+    ) -> list[DailyPrice]:
+        """In one bulk query, find the latest observation and latest valid OHLC per stock."""
+        if not stock_ids:
+            return []
+        price = DailyPrice
+        ohlc = (price.open_price, price.high_price, price.low_price, price.close_price)
+        latest = select(price.id).where(
+            price.stock_id == Stock.id, price.trade_date <= end_date,
+        ).order_by(price.trade_date.desc(), price.id.desc()).limit(1)
+        latest_valid = latest.where(
+            *(column > 0 for column in ohlc),
+            *(column != Decimal("NaN") for column in ohlc),
+            price.high_price >= func.greatest(price.open_price, price.low_price, price.close_price),
+            price.low_price <= func.least(price.open_price, price.high_price, price.close_price),
+        ).lateral()
+        latest = latest.lateral()
+        ids = union(
+            select(latest.c.id)
+            .select_from(Stock)
+            .join(latest, true())
+            .where(Stock.id.in_(stock_ids)),
+            select(latest_valid.c.id)
+            .select_from(Stock)
+            .join(latest_valid, true())
+            .where(Stock.id.in_(stock_ids)),
+        )
+        return list((await self.session.scalars(select(price).where(price.id.in_(ids)))).all())
+
     async def list_market_price_windows(
         self,
         *,
@@ -169,17 +200,16 @@ class MarketDataRepository(BaseRepository[DailyPrice]):
         limit: int,
         end_date: date | None = None,
     ) -> list[date]:
-        statement = (
-            select(DailyPrice.trade_date)
-            .join(Stock, Stock.id == DailyPrice.stock_id)
-            .where(Stock.exchange == exchange, Stock.is_active.is_(True))
-            .distinct()
-            .order_by(DailyPrice.trade_date.desc())
-        )
+        # Finalized exchange index observations are the declared session denominator.
+        # A missing symbol row cannot remove a session from this calendar.
+        statement = select(DailyMarketSummary.trade_date).where(
+            DailyMarketSummary.exchange == exchange,
+            DailyMarketSummary.index_name == "DSEX",
+            DailyMarketSummary.is_finalized.is_(True),
+        ).distinct().order_by(DailyMarketSummary.trade_date.desc())
         if end_date is not None:
-            statement = statement.where(DailyPrice.trade_date <= end_date)
-        statement = statement.limit(limit)
-        return list(reversed((await self.session.scalars(statement)).all()))
+            statement = statement.where(DailyMarketSummary.trade_date <= end_date)
+        return list(reversed((await self.session.scalars(statement.limit(limit))).all()))
 
     async def list_corporate_action_dates_by_stock(
         self,
@@ -207,6 +237,155 @@ class MarketDataRepository(BaseRepository[DailyPrice]):
         for stock_id, event_date in (await self.session.execute(action_statement)).all():
             dates_by_stock.setdefault(stock_id, set()).add(event_date)
         return dates_by_stock
+
+    async def list_decision_event_observations(
+        self, *, stock_ids: set[UUID]
+    ) -> dict[UUID, list[dict]]:
+        from app.core.audit_hashing import canonicalize_audit_value
+
+        if not stock_ids:
+            return {}
+        journal = TradingSourceObservation
+        revisions = (
+            select(
+                journal.source_table,
+                journal.source_row_id,
+                func.max(journal.observed_at).label("observed_at"),
+            )
+            .where(
+                journal.source_table.in_(("corporate_actions", "dividend_events")),
+                journal.payload["stock_id"].astext.in_(str(stock_id) for stock_id in stock_ids),
+            )
+            .group_by(journal.source_table, journal.source_row_id)
+            .subquery()
+        )
+        result: dict[UUID, list[dict]] = {}
+        for model, date_field in (
+            (CorporateAction, "effective_date"),
+            (DividendEvent, "ex_dividend_date"),
+        ):
+            statement = (
+                select(model, revisions.c.observed_at)
+                .outerjoin(
+                    revisions,
+                    and_(
+                        revisions.c.source_table == model.__tablename__,
+                        revisions.c.source_row_id == cast(model.id, String),
+                    ),
+                )
+                .where(model.stock_id.in_(stock_ids))
+            )
+            for row, observed_at in (await self.session.execute(statement)).all():
+                event_date = getattr(row, date_field)
+                observation = canonicalize_audit_value(
+                    {
+                        "event_id": row.id,
+                        "kind": model.__tablename__,
+                        "effective_date": event_date,
+                        "known_at": row.created_at,
+                        "revision_observed_at": observed_at or row.updated_at,
+                        "source": row.source,
+                        "values": {
+                            column.key: getattr(row, column.key)
+                            for column in model.__table__.columns
+                            if column.key not in {"metadata", "id", "stock_id"}
+                        },
+                    }
+                )
+                result.setdefault(row.stock_id, []).append(observation)
+        return {
+            key: sorted(value, key=lambda row: str(row["event_id"]))
+            for key, value in result.items()
+        }
+
+    async def get_latest_decision_publication(self, *, exchange: ExchangeCode):
+        publication, _ = await self.get_decision_publication_context(exchange=exchange)
+        return publication
+
+    async def get_decision_publication_context(self, *, exchange: ExchangeCode):
+        from app.modules.market_data.published_generation import (
+            resolve_finalized_decision_generation,
+        )
+        from app.modules.trading_intelligence.decision_snapshot_repository import (
+            DecisionSnapshotRepository,
+        )
+        context = await resolve_finalized_decision_generation(self, exchange=exchange)
+        publication = await DecisionSnapshotRepository(self.session).latest_publication(
+            exchange=exchange, generation_id=context.sync_id if context else None,
+        )
+        return publication, context
+
+    async def finalized_input_revision(self, *, exchange: ExchangeCode, end_date: date) -> str:
+        """Fingerprint revisions to prices, events, membership and regime."""
+        from app.core.audit_hashing import stable_audit_hash
+        stamps = []
+        for model, predicate in (
+            (DailyPrice, DailyPrice.trade_date <= end_date),
+            (CorporateAction, CorporateAction.effective_date <= end_date),
+            (DividendEvent, DividendEvent.ex_dividend_date <= end_date),
+        ):
+            statement = select(func.max(model.updated_at), func.count(model.id)).join(
+                Stock, Stock.id == model.stock_id,
+            ).where(Stock.exchange == exchange, predicate)
+            stamps.append(tuple((await self.session.execute(statement)).one()))
+        stamps.append(
+            tuple(
+                (
+                    await self.session.execute(
+                        select(func.max(Stock.updated_at), func.count(Stock.id)).where(
+                            Stock.exchange == exchange,
+                        )
+                    )
+                ).one()
+            )
+        )
+        stamps.append(
+            tuple(
+                (
+                    await self.session.execute(
+                        select(
+                            func.max(DailyMarketSummary.updated_at),
+                            func.count(DailyMarketSummary.id),
+                        ).where(
+                            DailyMarketSummary.exchange == exchange,
+                            DailyMarketSummary.trade_date <= end_date,
+                        )
+                    )
+                ).one()
+            )
+        )
+        # The append-only journal catches changes even when source updated_at is
+        # reused or backdated. Exclude provisional future sessions from decision identity.
+        journal = TradingSourceObservation
+        stock_ids = select(cast(Stock.id, String)).where(Stock.exchange == exchange)
+        relevant_source = or_(
+            and_(
+                journal.source_table.in_(("daily_prices", "corporate_actions", "dividend_events")),
+                journal.payload["stock_id"].astext.in_(stock_ids),
+                journal.session_date <= end_date,
+            ),
+            and_(
+                journal.source_table == "daily_market_summaries",
+                journal.payload["exchange"].astext == exchange.value,
+                journal.session_date <= end_date,
+            ),
+            and_(
+                journal.source_table == "stocks",
+                journal.payload["exchange"].astext == exchange.value,
+            ),
+        )
+        stamps.append(
+            tuple(
+                (
+                    await self.session.execute(
+                        select(func.max(journal.observed_at), func.count(journal.id)).where(
+                            relevant_source,
+                        )
+                    )
+                ).one()
+            )
+        )
+        return stable_audit_hash(stamps)
 
     async def get_daily_price_by_stock_date(
         self,

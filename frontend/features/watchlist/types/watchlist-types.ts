@@ -42,7 +42,6 @@ export type WatchlistRowViewModel = {
   trendDirection: TrendDirection;
   actionLabel: DecisionDisplayAction | null;
   entryCondition: string | null;
-  lastUpdatedLabel: string;
   unrealizedGainLabel: string | null;
   isNewSignal: boolean;
   previousActionLabel: DecisionDisplayAction | null;

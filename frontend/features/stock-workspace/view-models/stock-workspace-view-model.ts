@@ -1,3 +1,5 @@
+import { evidenceLabel } from "@/lib/market/decision-presentation";
+import type { DecisionPublication, QuotePublication } from "@/components/ui/market-publication-label";
 import type { BackendDailyPriceDto, BackendStockDto } from "@/lib/api/backend-api-types";
 import type { DisplayMetricsDto, StockDecisionSupportDto } from "@/lib/api/stock-decision-support-types";
 import { formatCompactNumber, formatNumber, formatPercent } from "@/lib/formatters/financial-formatters";
@@ -18,6 +20,8 @@ export type StockWorkspaceModel = {
     latestPrice: string;
     changePercent: string;
     marketCap: string;
+    quotePublication?: QuotePublication | null;
+    decisionPublication?: DecisionPublication | null;
     /** Display-only chart/context signal from OHLCV helpers — not the page action. */
     chartContextSignal: string;
     chartContextConfidence: string;
@@ -205,7 +209,7 @@ export function buildStockWorkspaceModel(
   const support = decisionSupport?.support ?? intelligence?.support ?? null;
   const resistance = decisionSupport?.resistance ?? intelligence?.resistance ?? null;
   const latestPrice =
-    displayMetrics?.current_price != null
+    displayMetrics
       ? formatNumber(displayMetrics.current_price)
       : formatNumber(intelligence?.latestPrice);
 
@@ -219,12 +223,14 @@ export function buildStockWorkspaceModel(
       category: stock?.category ?? "N/A",
       listingDate: stock?.listing_date ?? null,
       latestPrice,
-      changePercent: formatPercent(intelligence?.priceChangePercent),
+      changePercent: formatPercent(displayMetrics?.price_change_percent ?? null),
       marketCap: resolveDisplayedMarketCap(stock, intelligence, decisionSupport, displayMetrics),
+      quotePublication: displayMetrics,
+      decisionPublication: decisionSupport,
       chartContextSignal:
         canonicalDecision?.display_action?.replace("_", " ") ?? "—",
       chartContextConfidence: canonicalDecision
-        ? `${canonicalDecision.evidence_strength ?? canonicalDecision.confidence}/100 evidence`
+        ? evidenceLabel(canonicalDecision.evidence_status)
         : "—",
     },
     technicalSummary: [

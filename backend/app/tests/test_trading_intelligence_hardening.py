@@ -288,14 +288,16 @@ def test_selected_canonical_golden_regression() -> None:
         "blocker_codes": result.blocker_codes,
         "primary_reason_code": result.primary_reason_code,
     }
+    # v3 adds symbol, finality, trade count and event/adjustment coverage to input identity.
+    # Action, evidence, quality and readiness expectations remain unchanged.
     assert actual == {
         "strategy_version": "trading-intelligence-v2",
         "threshold_version": "trading-thresholds-v3",
-        "input_schema_version": "trading-input-v2",
-        "data_revision": "db363fc0f5760b4b20a52d8142b635a87ad4b1d30747f9c3bd4ed49f5ff9b187",
-        "event_revision": "3ad061b2af20f48de19f53c1e1084967a7c2340aa1b798e2272e2ea75493d99e",
-        "input_hash": "b35c17a83fcc7e6e8c79653794daf1d818afd509f1740d9244dfdc15fc77ad85",
-        "shared_decision_id": "8ec230e1-a8f2-5499-b4c0-5726e23fdfd8",
+        "input_schema_version": "trading-input-v3",
+        "data_revision": "02f09d6253e95750417fa51c55525a0a6aac50190c8ecae43190e959d8646bca",
+        "event_revision": "0efae12fa38dee6c15534633110cb7998af2642fbae9574ed46673ea5475a168",
+        "input_hash": "d9245c030e1d7fd7b7741c735d8a5ad43cea9572eee6b518dc4b6cd6d7c6fea5",
+        "shared_decision_id": "73fd5176-233f-54f6-b3a1-97ff88f9cd29",
         "recommendation": "WAIT",
         "internal_action": "WAIT",
         "display_action": "WAIT",
@@ -307,7 +309,7 @@ def test_selected_canonical_golden_regression() -> None:
         "entry_readiness": "NOT_READY",
         "entry_timing": None,
         "blocker_codes": ("extended_momentum",),
-        "primary_reason_code": "fresh_entry_risk_block",
+        "primary_reason_code": "extended_momentum",
     }
 
 
@@ -408,11 +410,17 @@ async def test_different_generation_cache_cannot_bridge_finalized_generation(
         lambda exchange, **kwargs: rebuild_calls.append(exchange),
     )
 
-    with pytest.raises(UniverseCacheUnavailableError, match="finalized-sync is updating"):
+    with pytest.raises(
+        UniverseCacheUnavailableError, match=r"finalized-sync:[0-9a-f]+ is updating"
+    ):
         await service.get_scored_universe(exchange=ExchangeCode.DSE)
     assert rebuild_calls == [ExchangeCode.DSE]
     assert redis.requested_keys == [
-        universe_cache_key("scored", ExchangeCode.DSE, "finalized-sync")
+        universe_cache_key(
+            "scored",
+            ExchangeCode.DSE,
+            (await service.resolve_generation_context(exchange=ExchangeCode.DSE)).sync_id,
+        )
     ]
 
 

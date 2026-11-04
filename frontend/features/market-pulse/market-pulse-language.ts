@@ -131,6 +131,7 @@ export type MarketPulseLanguage = {
       reason: string,
       focusLabel: PulseFocusLabel,
     ) => string;
+    watchLevel: string;
     actionSummary: (summary: string) => string;
     trigger: (trigger: string) => string;
   };
@@ -293,6 +294,7 @@ const marketPulseLanguage = {
       conviction: "Conviction",
       nextTrigger: "Next Trigger",
       reason: (reason) => reason,
+      watchLevel: "Watch level (observation)",
       actionSummary: (summary) => summary,
       trigger: (trigger) => trigger,
     },
@@ -641,6 +643,7 @@ const marketPulseLanguage = {
         return reason;
       },
 
+      watchLevel: "পর্যবেক্ষণমূলক স্তর",
       actionSummary: (summary) => {
         const copy: Record<string, string> = {
           "Volume expanding faster than price":
@@ -775,7 +778,7 @@ const marketPulseLanguage = {
         }
 
         if (type === "sector-rotation") {
-          return "একই sector-এর একাধিক eligible শেয়ারে একই দিকের price move আছে।";
+          return "শুধু +০.৪%-এর বেশি বাড়া eligible শেয়ারগুলোর গড়; পুরো sector-এর গড় নয়।";
         }
 
         if (type === "pulse-score-jump") {

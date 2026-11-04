@@ -23,6 +23,7 @@ export function TraderDecisionCard({ decision, copy }: TraderDecisionCardProps) 
     <section className={`trader-decision-hero trader-decision-${decision.recommendationTone}`}>
       <span className="trader-decision-label">{copy.label}</span>
       <strong className="trader-decision-action">{decision.recommendation}</strong>
+      {decision.controllingReason ? <p className="trader-decision-subtle">{decision.controllingReason}</p> : null}
       {decision.entryCondition ? (
         <p className="trader-decision-subtle">{decision.entryCondition}</p>
       ) : null}

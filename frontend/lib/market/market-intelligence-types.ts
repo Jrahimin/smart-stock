@@ -1,5 +1,6 @@
 import type {
   BackendDailyPriceDto,
+  BackendScoredUniverseRowDto,
   BackendScannerConditionMatchDto,
   BackendStockDto,
   BackendTraderDecisionSummaryDto,
@@ -84,6 +85,9 @@ export type PersistedSignalContext = {
 };
 
 export type StockIntelligenceModel = {
+  displayQuote?: BackendScoredUniverseRowDto["display_quote"];
+  shortlist?: import("@/lib/api/backend-api-types").BackendShortlistDto | null;
+  previousFinalizedDecision?: import("@/lib/api/backend-api-types").BackendCanonicalDecisionResultDto | null;
   stock: BackendStockDto;
   prices: BackendDailyPriceDto[];
   candles: ChartCandleModel[];

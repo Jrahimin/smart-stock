@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
 from decimal import Decimal
+from math import isfinite
 from statistics import median
 
 from app.core.constants.trading_constants import (
-    ANALYTICAL_ADJUSTED_SERIES_ENABLED,
     ATR_PERIOD,
     DEFAULT_LONG_MOVING_AVERAGE_PERIOD,
     DEFAULT_RSI_PERIOD,
@@ -130,7 +131,7 @@ def is_valid_ohlc_row(price: DailyPrice) -> bool:
     # A zero in any OHLC field is a source placeholder for a no-trade /
     # unavailable observation, not a tradable price.  Keeping it in storage is
     # useful for source auditing, but it must not enter an analytical series.
-    if min(open_price, high, low, close) <= 0:
+    if not all(isfinite(value) and value > 0 for value in (open_price, high, low, close)):
         return False
     return high >= max(open_price, low, close) and low <= min(open_price, high, close)
 
@@ -436,20 +437,62 @@ class TechnicalSnapshot:
     analytical_price_basis: str = "RAW_UNADJUSTED"
     adjusted_close_coverage_ratio: float = 0.0
     volume_behavior: VolumeBehavior = VolumeBehavior.UNKNOWN
+    expected_session_count: int = 0
+    observed_session_count: int = 0
+    missing_session_count: int = 0
+    calendar_status: str = "OBSERVED_ROWS_ONLY"
 
 
-def build_technical_snapshot(prices: list[DailyPrice]) -> TechnicalSnapshot | None:
+def build_technical_snapshot(
+    prices: list[DailyPrice],
+    *,
+    exchange_session_dates: tuple[date, ...] | list[date] | None = None,
+    adjustment_coverage_verified: bool = False,
+) -> TechnicalSnapshot | None:
     if not prices:
         return None
 
     sorted_prices = sorted(prices, key=lambda price: price.trade_date)
     valid_prices = select_valid_ohlc_rows(sorted_prices)
     if not valid_prices:
-        return None
+        latest_raw = sorted_prices[-1]
+        expected = set(exchange_session_dates or [row.trade_date for row in sorted_prices])
+        observed = {row.trade_date for row in sorted_prices}
+        return TechnicalSnapshot(
+            latest_price=None,
+            previous_close=None,
+            price_change=None,
+            price_change_percent=None,
+            volume=latest_raw.volume,
+            average_volume=None,
+            turnover=None,
+            rsi=None,
+            sma20=None,
+            ema20=None,
+            volatility=None,
+            support=None,
+            resistance=None,
+            trend=TrendDirection.UNKNOWN,
+            data_quality=latest_raw.data_quality_flag,
+            latest_trade_date=latest_raw.trade_date.isoformat(),
+            ohlcv_row_count=0,
+            invalid_ohlcv_row_count=len(sorted_prices),
+            latest_row_valid=False,
+            zero_volume_session_count=sum(row.volume == 0 for row in sorted_prices),
+            expected_session_count=len(expected),
+            observed_session_count=len(observed & expected),
+            missing_session_count=len(expected - observed),
+            calendar_status="EXCHANGE_SESSIONS" if exchange_session_dates else "OBSERVED_ROWS_ONLY",
+        )
 
+    calendar = set(exchange_session_dates or ())
+    observed_dates = {row.trade_date for row in sorted_prices}
+    expected_dates = calendar or observed_dates
+    observed = [row for row in sorted_prices if row.trade_date in expected_dates]
+    traded_count = sum(1 for row in observed if row.volume > 0 and is_valid_ohlc_row(row))
     latest = valid_prices[-1]
     adjusted_coverage = _adjusted_close_coverage(valid_prices)
-    use_adjusted_close = ANALYTICAL_ADJUSTED_SERIES_ENABLED and adjusted_coverage == 1.0
+    use_adjusted_close = adjustment_coverage_verified and adjusted_coverage == 1.0
     analytical_rows = [
         _analytical_ohlc(price, use_adjusted_close=use_adjusted_close) for price in valid_prices
     ]
@@ -537,9 +580,21 @@ def build_technical_snapshot(prices: list[DailyPrice]) -> TechnicalSnapshot | No
     return_5d = _return_percent(closes, RETURN_SHORT_LOOKBACK)
     return_20d = _return_percent(closes, RETURN_MEDIUM_LOOKBACK)
 
-    levels = resolve_levels(valid_prices, latest_price)
+    level_prices = valid_prices
+    if use_adjusted_close:
+        level_prices = [
+            DailyPrice(
+                trade_date=price.trade_date,
+                open_price=row[0],
+                high_price=row[1],
+                low_price=row[2],
+                close_price=row[3],
+            )
+            for price, row in zip(valid_prices, analytical_rows, strict=True)
+        ]
+    levels = resolve_levels(level_prices, latest_price)
     support, resistance = levels.support, levels.resistance
-    structure = classify_structure(detect_swing_points(valid_prices))
+    structure = classify_structure(detect_swing_points(level_prices))
 
     is_breakout = False
     if (
@@ -583,11 +638,15 @@ def build_technical_snapshot(prices: list[DailyPrice]) -> TechnicalSnapshot | No
         gap_frequency_percent=gap_frequency_percent,
         invalid_ohlcv_row_count=len(sorted_prices) - len(valid_prices),
         latest_row_valid=is_valid_ohlc_row(sorted_prices[-1]),
-        traded_session_count=sum(1 for price in valid_prices if price.volume > 0),
-        zero_volume_session_count=sum(1 for price in valid_prices if price.volume == 0),
+        traded_session_count=traded_count,
+        zero_volume_session_count=sum(1 for price in observed if price.volume == 0),
         traded_session_ratio=(
-            sum(1 for price in valid_prices if price.volume > 0) / len(valid_prices)
+            traded_count / len(expected_dates) if expected_dates else 0.0
         ),
+        expected_session_count=len(expected_dates),
+        observed_session_count=len(observed_dates & expected_dates),
+        missing_session_count=len(expected_dates - observed_dates),
+        calendar_status="EXCHANGE_SESSIONS" if calendar else "OBSERVED_ROWS_ONLY",
         volume_observation_count=len(volume_window),
         median_turnover=median_turnover,
         turnover_observation_count=len(turnover_window),

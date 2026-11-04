@@ -35,6 +35,7 @@ from app.modules.stock_details.decision.evidence import (
     compute_data_reliability,
     compute_directional_evidence,
     compute_evidence_strength,
+    evidence_display_status,
 )
 from app.modules.stock_details.decision.market_regime import MarketRegimeResult
 from app.modules.stock_details.decision.risk import TradingRiskResult, compute_trading_risk
@@ -117,11 +118,17 @@ def compute_trader_decision(
     *,
     snapshot: TechnicalSnapshot | None = None,
 ) -> TraderDecisionBundle | None:
+    from app.core.enums import MarketDataState
+    if strategy_input.finality != MarketDataState.FINALIZED:
+        raise ValueError("Canonical engine rejects provisional sessions")
     sorted_prices = list(strategy_input.prices)
 
     decision_prices = sorted_prices[-DECISION_RECOMMENDATION_LOOKBACK:]
     resolved_snapshot = (
-        snapshot if snapshot is not None else build_technical_snapshot(decision_prices)
+        snapshot if snapshot is not None else build_technical_snapshot(
+            decision_prices, exchange_session_dates=strategy_input.exchange_session_dates,
+            adjustment_coverage_verified=strategy_input.adjustment_coverage == "VERIFIED"
+        )
     )
     if resolved_snapshot is None:
         return None
@@ -132,6 +139,7 @@ def compute_trader_decision(
         category=strategy_input.category,
         is_active=strategy_input.is_active,
         exchange_session_dates=strategy_input.exchange_session_dates,
+        event_coverage_status=strategy_input.event_coverage_status,
         known_corporate_action_dates=(
             set(strategy_input.known_corporate_action_dates)
             if strategy_input.known_corporate_action_dates
@@ -238,6 +246,7 @@ def compute_trader_decision(
         strategy_input,
         recommendation=decision.recommendation,
         evidence_strength=evidence_strength.score,
+        evidence_status=evidence_display_status(eligibility, directional_evidence),
         opportunity_score=opportunity.score,
         opportunity_quality=opportunity_quality.quality,
         entry_readiness=trade_plan.entry_readiness,

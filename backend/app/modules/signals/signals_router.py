@@ -39,6 +39,9 @@ async def list_latest_trader_decisions(
             stock=row.stock,
             decision=row.decision,
             latest_trade_date=row.latest_trade_date,
+            decision_generation_id=row.decision_generation_id,
+            decision_status=row.decision_status,
+            shortlist=row.shortlist,
         )
         for row in rows
     ]

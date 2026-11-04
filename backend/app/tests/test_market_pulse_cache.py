@@ -136,7 +136,7 @@ def _snapshot(
     sync_id: str = MARKET_SYNC_ID,
     data_state: MarketDataState = MarketDataState.LIVE,
 ):
-    return SimpleNamespace(
+    return SimpleNamespace(updating=False,
         generation=SimpleNamespace(
             sync_id=sync_id,
             trade_date=DECISION_DATE,

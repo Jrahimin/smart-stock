@@ -32,6 +32,9 @@ export type BackendMarketFreshnessDto = {
   exchange: ExchangeCode;
   trade_date: string | null;
   last_synced_at: string | null;
+  decision_generation_id?: string | null;
+  decision_status?: "CURRENT" | "UPDATING" | "UNAVAILABLE";
+  quote_generation_id?: string | null;
   market_sync_id?: string | null;
   data_state?: MarketDataState;
   decision_session_date?: string | null;
@@ -121,6 +124,7 @@ export type BackendTraderDecisionSummaryDto = {
   opportunity_score: number;
   risk_label: "LOW" | "MEDIUM" | "HIGH" | "SPECULATIVE";
   confidence_semantics?: "HEURISTIC_EVIDENCE";
+  evidence_status?: "UNAVAILABLE" | "MIXED" | "BULLISH" | "BEARISH";
   evidence_strength?: number | null;
   evidence_strength_semantics?: "HEURISTIC_DIRECTIONAL_EVIDENCE";
   primary_reason?: string | null;
@@ -211,6 +215,7 @@ export type BackendTradingRiskDto = {
 };
 
 export type BackendStockTraderDecisionDto = {
+  shortlist?: BackendShortlistDto | null;
   stock: BackendStockDto;
   decision: BackendTraderDecisionSummaryDto;
   latest_trade_date: string | null;
@@ -310,7 +315,12 @@ export type BackendScannerResultDto = {
   matches: BackendScannerConditionMatchDto[];
 };
 
+export type BackendShortlistDto = { version: string; entry_rank: number; holder_exit_rank: number; risk_rank: number; volume_rank: number };
+
 export type BackendScoredUniverseRowDto = {
+  display_quote?: { current_price: number | null; price_change?: number | null; price_change_percent?: number | null; as_of_trade_date?: string | null; observation_session_date?: string | null; observation_status: string } | null;
+  shortlist?: BackendShortlistDto | null;
+  previous_finalized_decision?: BackendCanonicalDecisionResultDto | null;
   stock: BackendStockDto;
   technical_snapshot: BackendTechnicalSnapshotDto;
   decision: BackendTraderDecisionSummaryDto | null;
@@ -320,6 +330,9 @@ export type BackendScoredUniverseRowDto = {
 };
 
 export type BackendUniverseRowsMetaDto = {
+  decision_generation_id?: string | null;
+  quote_generation_id?: string | null;
+  decision_status?: "CURRENT" | "UPDATING" | "UNAVAILABLE";
   exchange: ExchangeCode;
   listed_stock_count: number;
   session_trade_date: string | null;
@@ -398,6 +411,9 @@ export type BackendDashboardMoverDto = {
 
 export type BackendDashboardMoversDto = {
   session_trade_date: string | null;
+  decision_generation_id?: string | null;
+  decision_status?: "CURRENT" | "UPDATING" | "UNAVAILABLE";
+  quote_generation_id?: string | null;
   market_sync_id?: string | null;
   gainers: BackendDashboardMoverDto[];
   losers: BackendDashboardMoverDto[];
@@ -409,6 +425,9 @@ export type BackendDashboardOverviewDto = {
   exchange: ExchangeCode;
   session_trade_date: string | null;
   last_synced_at: string | null;
+  decision_generation_id?: string | null;
+  decision_status?: "CURRENT" | "UPDATING" | "UNAVAILABLE";
+  quote_generation_id?: string | null;
   market_sync_id?: string | null;
   listed_stock_count: number;
   dsex_index: BackendDsexIndexSnapshotDto;
@@ -423,6 +442,9 @@ export type BackendDashboardSectorDto = {
 
 export type BackendDashboardSectorsDto = {
   session_trade_date: string | null;
+  decision_generation_id?: string | null;
+  decision_status?: "CURRENT" | "UPDATING" | "UNAVAILABLE";
+  quote_generation_id?: string | null;
   market_sync_id?: string | null;
   sectors: BackendDashboardSectorDto[];
   top_gainer: {
@@ -440,6 +462,9 @@ export type BackendDashboardTimelineItemDto = {
 
 export type BackendDashboardMarketAlertsDto = {
   session_trade_date: string | null;
+  decision_generation_id?: string | null;
+  decision_status?: "CURRENT" | "UPDATING" | "UNAVAILABLE";
+  quote_generation_id?: string | null;
   market_sync_id?: string | null;
   items: BackendDashboardTimelineItemDto[];
 };
@@ -480,6 +505,9 @@ export type BackendDashboardHeatmapTileDto = {
 
 export type BackendDashboardHeatmapDto = {
   session_trade_date: string | null;
+  decision_generation_id?: string | null;
+  decision_status?: "CURRENT" | "UPDATING" | "UNAVAILABLE";
+  quote_generation_id?: string | null;
   market_sync_id?: string | null;
   tiles: BackendDashboardHeatmapTileDto[];
 };
@@ -496,6 +524,9 @@ export type BackendDashboardInsightDto = {
 export type BackendDashboardMarketSentimentDto = {
   exchange: ExchangeCode;
   session_trade_date: string | null;
+  decision_generation_id?: string | null;
+  decision_status?: "CURRENT" | "UPDATING" | "UNAVAILABLE";
+  quote_generation_id?: string | null;
   market_sync_id?: string | null;
   market_mood: string;
   signal_count: number;
@@ -663,6 +694,8 @@ export type BackendPortfolioWorkspaceDto = {
   meta: {
     exchange: ExchangeCode;
     market_sync_id: string | null;
+    decision_session_date?: string | null;
+    decision_status?: string;
     published_market_date: string | null;
     live_data_as_of: string | null;
     data_state: MarketDataState;
@@ -724,6 +757,7 @@ export type BackendPortfolioWatchlistSuggestionDto = {
   sector: string | null;
   current_price: string | null;
   price_change_percent: string | null;
+  display_quote?: BackendScoredUniverseRowDto["display_quote"];
   action: DecisionDisplayAction;
   trend: string;
   risk: "LOW" | "MEDIUM" | "HIGH" | "SPECULATIVE" | null;
@@ -780,6 +814,12 @@ export type BackendPulseScoreBreakdownDto = {
 };
 
 export type BackendFocusStockDto = {
+  entry_readiness?: string;
+  controlling_reason_code?: string | null;
+  controlling_reason?: string | null;
+  decision_session_date?: string | null;
+  watch_level?: number | null;
+  actionable_trigger?: boolean;
   rank: number;
   stock_id: string;
   symbol: string;
@@ -996,6 +1036,9 @@ export type BackendMarketSummaryDto = {
 };
 
 export type BackendMarketBriefingDto = {
+  decision_generation_id?: string | null;
+  market_sync_id?: string | null;
+  decision_status?: string;
   story: BackendMarketStoryDto;
   state: BackendMarketStateDto;
   money_flow: BackendMoneyFlowDto;
@@ -1021,6 +1064,9 @@ export type BackendMarketPulseDto = {
   data_quality_note: string | null;
   coverage?: BackendPulseCoverageDto | null;
   last_synced_at?: string | null;
+  decision_generation_id?: string | null;
+  decision_status?: "CURRENT" | "UPDATING" | "UNAVAILABLE";
+  quote_generation_id?: string | null;
   market_sync_id?: string | null;
   data_state?: MarketDataState;
 };

@@ -7,6 +7,7 @@ import { useMemo, useState } from "react";
 import { WorkspacePageHero } from "@/components/layout/workspace-page-hero";
 import { MarketActivityLoader } from "@/components/ui/market-activity-loader";
 import { SignalBadge } from "@/components/ui/signal-badge";
+import { DecisionPublicationLabel, QuotePublicationLabel } from "@/components/ui/market-publication-label";
 import { WatchlistPriceCell } from "@/features/watchlist/components/watchlist-price-cell";
 import { WatchlistRowActions } from "@/features/watchlist/components/watchlist-row-actions";
 import { useUserWatchlist } from "@/features/watchlist/hooks/use-user-watchlist";
@@ -25,10 +26,11 @@ import {
 import { useEnrichedUniverseIntelligence } from "@/hooks/market/use-enriched-universe-intelligence";
 import { resolveWatchlistStockIntelligence } from "@/lib/market/universe-intelligence";
 import { buildStockDetailPath } from "@/lib/seo/stock-page-seo";
+import { DEFAULT_LOCALE, type AppLocale } from "@/lib/locale/app-locale";
 
-export function WatchlistView() {
+export function WatchlistView({ locale = DEFAULT_LOCALE }: { locale?: AppLocale }) {
   const { items, summary, isLoading, isError } = useUserWatchlist();
-  const { intelligenceByStockId, isLoading: universeLoading } = useEnrichedUniverseIntelligence({
+  const { intelligenceByStockId, isLoading: universeLoading, decisionPublication } = useEnrichedUniverseIntelligence({
     stockLimit: 500,
   });
   const updateMutation = useWatchlistItemUpdate();
@@ -290,6 +292,7 @@ export function WatchlistView() {
                           </span>
                         ) : null}
                       </div>
+                      <DecisionPublicationLabel decision={decisionPublication} locale={locale} />
                     </div>
                     <div className="watchlist-cell watchlist-numeric-cell" role="cell">
                       {row.rsiLabel}
@@ -298,7 +301,7 @@ export function WatchlistView() {
                       <span className={`watchlist-trend-badge watchlist-trend-${row.trendTone}`}>{row.trendLabel}</span>
                     </div>
                     <div className="watchlist-cell watchlist-updated-cell" role="cell">
-                      {row.lastUpdatedLabel}
+                      <QuotePublicationLabel locale={locale} quote={row.intelligence?.displayQuote} />
                     </div>
                   </div>
                 );

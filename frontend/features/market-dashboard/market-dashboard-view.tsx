@@ -19,6 +19,7 @@ import { MarketMoversPanel } from "@/features/market-dashboard/components/market
 import { MarketDashboardHeader, MarketPulsePanel } from "@/features/market-dashboard/components/market-pulse-header";
 import { MarketTimeline } from "@/features/market-dashboard/components/market-timeline";
 import { SmartSignalFeed } from "@/features/market-dashboard/components/smart-signal-feed";
+import { DecisionPublicationLabel } from "@/components/ui/market-publication-label";
 import { useMarketDashboard } from "@/features/market-dashboard/hooks/use-market-dashboard";
 import type { DashboardCorePayload } from "@/lib/api/dashboard-server";
 import type { AppLocale } from "@/lib/locale/app-locale";
@@ -31,7 +32,7 @@ type MarketDashboardViewProps = {
 
 export function MarketDashboardView({ initialCore = null, locale = DEFAULT_LOCALE }: MarketDashboardViewProps) {
   const language = getDashboardLanguage(locale);
-  const { model, isError, sectionLoading, signalsSectionError, signalsSectionWarmingUp } = useMarketDashboard({
+  const { model, isError, sectionLoading, signalsSectionError, signalsSectionWarmingUp, signalsPublication } = useMarketDashboard({
     initialCore,
     locale,
   });
@@ -148,6 +149,7 @@ export function MarketDashboardView({ initialCore = null, locale = DEFAULT_LOCAL
                 <h2>{language.signals.title}</h2>
               </div>
               <div className="empty-state">{language.signals.warmup}</div>
+              <DecisionPublicationLabel decision={signalsPublication} locale={locale} />
             </section>
           ) : sectionLoading.signals ? (
             <SmartSignalFeedSkeleton eyebrow={language.signals.eyebrow} title={language.signals.title} />
@@ -160,7 +162,7 @@ export function MarketDashboardView({ initialCore = null, locale = DEFAULT_LOCAL
               <div className="empty-state">{language.signals.warmup}</div>
             </section>
           ) : (
-            <SmartSignalFeed copy={language.signals} signals={model.signals} />
+            <SmartSignalFeed copy={language.signals} decision={signalsPublication} locale={locale} signals={model.signals} />
           )}
         </div>
         <div className="dashboard-tertiary-column">

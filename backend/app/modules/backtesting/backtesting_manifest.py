@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+from hashlib import sha256
+from pathlib import Path
 from typing import Any
 
 from app.core.audit_hashing import stable_audit_hash
 from app.core.constants.trading_constants import (
     DECISION_TAXONOMY_VERSION,
     TRADING_INPUT_SCHEMA_VERSION,
-    TRADING_REPLAY_MANIFEST_VERSION,
 )
 from app.models import DailyMarketSummary
 from app.modules.backtesting.backtesting_models import (
@@ -18,6 +19,8 @@ from app.modules.backtesting.backtesting_models import (
     ReplayObservation,
 )
 from app.modules.stock_details.decision.lineage import daily_price_audit_payload
+
+TRADING_REPLAY_MANIFEST_VERSION = "trading-replay-manifest-v3"
 
 
 def _market_summary_payload(summary: DailyMarketSummary) -> dict[str, Any]:
@@ -36,6 +39,9 @@ def _market_summary_payload(summary: DailyMarketSummary) -> dict[str, Any]:
         "unchanged_issues": summary.unchanged_issues,
         "market_cap": summary.market_cap,
         "source": summary.source,
+        "created_at": summary.created_at,
+        "updated_at": summary.updated_at,
+        "is_finalized": summary.is_finalized,
         "has_suspicious_prices": summary.has_suspicious_prices,
         "data_quality_flag": summary.data_quality_flag,
     }
@@ -62,6 +68,16 @@ def build_dataset_revision(dataset: BacktestDataset) -> str:
                 "corporate_action_dates": history.corporate_action_dates,
                 "suspension_dates": history.suspension_dates,
                 "circuit_locked_dates": history.circuit_locked_dates,
+                "execution_rules": history.execution_rules,
+                "corporate_actions": history.corporate_actions,
+                "event_observations": history.event_observations,
+                "captured_inputs": history.captured_inputs,
+                "observed_at": [row.updated_at for row in history.prices],
+                "coverage": (
+                    history.event_coverage_verified,
+                    history.point_in_time_verified,
+                    history.instrument_history_verified,
+                ),
             }
         )
     return stable_audit_hash(
@@ -86,11 +102,30 @@ def build_replay_manifest(
     dataset: BacktestDataset,
     observations: tuple[ReplayObservation, ...],
     outcomes: tuple[ForwardOutcome, ...],
+    audit: dict | None = None,
+    research: dict | None = None,
 ) -> ReplayManifest:
     config_hash = stable_audit_hash(asdict(config))
     dataset_revision = build_dataset_revision(dataset)
     observation_revision = stable_audit_hash(observations)
     outcome_revision = stable_audit_hash(outcomes)
+    selection_revision = stable_audit_hash(audit or {})
+    research_revision = stable_audit_hash(research or {})
+    modules = Path(__file__).resolve().parents[1]
+    source_files = sorted(
+        [
+            *(modules / "stock_details" / "decision").glob("*.py"),
+            *(modules / "backtesting").glob("*.py"),
+            modules / "market_universe" / "shortlist.py",
+            modules.parent / "core" / "constants" / "trading_constants.py",
+        ]
+    )
+    source_revision = stable_audit_hash(
+        {
+            str(path.relative_to(modules.parent)): sha256(path.read_bytes()).hexdigest()
+            for path in source_files
+        }
+    )
     identity = {
         "schema_version": TRADING_REPLAY_MANIFEST_VERSION,
         "strategy_version": config.strategy_version,
@@ -102,6 +137,10 @@ def build_replay_manifest(
         "observation_revision": observation_revision,
         "outcome_revision": outcome_revision,
         "limitations": dataset.limitations,
+        "replay_version": config.replay_version,
+        "selection_revision": selection_revision,
+        "research_revision": research_revision,
+        "engine_source_revision": source_revision,
     }
     return ReplayManifest(
         schema_version=TRADING_REPLAY_MANIFEST_VERSION,
@@ -115,6 +154,10 @@ def build_replay_manifest(
         outcome_revision=outcome_revision,
         manifest_id=stable_audit_hash(identity),
         limitations=dataset.limitations,
+        replay_version=config.replay_version,
+        selection_revision=selection_revision,
+        research_revision=research_revision,
+        engine_source_revision=source_revision,
     )
 
 
@@ -134,9 +177,9 @@ def replay_manifest_mismatches(
         "observation_revision",
         "outcome_revision",
         "manifest_id",
+        "replay_version",
+        "selection_revision",
+        "research_revision",
+        "engine_source_revision",
     )
-    return tuple(
-        field
-        for field in fields
-        if expected.get(field) != actual_values[field]
-    )
+    return tuple(field for field in fields if expected.get(field) != actual_values[field])

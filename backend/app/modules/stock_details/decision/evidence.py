@@ -299,3 +299,16 @@ def data_reliability_from_flags(*, is_stale: bool, is_sparse: bool) -> DataRelia
         reason_codes=reasons,
         explanation="Compatibility reliability projection from stale/sparse flags.",
     )
+
+
+def evidence_display_status(
+    eligibility: EligibilityResult, evidence: DirectionalEvidenceResult
+) -> str:
+    """Semantic display, never a calibrated success probability."""
+    if not eligibility.allows_fresh_decision:
+        return "UNAVAILABLE"
+    if evidence.direction == EvidenceDirection.BULLISH:
+        return "BULLISH"
+    if evidence.direction == EvidenceDirection.BEARISH:
+        return "BEARISH"
+    return "MIXED"

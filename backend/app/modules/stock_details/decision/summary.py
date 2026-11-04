@@ -26,6 +26,7 @@ def build_trader_decision_summary(bundle: TraderDecisionBundle) -> TraderDecisio
         opportunity_score=bundle.opportunity.score,
         risk_label=bundle.risk.label,
         evidence_strength=bundle.decision.evidence_strength,
+        evidence_status=canonical.evidence_status if canonical else "UNAVAILABLE",
         primary_reason=bundle.decision.primary_reason,
         primary_reason_code=bundle.decision.primary_reason_code,
         stance=bundle.decision.stance,

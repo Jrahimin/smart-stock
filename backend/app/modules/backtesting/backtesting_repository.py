@@ -122,16 +122,9 @@ class BacktestingRepository:
                 key=lambda item: (stock_by_id[item].symbol.casefold(), str(item)),
             )
         )
-        session_dates = tuple(
-            sorted(
-                {
-                    price.trade_date
-                    for history in histories
-                    for price in history.prices
-                    if config.start_date <= price.trade_date <= config.end_date
-                }
-            )
-        )
+        # Calendar denominator comes from finalized exchange evidence, including dates on
+        # which a stock (or the entire loaded price table) has no row. Preserve warmup dates.
+        session_dates = finalized_session_dates
 
         adjusted_count = sum(
             price.adjusted_close_price is not None
@@ -139,6 +132,8 @@ class BacktestingRepository:
             for price in history.prices
         )
         limitations = [
+            "Historical price revisions, immutable capture coverage, rule evidence and "
+            "event knowledge times are unverified. Promotion is blocked.",
             "Replay observations include only explicitly finalized exchange sessions.",
             "Historical exchange membership is reconstructed from observed price rows; "
             "deleted securities cannot be recovered.",

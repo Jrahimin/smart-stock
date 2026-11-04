@@ -1,116 +1,169 @@
-# Practical Point-in-Time Backtesting
+# Corrected replay and shadow research
 
-## Scope
+The existing read-only `app.scripts.run_trading_backtest` runs the unchanged shared
+Phase 1 decision engine. Phase 2 changes research execution and measurement; it
+neither changes production ranking nor relaxes live safeguards. The earlier
+replay is available in Git history for diagnostics, not as a valid comparator.
 
-The Phase 6 backtest is a read-only research path over the same versioned
-canonical engine used by live stock decisions. It is deliberately smaller than
-an institutional research platform. It produces aggregate JSON and does not
-change live signals, caches, API responses, or frontend layout.
+## Running and freezing
 
-Run from `backend/`:
-
-```powershell
-python -m app.scripts.run_trading_backtest `
-  --exchange DSE `
-  --start 2026-01-01 `
-  --end 2026-07-14 `
-  --one-way-cost-bps 50 `
-  --order-value-bdt 100000 `
-  --maximum-turnover-fraction 0.01 `
-  --output .artifacts/backtest-dse.json `
-  --manifest-output .artifacts/backtest-dse.manifest.json
-```
-
-`--end` is the research data cutoff. The replay automatically reserves the
-last maximum-horizon sessions as an outcome tail, so they are never treated as
-signal dates.
-
-The cost, order-size, capacity, execution-price, and walk-forward assumptions
-are explicit inputs. The 50 bps default is a conservative research assumption,
-not a claim about any broker's current fee schedule; use an effective-dated
-verified value for a formal study.
-
-## Chronology and execution
-
-- Each decision receives only OHLCV rows, market summaries, exchange sessions,
-  and stored corporate-action dates available on or before `as_of_date`.
-- Current category is excluded from engine inputs by default because the table
-  is not effective-dated. `--use-current-category-proxy` is an explicit,
-  disclosed non-point-in-time sensitivity only.
-- A signal calculated from a session close can fill only on the next exchange
-  session open (or close when configured). It is never filled at the same close.
-- A missing stock bar, zero volume, known suspension, known circuit lock,
-  invalid price, or order above the configured turnover capacity records a
-  non-fill. The order is not carried forward automatically.
-- Forward outcomes use 3, 5, 10, and 20 exchange sessions. Missing/zero-volume
-  horizon bars remain unavailable rather than becoming flat returns.
-- `READY` and `CONTINUATION` opportunities use the next eligible session.
-  `PULLBACK` waits through the plan expiry for its entry zone. `BREAKOUT` waits
-  for a completed close above the trigger with required volume, then enters no
-  earlier than the following session. Conditional plans report
-  `EXPIRED_WITHOUT_ENTRY` or `INVALIDATED_BEFORE_ENTRY` instead of being treated
-  as flat trades.
-- A stored corporate action inside an unadjusted outcome window fails closed.
-  Same-day stop/target ordering is not inferred from daily bars.
-
-## Report
-
-The aggregate JSON contains:
-
-- a `trading-replay-manifest-v2` manifest with hashes of the explicit config,
-  complete loaded dataset, canonical observations, and forward outcomes;
-
-- action/eligibility coverage and exclusion counts;
-- machine-readable eligibility-reason counts, including empty-candidate failure
-  states rather than suppressed or relaxed safeguards;
-- 10-session `POTENTIAL_BUY` results beside price>SMA20,
-  price>SMA20>SMA50, RSI<30, and no-trade baselines;
-- modeled fill rate, net/excess return, hit rate, MFE, and MAE;
-- Pulse top-five precision/lift and Spearman rank information coefficient;
-- `POTENTIAL_BUY` timing cohorts at 3, 5, 10, and 20 sessions, including trigger
-  activation, expiry/invalidation, expectancy, MFE/MAE, and a clearly labeled
-  false-breakout proxy;
-- `POTENTIAL_BUY` results at every configured horizon stratified by market
-  regime, regime phase, entry timing, sector,
-  liquidity/capacity, traded-session coverage, and clearly labeled current
-  category snapshot, always with sample counts;
-- expanding or rolling chronological folds with max-horizon purging and a
-  final frozen test period;
-- a predeclared small sensitivity grid for costs and Pulse threshold;
-- a held-out Brier/reliability diagnostic for exactly: “positive DSEX-relative
-  return after modeled round-trip costs at 10 exchange sessions.”
-
-Evidence strength remains a heuristic score. The report never changes it to a
-production probability; `probability_exposed` remains false even when the
-diagnostic is favorable, pending stronger sample and stability review.
-
-## Reproducing a run
-
-Run the same command with the same explicit arguments and add:
+From `backend/`, a database-backed run (read-only, separately authorized) is:
 
 ```powershell
---verify-manifest .artifacts/backtest-dse.manifest.json
+python -m app.scripts.run_trading_backtest --start 2026-01-01 --end 2026-10-31 `
+  --output .artifacts/replay.json --manifest-output .artifacts/replay.manifest.json `
+  --dataset-output .artifacts/replay.inputs.json
 ```
 
-The command exits with code `2` and names every mismatched manifest component
-when the configuration, source dataset, strategy/threshold/input schema, replay
-observations, or outcomes changed. A successful check means the current stored
-inputs reproduce the prior run; it does not archive the raw database snapshot
-or prove future performance. Keep the full report and compact manifest together
-with any formal research result.
+An archived run requires no database connection:
 
-## Known data limitations
+```powershell
+python -m app.scripts.run_trading_backtest --start 2026-01-01 --end 2026-10-31 `
+  --dataset-input .artifacts/replay.inputs.json --verify-manifest .artifacts/replay.manifest.json `
+  --output .artifacts/reproduced.json
+```
 
-The report repeats runtime coverage limitations. In the current schema:
+Keep the raw archive, full report and manifest together. The manifest hashes
+configuration, raw prices/trade counts and observed timestamps, market summaries,
+captures, rules/actions, observations, selections, execution lifecycles, outcomes,
+research protocol/results, and owning decision/replay source. A mismatch exits 2.
+Changing replay source invalidates the frozen baseline; a matching manifest does
+not establish historical point-in-time completeness.
 
-- historical membership is reconstructed from observed price rows, so deleted
-  securities cannot be recovered;
-- category and sector are current snapshots, not effective-dated history;
-- suspension and circuit-lock history are absent;
-- corporate actions are only as complete as stored event rows;
-- adjusted closes may be absent, so known event windows fail closed;
-- benchmark summaries may cover fewer sessions than stock OHLCV.
+The database loader reads finalized exchange dates, including warmup dates and
+missing stock bars. It currently supplies retrospective snapshots, not a complete
+historical PIT archive. It deliberately declares rule/event/instrument/PIT
+coverage unverified. Historical effective dates without known-at timestamps do
+not become earlier event knowledge. Unknown action terms exclude affected returns.
 
-These gaps reduce coverage and defensibility. They are not silently imputed.
-The manifest includes the same limitations, so a matching hash never upgrades
-an incomplete point-in-time dataset into complete historical truth.
+## Execution and accounting
+
+Each strategy has a declared policy. Corrected-engine top five uses the backend
+Phase 1 shortlist key and canonical plan. SMA20, SMA50, RSI and Pulse diagnostics
+have their own next-session policies, not inherited conditional-plan fills.
+The no-trade comparator retains initial cash. Every selected row is persisted,
+including canonical WAIT, expired/invalidated plans and unavailable outcomes.
+
+`SELECTED`, `ACTIVATED`, `ORDER_ATTEMPT`, `FILLED`, ambiguity, invalidation,
+expiry, blocked sessions/exits and final exit are recorded separately. Fills
+record OPEN, INTRADAY or CLOSE from the actual order path. A pullback resting
+order opening inside its zone fills at the open; an intraday zone touch does
+not establish that the session high followed entry. It receives no favorable
+same-bar target. A trigger/zone and invalidation with unknown ordering remains
+ambiguous and unfilled. A completed breakout can enter only a later executable
+session within expiry. An already-open position touching stop and target exits
+at the stop; gap-through stops use the worse open. A close entry cannot use
+that day's earlier high/low. Missing, invalid and zero-volume bars cannot
+activate an exit; a pending or horizon exit stays pending across these bars
+and blocked sessions and uses the next executable open.
+
+Effective-dated `ExecutionRule` evidence includes known-at time, source revision,
+tick, lot, settlement and optional absolute price limits. Entry rechecks gap,
+rounded plan levels, capacity from prior decision turnover and cash debit.
+Unknown rules exclude execution by default. Two explicit unverified sensitivities
+bound tick/lot/settlement assumptions (0.1/1/T2 and 1/100/T3); these are not DSE
+rule claims. Known suspensions/circuit locks/no-trade bars block execution.
+A modeled exit that breaches a verified limit after slippage and tick rounding
+remains pending; the ledger credits no proceeds on that session.
+Unknown historical status/lock completeness continues to block promotion.
+
+`CorporateActionTerms` specifies share multiplier, cash per old share and pay date.
+Positions and stop/target units change with shares. Dividend entitlement is an
+equity receivable; it is spendable cash only at payment. A carried mark is
+rebased for the share multiplier and cash entitlement before valuing a missing
+or no-trade action-day bar. An unsupported carried action mark cannot establish
+verified drawdown. Adjusted-close presence
+alone never substitutes for share/cash terms. Unknown payment timing or unresolved
+positions makes completed portfolio results unsupported. Stale marks are counted.
+
+Defaults are BDT50k orders, BDT1m starting cash, no leverage and one position per
+symbol. Order sizes 25k/100k/250k, costs 25/50/75 bps each way and doubled liquidity
+slippage are rerun as sensitivities. The standard 50 bps cost is an assumption,
+not broker evidence. Drawdown is peak-to-trough marked portfolio equity, including
+cash, fees and corporate actions. Trade close-based MAE is reported separately.
+
+## Labels, partitions and denominators
+
+Selection quality always uses common signal-close to horizon-close total-return
+markouts, with the same modeled two-way costs and matching benchmark closes.
+Primary horizon is ten completed exchange sessions; 3/5/20 are diagnostic.
+These labels do not depend on activation or fills. Missing/invalid/immature
+outcomes remain missing and retain the selection denominator. Daily top-five
+precision/lift uses that day's eligible matched universe; rank IC is calculated
+within each day and averaged across days. Available-case metrics disclose counts.
+
+Open and intraday fills cannot use a same-day benchmark close as the entry
+benchmark. Matched policy excess requires an actual close fill and matched exit
+close. Fill-conditional
+outcomes and cash-inclusive portfolio performance are separate from markouts.
+
+Uncaptured replay builds each canonical decision from the production lookback
+for prices and the last 90 exchange sessions through the signal date. Missing
+and observed no-trade stock sessions still count in the exchange denominator.
+Replay restores archived canonical inputs as captured and retains the full
+dataset calendar for future execution, outcome maturity and folds.
+
+All observations, including the immature tail, appear in `all_descriptive`.
+Chronological folds and a default 60-date frozen test are formed from dates with
+enough future sessions for expiry plus the longest holding label. Training and
+pre-test validation rows are additionally purged on actual outcome end, including
+delayed fills and blocked exits. Unresolved labels cannot enter training. Every
+partition reports its own decisions, selection, execution, cohorts and capital
+ledger; sensitivities and challengers use the same discipline. No transformation
+is fitted or selected using holdout outcomes. Counts reconcile attempted
+instrument-sessions into warmup, missing bars, missing engine results and results,
+then eligibility, selection and execution. Audit rows preserve exclusions.
+
+## Frozen challengers and gates
+
+`backtesting_challengers.py:EXPERIMENT` declares four families: market/sector
+relative strength, five-session breadth persistence interacting with leadership,
+robust turnover/trade-count participation, and three-session follow-through with
+a predeclared exhaustion penalty. Four singletons, their equal-weight combination
+and four leave-one-out ablations are frozen before evaluation. Same-date
+percentile transformations require no fitting. A missing family value preserves
+the whole date's baseline ordering, keeps all names and blocks promotion for that
+variant. Corporate-action-affected raw feature windows require clean warmup.
+
+The replay archive labels its market summaries as retrospective snapshots and
+sector classifications as current metadata. These inputs do not establish
+what was known on an earlier signal date. Relative strength and breadth
+persistence stay unsupported until independent point-in-time inputs exist.
+Historical sector remains unknown in replay observations; ranking coverage
+and sector concentration cannot pass on the strength of canonical capture parity.
+The separate entry gate continues to evaluate its own rule, history and parity evidence.
+
+One separately versioned entry experiment tightens the gap bound to 2.5%; it keeps
+ranking, selections and canonical safeguards fixed. No regime relaxation is
+implemented. A regularized model, pattern increment and event-alpha experiment
+are explicitly NOT_FIT/unsupported until suitable PIT features and a new frozen
+training protocol exist. No winning model is claimed.
+
+Ranking and entry promotion gates are independent. Ranking requires 60 mature
+dates, 200 evaluable selections, at least 0.25 percentage points net excess gain,
+at least 10% relative precision improvement and positive paired uncertainty.
+Liquidity, concentration, coverage and turnover safeguards are predeclared.
+Entry requires 60 mature dates and 200 actual portfolio-accepted filled outcomes,
+positive cash-inclusive paired gain, no greater portfolio drawdown, and no
+sufficiently sampled regime/liquidity cohort losing over 0.5 percentage points or
+five fill-rate points. All unfilled attempts remain in denominators; WAIT is
+reported by controlling reason. Sparse cohorts are inconclusive.
+
+Uncertainty is a deterministic paired bootstrap of nonoverlapping 20-date block
+means (2,000 replicates, fixed seed); fewer than three complete blocks is
+unsupported. Both gates require verified PIT/events/rules/instrument coverage,
+zero observed same-input parity failures with actual reference comparisons, no
+safeguard bypass and prospective shadow confirmation. `UNSUPPORTED`, `REJECTED`,
+`SHADOW` and `PROMOTION_ELIGIBLE` are separate results; `promoted` is always false.
+Prospective shadow evidence is never fabricated by this offline runner. It does
+not expose calibrated probabilities or change any production release.
+
+## Local implementation acceptance
+
+Meaningful independent fixtures cover ordering ambiguity, next executable entry,
+policy-specific baselines, tick/lot/capacity/gap checks, settlement and locks,
+splits/cash dividends, benchmark alignment, independent selection denominators,
+portfolio drawdown, actual-end purging, captured-input replay and frozen gates.
+See `trading_intelligence_phase2.md` for local evidence and remaining acceptance.
+No production database, provider, migration, browser, deployment or prospective
+shadow action was performed as part of local Phase 2 implementation.

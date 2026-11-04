@@ -4,9 +4,9 @@ import { notFound } from "next/navigation";
 
 import { JsonLdScript } from "@/components/seo/json-ld-script";
 import { TerminalAppShell } from "@/components/layout/terminal-app-shell";
+import { DecisionPublicationLabel } from "@/components/ui/market-publication-label";
 import type { ExchangeCode } from "@/lib/api/backend-api-types";
 import { loadStockWorkspace } from "@/lib/api/stock-detail-server";
-import { StockDurableSummary } from "@/features/stock-workspace/components/stock-durable-summary";
 import { StockDetailWorkspaceView } from "@/features/stock-workspace/stock-detail-workspace-view";
 import { buildStockDecisionViewModel } from "@/features/stock-workspace/view-models/stock-decision-view-model";
 import { buildStockSemanticSummary } from "@/features/stock-workspace/view-models/stock-semantic-summary-view-model";
@@ -96,6 +96,18 @@ export default async function StockDetailPage({ params }: StockDetailPageProps) 
   }
 
   if (result.status === "error") {
+    if (result.httpStatus === 503) {
+      return (
+        <TerminalAppShell dashboardLocale={locale}>
+          <section className="stock-workspace-view stock-workspace-view-v2">
+            <h1>{normalizedSymbol}</h1>
+            <div className="data-warning" role="status">
+              <DecisionPublicationLabel decision={{ decision_status: "UNAVAILABLE" }} locale={locale} />
+            </div>
+          </section>
+        </TerminalAppShell>
+      );
+    }
     // Do not call notFound() — that would cache a false 404 for transient API failures.
     throw new Error(result.message);
   }
@@ -110,7 +122,6 @@ export default async function StockDetailPage({ params }: StockDetailPageProps) 
   return (
     <TerminalAppShell dashboardLocale={locale}>
       <JsonLdScript data={structuredData} />
-      <StockDurableSummary locale={locale} workspace={workspace} />
       <StockDetailWorkspaceView
         exchange={exchange}
         initialWorkspace={workspace}

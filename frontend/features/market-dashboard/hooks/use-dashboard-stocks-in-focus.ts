@@ -7,6 +7,7 @@ import { mapUniverseRowsToSignalFeed } from "@/features/market-dashboard/view-mo
 import { listUniverseRows } from "@/lib/api/market-universe-api";
 import type { ExchangeCode } from "@/lib/api/backend-api-types";
 import type { SignalFeedItemModel } from "@/features/market-dashboard/types/market-dashboard-types";
+import type { DecisionPublication } from "@/components/ui/market-publication-label";
 import {
   isUniverseCacheWarming,
   shouldRetryUniverseCache,
@@ -24,6 +25,7 @@ type UseDashboardSectionOptions = {
 export type DashboardStocksInFocusQueryData = {
   signals: SignalFeedItemModel[];
   evaluatedCount: number;
+  decisionPublication: DecisionPublication;
 };
 
 const UNIVERSE_ROWS_QUERY_KEY_LIMIT = 500;
@@ -36,8 +38,8 @@ export function useDashboardStocksInFocus({
   enabled = true,
 }: UseDashboardSectionOptions) {
   const universeQuery = useQuery({
-    queryKey: ["market-universe-rows", exchange, generation, UNIVERSE_ROWS_QUERY_KEY_LIMIT],
-    queryFn: () => listUniverseRows(exchange),
+    queryKey: ["market-universe-rows", exchange, UNIVERSE_ROWS_QUERY_KEY_LIMIT, generation],
+    queryFn: () => listUniverseRows(exchange, generation),
     staleTime: staleTimeMs,
     refetchInterval: refetchIntervalMs,
     enabled,
@@ -53,6 +55,7 @@ export function useDashboardStocksInFocus({
     return {
       signals: mapUniverseRowsToSignalFeed(universeQuery.data.rows),
       evaluatedCount: universeQuery.data.rows.filter((row) => row.decision !== null).length,
+      decisionPublication: universeQuery.data.meta,
     };
   }, [universeQuery.data]);
 

@@ -10,7 +10,7 @@ import type {
 } from "@/lib/api/backend-api-types";
 import type { InsightBlockModel } from "@/lib/insights/insight-types";
 import type { LeadersPulseContext } from "@/lib/market/market-pulse-metrics";
-import { isActionableDecision } from "@/lib/market/trader-decision";
+import { compareCanonicalShortlist, isActionableDecision } from "@/lib/market/trader-decision";
 import {
   buildDecisionSupportingContext,
   resolveTraderDecision,
@@ -58,20 +58,7 @@ function compareSignalFeedCandidates(
   left: ReturnType<typeof mapUniverseRowToListRow>,
   right: ReturnType<typeof mapUniverseRowToListRow>,
 ): number {
-  const leftDecision = resolveTraderDecision(left);
-  const rightDecision = resolveTraderDecision(right);
-
-  if (rightDecision.confidence !== leftDecision.confidence) {
-    return rightDecision.confidence - leftDecision.confidence;
-  }
-
-  const opportunityDelta =
-    (rightDecision.opportunityScore ?? 0) - (leftDecision.opportunityScore ?? 0);
-  if (opportunityDelta !== 0) {
-    return opportunityDelta;
-  }
-
-  return left.stock.symbol.localeCompare(right.stock.symbol);
+  return compareCanonicalShortlist(left, right);
 }
 
 export function mapUniverseRowsToSignalFeed(
@@ -82,7 +69,7 @@ export function mapUniverseRowsToSignalFeed(
     .map(mapUniverseRowToListRow)
     .filter((stock) => {
       const decision = resolveTraderDecision(stock);
-      return isActionableDecision(decision.recommendation) || decision.confidence >= 55;
+      return decision.source === "decision-engine";
     })
     .sort(compareSignalFeedCandidates)
     .slice(0, limit)
@@ -97,7 +84,7 @@ export function mapUniverseRowsToSignalFeed(
       return {
         symbol: stock.stock.symbol,
         signal: decision.recommendation,
-        confidence: `${decision.confidence}%`,
+        confidence: decision.evidenceStatus ?? "UNAVAILABLE",
         confidenceValue: decision.confidence,
         reason: buildSignalFeedReason(stock),
         reasonSummary: decision.reason,
@@ -107,7 +94,7 @@ export function mapUniverseRowsToSignalFeed(
         entryCondition: decision.entryCondition,
         technicalContext: buildSignalTechnicalContext(stock),
         risk: decision.riskLabel,
-        priority: decisionPriority(decision.confidence),
+        priority: "low",
         href: buildStockDetailPath(stock.stock.exchange, stock.stock.symbol),
         supportingContext: supportingContext.length
           ? supportingContext
@@ -130,9 +117,9 @@ export function mapTraderDecisionsToSignalFeed(
         isActionableDecision(
           decision.display_action ??
             (decision.recommendation === "SELL" ? "SELL" : "WAIT"),
-        ) || decision.confidence >= 55,
+        ) || decision.evidence_status === "MIXED",
     )
-    .sort((left, right) => right.decision.confidence - left.decision.confidence)
+    .sort((left, right) => (left.shortlist?.entry_rank ?? 9999) - (right.shortlist?.entry_rank ?? 9999) || left.stock.symbol.localeCompare(right.stock.symbol))
     .slice(0, limit);
 
   return ranked.map(({ stock, decision, latest_trade_date }) => {
@@ -147,7 +134,7 @@ export function mapTraderDecisionsToSignalFeed(
     return {
       symbol: stock.symbol,
       signal: displayAction,
-      confidence: `${decision.confidence}%`,
+      confidence: decision.evidence_status ?? "UNAVAILABLE",
       confidenceValue: decision.confidence,
       reason:
         displayAction === "POTENTIAL_BUY" && decision.entry_condition
@@ -160,7 +147,7 @@ export function mapTraderDecisionsToSignalFeed(
       entryCondition: decision.entry_condition ?? null,
       technicalContext: {},
       risk: decision.risk_label,
-      priority: decisionPriority(decision.confidence),
+      priority: "low",
       href: buildStockDetailPath(stock.exchange, stock.symbol),
       supportingContext: [`Opportunity ${decision.opportunity_score}`, `${decision.risk_label} risk`],
       generatedAt: formatGeneratedAt(latest_trade_date),
@@ -178,8 +165,8 @@ export function mapDashboardSignalsDto(dto: BackendDashboardStocksInFocusDto): S
     return {
       symbol: signal.symbol,
       signal: signal.signal,
-      confidence: `${signal.confidence}%`,
-      confidenceValue: signal.confidence,
+      confidence: "UNAVAILABLE",
+      confidenceValue: 0,
       reason:
         signal.signal === "POTENTIAL_BUY" && signal.entry_condition
           ? signal.entry_condition

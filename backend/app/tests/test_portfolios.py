@@ -69,6 +69,8 @@ class ZeroCloseUniverse:
                 data_state=MarketDataState.FINALIZED,
                 is_live_session=False,
                 market_sync_id="test-market-sync",
+                decision_session_date=date(2026, 7, 20),
+                decision_status="CURRENT",
             ),
         )
 

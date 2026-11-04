@@ -6,11 +6,15 @@ from uuid import UUID
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
 
 from app.core.enums import SignalType, TraderRecommendation
+from app.modules.market_universe.market_universe_schemas import ShortlistRead
 from app.modules.stock_details.stock_details_schemas import TraderDecisionSummaryRead
 from app.modules.stocks.stocks_schemas import StockRead
 
 
 class StockTraderDecisionRead(BaseModel):
+    shortlist: ShortlistRead | None = None
+    decision_generation_id: str | None = None
+    decision_status: str = "CURRENT"
     stock: StockRead
     decision: TraderDecisionSummaryRead
     latest_trade_date: date | None = None

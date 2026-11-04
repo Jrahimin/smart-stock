@@ -16,11 +16,12 @@ type WatchlistStarToggleProps = {
 export function WatchlistStarToggle({ stockId, className = "", stopPropagation = false }: WatchlistStarToggleProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const { isAuthenticated } = useAuth();
-  const { watchedStockIds } = useUserWatchlist();
+  const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
+  const { watchedStockIds, isLoading: isWatchlistLoading } = useUserWatchlist();
   const toggleMutation = useWatchlistToggle();
   const isWatched = watchedStockIds.has(stockId);
   const tooltip = isWatched ? "Remove from Watchlist" : "Add to Watchlist";
+  const disabled = isAuthLoading || (isAuthenticated && isWatchlistLoading) || toggleMutation.isPending;
 
   function handleClick(event: React.MouseEvent<HTMLButtonElement>) {
     if (stopPropagation) {
@@ -43,7 +44,7 @@ export function WatchlistStarToggle({ stockId, className = "", stopPropagation =
       aria-label={tooltip}
       title={tooltip}
       aria-pressed={isWatched}
-      disabled={toggleMutation.isPending}
+      disabled={disabled}
       onClick={handleClick}
     >
       <Star size={15} fill={isWatched ? "currentColor" : "none"} strokeWidth={2} />

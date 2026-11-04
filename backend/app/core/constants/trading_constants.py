@@ -12,7 +12,8 @@ DECISION_TAXONOMY_VERSION = "v2"
 # Version the canonical serialization used for input hashes, cache envelopes,
 # immutable decision snapshots, and replay manifests. Bump this whenever the
 # hashed input contract changes even if strategy thresholds do not.
-TRADING_INPUT_SCHEMA_VERSION = "trading-input-v2"
+TRADING_INPUT_SCHEMA_VERSION = "trading-input-v3"
+SHORTLIST_RANKING_VERSION = "entry-shortlist-v1"
 TRADING_REPLAY_MANIFEST_VERSION = "trading-replay-manifest-v2"
 
 # Operational drift gates compare consecutive like-for-like universe payloads.
@@ -58,7 +59,7 @@ ELIGIBILITY_MAX_PARTIAL_QUALITY_RATIO = 0.20
 # analytical OHLCV validity.
 ELIGIBILITY_RECENT_QUALITY_RECOVERY_WINDOW = 20
 ELIGIBILITY_MAX_RECENT_PARTIAL_QUALITY_RATIO = 0.10
-ELIGIBILITY_SESSION_LOOKBACK = 10
+ELIGIBILITY_SESSION_LOOKBACK = 90
 # No current ingestion source supplies verified adjustment-factor provenance.
 ANALYTICAL_ADJUSTED_SERIES_ENABLED = False
 

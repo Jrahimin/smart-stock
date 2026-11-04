@@ -1,5 +1,6 @@
 "use client";
 
+import { evidenceLabel } from "@/lib/market/decision-presentation";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
@@ -15,6 +16,7 @@ import {
 import { useVirtualizer } from "@tanstack/react-virtual";
 
 import { MarketActivityLoader } from "@/components/ui/market-activity-loader";
+import { DecisionPublicationLabel, QuotePublicationLabel } from "@/components/ui/market-publication-label";
 import { SignalBadge } from "@/components/ui/signal-badge";
 import { WorkspacePageHero } from "@/components/layout/workspace-page-hero";
 import { WatchlistStarToggle } from "@/features/watchlist/components/watchlist-star-toggle";
@@ -48,7 +50,7 @@ type StockExplorerViewProps = {
 export function StockExplorerView({ locale = DEFAULT_LOCALE }: StockExplorerViewProps) {
   const language = getStockExplorerLanguage(locale);
   const searchParams = useSearchParams();
-  const { universe, isLoading, isError, isWarmingUp, listedStockCount, loadedPriceCount } = useMarketUniverse({
+  const { universe, isLoading, isError, isWarmingUp, listedStockCount, loadedPriceCount, decisionPublication } = useMarketUniverse({
     stockLimit: 500,
   });
   const { watchedStockIds, holdingStockIds } = useUserWatchlist();
@@ -155,7 +157,13 @@ export function StockExplorerView({ locale = DEFAULT_LOCALE }: StockExplorerView
       }),
       columnHelper.accessor("latestPrice", {
         header: language.columns.price,
-        cell: (info) => formatNumber(info.getValue()),
+        cell: (info) => (
+          <div>
+            {formatNumber(info.getValue())}
+            <br />
+            <QuotePublicationLabel locale={locale} quote={info.row.original.displayQuote} />
+          </div>
+        ),
       }),
       columnHelper.accessor("priceChangePercent", {
         id: "change",
@@ -214,10 +222,7 @@ export function StockExplorerView({ locale = DEFAULT_LOCALE }: StockExplorerView
         header: language.columns.evidence,
         cell: (info) => (
           <div className="confidence-cell">
-            <span>{info.getValue()}%</span>
-            <div className="signal-confidence-meter">
-              <span style={{ width: `${info.getValue()}%` }} />
-            </div>
+            <span>{evidenceLabel(info.row.original.traderDecision?.evidence_status, locale)}</span>
           </div>
         ),
       }),
@@ -232,7 +237,7 @@ export function StockExplorerView({ locale = DEFAULT_LOCALE }: StockExplorerView
         cell: (info) => <span className="stock-category-value">{info.getValue()}</span>,
       }),
     ],
-    [decisionByStockId, language.columns],
+    [decisionByStockId, language.columns, locale],
   );
 
   const table = useReactTable({
@@ -378,6 +383,7 @@ export function StockExplorerView({ locale = DEFAULT_LOCALE }: StockExplorerView
         </div>
       </WorkspacePageHero>
       {isWarmingUp ? <div className="data-warning">{language.states.warmingUp}</div> : null}
+      <DecisionPublicationLabel decision={decisionPublication} locale={locale} />
       {isError ? <div className="data-warning">{language.states.loadError}</div> : null}
       {isLoading ? <MarketActivityLoader /> : null}
       {showEmptyResults ? (

@@ -17,7 +17,7 @@ import {
 import { useMarketDataFreshness } from "@/hooks/market/use-market-data-freshness";
 import { getMarketStaleTimeMs } from "@/lib/market/market-cache-policy";
 import { STOCK_DETAIL_STALE_TIME_MS } from "@/lib/seo/stock-detail-cache";
-import { responseMatchesMarketFreshness } from "@/lib/market/market-generation";
+import { freshnessGenerationToken, responseMatchesMarketFreshness } from "@/lib/market/market-generation";
 import type { AppLocale } from "@/lib/locale/app-locale";
 import { DEFAULT_LOCALE } from "@/lib/locale/app-locale";
 
@@ -42,7 +42,7 @@ export function useStockWorkspace({
   const staleTimeMs = freshnessQuery.data
     ? getMarketStaleTimeMs(freshnessQuery.data)
     : STOCK_DETAIL_STALE_TIME_MS;
-  const generation = freshnessQuery.data?.market_sync_id ?? freshnessQuery.data?.last_synced_at ?? null;
+  const generation = freshnessGenerationToken(freshnessQuery.data);
   const alignedInitialWorkspace = initialWorkspace && (
     generation === null || responseMatchesMarketFreshness(initialWorkspace, generation)
   ) ? initialWorkspace : null;

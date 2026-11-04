@@ -297,7 +297,7 @@ const stockWorkspaceLanguage = {
       confirmationLevel:
         "Confirmation level",
       projectedTarget:
-        "Projected target",
+        "Pattern target hypothesis",
       breakoutProbability:
         "🚀 Breakout Evidence",
       breakdownProbability:
@@ -448,7 +448,7 @@ const stockWorkspaceLanguage = {
       neutralInterpretation:
         "Neutral structure; wait for directional confirmation.",
       projectedTarget:
-        "Projected target",
+        "Pattern target hypothesis",
       risk: "Risk",
       footer:
         "Pattern detection is deterministic and should be combined with risk management.",
@@ -647,7 +647,7 @@ const stockWorkspaceLanguage = {
       confirmationLevel:
         "Confirmation level",
       projectedTarget:
-        "সম্ভাব্য Target",
+        "Pattern target অনুমান",
       breakoutProbability:
         "🚀 Breakout Evidence",
       breakdownProbability:
@@ -809,7 +809,7 @@ const stockWorkspaceLanguage = {
       neutralInterpretation:
         "দিক এখনো পরিষ্কার নয়। Confirmation না আসা পর্যন্ত অপেক্ষা করুন।",
       projectedTarget:
-        "সম্ভাব্য Target",
+        "Pattern target অনুমান",
       risk: "Risk",
       footer:
         "Pattern শুধু একটি ইঙ্গিত। সিদ্ধান্তের আগে Risk ও price level দেখে নিন।",

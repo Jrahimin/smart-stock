@@ -1,7 +1,7 @@
 import type { BackendMarketBriefingDto } from "@/lib/api/backend-api-types";
 import type { BackendMarketPulseSummaryDto } from "@/lib/api/market-pulse-api";
 import type { MarketPulseCorePayload } from "@/lib/api/pulse-server";
-import { summaryMatchesFreshness } from "@/lib/market/pulse-generation";
+import { responseMatchesMarketFreshness, summaryMatchesFreshness } from "@/lib/market/pulse-generation";
 import { isSectionLoading } from "@/lib/ui/section-loading";
 
 type SummaryQueryState = {
@@ -34,7 +34,8 @@ function resolveSeededAnonymousBriefing(initialCore: MarketPulseCorePayload | nu
     return null;
   }
 
-  return initialCore.briefing;
+  return summaryMatchesFreshness(initialCore.briefing, initialCore.freshness) &&
+    initialCore.briefing.decision_generation_id === initialCore.summary.decision_generation_id ? initialCore.briefing : null;
 }
 
 export function resolveMarketPulseSummary(
@@ -60,9 +61,7 @@ export function resolveMarketPulseSummary(
     ? personalizedSummary
     : anonymousValid
       ? anonymousSummary
-      : !personalizedSummaryQuery.isSuccess && anonymousSummary
-        ? anonymousSummary
-        : null;
+      : null;
 
   return {
     anonymousSummary,
@@ -75,15 +74,16 @@ export function resolveMarketPulseBriefing(
   initialCore: MarketPulseCorePayload | null,
   anonymousBriefingQuery: BriefingQueryState,
   personalizedBriefingQuery: BriefingQueryState,
+  freshnessGeneration?: string | null,
+  decisionGenerationId?: string | null,
 ) {
   const seededAnonymousBriefing = resolveSeededAnonymousBriefing(initialCore);
   const anonymousBriefing = anonymousBriefingQuery.data ?? seededAnonymousBriefing ?? null;
   const personalizedBriefing = personalizedBriefingQuery.data ?? null;
 
-  const resolvedBriefing =
-    personalizedBriefingQuery.isSuccess && personalizedBriefing
-      ? personalizedBriefing
-      : anonymousBriefing;
+  const candidate = personalizedBriefingQuery.isSuccess && personalizedBriefing ? personalizedBriefing : anonymousBriefing;
+  const resolvedBriefing = candidate && responseMatchesMarketFreshness(candidate, freshnessGeneration) &&
+    (decisionGenerationId === undefined || candidate.decision_generation_id === decisionGenerationId) ? candidate : null;
 
   return {
     anonymousBriefing,

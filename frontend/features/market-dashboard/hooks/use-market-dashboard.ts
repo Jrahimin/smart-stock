@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
+import { freshnessGenerationToken } from "@/lib/market/market-generation";
 
 import { buildMarketDashboardModel } from "@/features/market-dashboard/view-models/market-dashboard-view-model";
 import { useMarketCacheRefresh } from "@/hooks/market/use-market-cache-coordinator";
@@ -104,7 +105,7 @@ export function useMarketDashboard(options?: {
     initialDataUpdatedAt: canUseInitialData ? initialCore?.fetchedAt : undefined,
   });
   const signalsQuery = useDashboardStocksInFocus({
-    generation: generation ?? "pending",
+    generation: freshnessGenerationToken(freshness) ?? "pending",
     staleTimeMs,
     refetchIntervalMs,
     enabled: generation !== null && overviewReady,
@@ -216,6 +217,8 @@ export function useMarketDashboard(options?: {
     isDeferredLoading: sectionLoading.heatmap || sectionLoading.insights,
     signalsSectionError: signalsQuery.isError,
     signalsSectionWarmingUp: signalsQuery.isWarmingUp,
+    signalsPublication: signalsQuery.data?.decisionPublication ??
+      (freshness?.decision_status === "UNAVAILABLE" ? freshness : undefined),
     isError:
       overviewQuery.isError ||
       moversQuery.isError ||

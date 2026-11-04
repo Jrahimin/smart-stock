@@ -1,15 +1,16 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import UTC, date, datetime
 from typing import Annotated
 
 from fastapi import Depends
-from sqlalchemy import select
+from sqlalchemy import case, select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database_session import get_db_session
 from app.core.enums import ExchangeCode
-from app.models import CanonicalDecisionSnapshot
+from app.models import CanonicalDecisionSnapshot, DecisionGenerationCapture
 from app.modules.market_universe.market_universe_schemas import ScoredUniverseRow
 
 
@@ -52,24 +53,47 @@ class DecisionSnapshotRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
+    async def publish_generation(
+        self, *, exchange, generation_id, session_date, inputs, payload
+    ) -> None:
+        """Commit all source inputs and results together; retries cannot overwrite history."""
+        statement = insert(DecisionGenerationCapture).values(
+            exchange=exchange, generation_id=generation_id, session_date=session_date,
+            observed_at=datetime.now(UTC), input_payload=inputs, result_payload=payload,
+        ).on_conflict_do_nothing(index_elements=["exchange", "generation_id"])
+        await self.session.execute(statement)
+        await self.session.commit()
+
+    async def latest_publication(self, *, exchange, before_date=None, generation_id=None):
+        statement = select(DecisionGenerationCapture).where(
+            DecisionGenerationCapture.exchange == exchange,
+        )
+        if before_date is not None:
+            statement = statement.where(DecisionGenerationCapture.session_date < before_date)
+        if generation_id is not None:
+            statement = statement.order_by(
+                case((DecisionGenerationCapture.generation_id == generation_id, 0), else_=1)
+            )
+        # Do not skip an invalidated head and silently resurrect an older actionable result.
+        statement = statement.order_by(
+            DecisionGenerationCapture.session_date.desc(),
+            DecisionGenerationCapture.observed_at.desc(),
+        ).limit(1)
+        return await self.session.scalar(statement)
+
     async def persist_missing(self, rows: list[ScoredUniverseRow]) -> int:
         values = [item for row in rows if (item := decision_snapshot_values(row)) is not None]
         if not values:
             return 0
-        shared_ids = [str(item["shared_decision_id"]) for item in values]
-        existing_result = await self.session.scalars(
-            select(CanonicalDecisionSnapshot.shared_decision_id).where(
-                CanonicalDecisionSnapshot.shared_decision_id.in_(shared_ids)
-            )
+        statement = (
+            insert(CanonicalDecisionSnapshot)
+            .values(values)
+            .on_conflict_do_nothing(index_elements=["shared_decision_id"])
+            .returning(CanonicalDecisionSnapshot.shared_decision_id)
         )
-        existing = set(existing_result.all())
-        new_values = [
-            item for item in values if str(item["shared_decision_id"]) not in existing
-        ]
-        self.session.add_all(CanonicalDecisionSnapshot(**item) for item in new_values)
-        if new_values:
-            await self.session.commit()
-        return len(new_values)
+        inserted = (await self.session.scalars(statement)).all()
+        await self.session.commit()
+        return len(inserted)
 
     async def list_for_session(
         self,

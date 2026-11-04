@@ -9,7 +9,8 @@ function buildDecisionFixture(overrides: Partial<StockDecisionSupportDto> = {}):
     stock_id: "1",
     symbol: "TEST",
     exchange: "DSE",
-    decision: { recommendation: "BUY", confidence: 72, reasoning: [] },
+    decision: { recommendation: "BUY", confidence: 72,
+        evidence_status: "MIXED", reasoning: [] },
     opportunity: {
       score: 68,
       components: [
@@ -78,6 +79,18 @@ function buildDecisionFixture(overrides: Partial<StockDecisionSupportDto> = {}):
 }
 
 describe("stock decision localization", () => {
+  it("uses one risk owner for the headline and its explanation", () => {
+    const tradingRisk = { score: 81, label: "HIGH" as const, components: [
+      { key: "extension", label: "Extension", score: 88, weight: 1, explanation: "Trading risk only" },
+    ] };
+    const decision = buildDecisionFixture({ trading_risk: tradingRisk });
+    const canonical = buildStockDecisionViewModel(decision, "en");
+    expect(canonical).toMatchObject({ riskScore: 81, riskLabel: "HIGH",
+      riskComponents: [{ key: "extension", explanation: "Trading risk only" }] });
+    const legacy = buildStockDecisionViewModel({ ...decision, trading_risk: null }, "en");
+    expect(legacy).toMatchObject({ riskScore: 35, riskLabel: "MEDIUM",
+      riskComponents: [{ key: "volatility", explanation: "Elevated" }] });
+  });
   it("localizes decision signals and warnings in bn", () => {
     const model = buildStockDecisionViewModel(buildDecisionFixture(), "bn");
 
@@ -90,7 +103,7 @@ describe("stock decision localization", () => {
     expect(model.liquidity.label).toBe("কম");
     expect(model.liquidity.volumeRatio).toBe("গড়ের 0.6x");
     expect(model.freshness.label).toBe("তাজা");
-    expect(model.confidenceLabel).toBe("72/100");
+    expect(model.confidenceLabel).toBe("মিশ্র সংকেত");
   });
 
   it("localizes rsi overheated warning with parsed value", () => {

@@ -51,6 +51,10 @@ class EligibilityResult:
     turnover_provenance: TurnoverProvenance
     analytical_price_basis: str
     corporate_action_status: str
+    expected_session_count: int = 0
+    observed_session_count: int = 0
+    missing_session_count: int = 0
+    event_coverage_status: str = "UNKNOWN"
 
     @property
     def allows_fresh_decision(self) -> bool:
@@ -82,7 +86,9 @@ def _corporate_action_status(
         return "NONE"
     latest = valid_prices[-1]
     known_date = bool(
-        known_corporate_action_dates and latest.trade_date in known_corporate_action_dates
+        known_corporate_action_dates
+        and any(valid_prices[0].trade_date < event_date <= latest.trade_date
+                for event_date in known_corporate_action_dates)
     )
     if analytical_price_basis == "SOURCE_ADJUSTED_CLOSE":
         return "RESOLVED" if known_date else "NONE"
@@ -121,6 +127,7 @@ def evaluate_data_eligibility(
     is_active: bool,
     exchange_session_dates: list[date] | tuple[date, ...] | None = None,
     known_corporate_action_dates: set[date] | None = None,
+    event_coverage_status: str = "UNKNOWN",
 ) -> EligibilityResult:
     sorted_prices = sorted(prices, key=lambda row: row.trade_date)
     quality_window = sorted_prices[-ELIGIBILITY_MIN_VALID_ROWS:]
@@ -235,6 +242,8 @@ def evaluate_data_eligibility(
         add_reason("category_z_review", EligibilityStatus.LIMITED)
     if corporate_action_status in {"KNOWN_UNADJUSTED", "UNRESOLVED_DISCONTINUITY"}:
         add_reason("unresolved_corporate_action", EligibilityStatus.REVIEW_ONLY)
+    if event_coverage_status == "REVISION_UNAVAILABLE":
+        add_reason("event_revision_unavailable", EligibilityStatus.REVIEW_ONLY)
 
     return EligibilityResult(
         status=severity,
@@ -255,4 +264,8 @@ def evaluate_data_eligibility(
         turnover_provenance=snapshot.turnover_provenance,
         analytical_price_basis=snapshot.analytical_price_basis,
         corporate_action_status=corporate_action_status,
+        expected_session_count=snapshot.expected_session_count,
+        observed_session_count=snapshot.observed_session_count,
+        missing_session_count=snapshot.missing_session_count,
+        event_coverage_status=event_coverage_status,
     )

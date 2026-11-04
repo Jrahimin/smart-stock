@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from fastapi import Depends
 
-from app.core.constants.trading_constants import DECISION_PATTERN_RESPONSE_LIMIT
+from app.core.constants.trading_constants import (
+    DECISION_PATTERN_RESPONSE_LIMIT,
+    PATTERN_MIN_CANDLES,
+)
 from app.core.enums import ExchangeCode, MarketDataState, PatternStatus
 from app.core.exception_handlers import NotFoundError
 from app.modules.market_universe.market_universe_compute import technical_snapshot_from_read
@@ -13,9 +16,17 @@ from app.modules.market_universe.market_universe_service import (
     get_market_universe_service,
 )
 from app.modules.stock_details.decision.breakout import analyze_breakout
+from app.modules.stock_details.decision.event_availability import (
+    available_event_revisions,
+    effective_event_dates,
+)
 from app.modules.stock_details.decision.events import build_event_timeline
 from app.modules.stock_details.decision.ownership import build_ownership_insights
 from app.modules.stock_details.decision.patterns import detect_patterns
+from app.modules.stock_details.decision.technical import (
+    build_technical_snapshot,
+    select_valid_ohlc_rows,
+)
 from app.modules.stock_details.decision.valuation import build_valuation_insights
 from app.modules.stock_details.decision.warnings import generate_warnings
 from app.modules.stock_details.stock_details_repository import (
@@ -128,7 +139,37 @@ class StockDetailsDecisionService:
 
         snapshot = technical_snapshot_from_read(row.technical_snapshot)
         analysis = row.analysis
-        patterns = detect_patterns(snapshot, prices)[:DECISION_PATTERN_RESPONSE_LIMIT]
+        # Pattern detection reads a longer raw window than the canonical recommendation.
+        # Use only valid post-action candles, with a matching technical basis after trimming.
+        # Current source rows cannot enrich a prior publication while it is being replaced.
+        patterns = []
+        patterns_available = False
+        if not canonical_snapshot.updating:
+            observations = await self.universe_service.get_decision_event_observations(stock.id)
+            available, revision_missing = available_event_revisions(
+                observations, cutoff=row.decision.canonical.calculated_at,
+            )
+            pattern_prices = select_valid_ohlc_rows(prices)
+            if pattern_prices and not revision_missing:
+                action_dates = [
+                    day for day in effective_event_dates(available)
+                    if pattern_prices[0].trade_date < day <= pattern_prices[-1].trade_date
+                ]
+                pattern_snapshot = snapshot
+                if action_dates:
+                    pattern_prices = [
+                        price for price in pattern_prices if price.trade_date >= max(action_dates)
+                    ]
+                    pattern_snapshot = (
+                        build_technical_snapshot(pattern_prices)
+                        if len(pattern_prices) >= PATTERN_MIN_CANDLES
+                        else None
+                    )
+                if pattern_snapshot is not None:
+                    patterns_available = len(pattern_prices) >= PATTERN_MIN_CANDLES
+                    patterns = detect_patterns(snapshot=pattern_snapshot, prices=pattern_prices)[
+                        :DECISION_PATTERN_RESPONSE_LIMIT
+                    ]
         primary_pattern = patterns[0] if patterns else None
         pattern_bearish = primary_pattern.direction == "bearish" if primary_pattern else False
         pattern_confirmed = bool(
@@ -156,6 +197,8 @@ class StockDetailsDecisionService:
         events = build_event_timeline(market_events, dividend_events, corporate_actions)
 
         missing_fields: list[str] = []
+        if not patterns_available:
+            missing_fields.append("patterns")
         if snapshot.rsi is None:
             missing_fields.append("rsi")
         if snapshot.sma20 is None:
@@ -204,6 +247,8 @@ class StockDetailsDecisionService:
             symbol=stock.symbol,
             exchange=stock.exchange,
             market_sync_id=generation.sync_id,
+            decision_generation_id=generation.sync_id,
+            decision_status="UPDATING" if canonical_snapshot.updating else "CURRENT",
             data_state=generation.data_state,
             decision_session_date=generation.trade_date,
             live_data_as_of=(
@@ -218,6 +263,7 @@ class StockDetailsDecisionService:
                 confidence=decision.confidence,
                 reasoning=[decision.reason],
                 evidence_strength=decision.evidence_strength,
+                evidence_status=decision.evidence_status,
                 primary_reason=decision.primary_reason,
                 primary_reason_code=decision.primary_reason_code,
                 stance=decision.stance,

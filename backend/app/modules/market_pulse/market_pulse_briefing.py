@@ -271,9 +271,12 @@ def build_market_briefing(
     )
     uptrend_count = sum(1 for row in rows if row.snapshot.trend == TrendDirection.UPTREND)
     momentum = "Positive" if uptrend_count / total >= 0.42 else "Negative" if uptrend_count / total <= 0.32 else "Neutral"
-    stock_sector_map = {str(getattr(row.stock, "id", "")): _sector_name(row.stock) for row in rows}
-    focus_sectors = {stock_sector_map.get(str(stock.stock_id), "Unclassified") for stock in focus_reads}
-    leadership = "Narrow" if len(focus_sectors) <= 2 else "Broad"
+    # Measure leadership from all eligible constituents before diversifying the focus list.
+    leadership = (
+        "Broad"
+        if len(inflow_sectors) >= 3 and breadth["advancing"] > breadth["declining"]
+        else "Narrow"
+    )
 
     if sentiment == "Bearish" and participation == "Weak":
         overall = "Defensive Rotation"
@@ -293,7 +296,7 @@ def build_market_briefing(
             MarketStateDimensionRead(key="sentiment", label="Sentiment", value=sentiment, tone=_state_tone(sentiment)),
             MarketStateDimensionRead(
                 key="participation",
-                label="Participation",
+                label="Eligible-stock participation",
                 value=participation,
                 tone=_state_tone(participation if participation != "Moderate" else "Neutral"),
             ),
@@ -551,13 +554,13 @@ def build_market_briefing(
             TradingEnvironmentSignalRead(text="Leadership remains concentrated", tone="warning")
         )
     if sentiment == "Bearish" and opportunity >= 68:
-        trading_overall = "Selective Risk-On"
+        trading_overall = overall
         trading_overall_tone = "warning"
     elif overall_tone == "positive":
         trading_overall = "Risk-On"
         trading_overall_tone = "positive"
     elif overall == "Cautious Positioning":
-        trading_overall = "Selective Risk-On"
+        trading_overall = overall
         trading_overall_tone = "warning"
     else:
         trading_overall = overall

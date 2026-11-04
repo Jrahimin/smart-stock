@@ -176,6 +176,8 @@ class MarketFreshnessRead(BaseModel):
     exchange: ExchangeCode
     trade_date: date | None
     last_synced_at: datetime | None
+    decision_generation_id: str | None = None
+    decision_status: str = "UNAVAILABLE"
     market_sync_id: str | None = None
     data_state: MarketDataState = MarketDataState.STALE
     published_at: datetime | None = None

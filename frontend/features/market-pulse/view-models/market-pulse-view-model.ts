@@ -1,3 +1,4 @@
+import { controllingReasonLabel, readinessLabel } from "@/lib/market/decision-presentation";
 import type { BackendMarketPulseDto, BackendFocusStockDto, BackendMarketMoverDto, BackendMarketBriefingDto } from "@/lib/api/backend-api-types";
 import { getMarketSession } from "@/lib/market/market-session-engine";
 import { buildStockDetailPath } from "@/lib/seo/stock-page-seo";
@@ -43,6 +44,13 @@ function mapPriceTone(value: string): "positive" | "negative" | "neutral" {
 function mapFocusStock(stock: BackendFocusStockDto): FocusStockModel {
   return {
     rank: stock.rank,
+    recommendation: stock.recommendation,
+    readiness: stock.entry_readiness,
+    controllingReasonCode: stock.controlling_reason_code,
+    controllingReason: stock.controlling_reason,
+    decisionDate: stock.decision_session_date,
+    watchLevel: stock.watch_level,
+    actionableTrigger: stock.actionable_trigger,
     stockId: stock.stock_id,
     symbol: stock.symbol,
     name: stock.name,
@@ -387,7 +395,11 @@ export function applyMarketPulseLocalization(model: MarketPulseModel, locale: Ap
   const localizeFocusStock = (stock: FocusStockModel): FocusStockModel => ({
     ...stock,
     whyHere: stock.whyHere.map((reason) => language.focus.reason(reason, stock.focusLabel)),
-    trigger: language.focus.trigger(localizeEntryCondition(stock.trigger, locale) ?? stock.trigger),
+    trigger: stock.actionableTrigger === false
+      ? (locale === "bn" ? "অনুমোদিত entry trigger নেই" : "No permitted entry trigger")
+      : language.focus.trigger(localizeEntryCondition(stock.trigger, locale) ?? stock.trigger),
+    decisionContext: `${stock.recommendation ?? "—"} · ${readinessLabel(stock.readiness, locale)} · ${stock.decisionDate ?? "—"}`,
+    controllingReason: controllingReasonLabel(stock.controllingReasonCode, stock.controllingReason ?? "", locale),
     actionSummary: language.focus.actionSummary(stock.actionSummary),
   });
 
@@ -505,7 +517,9 @@ export function buildMarketPulseViewModel(dto: BackendMarketPulseDto, locale: Ap
       attentionSubline: dto.hero.attention_subline,
       lastUpdatedLabel: dto.hero.last_updated_label,
       relativeUpdatedLabel: dto.hero.relative_updated_label,
-      sessionLabel: dto.hero.session_label,
+      sessionLabel: dto.decision_status === "UPDATING"
+        ? `${locale === "bn" ? "আপডেট হচ্ছে; চূড়ান্ত সিদ্ধান্ত" : "Updating; finalized decisions"} ${dto.coverage?.session_trade_date ?? ""}`
+        : dto.hero.session_label,
       focusCount: dto.hero.focus_count,
       recentFocusCount: dto.hero.recent_focus_count,
     },

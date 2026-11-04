@@ -178,10 +178,25 @@ def compute_recommendation(
         stance = TraderStance.NEUTRAL
         non_holder_action = NonHolderAction.AVOID
         holder_action = HolderAction.REVIEW
-        primary_reason_code = "fresh_entry_risk_block"
+        precedence = (
+            "illiquid",
+            "elevated_trading_risk",
+            "overextended_price",
+            "extended_momentum",
+            "regime_plan_not_permitted",
+        )
+        controlling = next(
+            (
+                item
+                for code in precedence
+                for item in resolved_constraints.constraints
+                if item.code == code and item.kind == DecisionConstraintKind.BLOCK
+            ),
+            None,
+        )
+        primary_reason_code = controlling.code if controlling else "fresh_entry_risk_block"
         primary_reason = (
-            f"Trading risk is {canonical_risk_label.value} or tradability is inadequate; "
-            "wait rather than forcing a fresh entry."
+            controlling.reason if controlling else "A fresh-entry constraint requires waiting."
         )
     elif bullish_setup and plan_blocked:
         recommendation = (

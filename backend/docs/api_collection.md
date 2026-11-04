@@ -1895,6 +1895,8 @@ All portfolio routes require authentication. The module exposes one current-posi
 
 Returns the authenticated user's holdings-first current-position intelligence workspace. It combines the user's existing watchlist rows with the already-published canonical scored universe, latest-positive fallback prices, stock metadata, and relevant current events. The request never recomputes trading decisions.
 
+The Watchlist to Review cards consume each suggestion's `display_quote`, the same price/change/date/status projection used by Explorer, Scanner and Stock Details. `meta.decision_session_date` and `meta.decision_status` separately describe the finalized decision used to select those suggestions. The portfolio's holding valuation fields retain their existing accounting basis.
+
 **Query Params**
 
 | Param | Type | Default | Description |
@@ -2716,3 +2718,48 @@ Protected dashboard summary with net worth, clarity score, insights, goals, and 
 
 **Description**
 Protected endpoint for saving calculator or comparison scenarios.
+
+
+## Trading intelligence Phase 1 additive contract (November 4, 2026)
+
+Existing routes, authorization, filters, pagination and request parameters remain unchanged. The response envelope remains `{ "success": true, "message": "...", "data": ... }`. See `trading_intelligence_phase1.md` for publication and prospective-capture behavior.
+
+| Existing surface | Additive response fields / meaning |
+| --- | --- |
+| `GET /market/freshness` | `decision_generation_id`, `decision_status`, `decision_session_date` identify the complete published decision; `market_sync_id` identifies the separately published quote generation. |
+| `GET /market/universe-rows` | `meta.decision_generation_id`, `meta.quote_generation_id`, `meta.decision_status`; each row may expose `display_quote`, `shortlist`, and `previous_finalized_decision`. `meta.payload_revision` hashes the complete returned rows. |
+| `GET /signals/decisions/latest` | Each item carries `decision_generation_id`, `decision_status`, and backend `shortlist` ranks alongside its existing canonical decision. |
+| `GET /stock-details/{exchange}/{symbol}/workspace` | `decision_generation_id`, `quote_generation_id`, `decision_status`; `display_metrics` owns coherent price/change/date/observation status. `decision_support` carries the same decision identity/status. |
+| `GET /stock-details/{exchange}/{symbol}/decision-support` | `decision_generation_id`, `decision_status`; canonical evidence semantics and trading risk remain shared with the universe. |
+| Pulse full / summary / briefing | Independent `decision_generation_id` and `decision_status`; briefing additionally declares `decision_session_date`. Focus cards add `entry_readiness`, `controlling_reason_code`, `controlling_reason`, `decision_session_date`, `watch_level`, `actionable_trigger`. |
+
+`decision_status` is CURRENT, UPDATING, or (freshness without a valid publication) UNAVAILABLE. An updating result retains the old generation and its original date. Decision endpoints without a validated publication return their existing unavailable error rather than a fabricated decision. An invalidated prior result is never an actionable fallback. Quote and decision identities may intentionally differ.
+
+Canonical `evidence_status` is UNAVAILABLE for noneligible data, MIXED for usable balanced evidence, or BULLISH/BEARISH for directional heuristic evidence. Numeric legacy confidence/evidence fields are retained for compatibility; they are not probabilities or default ranks.
+
+Example additive `display_quote` object (zero-volume placeholder on January 2, last valid quote January 1; synthetic fixture):
+
+```json
+{
+  "current_price": 100.0,
+  "price_change": null,
+  "price_change_percent": 2.5,
+  "as_of_trade_date": "2026-01-01",
+  "observation_session_date": "2026-01-02",
+  "observation_status": "NO_TRADE"
+}
+```
+
+Example `shortlist` object (ranks are 1-based within the published universe):
+
+```json
+{
+  "version": "entry-shortlist-v1",
+  "entry_rank": 1,
+  "holder_exit_rank": 4,
+  "risk_rank": 2,
+  "volume_rank": 3
+}
+```
+
+Eligibility/technical projections additionally expose expected/observed/missing session counts and calendar/event coverage status where owned by the DTO. Consumers must validate decision identity, quote identity where exposed, and independent Pulse briefing identity against freshness before accepting cached/SSR data. IndexedDB schema 4 invalidates earlier browser records. No new public write endpoint is introduced.

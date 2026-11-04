@@ -94,6 +94,10 @@ def technical_snapshot_to_read(snapshot: TechnicalSnapshot) -> TechnicalSnapshot
         analytical_price_basis=snapshot.analytical_price_basis,
         adjusted_close_coverage_ratio=snapshot.adjusted_close_coverage_ratio,
         volume_behavior=snapshot.volume_behavior,
+        expected_session_count=snapshot.expected_session_count,
+        observed_session_count=snapshot.observed_session_count,
+        missing_session_count=snapshot.missing_session_count,
+        calendar_status=snapshot.calendar_status,
     )
 
 
@@ -137,6 +141,10 @@ def technical_snapshot_from_read(read: TechnicalSnapshotRead) -> TechnicalSnapsh
         analytical_price_basis=read.analytical_price_basis,
         adjusted_close_coverage_ratio=read.adjusted_close_coverage_ratio,
         volume_behavior=read.volume_behavior,
+        expected_session_count=read.expected_session_count,
+        observed_session_count=read.observed_session_count,
+        missing_session_count=read.missing_session_count,
+        calendar_status=read.calendar_status,
     )
 
 
@@ -274,6 +282,8 @@ def build_scored_universe_rows(
     exchange_session_dates: list[date] | tuple[date, ...] | None = None,
     corporate_action_dates_by_stock: Mapping[object, set[date]] | None = None,
     decision_session_date: date | None = None,
+    input_captures: dict | None = None,
+    event_observations_by_stock: Mapping | None = None,
 ) -> list[ScoredUniverseRow]:
     scored: list[ScoredUniverseRow] = []
     completed_session_dates = [
@@ -299,17 +309,24 @@ def build_scored_universe_rows(
         )
         if not sorted_prices:
             continue
-        snapshot = build_technical_snapshot(sorted_prices)
+        snapshot = build_technical_snapshot(
+            sorted_prices, exchange_session_dates=completed_session_dates
+        )
         if snapshot is None:
             continue
 
         strategy_input = build_strategy_input(
             stock,
             sorted_prices,
+            reference_date=decision_session_date,
+            event_observations=tuple((event_observations_by_stock or {}).get(stock.id, ())),
             market_regime=market_regime,
             exchange_session_dates=completed_session_dates,
             known_corporate_action_dates=(corporate_action_dates_by_stock or {}).get(stock.id),
         )
+        if input_captures is not None:
+            from app.modules.trading_intelligence.input_capture import capture_strategy_input
+            input_captures[str(stock.id)] = capture_strategy_input(strategy_input)
         bundle = compute_trader_decision(strategy_input, snapshot=snapshot)
         decision = build_trader_decision_summary(bundle) if bundle is not None else None
         analysis = canonical_analysis_to_read(bundle) if bundle is not None else None
@@ -334,6 +351,10 @@ def build_scored_universe_rows(
                 turnover_provenance=bundle.eligibility.turnover_provenance,
                 analytical_price_basis=bundle.eligibility.analytical_price_basis,
                 corporate_action_status=bundle.eligibility.corporate_action_status,
+                expected_session_count=bundle.eligibility.expected_session_count,
+                observed_session_count=bundle.eligibility.observed_session_count,
+                missing_session_count=bundle.eligibility.missing_session_count,
+                event_coverage_status=bundle.eligibility.event_coverage_status,
             )
             if bundle is not None and bundle.eligibility is not None
             else None
@@ -386,4 +407,5 @@ def build_scored_universe_rows(
                 }
             )
         )
-    return ranked_rows
+    from app.modules.market_universe.shortlist import apply_shortlist_ranks
+    return apply_shortlist_ranks(ranked_rows)

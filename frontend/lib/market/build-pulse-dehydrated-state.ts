@@ -1,3 +1,4 @@
+import { summaryMatchesFreshness } from "@/lib/market/market-generation";
 import { QueryClient, dehydrate, type DehydratedState } from "@tanstack/react-query";
 
 import type { MarketPulseCorePayload } from "@/lib/api/pulse-server";
@@ -30,12 +31,13 @@ export function buildPulseDehydratedState(core: MarketPulseCorePayload | null): 
     stampQueryUpdatedAt(queryClient, PULSE_FRESHNESS_QUERY_KEY, core.fetchedAt);
   }
 
-  if (core.summary) {
+  if (core.summary && summaryMatchesFreshness(core.summary, core.freshness)) {
     queryClient.setQueryData(PULSE_ANONYMOUS_SUMMARY_QUERY_KEY, core.summary);
     stampQueryUpdatedAt(queryClient, PULSE_ANONYMOUS_SUMMARY_QUERY_KEY, core.fetchedAt);
   }
 
-  if (core.briefing) {
+  if (core.briefing && core.summary && summaryMatchesFreshness(core.briefing, core.freshness) &&
+      core.briefing.decision_generation_id === core.summary.decision_generation_id) {
     queryClient.setQueryData(PULSE_ANONYMOUS_BRIEFING_QUERY_KEY, core.briefing);
     stampQueryUpdatedAt(queryClient, PULSE_ANONYMOUS_BRIEFING_QUERY_KEY, core.fetchedAt);
   }

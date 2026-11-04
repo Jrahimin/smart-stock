@@ -1,5 +1,6 @@
 "use client";
 
+import { evidenceLabel, controllingReasonLabel } from "@/lib/market/decision-presentation";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
@@ -12,7 +13,7 @@ import type { StockIntelligenceModel } from "@/lib/market/market-intelligence-ty
 import type { AppLocale } from "@/lib/locale/app-locale";
 import { DEFAULT_LOCALE } from "@/lib/locale/app-locale";
 import {
-  getDecisionPriority,
+  compareCanonicalShortlist,
   getRiskAdjustedDecisionScore,
   getVolumeConfirmationScore,
   resolveTraderDecision,
@@ -32,7 +33,7 @@ type SignalCenterViewProps = {
 
 export function SignalCenterView({ locale = DEFAULT_LOCALE }: SignalCenterViewProps) {
   const language = getSignalsLanguage(locale);
-  const { universe, isLoading, isError, isWarmingUp } = useMarketUniverse({ stockLimit: 500 });
+  const { universe, isLoading, isError, isWarmingUp, isUpdating, decisionDate } = useMarketUniverse({ stockLimit: 500 });
   const [filter, setFilter] = useState("ALL");
   const [riskFilter, setRiskFilter] = useState("ALL");
   const [sortMode, setSortMode] = useState("CONVICTION");
@@ -96,13 +97,15 @@ export function SignalCenterView({ locale = DEFAULT_LOCALE }: SignalCenterViewPr
             <option value="SPECULATIVE">{language.filters.speculative}</option>
           </select>
           <select value={sortMode} onChange={(event) => setSortMode(event.target.value)}>
-            <option value="CONVICTION">{language.filters.highestConviction}</option>
+            <option value="CONVICTION">{locale === "bn" ? "নতুন entry-এর বাছাই" : "Entry shortlist"}</option>
+            <option value="HOLDER_EXIT">{locale === "bn" ? "হোল্ডারের exit অগ্রাধিকার" : "Holder exit priority"}</option>
             <option value="NEWEST">{language.filters.newest}</option>
             <option value="RISK_ADJUSTED">{language.filters.riskAdjusted}</option>
             <option value="VOLUME_CONFIRMED">{language.filters.volumeConfirmed}</option>
           </select>
         </div>
       </WorkspacePageHero>
+      {isUpdating ? <div className="data-warning">{locale === "bn" ? "সিদ্ধান্ত আপডেট হচ্ছে; আগের চূড়ান্ত তথ্য:" : "Updating decisions; previous finalized result:"} {decisionDate}</div> : null}
       {isWarmingUp ? <div className="data-warning">Market view is warming up.</div> : null}
       {isError ? <div className="data-warning">{language.states.loadError}</div> : null}
       {isLoading ? <MarketActivityLoader label={language.states.loading} /> : null}
@@ -121,11 +124,11 @@ export function SignalCenterView({ locale = DEFAULT_LOCALE }: SignalCenterViewPr
               const displayReason =
                 decision.recommendation === "POTENTIAL_BUY" && decision.entryCondition
                   ? localizeEntryCondition(decision.entryCondition, locale) ?? decision.entryCondition
-                  : localizedReason;
+                  : controllingReasonLabel(decision.reasonCode, localizedReason, locale);
 
               return (
                 <Link
-                  className={`signal-center-item signal-center-item-${decision.recommendation.toLowerCase()} priority-${getDecisionPriority(decision.confidence)}`}
+                  className={`signal-center-item signal-center-item-${decision.recommendation.toLowerCase()} priority-${stock.traderDecision?.opportunity_quality === "STRONG" ? "high" : "low"}`}
                   href={buildStockDetailPath(stock.stock.exchange, stock.stock.symbol)}
                   key={stock.stock.id}
                 >
@@ -138,10 +141,9 @@ export function SignalCenterView({ locale = DEFAULT_LOCALE }: SignalCenterViewPr
                     <SignalBadge signal={decision.recommendation} />
                   </div>
                   <p>{displayReason}</p>
+                  {stock.traderDecision?.non_holder_action === "AVOID" ? <small>{locale === "bn" ? "নতুন long entry এড়িয়ে চলুন" : "Avoid a new long entry"}</small> : null}
                   <div className="signal-visual-row">
-                    <div className="signal-confidence-meter" aria-label={language.row.confidenceAria(decision.confidence)}>
-                      <span style={{ width: `${decision.confidence}%` }} />
-                    </div>
+                    <div className="signal-confidence-meter">{evidenceLabel(decision.evidenceStatus, locale)}</div>
                     <span className={`risk-pill risk-pill-${decision.riskLabel.toLowerCase()}`}>
                       {language.row.risk(decision.riskLabel)}
                     </span>
@@ -150,7 +152,7 @@ export function SignalCenterView({ locale = DEFAULT_LOCALE }: SignalCenterViewPr
                     </span>
                   </div>
                   <div className="signal-evidence-row">
-                    <span>{language.row.confidence(decision.confidence)}</span>
+                    <span>{evidenceLabel(decision.evidenceStatus, locale)}</span>
                     <span>{language.row.riskShort(decision.riskLabel)}</span>
                     <span>{language.states.decisionEngine}</span>
                     <span>{stock.latestTradeDate ?? language.states.awaitingPriceData}</span>
@@ -172,6 +174,9 @@ export function SignalCenterView({ locale = DEFAULT_LOCALE }: SignalCenterViewPr
 }
 
 function compareSignalRows(a: StockIntelligenceModel, b: StockIntelligenceModel, sortMode: string) {
+  if (sortMode === "HOLDER_EXIT") {
+    return (a.shortlist?.holder_exit_rank ?? 9999) - (b.shortlist?.holder_exit_rank ?? 9999);
+  }
   if (sortMode === "NEWEST") {
     return (b.latestTradeDate ?? "").localeCompare(a.latestTradeDate ?? "");
   }
@@ -184,5 +189,5 @@ function compareSignalRows(a: StockIntelligenceModel, b: StockIntelligenceModel,
     return getVolumeConfirmationScore(b) - getVolumeConfirmationScore(a);
   }
 
-  return resolveTraderDecision(b).confidence - resolveTraderDecision(a).confidence;
+  return compareCanonicalShortlist(a, b);
 }

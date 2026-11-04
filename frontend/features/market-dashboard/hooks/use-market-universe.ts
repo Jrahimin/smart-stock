@@ -1,5 +1,6 @@
 "use client";
 
+import { freshnessGenerationToken } from "@/lib/market/market-generation";
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
@@ -35,11 +36,11 @@ export function useMarketUniverse(options: UseMarketUniverseOptions = {}) {
   const freshnessQuery = useMarketDataFreshness("DSE");
   const cacheMs = options.staleTimeMs ?? getMarketStaleTimeMs(freshnessQuery.data);
   const refetchInterval = options.refetchIntervalMs ?? getMarketRefetchIntervalMs(freshnessQuery.data);
-  const generation = freshnessQuery.data?.market_sync_id ?? freshnessQuery.data?.last_synced_at ?? "unknown";
+  const generation = freshnessGenerationToken(freshnessQuery.data) ?? "unavailable";
 
   const universeQuery = useQuery({
     queryKey: ["market-universe-rows", "DSE", stockLimit, generation],
-    queryFn: () => listUniverseRows("DSE"),
+    queryFn: () => listUniverseRows("DSE", freshnessGenerationToken(freshnessQuery.data)),
     staleTime: cacheMs,
     refetchInterval,
     retry: shouldRetryUniverseCache,
@@ -65,6 +66,9 @@ export function useMarketUniverse(options: UseMarketUniverseOptions = {}) {
     isLoading: universeQuery.isLoading,
     isError: universeQuery.isError && !isWarmingUp,
     isWarmingUp,
+    isUpdating: universeQuery.data?.meta.decision_status === "UPDATING",
+    decisionDate: universeQuery.data?.meta.decision_session_date,
+    decisionPublication: universeQuery.data?.meta ?? (freshnessQuery.data?.decision_status === "UNAVAILABLE" ? freshnessQuery.data : undefined),
     loadedPriceCount: rows.length,
     refetch: refreshMarketCaches,
   };

@@ -381,7 +381,7 @@ describe("market pulse query orchestration", () => {
       null,
     );
 
-    expect(resolved.resolvedSummary).toEqual(summaryFixture);
+    expect(resolved.resolvedSummary).toBeNull();
   });
 
   it("shows personalization warning and keeps anonymous model on personalized failure", () => {

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Annotated
 from uuid import UUID
@@ -191,26 +191,34 @@ class PortfoliosService:
         self,
         *,
         exchange: ExchangeCode,
-    ) -> tuple[list[ScoredUniverseRow], date | None, datetime | None, MarketDataState, bool, str | None]:
+    ) -> tuple[list[ScoredUniverseRow], PortfolioWorkspaceMetaRead]:
         try:
             universe = await self.universe_service.get_universe_rows(exchange=exchange)
             return (
                 universe.rows,
-                universe.meta.session_trade_date,
-                universe.meta.live_data_as_of,
-                universe.meta.data_state,
-                universe.meta.is_live_session,
-                universe.meta.market_sync_id,
+                PortfolioWorkspaceMetaRead(
+                    exchange=exchange,
+                    published_market_date=universe.meta.session_trade_date,
+                    live_data_as_of=universe.meta.live_data_as_of,
+                    data_state=universe.meta.data_state,
+                    is_provisional=universe.meta.is_live_session,
+                    market_sync_id=universe.meta.market_sync_id,
+                    decision_session_date=universe.meta.decision_session_date,
+                    decision_status=universe.meta.decision_status,
+                ),
             )
         except UniverseCacheUnavailableError:
             freshness = await self.market_data_service.get_market_freshness(exchange=exchange)
             return (
                 [],
-                freshness.trade_date,
-                freshness.live_data_as_of,
-                freshness.data_state or MarketDataState.STALE,
-                bool(freshness.is_live_session),
-                getattr(freshness, "market_sync_id", None),
+                PortfolioWorkspaceMetaRead(
+                    exchange=exchange,
+                    published_market_date=freshness.trade_date,
+                    live_data_as_of=freshness.live_data_as_of,
+                    data_state=freshness.data_state or MarketDataState.STALE,
+                    is_provisional=bool(freshness.is_live_session),
+                    market_sync_id=getattr(freshness, "market_sync_id", None),
+                ),
             )
 
     async def _build_workspace(
@@ -222,9 +230,8 @@ class PortfoliosService:
         # Sequential awaits only — this request shares one AsyncSession across
         # repository/universe/market services; concurrent gather is not safe.
         items = await self.repository.list_items(user_id=user_id, exchange=exchange)
-        universe_rows, published_date, live_as_of, data_state, is_provisional, market_sync_id = (
-            await self._resolve_universe_context(exchange=exchange)
-        )
+        universe_rows, market = await self._resolve_universe_context(exchange=exchange)
+        published_date = market.published_market_date
 
         universe_by_stock = {row.stock.id: row for row in universe_rows}
         # The published universe can include a stock with a zero close-price
@@ -261,8 +268,8 @@ class PortfoliosService:
                         universe_row=universe_by_stock.get(item.stock.id),
                         fallback_price=fallback_prices.get(item.stock.id),
                         published_date=published_date,
-                        data_state=data_state,
-                        is_provisional=is_provisional,
+                        data_state=market.data_state,
+                        is_provisional=market.is_provisional,
                         relevant_event=stock_events[0] if stock_events else None,
                     ),
                 )
@@ -369,18 +376,21 @@ class PortfoliosService:
             holding_count=len(holdings),
             valued_holding_count=sum(holding.current_value is not None for holding in holdings),
         )
-        meta = PortfolioWorkspaceMetaRead(
-            exchange=exchange,
-            market_sync_id=market_sync_id,
-            published_market_date=published_date,
-            live_data_as_of=live_as_of,
-            data_state=data_state,
-            is_provisional=is_provisional,
-            total_watchlisted=len(items),
-            holding_count=len(holdings),
-            valued_holding_count=pulse.valued_holding_count,
-            costed_holding_count=sum(holding.invested_amount is not None for holding in holdings),
+        meta = market.model_copy(
+            update={
+                "total_watchlisted": len(items),
+                "holding_count": len(holdings),
+                "valued_holding_count": pulse.valued_holding_count,
+                "costed_holding_count": sum(
+                    holding.invested_amount is not None for holding in holdings
+                ),
+            }
         )
+        suggestions = self._build_watchlist_suggestions(positioned)
+        for suggestion in suggestions:
+            universe_row = universe_by_stock.get(suggestion.stock_id)
+            if universe_row is not None:
+                suggestion.display_quote = universe_row.display_quote
         return PortfolioWorkspaceRead(
             meta=meta,
             pulse=pulse,
@@ -388,7 +398,7 @@ class PortfoliosService:
             holdings=holdings,
             watchlist_items=[position for _, position in positioned],
             shape=self._build_shape(holdings),
-            watchlist_to_review=self._build_watchlist_suggestions(positioned),
+            watchlist_to_review=suggestions,
         )
 
     def _build_position(

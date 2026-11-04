@@ -134,6 +134,8 @@ async def _fetch_amarstock_metrics(
     redis: OptionalRedisClient | None = None,
 ) -> AmarStockDsexPerformanceMetrics | None:
     resolved_settings = settings or get_settings()
+    if not resolved_settings.amarstock_index_summary_enabled:
+        return None
     resolved_redis = redis if redis is not None else build_redis_client(resolved_settings)
     cached = await _load_cached_amarstock_metrics(resolved_redis, exchange)
     if cached is not None:

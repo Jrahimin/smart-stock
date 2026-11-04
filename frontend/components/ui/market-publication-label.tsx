@@ -1,0 +1,52 @@
+import React from "react";
+
+import type { AppLocale } from "@/lib/locale/app-locale";
+
+export type DecisionPublication = {
+  decision_session_date?: string | null;
+  decision_status?: string | null;
+};
+
+export type QuotePublication = {
+  as_of_trade_date?: string | null;
+  observation_session_date?: string | null;
+  observation_status?: string | null;
+};
+
+export function DecisionPublicationLabel({ decision, locale }: {
+  decision?: DecisionPublication | null;
+  locale: AppLocale;
+}) {
+  if (!decision?.decision_status && !decision?.decision_session_date) return null;
+  const bn = locale === "bn";
+  const label = decision.decision_status === "UPDATING"
+    ? (bn ? "আপডেট হচ্ছে · আগের চূড়ান্ত সিদ্ধান্ত" : "Updating · Previous finalized decision")
+    : decision.decision_status === "UNAVAILABLE"
+      ? (bn ? "সিদ্ধান্ত পাওয়া যায়নি" : "Decision unavailable")
+      : (bn ? "চূড়ান্ত সিদ্ধান্ত" : "Finalized decision");
+  return <small data-decision-status={decision.decision_status}>
+    {label}{decision.decision_session_date ? ` · ${decision.decision_session_date}` : ""}
+  </small>;
+}
+
+export function QuotePublicationLabel({ quote, locale }: {
+  quote?: QuotePublication | null;
+  locale: AppLocale;
+}) {
+  if (!quote?.observation_status) return null;
+  const bn = locale === "bn";
+  const labels: Record<string, string> = bn
+    ? { PROVISIONAL: "সাময়িক দাম", FINALIZED: "চূড়ান্ত দাম", NO_TRADE: "লেনদেন হয়নি", UNAVAILABLE: "দামের তথ্য নেই" }
+    : { PROVISIONAL: "Provisional quote", FINALIZED: "Finalized quote", NO_TRADE: "No trade", UNAVAILABLE: "Quote unavailable" };
+  const status = quote.observation_status;
+  const observationDate = quote.observation_session_date;
+  const priceDate = quote.as_of_trade_date;
+  return <small data-quote-status={status}>
+    {labels[status] ?? labels.UNAVAILABLE}
+    {observationDate && (status !== "UNAVAILABLE" || observationDate !== priceDate)
+      ? ` · ${observationDate}` : ""}
+    {priceDate && (status === "UNAVAILABLE" || (observationDate && priceDate !== observationDate))
+      ? ` · ${bn ? "শেষ বৈধ দাম" : "Last valid quote"} ${priceDate}` : ""}
+    {priceDate && !observationDate && status !== "UNAVAILABLE" ? ` · ${priceDate}` : ""}
+  </small>;
+}

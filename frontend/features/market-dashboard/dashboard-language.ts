@@ -1,3 +1,4 @@
+import { evidenceLabel } from "@/lib/market/decision-presentation";
 import type { AppLocale } from "@/lib/locale/app-locale";
 import { DEFAULT_LOCALE } from "@/lib/locale/app-locale";
 import type { DecisionReasonCopy } from "@/lib/market/trader-decision-reason";
@@ -456,7 +457,7 @@ const dashboardLanguage = {
         "No actionable deterministic signals yet for the loaded market universe.",
       warmup:
         "Market view is warming up. This section should populate shortly.",
-      confidence: (value) => `${value}/100 evidence`,
+      confidence: (value) => evidenceLabel(value, "en"),
       risk: (value) => `${value} risk`,
       awaitingContext: "Awaiting stronger context",
       contextJoiner: " · ",
@@ -695,7 +696,7 @@ const dashboardLanguage = {
       title: "বাজারের signal বিশ্লেষণ",
       empty: "এখনো সিদ্ধান্ত নেওয়ার মতো signal নেই",
       warmup: "Signals তৈরি হচ্ছে—একটু পর দেখুন",
-      confidence: (value) => `${value}/100 evidence`,
+      confidence: (value) => evidenceLabel(value, "bn"),
       risk: (value) => `${value} risk`,
       awaitingContext: "আরও পরিষ্কার context দরকার",
       contextJoiner: " · ",

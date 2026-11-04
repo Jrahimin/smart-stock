@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
 
 DECISION_REPLAY_LIMITATIONS: tuple[str, ...] = (
-    "RAW_INPUT_ROWS_NOT_ARCHIVED_IN_DECISION_SNAPSHOT",
+    "INPUT_CAPTURE_REQUIRES_COMPLETE_GENERATION_PUBLICATION",
     "EFFECTIVE_DATED_STATUS_CATEGORY_CIRCUIT_HISTORY_INCOMPLETE",
 )
 
@@ -46,6 +46,7 @@ def daily_price_audit_payload(price: DailyPrice) -> dict[str, Any]:
         "price_change": price.price_change,
         "price_change_percent": price.price_change_percent,
         "volume": price.volume,
+        "trade_count": price.trade_count,
         "turnover": price.turnover,
         "turnover_provenance": price.turnover_provenance,
         "source": price.source,
@@ -65,6 +66,9 @@ def build_decision_input_lineage(strategy_input: StrategyInput) -> DecisionInput
         {
             "schema": TRADING_INPUT_SCHEMA_VERSION,
             "known_corporate_action_dates": sorted(strategy_input.known_corporate_action_dates),
+            "event_observations": strategy_input.event_observations,
+            "event_coverage_status": strategy_input.event_coverage_status,
+            "adjustment_coverage": strategy_input.adjustment_coverage,
         }
     )
     input_hash = stable_audit_hash(
@@ -77,6 +81,8 @@ def build_decision_input_lineage(strategy_input: StrategyInput) -> DecisionInput
             # rollout does not masquerade as an input revision.
             "action_taxonomy": LEGACY_TRADING_ACTION_TAXONOMY,
             "stock_id": strategy_input.stock_id,
+            "symbol": strategy_input.symbol,
+            "finality": strategy_input.finality,
             "exchange": strategy_input.exchange,
             "category": strategy_input.category,
             "is_active": strategy_input.is_active,

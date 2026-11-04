@@ -1,3 +1,4 @@
+import { evidenceLabel, controllingReasonLabel } from "@/lib/market/decision-presentation";
 import type { PatternDetectionDto, StockDecisionSupportDto } from "@/lib/api/stock-decision-support-types";
 import {
   formatFinancialDisplay,
@@ -47,6 +48,7 @@ export type StockDecisionViewModel = {
   recommendation: string;
   confidence: number;
   confidenceLabel: string;
+  controllingReason?: string;
   recommendationTone: "buy" | "hold" | "wait" | "sell" | "neutral";
   entryCondition: string | null;
   decisionSignals: DecisionSignal[];
@@ -191,6 +193,7 @@ export function buildStockDecisionViewModel(
     severity: warning.severity,
     code: warning.code,
   }));
+  const risk = decision.trading_risk ?? decision.risk;
   const displayAction =
     decision.decision.display_action ??
     (decision.decision.recommendation === "SELL" ? "SELL" : "WAIT");
@@ -200,7 +203,12 @@ export function buildStockDecisionViewModel(
       available: true,
       recommendation: displayAction.replace("_", " "),
       confidence: decision.decision.confidence,
-      confidenceLabel: `${decision.decision.confidence}/100`,
+      confidenceLabel: evidenceLabel(decision.decision.evidence_status, locale),
+      controllingReason: [
+        decision.decision_status === "UPDATING" ? (locale === "bn" ? "সিদ্ধান্ত আপডেট হচ্ছে; আগের চূড়ান্ত ফল।" : "Updating; previous finalized result.") : null,
+        controllingReasonLabel(decision.decision.primary_reason_code, decision.decision.primary_reason ?? "", locale),
+        decision.decision.non_holder_action === "AVOID" ? (locale === "bn" ? "নতুন long entry এড়িয়ে চলুন।" : "Avoid a new long entry.") : null,
+      ].filter(Boolean).join(" "),
       recommendationTone:
         recommendationToneMap[displayAction] ?? "neutral",
       entryCondition:
@@ -215,9 +223,9 @@ export function buildStockDecisionViewModel(
         score: component.score,
         explanation: component.explanation,
       })),
-      riskScore: decision.risk.score,
-      riskLabel: decision.risk.label,
-      riskComponents: decision.risk.components.map((component) => ({
+      riskScore: risk.score,
+      riskLabel: risk.label,
+      riskComponents: risk.components.map((component) => ({
         key: component.key,
         label: component.label,
         score: component.score,

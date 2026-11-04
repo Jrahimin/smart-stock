@@ -1,5 +1,6 @@
 "use client";
 
+import { freshnessGenerationToken } from "@/lib/market/market-generation";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
@@ -97,7 +98,7 @@ export function useMarketPulse(options?: {
   const staleTime = getMarketStaleTimeMs(freshnessQuery.data);
   const refetchInterval = getMarketRefetchIntervalMs(freshnessQuery.data);
   const freshnessLastSyncedAt = freshnessQuery.data?.last_synced_at ?? null;
-  const freshnessGeneration = freshnessQuery.data?.market_sync_id ?? freshnessLastSyncedAt;
+  const freshnessGeneration = freshnessGenerationToken(freshnessQuery.data);
 
   const [storedSnapshot] = useState(readMarketPulseSnapshot);
   const previousSnapshot = useMemo(() => toApiPreviousSnapshot(storedSnapshot), [storedSnapshot]);
@@ -181,6 +182,8 @@ export function useMarketPulse(options?: {
     initialCore,
     anonymousBriefingQuery,
     personalizedBriefingQuery,
+    freshnessGeneration,
+    resolvedSummary?.decision_generation_id,
   );
 
   const { isBriefingLoading, isBriefingError, showBriefingPersonalizationWarning } =

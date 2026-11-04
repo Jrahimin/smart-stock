@@ -10,6 +10,7 @@ import { WatchlistStarToggle } from "@/features/watchlist/components/watchlist-s
 import { useUserWatchlist } from "@/features/watchlist/hooks/use-user-watchlist";
 import type { WatchlistFilterMode } from "@/features/watchlist/types/watchlist-types";
 import { useMarketUniverse } from "@/features/market-dashboard/hooks/use-market-universe";
+import { DecisionPublicationLabel, QuotePublicationLabel } from "@/components/ui/market-publication-label";
 import {
   getScannerCategoryDescription,
   getScannerLanguage,
@@ -37,7 +38,7 @@ type ScannerWorkspaceViewProps = {
 export function ScannerWorkspaceView({ locale = DEFAULT_LOCALE }: ScannerWorkspaceViewProps) {
   const language = getScannerLanguage(locale);
   const advancedScanners = frontendConfig.features.advancedScanners;
-  const { universe, isLoading, isError, isWarmingUp } = useMarketUniverse({ stockLimit: 500 });
+  const { universe, isLoading, isError, isWarmingUp, decisionPublication } = useMarketUniverse({ stockLimit: 500 });
   const { watchedStockIds, holdingStockIds } = useUserWatchlist();
   const [symbolFilter, setSymbolFilter] = useState("");
   const [watchlistFilter, setWatchlistFilter] = useState<WatchlistFilterMode>("ALL");
@@ -135,6 +136,7 @@ export function ScannerWorkspaceView({ locale = DEFAULT_LOCALE }: ScannerWorkspa
         </div>
       </WorkspacePageHero>
       {isWarmingUp ? <div className="data-warning">Market view is warming up.</div> : null}
+      <DecisionPublicationLabel decision={decisionPublication} locale={locale} />
       {isError ? <div className="data-warning">{language.states.loadError}</div> : null}
       {isLoading ? <MarketActivityLoader label={language.states.loading} /> : null}
       {!isLoading && !isWarmingUp ? (
@@ -166,6 +168,7 @@ export function ScannerWorkspaceView({ locale = DEFAULT_LOCALE }: ScannerWorkspa
                           <span>
                             {formatNumber(stock.latestPrice)} / {formatPercent(stock.priceChangePercent)}
                           </span>
+                          <QuotePublicationLabel locale={locale} quote={stock.displayQuote} />
                           {decision.recommendation === "POTENTIAL_BUY" && decision.entryCondition ? (
                             <small className="scanner-entry-condition">
                               {localizeEntryCondition(decision.entryCondition, locale)}
