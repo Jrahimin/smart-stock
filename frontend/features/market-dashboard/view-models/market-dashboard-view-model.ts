@@ -289,6 +289,7 @@ function applyDashboardLocalization(
   if (locale === "en") {
     return {
       ...model,
+      timeline: localizeTimelineItems(model.timeline, locale, language),
       insights: localizedInsights,
     };
   }

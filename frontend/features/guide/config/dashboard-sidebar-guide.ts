@@ -6,7 +6,8 @@ import {
 import type { GuideStep } from "@/features/guide/types/guide-types";
 
 export const DASHBOARD_SIDEBAR_GUIDE_VERSION = 2;
-export const DASHBOARD_GUIDE_DASHBOARD_STEP_COUNT = 6;
+export const DASHBOARD_GUIDE_DASHBOARD_STEP_COUNT = 9;
+export const SECTOR_TILES_GUIDE_TARGET = '[data-guide="sector-map-tiles"], .sw-map:not(:has([data-guide="sector-map-tiles"])) [data-guide="sector-map"]';
 /** Step index where the desktop sidebar should expand (sidebar-introduction). */
 export const DASHBOARD_GUIDE_SIDEBAR_EXPAND_STEP_INDEX = DASHBOARD_GUIDE_DASHBOARD_STEP_COUNT - 1;
 
@@ -27,8 +28,8 @@ export function getDashboardSidebarGuideSteps(locale: AppLocale): readonly Guide
       target: '[data-guide="market-pulse"]',
       dialog: dashboardDialogs.pulse,
       characterPose: "point-left",
-      preferredCharacterPlacements: ["right", "top-right"],
-      preferredBubblePlacements: ["top-right", "right"],
+      preferredCharacterPlacements: ["bottom-right", "right"],
+      preferredBubblePlacements: ["bottom-right", "right"],
       highlightStyle: "region",
       layoutMode: "beside-target",
       characterAnchor: "upper",
@@ -45,22 +46,53 @@ export function getDashboardSidebarGuideSteps(locale: AppLocale): readonly Guide
       characterAnchor: "center",
     },
     {
-      id: "smart-signals",
-      target: '[data-guide="smart-signals"]',
-      dialog: dashboardDialogs.signals,
-      characterPose: "thinking",
-      preferredCharacterPlacements: ["right", "top-right"],
-      preferredBubblePlacements: ["top-right", "right"],
-      highlightStyle: "card",
+      id: "market-pulse-link",
+      target: '[data-guide="market-pulse-link"]',
+      dialog: dashboardDialogs.pulseLink,
+      characterPose: "point-left",
+      preferredCharacterPlacements: ["right", "bottom-right"],
+      preferredBubblePlacements: ["bottom-right", "right"],
+      highlightStyle: "region",
       layoutMode: "beside-target",
       characterAnchor: "upper",
+    },
+    {
+      id: "sector-map",
+      target: '[data-guide="sector-map"]',
+      dialog: dashboardDialogs.map,
+      characterPose: "point-left",
+      preferredCharacterPlacements: ["right", "top-right"],
+      preferredBubblePlacements: ["top-right", "right"],
+      highlightStyle: "region",
+      layoutMode: "beside-target",
+      characterAnchor: "upper",
+    },
+    {
+      id: "sector-map-tiles",
+      target: SECTOR_TILES_GUIDE_TARGET,
+      dialog: dashboardDialogs.tiles,
+      characterPose: "point-left",
+      preferredBubblePlacements: ["right", "top-right", "bottom-right"],
+      highlightStyle: "region",
+      layoutMode: "beside-target",
     },
     {
       id: "market-discovery",
       target: '[data-guide="market-discovery"]',
       dialog: dashboardDialogs.discovery,
-      characterPose: "point-left",
-      preferredCharacterPlacements: ["right", "top-right"],
+      characterPose: "point-right",
+      preferredCharacterPlacements: ["left", "bottom-left"],
+      preferredBubblePlacements: ["left", "bottom-left"],
+      highlightStyle: "region",
+      layoutMode: "beside-target",
+      characterAnchor: "upper",
+    },
+    {
+      id: "smart-signals",
+      target: '[data-guide="smart-signals"]',
+      dialog: dashboardDialogs.signals,
+      characterPose: "thinking",
+      preferredCharacterPlacements: ["top-right", "right"],
       preferredBubblePlacements: ["top-right", "right"],
       highlightStyle: "region",
       layoutMode: "beside-target",
@@ -138,9 +170,9 @@ export function getDashboardSidebarGuideSteps(locale: AppLocale): readonly Guide
       layoutMode: "sidebar-adjacent",
     },
     {
-      id: "nav-watchlist",
-      target: '[data-guide="nav-watchlist"]',
-      dialog: sidebarDialogs.watchlist,
+      id: "nav-portfolio",
+      target: '[data-guide="nav-portfolio"]',
+      dialog: sidebarDialogs.portfolio,
       characterPose: "farewell",
       preferredCharacterPlacements: ["right"],
       preferredBubblePlacements: ["right"],

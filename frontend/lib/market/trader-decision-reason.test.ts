@@ -91,8 +91,8 @@ describe("resolveDecisionReasonSummary", () => {
       getDashboardLanguage("bn").signals.decisionReasons,
     );
 
-    expect(summary).toContain("LOW");
-    expect(summary).toContain("confirmation");
+    expect(summary).toContain("ঝুঁকির মাত্রা কম");
+    expect(summary).toContain("আরও স্পষ্ট প্রমাণ");
     expect(summary).not.toContain("forcing a trade");
   });
 });
@@ -109,8 +109,8 @@ describe("buildLocalizedSignalReason", () => {
     );
 
     expect(reason).toContain("RSI 65.2");
-    expect(reason).toContain("Volume স্বাভাবিকের তুলনায় 1.9 গুণ");
-    expect(reason).toContain("Uptrend-এ ভালো সুযোগ আছে");
+    expect(reason).toContain("কেনাবেচার পরিমাণ গড়ের 1.9 গুণ");
+    expect(reason).toContain("দাম ঊর্ধ্বমুখী");
     expect(reason).not.toContain("acceptable reward potential");
   });
 
@@ -125,7 +125,7 @@ describe("buildLocalizedSignalReason", () => {
     );
 
     expect(reason).toContain("RSI 55.3");
-    expect(reason).toContain("নতুন সিদ্ধান্ত নেওয়ার মতো ডেটা");
+    expect(reason).toContain("নতুন সিদ্ধান্তের জন্য বর্তমান তথ্য যথেষ্ট নয়");
     expect(reason).not.toContain("Data is not eligible");
   });
 
@@ -140,7 +140,7 @@ describe("buildLocalizedSignalReason", () => {
       language.signals,
     );
 
-    expect(reason).toContain("গঠন এখনো ভালো");
+    expect(reason).toContain("দামের গতি এখনও অনুকূল");
     expect(reason).not.toContain("holders may hold");
   });
 

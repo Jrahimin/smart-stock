@@ -28,6 +28,7 @@ export function DashboardGuideLauncher({
     <button
       aria-label={copy.ariaLabel}
       className={`${className}${prominent ? " market-dashboard-guide-button--prominent" : ""}`}
+      data-dashboard-guide-launcher
       onClick={openDashboardSidebarGuide}
       title={copy.title}
       type="button"

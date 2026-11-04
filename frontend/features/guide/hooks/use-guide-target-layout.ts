@@ -7,6 +7,8 @@ import {
   type GuideRect,
 } from "@/features/guide/lib/guide-positioning";
 
+export const DASHBOARD_GUIDE_DIALOG_HEIGHT = 320;
+
 export type GuideTargetSnapshot = {
   activeElement: HTMLElement | null;
   sidebarRight: number | null;
@@ -17,6 +19,7 @@ export type GuideTargetSnapshot = {
 type GuideTargetOptions = {
   preferSidebar?: boolean;
   requireReady?: boolean;
+  alignDashboard?: "desktop" | "mobile";
 };
 
 function isElementVisible(element: HTMLElement) {
@@ -70,6 +73,22 @@ function toGuideRect(rect: DOMRect): GuideRect {
   };
 }
 
+function getGuideExtent(target: HTMLElement) {
+  const id = target.dataset.guideExtent;
+  return id ? document.getElementById(id) : null;
+}
+
+function getGuideAnchorRect(target: HTMLElement): GuideRect {
+  const start = target.getBoundingClientRect();
+  const end = getGuideExtent(target)?.getBoundingClientRect();
+  if (!end?.height) return toGuideRect(start);
+  const top = Math.min(start.top, end.top);
+  const right = Math.max(start.right, end.right);
+  const bottom = Math.max(start.bottom, end.bottom);
+  const left = Math.min(start.left, end.left);
+  return { top, right, bottom, left, width: right - left, height: bottom - top };
+}
+
 function measureSidebarRight() {
   const sidebar = document.querySelector<HTMLElement>(".terminal-sidebar-desktop");
   if (!sidebar) {
@@ -81,7 +100,7 @@ function measureSidebarRight() {
 }
 
 export function buildTargetSnapshot(target: HTMLElement): GuideTargetSnapshot {
-  const targetRect = toGuideRect(target.getBoundingClientRect());
+  const targetRect = getGuideAnchorRect(target);
   const clipped = clipRectToViewport(targetRect, window.innerWidth, window.innerHeight);
 
   return {
@@ -105,7 +124,7 @@ export function measureGuideTargetSnapshot(
 }
 
 function isTargetVisibleInViewport(target: HTMLElement, topInset = 72, bottomInset = 16) {
-  const rect = target.getBoundingClientRect();
+  const rect = getGuideAnchorRect(target);
   const viewportHeight = window.innerHeight;
 
   if (rect.height > viewportHeight * 0.45) {
@@ -141,7 +160,7 @@ export function scrollGuideTargetIntoView(
 
   const topInset = 72;
   const bottomInset = 16;
-  const rect = target.getBoundingClientRect();
+  const rect = getGuideAnchorRect(target);
   const viewportHeight = window.innerHeight;
   const isTall = rect.height > viewportHeight * 0.45;
   const needsScroll = isTall
@@ -170,6 +189,7 @@ export function useGuideTargetLayout(
 ) {
   const [revision, bumpRevision] = useReducer((count: number) => count + 1, 0);
   const preferSidebar = options?.preferSidebar ?? false;
+  const alignDashboard = options?.alignDashboard;
 
   const snapshot = useMemo(() => {
     if (!enabled || !selector) {
@@ -204,8 +224,40 @@ export function useGuideTargetLayout(
         frameId = window.requestAnimationFrame(remeasure);
       });
       targetObserver.observe(target);
+      const extent = getGuideExtent(target);
+      if (extent) targetObserver.observe(extent);
     };
 
+    // Measure the new anchor after scrolling, before the first frame of the step.
+    // Sidebar and drawer geometry is observed independently below.
+    if (alignDashboard) {
+      const target = getVisibleTarget(selector, { preferSidebar });
+      if (target && !preferSidebar) {
+        if (alignDashboard === "mobile") {
+          target.scrollIntoView({ behavior: "instant", block: "start", inline: "nearest" });
+        } else if (target.dataset.guideExtent) {
+          // Keep the whole example visible. Prefer the space above it; on a
+          // short viewport scroll it near the top and place the guide below.
+          const rect = getGuideAnchorRect(target);
+          const room = DASHBOARD_GUIDE_DIALOG_HEIGHT + 46;
+          const maxTop = window.innerHeight - rect.height - 30;
+          const top = maxTop >= room ? Math.min(maxTop, Math.max(room, window.innerHeight * 0.64)) : 76;
+          window.scrollBy({ top: rect.top - top, behavior: "instant" });
+        } else {
+          scrollGuideTargetIntoView(target, { navigation: false, tall: false, reduceMotion: true });
+          // A centered anchor can leave too little vertical room on either
+          // side of a wide target. Make room below it before placing the pair.
+          const rect = target.getBoundingClientRect();
+          // Allow for the viewport inset, cluster gap, and fractional layout pixels.
+          const room = DASHBOARD_GUIDE_DIALOG_HEIGHT + 46;
+          if (rect.top < room && window.innerHeight - rect.bottom < room) {
+            const scrollBy = rect.bottom - (window.innerHeight - room);
+            if (rect.top - scrollBy >= 64) window.scrollBy({ top: scrollBy, behavior: "instant" });
+          }
+        }
+      }
+      remeasure();
+    }
     attachTargetObserver();
 
     const scheduleUpdate = () => {
@@ -221,6 +273,11 @@ export function useGuideTargetLayout(
       sidebarObserver = new ResizeObserver(scheduleUpdate);
       sidebarObserver.observe(sidebar);
     }
+    const main = alignDashboard ? document.querySelector(".terminal-main") : null;
+    if (main) {
+      sidebarObserver ??= new ResizeObserver(scheduleUpdate);
+      sidebarObserver.observe(main);
+    }
 
     return () => {
       window.cancelAnimationFrame(frameId);
@@ -229,7 +286,7 @@ export function useGuideTargetLayout(
       window.removeEventListener("resize", scheduleUpdate);
       window.removeEventListener("scroll", scheduleUpdate, true);
     };
-  }, [enabled, preferSidebar, selector]);
+  }, [alignDashboard, enabled, preferSidebar, selector]);
 
   useLayoutEffect(() => {
     const activeElement = snapshot?.activeElement;

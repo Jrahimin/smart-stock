@@ -60,13 +60,6 @@ function localizeTimelineDescription(
   templates: DashboardLanguage["timeline"]["templates"],
   decisionReasons: DashboardLanguage["signals"]["decisionReasons"],
 ): string {
-  const topMoverMatch = description.match(
-    /^Top session mover in the latest snapshot \((.+)\)\.?$/i,
-  );
-  if (topMoverMatch) {
-    return templates.topMoverDescription(topMoverMatch[1] ?? "");
-  }
-
   const snapshotMatch = description.match(
     /^(\d+) active instruments in the latest price snapshot\.?$/i,
   );
@@ -101,11 +94,10 @@ export function localizeTimelineItem(
   locale: AppLocale,
   language: DashboardLanguage,
 ): MarketTimelineItemModel {
+  const { templates } = language.timeline;
   if (locale === "en") {
     return item;
   }
-
-  const { templates } = language.timeline;
 
   return {
     time: localizeTimelineTime(item.time, templates),
@@ -124,9 +116,8 @@ export function localizeTimelineItems(
   locale: AppLocale,
   language: DashboardLanguage,
 ): MarketTimelineItemModel[] {
-  if (locale === "en") {
-    return items;
-  }
-
-  return items.map((item) => localizeTimelineItem(item, locale, language));
+  return items.filter(({ title, description }) => !(
+    /^Top session mover in the latest snapshot \(.+\)\.?$/i.test(description)
+    || (title === "Market snapshot ready" && /^\d+ active instruments in the latest price snapshot\.?$/i.test(description))
+  )).map((item) => localizeTimelineItem(item, locale, language));
 }

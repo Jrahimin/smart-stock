@@ -69,9 +69,10 @@ export function DashboardMobileGuide({
   const preferSidebar = currentStep?.highlightStyle === "navigation";
   const targetSnapshot = useGuideTargetLayout(currentStep?.target ?? null, isGuideActive && !isDimOnlyStep, {
     preferSidebar,
+    alignDashboard: isProductJourney ? undefined : "mobile",
   });
   const spotlightRect = targetSnapshot?.spotlightRect ?? null;
-  const isNavigationStep = stepIndex > 0;
+  const isNavigationStep = isProductJourney ? stepIndex > 0 : preferSidebar;
 
   useEffect(() => {
     if (!isWealthJourney) return;
@@ -121,15 +122,7 @@ export function DashboardMobileGuide({
   }, [isDrawerTransitioning, isGuideActive, setSkipConfirmationOpen, skipConfirmationOpen, stepIndex]);
 
   function movePrevious() {
-    if (isProductJourney) {
-      setStepIndex((index) => Math.max(0, index - 1));
-      return;
-    }
-    if (stepIndex === 1) {
-      onMobileNavigationOpenChange(false);
-    }
-
-    setStepIndex((index) => Math.max(0, index - 1));
+    moveToStep(Math.max(0, stepIndex - 1));
   }
 
   function moveNext() {
@@ -142,22 +135,30 @@ export function DashboardMobileGuide({
       return;
     }
 
-    if (!isProductJourney && stepIndex === 0) {
+    moveToStep(stepIndex + 1);
+  }
+
+  function moveToStep(nextIndex: number) {
+    if (isDrawerTransitioning) return;
+    const nextStep = dashboardMobileGuideSteps[nextIndex];
+    const nextDrawer = Boolean(nextStep && "openDrawer" in nextStep && nextStep.openDrawer);
+    const currentDrawer = Boolean(currentStep && "openDrawer" in currentStep && currentStep.openDrawer);
+    const drawerOpens = !isProductJourney && nextDrawer && !currentDrawer;
+    if (drawerOpens && !reduceMotion) {
       setIsDrawerTransitioning(true);
       drawerTransitionTimeoutRef.current = window.setTimeout(() => {
         onMobileNavigationOpenChange(true);
-        setStepIndex(1);
+        setStepIndex(nextIndex);
         setIsDrawerTransitioning(false);
         drawerTransitionTimeoutRef.current = null;
       }, DRAWER_OPEN_DELAY_MS);
       return;
     }
 
-    if (!isProductJourney && stepIndex === 3) {
-      onMobileNavigationOpenChange(false);
+    if (!isProductJourney && nextDrawer !== currentDrawer) {
+      onMobileNavigationOpenChange(nextDrawer);
     }
-
-    setStepIndex((index) => index + 1);
+    setStepIndex(nextIndex);
   }
 
   function handleSkip() {
@@ -165,7 +166,7 @@ export function DashboardMobileGuide({
     skipGuide();
   }
 
-  const motionDuration = reduceMotion ? 0.01 : 0.42;
+  const motionDuration = !isProductJourney ? 0 : reduceMotion ? 0.01 : 0.42;
   const canRenderGuide = Boolean(isGuideActive && guideRun && currentStep);
   const showSpotlight = Boolean(!isDimOnlyStep && spotlightRect);
 
@@ -201,13 +202,14 @@ export function DashboardMobileGuide({
           <motion.div
             animate={{ opacity: 1 }}
             className="guide-mobile-root"
+            data-dashboard-tour={isProductJourney ? undefined : ""}
             exit={{ opacity: 0 }}
             initial={{ opacity: 0 }}
             key={`guide-mobile-layer-${guideRun.id}`}
             transition={{ duration: reduceMotion ? 0.01 : 0.22, ease: guideMotionEase }}
           >
             <div aria-hidden="true" className="guide-mobile-interaction-layer" />
-            <div aria-hidden="true" className="guide-mobile-dim" />
+            {isProductJourney || !showSpotlight ? <div aria-hidden="true" className="guide-mobile-dim" /> : null}
             {showSpotlight && spotlightRect ? (
               <motion.div
                 animate={{
@@ -235,6 +237,10 @@ export function DashboardMobileGuide({
               isSkipConfirmationOpen={skipConfirmationOpen}
               isWelcomeStep={stepIndex === 0}
               locale={locale}
+              nextLabel={!isProductJourney && currentStep.id === "smart-signals" ? guideControls.startMenuTour : undefined}
+              phase={isProductJourney ? undefined : stepIndex < 5
+                ? { label: guideControls.dashboardPhase, index: stepIndex, count: 5 }
+                : { label: guideControls.menuPhase, index: stepIndex - 5, count: dashboardMobileGuideSteps.length - 5 }}
               onCancelSkip={() => setSkipConfirmationOpen(false)}
               onClose={() => setSkipConfirmationOpen(true)}
               onConfirmSkip={handleSkip}

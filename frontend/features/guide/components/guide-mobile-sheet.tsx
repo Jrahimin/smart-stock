@@ -17,6 +17,8 @@ type GuideMobileSheetProps = {
   isLastStep: boolean;
   isSkipConfirmationOpen: boolean;
   isWelcomeStep?: boolean;
+  nextLabel?: string;
+  phase?: { label: string; index: number; count: number };
   locale: AppLocale;
   onCancelSkip: () => void;
   onClose: () => void;
@@ -40,6 +42,8 @@ export function GuideMobileSheet({
   isSkipConfirmationOpen,
   isWelcomeStep = false,
   locale,
+  nextLabel,
+  phase: phaseOverride,
   onCancelSkip,
   onClose,
   onConfirmSkip,
@@ -51,10 +55,11 @@ export function GuideMobileSheet({
   stepIndex,
   suppressContextualPrompts,
 }: GuideMobileSheetProps) {
+  const phase = phaseOverride ?? { label: controls.introPhase, index: stepIndex, count: stepCount };
   const dialogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    dialogRef.current?.focus();
+    dialogRef.current?.focus({ preventScroll: true });
   }, [stepIndex, isSkipConfirmationOpen]);
 
   function trapFocus(event: KeyboardEvent<HTMLDivElement>) {
@@ -97,7 +102,7 @@ export function GuideMobileSheet({
           <GuideCharacter facing="right" pose={characterPose} variant="inline" />
           <div>
             <p className="guide-mobile-sheet-phase">
-              {isSkipConfirmationOpen ? controls.skipSectionTitle : controls.introPhase}
+              {isSkipConfirmationOpen ? controls.skipSectionTitle : phase.label}
             </p>
             <h2 id="guide-mobile-title">{isSkipConfirmationOpen ? controls.skipConfirmTitle : dialog.eyebrow}</h2>
           </div>
@@ -115,15 +120,15 @@ export function GuideMobileSheet({
         {!isSkipConfirmationOpen ? (
           <div className="guide-mobile-progress" role="status">
             <div className="guide-mobile-progress-meta">
-              <span className="guide-mobile-progress-label">{controls.introPhase}</span>
+              <span className="guide-mobile-progress-label">{phase.label}</span>
               <span className="guide-mobile-progress-count">
-                {stepIndex + 1} / {stepCount}
+                {phase.index + 1} / {phase.count}
               </span>
             </div>
             <div aria-hidden="true" className="guide-mobile-progress-segments">
-              {Array.from({ length: stepCount }, (_, index) => (
+              {Array.from({ length: phase.count }, (_, index) => (
                 <span
-                  className={index <= stepIndex ? "guide-mobile-progress-segment is-active" : "guide-mobile-progress-segment"}
+                  className={index <= phase.index ? "guide-mobile-progress-segment is-active" : "guide-mobile-progress-segment"}
                   key={`mobile-guide-${index}`}
                 />
               ))}
@@ -170,7 +175,7 @@ export function GuideMobileSheet({
               onClick={onNext}
               type="button"
             >
-              {isLastStep ? controls.finish : controls.next}
+              {isLastStep ? controls.finish : nextLabel ?? controls.next}
               <ArrowRight aria-hidden="true" size={14} />
             </button>
           </div>

@@ -261,7 +261,7 @@ export function buildStockDecisionViewModel(
       warnings,
       topWarnings: warnings.slice(0, 3),
       freshness: {
-        label: decision.data_freshness.is_stale ? "Stale" : decision.data_freshness.is_sparse ? "Sparse" : "Fresh",
+        label: decision.data_freshness.is_stale ? "Stale" : decision.data_freshness.is_sparse ? "Sparse" : "No missed sessions flagged",
         helper: `${decision.data_freshness.ohlcv_row_count} candles · ${decision.data_freshness.latest_trade_date ?? "unknown"}`,
         isStale: decision.data_freshness.is_stale || decision.data_freshness.is_sparse,
       },

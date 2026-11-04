@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-import { DashboardDesktopGuide } from "@/features/guide/components/dashboard-desktop-guide";
+import { DashboardDesktopGuide, type ProductGuideStepState } from "@/features/guide/components/dashboard-desktop-guide";
 import { DashboardMobileGuide } from "@/features/guide/components/dashboard-mobile-guide";
 
 import type { AppLocale } from "@/lib/locale/app-locale";
@@ -39,6 +39,15 @@ export function DashboardSidebarGuide({
 }: DashboardSidebarGuideProps) {
   const isMobile = useIsMobileViewport();
   const [mounted, setMounted] = useState(false);
+  const wasActive = useRef(false);
+  const handleStepChange = useCallback(({ active }: ProductGuideStepState) => {
+    if (!active && wasActive.current) {
+      const launcher = Array.from(document.querySelectorAll<HTMLElement>("[data-dashboard-guide-launcher]"))
+        .find((button) => button.getClientRects().length > 0);
+      launcher?.focus({ preventScroll: true });
+    }
+    wasActive.current = active;
+  }, []);
 
   useEffect(() => {
     setMounted(true);
@@ -50,9 +59,9 @@ export function DashboardSidebarGuide({
 
   if (isMobile) {
     return (
-      <DashboardMobileGuide locale={dashboardLocale} onMobileNavigationOpenChange={onMobileNavigationOpenChange} />
+      <DashboardMobileGuide locale={dashboardLocale} onMobileNavigationOpenChange={onMobileNavigationOpenChange} onGuideStepChange={handleStepChange} />
     );
   }
 
-  return <DashboardDesktopGuide locale={dashboardLocale} />;
+  return <DashboardDesktopGuide locale={dashboardLocale} onGuideStepChange={handleStepChange} />;
 }

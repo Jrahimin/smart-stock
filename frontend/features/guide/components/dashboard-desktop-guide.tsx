@@ -22,6 +22,7 @@ import { getTaxPlannerDesktopGuideSteps } from "@/features/guide/config/tax-plan
 import { useDesktopGuideController, type ProductGuideJourney } from "@/features/guide/hooks/use-dashboard-sidebar-guide-controller";
 import { useGuideContentBounds } from "@/features/guide/hooks/use-guide-content-bounds";
 import {
+  DASHBOARD_GUIDE_DIALOG_HEIGHT,
   isGuideTargetVisibleInViewport,
   scrollGuideTargetIntoView,
   useGuideTargetAvailable,
@@ -30,6 +31,7 @@ import {
 import {
   isTallGuideTarget,
   resolveCenteredClusterLayout,
+  resolveGuideBox,
   resolveSidebarAdjacentClusterLayout,
   resolveTargetAdjacentClusterLayout,
   type GuideBounds,
@@ -87,6 +89,7 @@ function buildGuideLayout(input: {
   isNavigationStep: boolean;
   sidebarRight: number | null;
   targetRect: GuideRect;
+  dashboardPlacement: boolean;
   viewportHeight: number;
   viewportWidth: number;
 }): GuideLayout | null {
@@ -97,6 +100,7 @@ function buildGuideLayout(input: {
     characterHeight,
     characterWidth,
     currentStep,
+    dashboardPlacement,
     sidebarRight,
     targetRect,
     viewportHeight,
@@ -148,6 +152,48 @@ function buildGuideLayout(input: {
       layoutMode: "sidebar-adjacent",
       showFloatingCharacter,
     };
+  }
+
+  if (dashboardPlacement) {
+    const gap = 20;
+    if (currentStep.id === "smart-signals") {
+      const inset = 16;
+      const above = targetRect.top - gap - inset;
+      const below = viewportHeight - targetRect.bottom - gap - inset;
+      const placeAbove = above >= bubbleHeight || above >= below;
+      const height = Math.min(bubbleHeight, placeAbove ? above : below);
+      const float = height >= characterHeight;
+      const left = Math.max((bounds?.left ?? 0) + inset + (float ? characterWidth + gap : 0), targetRect.right - bubbleWidth);
+      const top = placeAbove ? targetRect.top - gap - height : targetRect.bottom + gap;
+      return {
+        bubble: { left, top, width: bubbleWidth, height },
+        character: float ? { left: left - characterWidth - gap, top: top + (height - characterHeight) / 2,
+          width: characterWidth, height: characterHeight } : null,
+        characterFacing: "left",
+        layoutMode: "beside-target",
+        showFloatingCharacter: float,
+      };
+    }
+    const preferences = currentStep.preferredBubblePlacements ?? [];
+    const cluster = resolveGuideBox(
+      targetRect,
+      [...new Set([...preferences, "right", "left", "bottom-right", "top-right"] as const)],
+      bubbleWidth + characterWidth + gap,
+      Math.max(bubbleHeight, characterHeight),
+      viewportWidth, viewportHeight, { bounds, clampCrossAxis: true },
+    );
+    if (cluster) {
+      const leftOfTarget = cluster.left + cluster.width <= targetRect.left;
+      return {
+        bubble: { left: cluster.left + (leftOfTarget ? 0 : characterWidth + gap), top: cluster.top,
+          width: bubbleWidth, height: bubbleHeight },
+        character: { left: cluster.left + (leftOfTarget ? bubbleWidth + gap : 0),
+          top: cluster.top + (cluster.height - characterHeight) / 2, width: characterWidth, height: characterHeight },
+        characterFacing: leftOfTarget ? "right" : "left",
+        layoutMode: "beside-target",
+        showFloatingCharacter,
+      };
+    }
   }
 
   const besideTarget = resolveTargetAdjacentClusterLayout(
@@ -218,8 +264,10 @@ export function DashboardDesktopGuide({
   const currentStep = dashboardSidebarGuideSteps[stepIndex];
   const isDimOnlyStep = !currentStep?.target;
   const preferSidebar = currentStep?.highlightStyle === "navigation";
+  const dashboardPlacement = !isWealthJourney && !isTaxPlannerJourney;
   const targetSnapshot = useGuideTargetLayout(currentStep?.target ?? null, isGuideActive && !isDimOnlyStep, {
     preferSidebar,
+    alignDashboard: dashboardPlacement ? "desktop" : undefined,
   });
   const targetRect = targetSnapshot?.targetRect ?? null;
   const spotlightRect = targetSnapshot?.spotlightRect ?? null;
@@ -234,8 +282,9 @@ export function DashboardDesktopGuide({
   const showFullDim = isDimOnlyStep || isWaitingForPulse;
   const nextDisabled = isWaitingForPulse;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!isGuideActive || isWealthJourney || isTaxPlannerJourney) {
+      if (expandedSidebarForGuideRef.current && !sidebarCollapsed) toggleSidebar();
       expandedSidebarForGuideRef.current = false;
       return;
     }
@@ -266,6 +315,7 @@ export function DashboardDesktopGuide({
 
   useLayoutEffect(() => {
     if (
+      dashboardPlacement ||
       !isGuideActive ||
       !currentStep ||
       showFullDim ||
@@ -287,7 +337,7 @@ export function DashboardDesktopGuide({
         reduceMotion: true,
       });
     }
-  }, [currentStep, isGuideActive, showFullDim, targetRect, targetSnapshot?.activeElement, viewport.height]);
+  }, [currentStep, dashboardPlacement, isGuideActive, showFullDim, targetRect, targetSnapshot?.activeElement, viewport.height]);
 
   useEffect(() => {
     if (!isGuideActive) {
@@ -315,8 +365,8 @@ export function DashboardDesktopGuide({
       return null;
     }
 
-    const bounds =
-      contentBounds ??
+    const rawBounds =
+      (dashboardPlacement ? document.querySelector(".terminal-main")?.getBoundingClientRect() : contentBounds) ??
       (showFullDim
         ? {
             left: 0,
@@ -325,10 +375,14 @@ export function DashboardDesktopGuide({
             bottom: viewport.height,
           }
         : undefined);
+    const bounds = dashboardPlacement && rawBounds ? {
+      left: rawBounds.left, right: rawBounds.right,
+      top: Math.max(0, rawBounds.top), bottom: Math.min(rawBounds.bottom, viewport.height),
+    } : rawBounds;
     const bubbleWidth = Math.min(380, (bounds?.right ?? viewport.width) - (bounds?.left ?? 0) - 32);
     // Tax Planner sheets retain their controls at shorter viewport heights; reserve the
     // full dialog footprint so the placement helper never leaves the actions below view.
-    const bubbleHeight = isTaxPlannerJourney ? 280 : isLastStep ? 248 : 220;
+    const bubbleHeight = dashboardPlacement ? DASHBOARD_GUIDE_DIALOG_HEIGHT : isTaxPlannerJourney ? 280 : isLastStep ? 248 : 220;
     const characterHeight = isNavigationStep ? 250 : 280;
     const characterWidth = isNavigationStep ? 180 : 200;
 
@@ -362,6 +416,7 @@ export function DashboardDesktopGuide({
       characterHeight,
       characterWidth,
       currentStep,
+      dashboardPlacement,
       isNavigationStep: Boolean(isNavigationStep),
       sidebarRight,
       targetRect: spotlightRect ?? targetRect,
@@ -371,8 +426,11 @@ export function DashboardDesktopGuide({
   }, [
     contentBounds,
     currentStep,
+    dashboardPlacement,
     isLastStep,
     isNavigationStep,
+    isTaxPlannerJourney,
+    isWealthJourney,
     showFullDim,
     sidebarRight,
     spotlightRect,
@@ -381,7 +439,7 @@ export function DashboardDesktopGuide({
     viewport.width,
   ]);
 
-  const motionDuration = reduceMotion ? 0.01 : 0.42;
+  const motionDuration = dashboardPlacement ? 0 : reduceMotion ? 0.01 : 0.42;
   const canRenderGuide = Boolean(
     isGuideActive && guideRun && currentStep && layout?.bubble && (showFullDim || spotlightRect),
   );
@@ -431,6 +489,8 @@ export function DashboardDesktopGuide({
           <motion.div
             animate={{ opacity: 1 }}
             className="product-guide-root"
+            data-dashboard-tour={dashboardPlacement ? "" : undefined}
+            data-guide-step={currentStep.id}
             exit={{ opacity: 0 }}
             initial={{ opacity: 0 }}
             key={`product-guide-layer-${guideRun.id}`}
@@ -485,6 +545,8 @@ export function DashboardDesktopGuide({
                 controls={guideControls}
                 dialog={currentStep.dialog}
                 isLastStep={isLastStep}
+                maxHeight={currentStep.id === "smart-signals" ? layout.bubble.height : undefined}
+                nextLabel={currentStep.id === "sidebar-introduction" ? guideControls.startMenuTour : undefined}
                 isSkipConfirmationOpen={skipConfirmationOpen}
                 locale={locale}
                 nextDisabled={nextDisabled}
@@ -498,7 +560,7 @@ export function DashboardDesktopGuide({
                 phaseStepCount={phase.stepCount}
                 phaseStepIndex={phase.stepIndex}
                 position={{ ...layout.bubble, left: 0, top: 0 }}
-                showInlineCharacter={false}
+                showInlineCharacter={!layout.showFloatingCharacter}
                 stepCount={dashboardSidebarGuideSteps.length}
                 stepIndex={stepIndex}
                 suppressContextualPrompts={suppressContextualPrompts}

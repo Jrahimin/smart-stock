@@ -140,12 +140,21 @@ export function resolveGuideBox(
   options?: {
     avoid?: GuideBox;
     bounds?: GuideBounds;
+    clampCrossAxis?: boolean;
   },
 ): GuideBox | null {
   const targetBox = rectToBox(target);
   const inset = viewportWidth < 1024 ? 12 : VIEWPORT_INSET;
   const bounds = options?.bounds;
-  const candidates = placements.map((placement) => boxForPlacement(target, placement, width, height));
+  const candidates = placements.map((placement) => {
+    const candidate = boxForPlacement(target, placement, width, height);
+    if (!options?.clampCrossAxis) return candidate;
+    // Keep the intended side of the anchor; fit the other axis to the viewport.
+    const fitted = clamp(candidate, viewportWidth, viewportHeight, inset, bounds);
+    return placement === "left" || placement === "right"
+      ? { ...candidate, top: fitted.top }
+      : { ...candidate, left: fitted.left };
+  });
 
   const valid = candidates.find((candidate) =>
     isValidPlacement(candidate, targetBox, viewportWidth, viewportHeight, inset, bounds, options?.avoid),

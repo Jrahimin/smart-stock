@@ -6,7 +6,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, expect, it, vi } from "vitest";
 
 import { SmartSignalFeed } from "@/features/market-dashboard/components/smart-signal-feed";
-import { getDashboardLanguage } from "@/features/market-dashboard/dashboard-language";
+import { getTerminalCopy } from "@/features/market-dashboard/terminal-copy";
+import { mapDashboardSignalsDto } from "@/features/market-dashboard/view-models/dashboard-sections-mapper";
 import { WatchlistToReview } from "@/features/portfolio/portfolio-workspace-view";
 import { ScannerWorkspaceView } from "@/features/scanner/scanner-workspace-view";
 import { StockDurableSummary } from "@/features/stock-workspace/components/stock-durable-summary";
@@ -99,8 +100,56 @@ it.each([
     expect(markup).toContain("110");
   }
   const smartSignals = renderToStaticMarkup(<SmartSignalFeed
-    copy={getDashboardLanguage(locale).signals} decision={decision} locale={locale} signals={[]}
+    decision={decision} locale={locale} signals={[]}
   />);
   expect(smartSignals).toContain(decisionCopy);
   expect(smartSignals).toContain(finalDate);
+});
+
+it.each(["en", "bn"] as const)("shows three finalized signals in source order with the full entry condition (%s)", (locale) => {
+  const finalDate = "2026-11-02";
+  const symbols = ["ZZZ", "AAA", "BBB", "CCC"];
+  const signals = mapDashboardSignalsDto({
+    session_trade_date: finalDate,
+    evaluated_count: symbols.length,
+    signals: symbols.map((symbol) => ({
+      symbol, exchange: "DSE", signal: "POTENTIAL_BUY", confidence: 75, risk: "MEDIUM", priority: "high",
+      reason: "Valid continuation setup.", generated_at: finalDate, supporting_context: [],
+      entry_condition: "Enter only while the completed breakout holds above the preferred zone; reassess if participation fades or the invalidation is breached.",
+    })),
+  });
+  const markup = renderToStaticMarkup(<SmartSignalFeed locale={locale}
+    signals={signals.map((signal) => ({ ...signal, technicalContext: { rsi: 52.6, volumeRatio: 1.4 } }))}
+    decision={{ decision_status: "CURRENT", decision_session_date: finalDate }} />);
+
+  expect(markup.match(/\/stocks\/DSE\/\w+/g)).toEqual(["/stocks/DSE/ZZZ", "/stocks/DSE/AAA", "/stocks/DSE/BBB"]);
+  expect(markup.match(new RegExp(finalDate, "g"))).toHaveLength(1);
+  expect(markup).toContain(locale === "bn" ? "দাম এমন সীমা পেরোলে যাতে শর্ত আর খাটে না" : "price crosses the level that invalidates the setup");
+  expect(markup).toMatch(/sw-signal-evidence">[^<]*52\.6[^<]*1\.4/);
+});
+
+it.each(["en", "bn"] as const)("shares a data eligibility explanation without dropping stock evidence (%s)", (locale) => {
+  const copy = getTerminalCopy(locale);
+  const reason = "Data is not eligible for a fresh directional decision; wait for review or refresh.";
+  const signals = mapDashboardSignalsDto({
+    session_trade_date: priorQuoteDate,
+    evaluated_count: 2,
+    signals: ["AAA", "BBB"].map((symbol, index) => ({
+      symbol, exchange: "DSE", signal: "WAIT", confidence: 0,
+      risk: index === 0 ? "HIGH" : "MEDIUM", priority: "low",
+      reason, generated_at: priorQuoteDate, supporting_context: [],
+    })),
+  }).map((signal, index) => ({
+    ...signal,
+    technicalContext: { rsi: 52.6 + index, volumeRatio: 0.8 },
+  }));
+  const markup = renderToStaticMarkup(<SmartSignalFeed locale={locale} signals={signals} />);
+  expect(markup.split(copy.sharedWait)).toHaveLength(2);
+  expect(markup).not.toContain(reason);
+  for (const evidence of ["52.6", "53.6", copy.risks.HIGH, copy.risks.MEDIUM]) expect(markup).toContain(evidence);
+
+  const mixed = [{ ...signals[0], signal: "HOLD" as const, reason: "Stock-specific condition" }, signals[1]];
+  const mixedMarkup = renderToStaticMarkup(<SmartSignalFeed locale={locale} signals={mixed} />);
+  expect(mixedMarkup).not.toContain(copy.sharedWait);
+  expect(mixedMarkup).toContain("Stock-specific condition");
 });

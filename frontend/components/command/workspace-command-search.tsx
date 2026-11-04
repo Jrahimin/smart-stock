@@ -6,6 +6,7 @@ import { useEffect, useId, useMemo, useRef, useState, type FocusEvent } from "re
 
 import { useStockSymbolSearch } from "@/hooks/stocks/use-stock-symbol-search";
 import type { BackendStockDto } from "@/lib/api/backend-api-types";
+import type { AppLocale } from "@/lib/locale/app-locale";
 import { EXPLORER_QUICK_ACTIONS, type ExplorerQuickAction } from "@/lib/stocks/stock-search-config";
 
 type WorkspaceCommandSearchProps = {
@@ -15,6 +16,7 @@ type WorkspaceCommandSearchProps = {
   variant?: "default" | "compact" | "discovery";
   placeholder?: string;
   ariaLabel?: string;
+  locale?: AppLocale;
 };
 
 type SearchMenuItem =
@@ -39,7 +41,11 @@ export function WorkspaceCommandSearch({
   variant = "default",
   placeholder: placeholderProp,
   ariaLabel = "Global stock search",
+  locale = "en",
 }: WorkspaceCommandSearchProps) {
+  const labels = locale === "bn"
+    ? { recent: "সাম্প্রতিক খোঁজ", popular: "জনপ্রিয় শেয়ার", searching: "খোঁজা হচ্ছে…", suggestions: "মিলেছে যে শেয়ারগুলো", empty: "মিল আছে এমন কোনো শেয়ার পাওয়া যায়নি", shortcut: "শেয়ার খোঁজার ঘরে যান", unclassified: "অন্যান্য" }
+    : { recent: "Recent", popular: "Popular stocks", searching: "Searching…", suggestions: "Suggestions", empty: "No matching symbol", shortcut: "Focus stock search", unclassified: "Unclassified" };
   const isCompact = variant === "compact";
   const isDiscovery = variant === "discovery";
   const placeholder =
@@ -92,7 +98,7 @@ export function WorkspaceCommandSearch({
       const stockItems: SearchMenuItem[] = results.map((stock) => ({
         kind: "stock",
         stock,
-        meta: `${stock.exchange} · ${stock.sector ?? "Unclassified"}`,
+        meta: `${stock.exchange} · ${stock.sector ?? labels.unclassified}`,
       }));
 
       const firstItem = stockItems[0];
@@ -128,7 +134,7 @@ export function WorkspaceCommandSearch({
     }
 
     return items;
-  }, [filterContextName, isSearchEnabled, onFilterTable, popularStocks, query, recentSearches, results]);
+  }, [filterContextName, isSearchEnabled, labels.unclassified, onFilterTable, popularStocks, query, recentSearches, results]);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -255,7 +261,7 @@ export function WorkspaceCommandSearch({
           spellCheck={false}
           value={query}
         />
-        <kbd className="explorer-command-kbd" title="Focus stock search">
+        <kbd className="explorer-command-kbd" title={labels.shortcut}>
           {shortcutLabel}
         </kbd>
       </div>
@@ -268,13 +274,14 @@ export function WorkspaceCommandSearch({
                 <div className="explorer-command-section">
                   <div className="explorer-command-section-label">
                     <Clock3 aria-hidden="true" size={14} />
-                    Recent
+                    {labels.recent}
                   </div>
                   {menuItems.map((item, index) =>
                     item.kind === "stock" && item.meta === "Recent" ? (
                       <MenuOption
                         isActive={index === activeIndex}
                         item={item}
+                        hideMeta={locale === "bn"}
                         key={`recent-${item.stock.symbol}`}
                         onSelect={handleSelect}
                       />
@@ -285,13 +292,14 @@ export function WorkspaceCommandSearch({
               <div className="explorer-command-section">
                 <div className="explorer-command-section-label">
                   <TrendingUp aria-hidden="true" size={14} />
-                  Popular stocks
+                  {labels.popular}
                 </div>
                 {menuItems.map((item, index) =>
                   item.kind === "stock" && item.meta === "Popular" ? (
                     <MenuOption
                       isActive={index === activeIndex}
                       item={item}
+                      hideMeta={locale === "bn"}
                       key={`popular-${item.stock.symbol}`}
                       onSelect={handleSelect}
                     />
@@ -303,10 +311,10 @@ export function WorkspaceCommandSearch({
             <div className="explorer-command-section">
               <div className="explorer-command-section-label">
                 <Sparkles aria-hidden="true" size={14} />
-                {isSearching ? "Searching…" : "Suggestions"}
+                {isSearching ? labels.searching : labels.suggestions}
               </div>
-              {isSearching && !menuItems.length ? <div className="explorer-command-empty">Searching…</div> : null}
-              {!isSearching && !menuItems.length ? <div className="explorer-command-empty">No matching symbol</div> : null}
+              {isSearching && !menuItems.length ? <div className="explorer-command-empty">{labels.searching}</div> : null}
+              {!isSearching && !menuItems.length ? <div className="explorer-command-empty">{labels.empty}</div> : null}
               {menuItems.map((item, index) => (
                 <MenuOption isActive={index === activeIndex} item={item} key={`${item.kind}-${index}`} onSelect={handleSelect} />
               ))}
@@ -337,9 +345,10 @@ type MenuOptionProps = {
   item: SearchMenuItem;
   isActive: boolean;
   onSelect: (item: SearchMenuItem) => void;
+  hideMeta?: boolean;
 };
 
-function MenuOption({ item, isActive, onSelect }: MenuOptionProps) {
+function MenuOption({ item, isActive, onSelect, hideMeta = false }: MenuOptionProps) {
   if (item.kind === "filter") {
     return (
       <button
@@ -367,7 +376,7 @@ function MenuOption({ item, isActive, onSelect }: MenuOptionProps) {
       <strong>{item.stock.symbol}</strong>
       <span>
         {item.stock.name}
-        {item.meta ? ` · ${item.meta}` : ""}
+        {item.meta && !hideMeta ? ` · ${item.meta}` : ""}
       </span>
     </button>
   );

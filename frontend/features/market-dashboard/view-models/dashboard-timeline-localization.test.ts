@@ -3,43 +3,20 @@ import { describe, expect, it } from "vitest";
 import { getDashboardLanguage } from "@/features/market-dashboard/dashboard-language";
 import { localizeTimelineItems } from "@/features/market-dashboard/view-models/dashboard-timeline-localization";
 
-describe("dashboard timeline localization", () => {
-  it("localizes snapshot timeline cards in Bangla", () => {
-    const language = getDashboardLanguage("bn");
-    const [localized] = localizeTimelineItems(
-      [
-        {
-          time: "2026-07-15",
-          title: "Market snapshot ready",
-          description: "410 active instruments in the latest price snapshot.",
-        },
-      ],
-      "bn",
-      language,
-    );
+describe("dashboard timeline", () => {
+  it.each(["en", "bn"] as const)("keeps distinct events and omits movers and snapshot counts (%s)", (locale) => {
+    const time = "2026-07-15";
+    const language = getDashboardLanguage(locale);
+    const items = localizeTimelineItems([
+      { time, title: "ACIFORMULA +9.96%", description: "Top session mover in the latest snapshot (ACI Formulations PLC)." },
+      { time, title: "Market snapshot ready", description: "410 active instruments in the latest price snapshot." },
+      { time, title: "Suspicious activity flagged", description: "4 instruments need source validation before acting on signals." },
+    ], locale, language);
 
-    expect(localized?.title).toBe("বাজারের স্ন্যাপশট প্রস্তুত");
-    expect(localized?.description).toContain("410");
-    expect(localized?.description).toContain("সক্রিয় শেয়ার");
-    expect(localized?.description).not.toContain("active instruments");
-  });
-
-  it("localizes top mover descriptions in Bangla", () => {
-    const language = getDashboardLanguage("bn");
-    const [localized] = localizeTimelineItems(
-      [
-        {
-          time: "2026-07-15",
-          title: "ACIFORMULA +9.96%",
-          description: "Top session mover in the latest snapshot (ACI Formulations PLC).",
-        },
-      ],
-      "bn",
-      language,
-    );
-
-    expect(localized?.title).toBe("ACIFORMULA +9.96%");
-    expect(localized?.description).toContain("ACI Formulations PLC");
-    expect(localized?.description).not.toContain("Top session mover");
+    expect(items).toEqual([{
+      time,
+      title: language.timeline.templates.suspiciousTitle,
+      description: language.timeline.templates.suspiciousDescription("4"),
+    }]);
   });
 });

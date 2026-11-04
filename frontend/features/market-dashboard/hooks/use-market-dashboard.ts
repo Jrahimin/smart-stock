@@ -212,6 +212,8 @@ export function useMarketDashboard(options?: {
 
   return {
     model,
+    freshness,
+    freshnessLoading: freshnessQuery.isLoading,
     sectionLoading,
     isLoading: isCoreLoading,
     isDeferredLoading: sectionLoading.heatmap || sectionLoading.insights,

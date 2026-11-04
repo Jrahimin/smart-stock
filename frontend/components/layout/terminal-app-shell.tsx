@@ -2,6 +2,7 @@
 
 import { ChevronsLeft, ChevronsRight, LogIn, LogOut, User } from "lucide-react";
 import Image from "next/image";
+import { StockWealthLockup } from "@/components/layout/stockwealth-lockup";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
@@ -83,21 +84,21 @@ export function TerminalAppShell({ children, dashboardLocale = DEFAULT_LOCALE }:
         onMouseLeave={() => setSidebarHoverExpanded(false)}
       >
         <div className="terminal-sidebar-top">
-          <Link aria-label="Smart Stock home" className="terminal-brand" href="/">
-            <Image
+          <Link aria-label={mobileGuideLauncher === "dashboard" ? "StockWealth BD" : "Smart Stock home"} className="terminal-brand" href="/">
+            {mobileGuideLauncher === "dashboard" ? <StockWealthLockup className="terminal-brand-wide" decorative /> : <Image
               alt="Stock Intelligence"
               className="terminal-brand-wide"
               height={64}
               priority
               src="/stock-icon-wide.png"
               width={256}
-            />
+            />}
             <Image
               alt=""
               aria-hidden="true"
               className="terminal-brand-icon"
               height={40}
-              src="/stock-icon.png"
+              src={mobileGuideLauncher === "dashboard" ? "/dashboard/stockwealth-symbol.webp" : "/stock-icon.png"}
               width={40}
             />
           </Link>

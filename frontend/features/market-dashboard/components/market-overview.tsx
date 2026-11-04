@@ -1,0 +1,115 @@
+import Link from "next/link";
+import Image from "next/image";
+import type { ReactNode } from "react";
+
+import { sectorName, marketHeadline, breadthContrast, type TerminalCopy } from "@/features/market-dashboard/terminal-copy";
+import type { MarketDashboardModel } from "@/features/market-dashboard/types/market-dashboard-types";
+import type { BackendMarketFreshnessDto } from "@/lib/api/backend-api-types";
+import { formatPercent } from "@/lib/formatters/financial-formatters";
+import type { AppLocale } from "@/lib/locale/app-locale";
+
+const dhakaDate = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Dhaka" });
+const dhakaTime = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Dhaka" });
+
+function Metric({ label, children, note, guide }: { label: string; children: ReactNode; note?: ReactNode; guide?: string }) {
+  return <div className="sw-metric" data-guide={guide}>
+    <dt>{label}</dt><dd>{children}{note ? <small>{note}</small> : null}</dd>
+  </div>;
+}
+
+export function MarketOverview({ model, copy, locale, freshness, loading, leadersLoading }: {
+  model: MarketDashboardModel; copy: TerminalCopy; locale: AppLocale;
+  freshness?: BackendMarketFreshnessDto; loading: boolean; leadersLoading: boolean;
+}) {
+  const { pulse, breadth, session, insights } = model;
+  const hasDate = pulse.tradeDateStatus === "available";
+  const stale = session.state === "STALE" || freshness?.data_state === "STALE";
+  const status = {
+    OPEN: copy.open, PRE_OPEN: copy.preOpen, POST_CLOSE: copy.postClose, HOLIDAY: copy.closed,
+    STALE: copy.stale, PARTIAL: copy.partial, SYNCING: copy.syncing,
+  }[session.state];
+  const hasMatchingFreshness = hasDate && freshness?.trade_date === pulse.latestTradeDate;
+  const observed = hasMatchingFreshness ? freshness.live_data_as_of : null;
+  const timestamp = hasMatchingFreshness ? observed ?? freshness.last_synced_at : null;
+  const time = timestamp ? new Date(timestamp) : null;
+  const tradeDate = hasDate ? new Date(`${pulse.latestTradeDate}T00:00:00+06:00`) : null;
+  const leader = pulse.leadingSector;
+  const turnover = pulse.turnoverContext;
+  const volume = pulse.volumeContext;
+  const partial = insights.find(({ id }) => id === "partial-data");
+  const context = partial?.description ?? breadthContrast(model, locale);
+  const turnoverInsight = insights.find(({ id }) => id === "turnover-context");
+  const breadthParts = [[copy.up, breadth.advancing, "positive"], [copy.flat, breadth.unchanged, "neutral"], [copy.down, breadth.declining, "negative"]] as const;
+  const detailStats = [
+    ...(pulse.indexDayStats ? [
+      [copy.dayOpen, pulse.indexDayStats.open], [copy.dayHigh, pulse.indexDayStats.high], [copy.dayLow, pulse.indexDayStats.low],
+    ] : []),
+    ...([pulse.indexPerformance.oneMonth, pulse.indexPerformance.sixMonth, pulse.indexPerformance.oneYear]
+      .map((value, index) => [copy.returns[index], value])),
+  ];
+
+  return <section className="sw-hero" aria-label={copy.overview} aria-busy={loading}>
+    <div className="sw-hero-main" data-guide="market-pulse" data-guide-ready={String(!loading)}>
+      <div className="sw-index">
+        <span>{pulse.indexName}</span>
+        <strong className={pulse.indexAvailable ? "sw-index-value" : "sw-index-value sw-index-missing"}>{loading ? "…" : pulse.indexAvailable ? pulse.indexValue : copy.indexMissing}</strong>
+        {pulse.indexAvailable && pulse.indexChangePercent !== null ? <b className={`sw-${pulse.indexTone}`}>{pulse.indexChangeLabel}</b> : null}
+      </div>
+      <div className="sw-hero-story">
+        <div className="sw-session">
+          <span className={`sw-session-state${stale || session.state === "PARTIAL" ? " sw-session-caution" : ""}`}>
+            {loading ? copy.syncing : !hasDate ? copy.overview : stale ? copy.stale : status}
+          </span>
+          {tradeDate && Number.isFinite(+tradeDate) ? <time dateTime={pulse.latestTradeDate}>{dhakaDate.format(tradeDate)}</time> : null}
+          {time && Number.isFinite(+time) && timestamp ? (
+            <time dateTime={timestamp} title={observed ? copy.snapshotTime : copy.syncTime}>
+              {observed ? "" : `${copy.synced} `}{dhakaDate.format(time) !== (tradeDate && dhakaDate.format(tradeDate)) ? `${dhakaDate.format(time)} ` : ""}{dhakaTime.format(time)}
+            </time>
+          ) : null}
+        </div>
+        <h1>{loading ? copy.loading : marketHeadline(model, locale)}</h1>
+        {!loading && context ? <p className={partial ? "sw-hero-context sw-hero-context-caution" : "sw-hero-context"}>{context}</p> : null}
+      </div>
+    </div>
+    <dl className="sw-metrics">
+      <Metric label={copy.breadth} guide="market-breadth">
+        {breadth.total > 0 ? <>
+          <div className="sw-breadth-labels">{breadthParts.map(([label, count, tone]) => <span className={`sw-${tone}`} key={tone}><b>{count}</b> {label}</span>)}</div>
+          <div className="sw-breadth-bar" aria-hidden="true">{breadthParts.map(([, count, tone]) => <span key={tone} className={`sw-${tone}`} style={{ flexGrow: count }} />)}</div>
+        </> : <strong>{loading ? "…" : copy.missing}</strong>}
+      </Metric>
+      <Metric label={copy.turnover} note={turnover.vsYesterday !== "N/A" ? `${turnover.vsYesterday} ${copy.vsPrevious}` : null}>
+        <strong>{loading ? "…" : turnover.primaryValue === "N/A" ? copy.missing : turnover.primaryValue}</strong>
+      </Metric>
+      <Metric label={copy.volume} note={!loading && volume.primaryValue !== "N/A" ? volume.ratioVsAvg === "N/A" ? copy.noAverage : `${volume.ratioVsAvg.replace("x", "×")} ${copy.versusAverage}` : null}>
+        <strong>{loading ? "…" : volume.primaryValue === "N/A" ? copy.missing : volume.primaryValue.replace(/shares/i, copy.shares)}</strong>
+      </Metric>
+      <Metric label={copy.sectorLeader} note={leader ? copy.sectorLeaderBasis : null}>
+        {leader ? <strong>{sectorName(leader.name, locale)} <b className={`sw-${leader.changePercent > 0 ? "positive" : leader.changePercent < 0 ? "negative" : "neutral"}`}>{formatPercent(leader.changePercent)}</b></strong>
+          : <strong>{loading || leadersLoading ? "…" : copy.missing}</strong>}
+      </Metric>
+    </dl>
+    <div className="sw-hero-actions">
+      <Link aria-labelledby="sw-pulse-title" aria-describedby="sw-pulse-description" className="sw-pulse-entry" data-guide="market-pulse-link" href="/market-pulse" prefetch={false}>
+        <span className="sw-pulse-copy">
+          <strong id="sw-pulse-title">{copy.pulse} <span aria-hidden="true">↗</span></strong>
+          <span id="sw-pulse-description">{stale ? copy.pulseHistorical : copy.pulseDescription}</span>
+        </span>
+        <Image className="sw-pulse-art" alt="" height={230} src="/dashboard/market-pulse-ceramic.webp" width={420} />
+      </Link>
+      <details className="sw-index-details">
+        <summary>{copy.indexDetails}</summary>
+        <div className="sw-detail-body">
+          {pulse.indexAvailable ? <dl className="sw-detail-stats">
+            {detailStats.map(([label, value]) => <Metric key={label} label={label}><strong>{value === "N/A" ? "—" : value}</strong></Metric>)}
+            {pulse.indexRange ? <Metric label={copy.range}>
+              <strong>{pulse.indexRange.lowLabel} – {pulse.indexRange.highLabel}</strong>
+              <div className="sw-range" aria-hidden="true"><i style={{ left: `${pulse.indexRange.positionPercent}%` }} /></div>
+            </Metric> : null}
+          </dl> : <p>{loading ? copy.loading : copy.indexMissing}</p>}
+          {turnoverInsight && turnover.primaryValue !== "N/A" ? <p><strong>{turnoverInsight.title}:</strong> {turnoverInsight.description}</p> : null}
+        </div>
+      </details>
+    </div>
+  </section>;
+}

@@ -108,73 +108,53 @@ function buildEnglishDecisionReasons(): DecisionReasonCopy {
   };
 }
 
+function banglaRiskLevel(label: string) {
+  return ({ LOW: "কম", MEDIUM: "মাঝারি", HIGH: "বেশি", ELEVATED: "বাড়তি" } as Record<string, string>)[label.toUpperCase()] ?? label;
+}
+
 function buildBanglaDecisionReasons(): DecisionReasonCopy {
   return {
-    stale_sparse_data: "ডেটা পুরনো বা কম; নতুন ডেটা দিয়ে নিশ্চিত হওয়া পর্যন্ত অপেক্ষা করুন।",
+    stale_sparse_data: "তথ্য পুরোনো বা অসম্পূর্ণ। নতুন তথ্য দিয়ে নিশ্চিত হওয়া পর্যন্ত অপেক্ষা করুন।",
     corporate_action_adjustment:
-      "এক দিনের তীব্র পতনটি corporate action বা ex-date adjustment-এর কারণে হতে পারে; breakdown নিশ্চিত না হওয়া পর্যন্ত অপেক্ষা করুন।",
-    failed_support: "দাম সাম্প্রতিক support-এর নিচে নেমে গেছে।",
-    support_break: "দাম সাম্প্রতিক support ভেঙে ফেলেছে।",
-    data_not_eligible:
-      "নতুন সিদ্ধান্ত নেওয়ার মতো ডেটা এখনো ঠিক নেই; একটু অপেক্ষা করুন বা আপডেট দেখুন।",
-    buy_uptrend_reward: "Uptrend-এ ভালো সুযোগ আছে; লাভের সম্ভাবনাও ভালো।",
-    buy_uptrend_resistance_test:
-      "Uptrend-এ ভালো সুযোগ আছে; resistance-এর কাছে শেয়ারের আচরণও নজরে রাখার মতো।",
-    uptrend_near_resistance_wait_volume:
-      "Resistance-এর কাছে এসেও Uptrend ঠিক আছে; আরও শক্তিশালী volume confirmation না পাওয়া পর্যন্ত অপেক্ষা করুন।",
-    high_risk_selective_setup:
-      "ঝুঁকি বেশি, তবে trend ও participation শক্তিশালী; বেছে বেছে এগোনোর setup।",
-    bearish_structure: "দামের গঠন bearish; এখনো চাপই বেশি।",
-    bearish_directional_evidence:
-      "bearish trend আর momentum দুটোই ঠিকমতো দেখাচ্ছে; exit বা avoid ভাবুন।",
+      "এক কার্যদিবসে বড় পতনটি কোম্পানির ঘোষিত পরিবর্তন বা এক্স-ডেটের সমন্বয়ের ফল হতে পারে। পতনের কারণ নিশ্চিত হওয়া পর্যন্ত অপেক্ষা করুন।",
+    failed_support: "দাম সাম্প্রতিক সমর্থনমূল্যের নিচে নেমেছে।",
+    support_break: "যাচাই করা তথ্যে দাম সাম্প্রতিক সমর্থনমূল্যের নিচে নেমেছে।",
+    data_not_eligible: "নতুন সিদ্ধান্তের জন্য বর্তমান তথ্য যথেষ্ট নয়। তথ্য যাচাই বা হালনাগাদ হওয়া পর্যন্ত অপেক্ষা করুন।",
+    buy_uptrend_reward: "দাম ঊর্ধ্বমুখী, আর সম্ভাব্য লাভের হিসাবে সুযোগটি গ্রহণযোগ্য।",
+    buy_uptrend_resistance_test: "দাম ঊর্ধ্বমুখী। বাধার কাছাকাছি দামে কেনাবেচার পরিমাণও সুযোগের পক্ষে।",
+    uptrend_near_resistance_wait_volume: "দাম ঊর্ধ্বমুখী হলেও বাধার কাছাকাছি। কেনাবেচা বাড়লে আবার বিবেচনা করুন।",
+    high_risk_selective_setup: "দামের গতি ও কেনাবেচা শক্তিশালী, তবে ঝুঁকি বেশি। বেছে বিবেচনা করুন।",
+    bearish_structure: "দামের গতিপথে পতনের লক্ষণই বেশি।",
+    bearish_directional_evidence: "দামের প্রবণতা ও গতি দুটোই নিম্নমুখী। বিক্রি বা এড়িয়ে যাওয়ার কথা ভাবুন।",
     risk_wait_confirmation: ({ riskLabel = "elevated" }) =>
-      `ঝুঁকির মাত্রা ${riskLabel}; জোর করে trade না নিয়ে পরিষ্কার confirmation-এর জন্য অপেক্ষা করুন।`,
+      `ঝুঁকির মাত্রা ${banglaRiskLevel(riskLabel)}। আরও স্পষ্ট প্রমাণ না পাওয়া পর্যন্ত কেনাবেচা থেকে বিরত থাকুন।`,
     fresh_entry_risk_block: ({ riskLabel = "HIGH" }) =>
-      `Trading risk ${riskLabel}, আর liquidity/tradability ঠিক নেই—জোর করে entry না নিয়ে অপেক্ষা করুন।`,
-    entry_plan_not_valid:
-      "bullish সিগন্যাল আছে, কিন্তু নিরাপদ entry plan নেই; এখন buy না করে wait করুন।",
-    momentum_extended_wait_entry:
-      "Resistance-এর কাছে momentum অনেকটা বেড়ে গেছে; ভালো entry-র জন্য অপেক্ষা করুন।",
-    momentum_elevated_hold:
-      "Momentum শক্তিশালী, Uptrend-ও ঠিক আছে; এখন chase না করে hold করুন।",
-    extended_momentum:
-      "momentum বেশি বেড়ে গেছে; holder থাকতে পারেন, নতুন buyer একটু wait করুন।",
-    near_resistance_no_uptrend:
-      "দাম resistance-এর কাছে, কিন্তু Uptrend নেই; confirmation না পাওয়া পর্যন্ত অপেক্ষা করুন।",
-    near_resistance_constructive:
-      "setup ভালো, কিন্তু resistance-এর কাছে; দাম ভালোভাবে ভাঙলে তখন দেখুন।",
-    constructive_hold:
-      "দামের গঠন ভালো আছে; আগের position hold করুন বা আরও ভালো entry-র অপেক্ষা করুন।",
-    constructive_watch:
-      "গঠন এখনো ভালো; holder hold করতে পারেন, নতুন buyer wait করুন।",
-    sideways_constructive_monitor:
-      "Sideways base তৈরি হচ্ছে; দিক পরিষ্কার হওয়া পর্যন্ত নজরে রাখুন।",
-    no_directional_edge: "এখন পরিষ্কার কোনো দিক নেই; ধৈর্য ধরাই ভালো।",
+      `ঝুঁকির মাত্রা ${banglaRiskLevel(riskLabel)} অথবা কেনাবেচার সুযোগ সীমিত। নতুন করে কেনার আগে অপেক্ষা করুন।`,
+    entry_plan_not_valid: "দাম বাড়ার লক্ষণ আছে, তবে কেনার নিরাপদ শর্ত তৈরি হয়নি। শেয়ারটি হাতে না থাকলে অপেক্ষা করুন।",
+    momentum_extended_wait_entry: "বাধার কাছাকাছি এসে দাম দ্রুত বেড়েছে। কেনার ভালো সুযোগের জন্য অপেক্ষা করুন।",
+    momentum_elevated_hold: "দামের গতি শক্তিশালী এবং প্রবণতা ঊর্ধ্বমুখী। বাড়তি দামে না কিনে হাতে থাকা শেয়ার ধরে রাখুন।",
+    extended_momentum: "দাম দ্রুত বেড়েছে। হাতে থাকলে ধরে রাখতে পারেন; নতুন করে কেনার আগে অপেক্ষা করুন।",
+    near_resistance_no_uptrend: "দাম বাধার কাছাকাছি, কিন্তু স্পষ্ট ঊর্ধ্বমুখী প্রবণতা নেই। নিশ্চিত হওয়া পর্যন্ত অপেক্ষা করুন।",
+    near_resistance_constructive: "দামের অবস্থা অনুকূল, তবে বাধার কাছাকাছি। দাম সেই সীমা পেরিয়ে টিকে থাকা পর্যন্ত অপেক্ষা করুন।",
+    constructive_hold: "দামের গতিপথ অনুকূল। হাতে থাকা শেয়ার ধরে রাখুন অথবা নতুন কেনার ভালো সুযোগের জন্য অপেক্ষা করুন।",
+    constructive_watch: "দামের গতি এখনও অনুকূল। হাতে থাকলে ধরে রাখতে পারেন; নতুন করে কেনার আগে অপেক্ষা করুন।",
+    sideways_constructive_monitor: "দাম একটি সীমার মধ্যে স্থির হয়েছে। পরের গতিপথ পরিষ্কার হওয়া পর্যন্ত নজরে রাখুন।",
+    no_directional_edge: "দাম কোন দিকে যাবে, তার স্পষ্ট লক্ষণ নেই। অপেক্ষা করুন।",
     reward_risk_below_minimum: ({ riskReward = 0, minRiskReward = 0 }) =>
-      `লাভ-ঝুঁকির অনুপাত ${riskReward.toFixed(2)} ন্যূনতম ${minRiskReward.toFixed(1)}-এর নিচে; এই দামে buy না করে hold করাই ভালো।`,
-    lower_structure_hold:
-      "দামের গঠন দুর্বল—lower high আর lower low তৈরি হচ্ছে; এখন buy না করাই ভালো।",
-    lower_structure_conflict:
-      "market structure নিচের দিকে; নতুন long add না করাই ভালো।",
-    bearish_regime_hold:
-      "বাজারের সামগ্রিক trend bearish; নতুন long position না খুলে hold করুন।",
-    bullish_setup_downgraded:
-      "bullish setup আছে, কিন্তু কোনো গুরুত্বপূর্ণ constraint fresh entry বন্ধ করছে।",
-    bullish_setup_valid_entry:
-      "শক্তিশালী session evidence আছে; entry নেওয়ার মতো setup তৈরি হয়েছে।",
-    bullish_setup_ready:
-      "ভালো সিগন্যাল; এখনই entry নেওয়ার মতো setup দেখাচ্ছে।",
-    bullish_setup_pullback:
-      "ভালো সিগন্যাল; একটু পিছিয়ে (pullback) এলে entry ভাবতে পারেন।",
-    bullish_setup_breakout:
-      "ভালো সিগন্যাল; breakout confirm হলে entry ভাবুন।",
-    bullish_setup_continuation:
-      "ভালো সিগন্যাল; breakout ধরে রাখলে continue করার সুযোগ আছে।",
+      `লাভ-ঝুঁকির অনুপাত ${riskReward.toFixed(2)}, ন্যূনতম ${minRiskReward.toFixed(1)}-এর নিচে। এই দামে নতুন করে না কিনে হাতে থাকা শেয়ার ধরে রাখুন।`,
+    lower_structure_hold: "দামের সর্বোচ্চ ও সর্বনিম্ন মান দুটোই আগের চেয়ে কমছে। নতুন করে না কিনে হাতে থাকা শেয়ার ধরে রাখুন।",
+    lower_structure_conflict: "দামের গতিপথ নিচের দিকে। হাতে থাকা শেয়ার ধরে রাখুন, নতুন করে কিনবেন না।",
+    bearish_regime_hold: "সামগ্রিক বাজার নিম্নমুখী। নতুন করে না কিনে হাতে থাকা শেয়ার ধরে রাখুন।",
+    bullish_setup_downgraded: "দাম বাড়ার লক্ষণ আছে, তবে একটি গুরুত্বপূর্ণ শর্ত পূরণ হয়নি। নতুন করে কেনা থেকে বিরত থাকুন।",
+    bullish_setup_valid_entry: "কার্যদিবসের চূড়ান্ত তথ্য কেনার শর্তকে সমর্থন করে।",
+    bullish_setup_ready: "কার্যদিবসের চূড়ান্ত তথ্য কেনার শর্তকে সমর্থন করে।",
+    bullish_setup_pullback: "দাম নির্ধারিত সীমায় ফিরলে কেনার শর্ত পূরণ হতে পারে।",
+    bullish_setup_breakout: "দাম নির্ধারিত সীমা পেরিয়ে টিকে থাকলে কেনার কথা ভাবুন।",
+    bullish_setup_continuation: "দাম পেরিয়ে যাওয়া সীমার ওপরে টিকে থাকলে সুযোগটি বিবেচনা করুন।",
     confidence_capped_bearish_regime: ({ confidenceCap = 0 }) =>
-      `বাজার bearish হওয়ায় evidence strength ${confidenceCap}-এ সীমিত রাখা হয়েছে।`,
-    decision_engine_unavailable:
-      "এই শেয়ারের decision engine পাওয়া যায়নি; আপাতত অপেক্ষা করুন।",
-    unknown: "আরও পরিষ্কার সিদ্ধান্তের সারাংশ আসছে।",
+      `বাজার নিম্নমুখী হওয়ায় প্রমাণের শক্তির স্কোর সর্বোচ্চ ${confidenceCap} রাখা হয়েছে।`,
+    decision_engine_unavailable: "এই শেয়ারের সিগন্যাল গণনা করা যায়নি। আপাতত অপেক্ষা করুন।",
+    unknown: "সিদ্ধান্তের বিস্তারিত এখনও পাওয়া যায়নি।",
   };
 }
 
@@ -278,7 +258,6 @@ export type DashboardLanguage = {
       scanCompleteDescription: (count: number) => string;
       suspiciousTitle: string;
       suspiciousDescription: (count: string) => string;
-      topMoverDescription: (name: string) => string;
       decisionTitle: (symbol: string, actionLabel: string) => string;
     };
   };
@@ -483,7 +462,6 @@ const dashboardLanguage = {
         suspiciousTitle: "Suspicious activity flagged",
         suspiciousDescription: (count) =>
           `${count} instruments need source validation before acting on signals.`,
-        topMoverDescription: (name) => `Top session mover in the latest snapshot (${name}).`,
         decisionTitle: (symbol, actionLabel) => `${symbol} ${actionLabel}`,
       },
     },
@@ -701,9 +679,9 @@ const dashboardLanguage = {
       awaitingContext: "আরও পরিষ্কার context দরকার",
       contextJoiner: " · ",
       contextRsi: (value) => `RSI ${value}`,
-      contextVolume: (ratio) => `Volume স্বাভাবিকের তুলনায় ${ratio} গুণ`,
-      contextTrend: (value) => `Trend ${value}`,
-      contextOpportunity: (value) => `Opportunity ${value}`,
+      contextVolume: (ratio) => `কেনাবেচার পরিমাণ গড়ের ${ratio} গুণ`,
+      contextTrend: (value) => `দামের প্রবণতা ${value}`,
+      contextOpportunity: (value) => `সুযোগের স্কোর ${value}`,
       decisionReasons: buildBanglaDecisionReasons(),
     },
     timeline: {
@@ -713,17 +691,15 @@ const dashboardLanguage = {
       templates: {
         dataQualityTime: "তথ্যের মান",
         latestTime: "সর্বশেষ",
-        snapshotReadyTitle: "বাজারের স্ন্যাপশট প্রস্তুত",
+        snapshotReadyTitle: "বাজারের তথ্য প্রস্তুত",
         snapshotReadyDescription: (count) =>
-          `সর্বশেষ price snapshot-এ ${count}টি সক্রিয় শেয়ার আছে।`,
+          `সর্বশেষ বাজারচিত্রে ${count}টি সক্রিয় শেয়ার আছে।`,
         scanCompleteTitle: "বাজার স্ক্যান সম্পন্ন",
         scanCompleteDescription: (count) =>
-          `সাধারণ trader decision engine দিয়ে ${count}টি সক্রিয় শেয়ার বিশ্লেষণ করা হয়েছে।`,
-        suspiciousTitle: "সন্দেহজনক লেনদেন চিহ্নিত",
+          `${count}টি সক্রিয় শেয়ারের তথ্য একই নিয়মে বিশ্লেষণ করা হয়েছে।`,
+        suspiciousTitle: "দামের তথ্য যাচাই প্রয়োজন",
         suspiciousDescription: (count) =>
-          `${count}টি শেয়ারের উৎস যাচাই করা দরকার; signal অনুযায়ী সিদ্ধান্ত নেওয়ার আগে নিশ্চিত হোন।`,
-        topMoverDescription: (name) =>
-          `সর্বশেষ snapshot-এ আজকের সবচেয়ে বড় mover (${name})।`,
+          `${count === "Some" ? "কয়েকটি" : `${count}টি`} শেয়ারের দামের উৎস যাচাই করুন, তারপর সিগন্যাল বিবেচনা করুন।`,
         decisionTitle: (symbol, actionLabel) => `${symbol} ${actionLabel}`,
       },
     },
@@ -826,20 +802,19 @@ const dashboardLanguage = {
       pulseLoadingAria: "Market pulse লোড হচ্ছে",
     },
     freshness: {
-      syncing: "Syncing…",
-      statusUnavailable: "Status unavailable",
-      statusUnavailableTitle: "Market snapshot status unavailable",
-      lastUpdated: (relative) => `Last updated ${relative}`,
-      noSnapshotYet: "No snapshot yet",
-      lastUpdatedPending: "Last updated …",
-      refreshAria: "Refresh market data",
-      refreshTitle: "Refresh market data",
-      refreshDisabledTitle: "Refresh unavailable during this session",
-      synced: (label) => `Synced ${label}`,
-      session: (label) => `Session: ${label}`,
-      nextUpdate: (label) => `Next update: ${label}`,
-      provisional: (sessionDate) =>
-        `Live snapshot provisional; canonical decision ${sessionDate} session-এর।`,
+      syncing: "হালনাগাদ হচ্ছে…",
+      statusUnavailable: "হালনাগাদের তথ্য নেই",
+      statusUnavailableTitle: "বাজারের তথ্য কখন হালনাগাদ হয়েছে জানা যায়নি",
+      lastUpdated: (relative) => `হালনাগাদ: ${relative}`,
+      noSnapshotYet: "বাজারের তথ্য এখনও আসেনি",
+      lastUpdatedPending: "হালনাগাদের সময় আসছে…",
+      refreshAria: "বাজারের তথ্য রিফ্রেশ করুন",
+      refreshTitle: "বাজারের তথ্য রিফ্রেশ করুন",
+      refreshDisabledTitle: "এই সময়ে রিফ্রেশ করা যাচ্ছে না",
+      synced: (label) => `শেষ হালনাগাদ: ${label}`,
+      session: (label) => label,
+      nextUpdate: (label) => `পরের হালনাগাদ: ${label}`,
+      provisional: (sessionDate) => `চলতি দামের তথ্য সাময়িক। চূড়ান্ত সিদ্ধান্তের কার্যদিবস: ${sessionDate}।`,
     },
   },
 } as const satisfies Record<AppLocale, DashboardLanguage>;

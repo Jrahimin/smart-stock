@@ -52,6 +52,14 @@ describe("resolveGuideBox", () => {
     expect(box!.top + box!.height).toBeLessThanOrEqual(628);
   });
 
+  it("keeps a below-target placement when an expanded sidebar blocks its horizontal alignment", () => {
+    const pulseCard = { top: 280, bottom: 350, left: 285, right: 735, width: 450, height: 70 };
+    const bounds = { left: 260, top: 0, right: 1135, bottom: 720 };
+    expect(resolveGuideBox(pulseCard, ["bottom-right", "right"], 600, 320, 1150, 720, {
+      bounds, clampCrossAxis: true,
+    })).toMatchObject({ left: 276, top: 370 });
+  });
+
   it("keeps the character inside the main content bounds", () => {
     const sidebarTarget = { top: 120, right: 240, bottom: 168, left: 24, width: 216, height: 48 };
     const box = resolveGuideBox(
