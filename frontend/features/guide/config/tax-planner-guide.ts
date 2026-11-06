@@ -16,11 +16,11 @@ export type TaxPlannerMobileGuideStep = {
 export function getTaxPlannerDesktopGuideSteps(locale: AppLocale): readonly GuideStep[] {
   const dialog = getTaxPlannerGuideDialogs(locale);
   return [
-    { id: "welcome", target: null, dialog: dialog.welcome, characterPose: "welcome", layoutMode: "center-cluster" },
+    { id: "welcome", target: '[data-guide="tax-planner-year"]', dialog: dialog.welcome, characterPose: "welcome", highlightStyle: "region", layoutMode: "beside-target", characterAnchor: "upper" },
     { id: "quick", target: '[data-guide="tax-planner-quick"]', dialog: dialog.quick, characterPose: "point-left", highlightStyle: "region", layoutMode: "beside-target", characterAnchor: "upper" },
     { id: "detailed", target: '[data-guide="tax-planner-detailed"]', dialog: dialog.detailed, characterPose: "thinking", highlightStyle: "region", layoutMode: "beside-target", characterAnchor: "upper" },
-    { id: "rebate", target: '[data-guide="tax-planner-rebate"]', dialog: dialog.rebate, characterPose: "point-left", highlightStyle: "region", layoutMode: "beside-target", characterAnchor: "upper" },
-    { id: "finish", target: null, dialog: dialog.finish, characterPose: "farewell", layoutMode: "center-cluster" },
+    { id: "rebate", target: '[data-guide="tax-planner-result"]', dialog: dialog.rebate, characterPose: "point-left", highlightStyle: "region", layoutMode: "beside-target", characterAnchor: "upper" },
+    { id: "finish", target: '[data-guide="tax-planner-help"]', dialog: dialog.finish, characterPose: "farewell", highlightStyle: "region", layoutMode: "beside-target", characterAnchor: "upper" },
   ];
 }
 

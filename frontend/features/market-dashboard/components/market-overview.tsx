@@ -1,6 +1,8 @@
+import { DashboardInfoPanel } from "./dashboard-info-panel";
 import Link from "next/link";
+import { getPremiumCopy } from "../premium-copy";
 import Image from "next/image";
-import type { ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { sectorName, marketHeadline, breadthContrast, type TerminalCopy } from "@/features/market-dashboard/terminal-copy";
 import type { MarketDashboardModel } from "@/features/market-dashboard/types/market-dashboard-types";
@@ -22,8 +24,21 @@ export function MarketOverview({ model, copy, locale, freshness, loading, leader
   freshness?: BackendMarketFreshnessDto; loading: boolean; leadersLoading: boolean;
 }) {
   const { pulse, breadth, session, insights } = model;
+  const premium = getPremiumCopy(locale);
   const hasDate = pulse.tradeDateStatus === "available";
   const stale = session.state === "STALE" || freshness?.data_state === "STALE";
+  const previousValue = useRef<string | null>(null);
+  const [valueUpdated, setValueUpdated] = useState(false);
+  useEffect(() => {
+    setValueUpdated(false);
+    if (loading || !pulse.indexAvailable) return;
+    const changed = previousValue.current !== null && previousValue.current !== pulse.indexValue;
+    previousValue.current = pulse.indexValue;
+    if (!changed || stale || session.state !== "OPEN") return;
+    setValueUpdated(true);
+    const timer = window.setTimeout(() => setValueUpdated(false), 750);
+    return () => window.clearTimeout(timer);
+  }, [loading, pulse.indexAvailable, pulse.indexValue, session.state, stale]);
   const status = {
     OPEN: copy.open, PRE_OPEN: copy.preOpen, POST_CLOSE: copy.postClose, HOLIDAY: copy.closed,
     STALE: copy.stale, PARTIAL: copy.partial, SYNCING: copy.syncing,
@@ -38,7 +53,6 @@ export function MarketOverview({ model, copy, locale, freshness, loading, leader
   const volume = pulse.volumeContext;
   const partial = insights.find(({ id }) => id === "partial-data");
   const context = partial?.description ?? breadthContrast(model, locale);
-  const turnoverInsight = insights.find(({ id }) => id === "turnover-context");
   const breadthParts = [[copy.up, breadth.advancing, "positive"], [copy.flat, breadth.unchanged, "neutral"], [copy.down, breadth.declining, "negative"]] as const;
   const detailStats = [
     ...(pulse.indexDayStats ? [
@@ -50,10 +64,23 @@ export function MarketOverview({ model, copy, locale, freshness, loading, leader
 
   return <section className="sw-hero" aria-label={copy.overview} aria-busy={loading}>
     <div className="sw-hero-main" data-guide="market-pulse" data-guide-ready={String(!loading)}>
-      <div className="sw-index">
+      <div className="sw-index-stack"><div className="sw-index">
         <span>{pulse.indexName}</span>
-        <strong className={pulse.indexAvailable ? "sw-index-value" : "sw-index-value sw-index-missing"}>{loading ? "…" : pulse.indexAvailable ? pulse.indexValue : copy.indexMissing}</strong>
+        <strong data-updated={valueUpdated} className={pulse.indexAvailable ? "sw-index-value" : "sw-index-value sw-index-missing"}>{loading ? "…" : pulse.indexAvailable ? pulse.indexValue : copy.indexMissing}</strong>
         {pulse.indexAvailable && pulse.indexChangePercent !== null ? <b className={`sw-${pulse.indexTone}`}>{pulse.indexChangeLabel}</b> : null}
+      </div>
+      <div className="sw-index-details"><DashboardInfoPanel label={copy.indexDetails} locale={locale}>
+        <div className="sw-detail-body">
+          {pulse.indexAvailable ? <dl className="sw-detail-stats">
+            {detailStats.filter(([, value]) => value !== "N/A").map(([label, value]) => <Metric key={label} label={label}><strong>{value}</strong></Metric>)}
+            {detailStats.some(([, value]) => value === "N/A") ? <p className="sw-returns-unavailable">{locale === "bn" ? "কিছু সময়কালের রিটার্নের তথ্য নেই।" : "Some period returns are unavailable."}</p> : null}
+            {pulse.indexRange ? <Metric label={copy.range}>
+              <strong>{pulse.indexRange.lowLabel} – {pulse.indexRange.highLabel}</strong>
+              <div className="sw-range" aria-hidden="true"><i style={{ left: `${pulse.indexRange.positionPercent}%` }} /></div>
+            </Metric> : null}
+          </dl> : <p>{loading ? copy.loading : copy.indexMissing}</p>}
+        </div>
+      </DashboardInfoPanel></div>
       </div>
       <div className="sw-hero-story">
         <div className="sw-session">
@@ -89,27 +116,24 @@ export function MarketOverview({ model, copy, locale, freshness, loading, leader
           : <strong>{loading || leadersLoading ? "…" : copy.missing}</strong>}
       </Metric>
     </dl>
-    <div className="sw-hero-actions">
+    <div className="sw-hero-actions" aria-label={locale === "bn" ? "আরও ঘুরে দেখুন" : "Explore workspaces"}>
       <Link aria-labelledby="sw-pulse-title" aria-describedby="sw-pulse-description" className="sw-pulse-entry" data-guide="market-pulse-link" href="/market-pulse" prefetch={false}>
         <span className="sw-pulse-copy">
+          <small className="sw-destination-eyebrow">{premium.pulseEyebrow}</small>
           <strong id="sw-pulse-title">{copy.pulse} <span aria-hidden="true">↗</span></strong>
           <span id="sw-pulse-description">{stale ? copy.pulseHistorical : copy.pulseDescription}</span>
         </span>
-        <Image className="sw-pulse-art" alt="" height={230} src="/dashboard/market-pulse-ceramic.webp" width={420} />
+        <Image className="sw-pulse-art" alt="" sizes="(max-width: 640px) 98px, 150px" height={230} src="/dashboard/market-pulse-ceramic.webp" width={420} />
       </Link>
-      <details className="sw-index-details">
-        <summary>{copy.indexDetails}</summary>
-        <div className="sw-detail-body">
-          {pulse.indexAvailable ? <dl className="sw-detail-stats">
-            {detailStats.map(([label, value]) => <Metric key={label} label={label}><strong>{value === "N/A" ? "—" : value}</strong></Metric>)}
-            {pulse.indexRange ? <Metric label={copy.range}>
-              <strong>{pulse.indexRange.lowLabel} – {pulse.indexRange.highLabel}</strong>
-              <div className="sw-range" aria-hidden="true"><i style={{ left: `${pulse.indexRange.positionPercent}%` }} /></div>
-            </Metric> : null}
-          </dl> : <p>{loading ? copy.loading : copy.indexMissing}</p>}
-          {turnoverInsight && turnover.primaryValue !== "N/A" ? <p><strong>{turnoverInsight.title}:</strong> {turnoverInsight.description}</p> : null}
+      <Link className="sw-wealth-card" href="/wealth" prefetch={false} aria-labelledby="sw-wealth-title" aria-describedby="sw-wealth-preview">
+        <div className="sw-wealth-content">
+          <span className="sw-wealth-label">Wealth Workspace</span>
+          <strong id="sw-wealth-title">{locale === "bn" ? "সঞ্চয় এবং সম্পদের হিসাব রাখুন সহজে" : "Plan savings. Estimate tax."} <span aria-hidden="true">↗</span></strong>
+          <span id="sw-wealth-preview">{locale === "bn" ? "ট্যাক্স প্ল্যানার · সঞ্চয়পত্র · যাকাত · DPS · FDR" : "Tax Planner · Sanchayapatra · Zakat · DPS · FDR"}</span>
         </div>
-      </details>
+        <Image className="sw-wealth-card-art" alt="" sizes="(max-width: 640px) 76px, 120px" height={320} width={480} src="/dashboard/wealth-workspace-trio-v2.webp" />
+      </Link>
+
     </div>
   </section>;
 }

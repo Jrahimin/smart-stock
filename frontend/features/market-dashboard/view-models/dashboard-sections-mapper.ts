@@ -188,7 +188,10 @@ export function mapDashboardSignalsDto(dto: BackendDashboardStocksInFocusDto): S
 
 export function mapDashboardAlertsDto(dto: BackendDashboardMarketAlertsDto): MarketTimelineItemModel[] {
   return dto.items.map((item) => ({
-    time: item.time,
+    kind: item.title === "Market snapshot ready" || item.title === "Market scan complete" ? "snapshot"
+      : /^Top session mover in the latest snapshot/.test(item.description) ? "mover" : "alert",
+    sourceUrl: item.source_url && /^https?:\/\//i.test(item.source_url) ? item.source_url : undefined,
+    time: /^\d{4}-\d{2}-\d{2}/.test(item.time) ? item.time : dto.session_trade_date ?? item.time,
     title: item.title,
     description: item.description,
   }));

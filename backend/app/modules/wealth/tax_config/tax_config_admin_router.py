@@ -11,9 +11,18 @@ from app.modules.wealth.tax_config.tax_config_schemas import (
     TaxPlannerConfigScalarsWrite,
     TaxPlannerSlabsUpdateRequest,
 )
-from app.modules.wealth.tax_config.tax_config_service import TaxConfigService, get_tax_config_service
+from app.modules.wealth.tax_config.tax_config_service import (
+    TaxConfigService,
+    get_tax_config_service,
+)
+from app.modules.wealth.tax_planner_v2.http_controls import (
+    TaxPlannerRoute,
+    require_legacy_tax_planner,
+)
 
-router = APIRouter(prefix="/admin/tax-planner", tags=["admin tax planner"])
+router = APIRouter(
+    prefix="/admin/tax-planner", tags=["admin tax planner"], route_class=TaxPlannerRoute
+)
 
 
 @router.get("/config", response_model=ApiResponse[TaxPlannerAdminConfigRead])
@@ -25,7 +34,10 @@ async def get_tax_planner_admin_config(
     return success_response(data=row, message="Tax planner config retrieved")
 
 
-@router.put("/config", response_model=ApiResponse[TaxPlannerAdminConfigRead])
+@router.put(
+    "/config", response_model=ApiResponse[TaxPlannerAdminConfigRead],
+    dependencies=[Depends(require_legacy_tax_planner)],
+)
 async def update_tax_planner_config(
     payload: TaxPlannerConfigScalarsWrite,
     service: Annotated[TaxConfigService, Depends(get_tax_config_service)],
@@ -35,7 +47,10 @@ async def update_tax_planner_config(
     return success_response(data=row, message="Tax planner config updated")
 
 
-@router.put("/slabs", response_model=ApiResponse[TaxPlannerAdminConfigRead])
+@router.put(
+    "/slabs", response_model=ApiResponse[TaxPlannerAdminConfigRead],
+    dependencies=[Depends(require_legacy_tax_planner)],
+)
 async def update_tax_planner_slabs(
     payload: TaxPlannerSlabsUpdateRequest,
     service: Annotated[TaxConfigService, Depends(get_tax_config_service)],
@@ -54,7 +69,11 @@ async def list_tax_investment_categories(
     return success_response(data=rows, message="Investment categories retrieved")
 
 
-@router.put("/investment-categories", response_model=ApiResponse[list[TaxInvestmentCategoryRead]])
+@router.put(
+    "/investment-categories",
+    response_model=ApiResponse[list[TaxInvestmentCategoryRead]],
+    dependencies=[Depends(require_legacy_tax_planner)],
+)
 async def update_tax_investment_categories(
     payload: TaxInvestmentCategoriesUpdateRequest,
     service: Annotated[TaxConfigService, Depends(get_tax_config_service)],

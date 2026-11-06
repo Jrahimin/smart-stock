@@ -363,6 +363,17 @@
 .sw-event-body { min-width: 0; overflow-wrap: anywhere; }
 .sw-event-body p { display: inline; margin: 0 0 0 7px; color: var(--sw-muted); }
 .sw-state { color: var(--sw-muted); font-size: .84rem; margin: 0; padding: 14px 0; }
+.sw-insights { margin-top: 16px; }
+.sw-insights > h2 { font-size: 1.12rem; margin-bottom: 8px; }
+.sw-insight-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.sw-insight { padding: 10px 12px; border: 1px solid var(--sw-rule); border-radius: 9px; background: var(--sw-surface); min-width: 0; }
+.sw-insight-label, .sw-insight strong { display: block; }
+.sw-insight-label { color: var(--sw-muted); font-size: .72rem; margin-bottom: 3px; }
+.sw-insight strong { font-size: .9rem; }
+.sw-insight p { font-size: .8rem; line-height: 1.5; margin: 4px 0 0; color: var(--sw-muted); }
+.sw-insight small { color: var(--sw-muted); }
+.sw-event-kind { display: block; color: var(--sw-muted); font-size: .7rem; margin-bottom: 2px; }
+@media (max-width: 640px) { .sw-insight-grid { grid-template-columns: minmax(0, 1fr); gap: 8px; } }
 .sw-warning { color: var(--sw-down); padding-bottom: 0; }
 .sw-hero-actions:has(.sw-pulse-entry) { padding-inline-end: 110px; }
 .sw-detail-body { margin-inline-end: -110px; }

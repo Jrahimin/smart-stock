@@ -9,6 +9,10 @@ const TRADING_DAY_WINDOW = 30;
 export type PulseTone = "positive" | "negative" | "neutral" | "warning" | "info";
 
 export type TurnoverPulseContext = {
+  /** Unrounded source values for proportional visual comparisons. */
+  currentValue?: number | null;
+  averageValue?: number | null;
+  averageSessions?: number;
   insight: string;
   insightTone: PulseTone;
   primaryValue: string;
@@ -199,6 +203,9 @@ export function buildTurnoverPulseContext(
 
   return {
     insight: liquidity.insight,
+    currentValue: currentTurnover,
+    averageValue: avgTurnover,
+    averageSessions: recent.filter((summary) => toNumber(summary.total_turnover) !== null).length,
     insightTone: liquidity.tone,
     primaryValue: turnoverLabel,
     vsYesterday: changeVsPrevious === null ? "N/A" : formatPercent(changeVsPrevious),

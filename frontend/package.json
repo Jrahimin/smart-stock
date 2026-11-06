@@ -11,6 +11,7 @@
     "start": "next start",
     "lint": "next lint",
     "test": "vitest run",
+    "test:tax-planner-ui": "vitest run --config vitest.tax-planner-ui.config.mts",
     "test:watch": "vitest",
     "clean": "rimraf .next out"
   },
