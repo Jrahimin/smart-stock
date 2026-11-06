@@ -30,12 +30,15 @@ export function resolveMarketMoodInsightKey(marketMood: MarketMood): MarketMoodI
 export function buildTurnoverInsightContext(
   pulse: MarketPulseModel,
   liquidityKey: TurnoverLiquidityInsightKey,
+  intraday = false,
 ): TurnoverInsightContext {
   return {
+    averageSessions: pulse.turnoverContext.averageSessions,
     turnoverLabel: pulse.turnoverLabel,
     vsYesterday: pulse.turnoverContext.vsYesterday,
     vs30DayAvg: pulse.turnoverContext.vs30DayAvg,
     liquidityKey,
+    intraday,
   };
 }
 
@@ -50,7 +53,11 @@ export function buildTurnoverInsightDescription(
 
   const liquidityLabel = narratives[context.liquidityKey];
   const guidance = copy.blocks.turnoverContext.liquidityGuidance[context.liquidityKey];
-  return copy.blocks.turnoverContext.descriptionAvailable(context, liquidityLabel, guidance);
+  return copy.blocks.turnoverContext.descriptionAvailable({
+    ...context,
+    turnoverLabel: context.turnoverLabel.replace(/^BDT\s+/, ""),
+    vs30DayAvg: context.vs30DayAvg.replace(/^BDT\s+/, ""),
+  }, liquidityLabel, guidance);
 }
 
 function localizeInsightCategory(

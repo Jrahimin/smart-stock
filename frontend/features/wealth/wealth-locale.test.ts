@@ -94,15 +94,20 @@ describe("wealth landing language", () => {
     expect(mobile[0]?.dialog.message).toContain("সম্পদের কোনো সিদ্ধান্ত");
   });
 
-  it("provides the five-step Tax Planner journey in the requested order and voice", () => {
+  it("covers year selection, annual estimates, filing and official guidance in both tours", () => {
     const desktop = getTaxPlannerDesktopGuideSteps("en");
     const mobile = getTaxPlannerMobileGuideSteps("bn");
     expect(desktop.map((step) => step.id)).toEqual(["welcome", "quick", "detailed", "rebate", "finish"]);
-    expect(desktop[1]?.dialog.message).toContain("three yearly numbers");
-    expect(desktop[2]?.dialog.message).toContain("match your year more closely");
-    expect(mobile).toHaveLength(5);
-    expect(mobile[1]?.dialog.message).toContain("এক ঝলক");
-    expect(mobile[3]?.dialog.message).toContain("rebate আর final tax");
-    expect(mobile[4]?.dialog.message).toContain("নিজের মতো করে explore করুন");
+    expect(desktop.map((step) => step.target)).toEqual([
+      '[data-guide="tax-planner-year"]', '[data-guide="tax-planner-quick"]',
+      '[data-guide="tax-planner-detailed"]', '[data-guide="tax-planner-result"]',
+      '[data-guide="tax-planner-help"]',
+    ]);
+    expect(mobile.map((step) => step.target)).toEqual(desktop.map((step) => step.target));
+    expect(desktop[1]?.dialog.message).toContain("Filing credits are still unknown");
+    expect(desktop[3]?.dialog.message).toContain("balance at filing");
+    expect(mobile[0]?.dialog.message).toContain("সক্রিয় নিয়ম");
+    expect(mobile[3]?.dialog.message).toContain("দাখিলের বাকি কর");
+    expect(mobile[4]?.dialog.message).toContain("সরকারি ই-রিটার্ন");
   });
 });

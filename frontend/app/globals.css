@@ -20087,6 +20087,15 @@ button {
   z-index: 30;
 }
 
+/* Keep the planner's mobile form usable below the app header. Navigation
+   remains in the page and scrolls away instead of covering the fields. */
+@media (max-width: 700px) {
+  body:has(#tax-planner-panel) .wealth-sub-nav-shell {
+    position: relative;
+    top: auto;
+  }
+}
+
 .wealth-sub-nav-brand {
   align-items: center;
   backdrop-filter: blur(10px);
@@ -32127,4 +32136,91 @@ button {
     min-height: 0 !important;
     padding: 16px !important;
   }
+}
+
+/* Desktop sidebar polish: stable icon tracks and restrained surface depth. */
+@media (min-width: 1024px) {
+  .terminal-shell,
+  .terminal-sidebar,
+  .terminal-sidebar nav a,
+  .terminal-sidebar .wealth-workspace-nav-tile,
+  .terminal-sidebar .wealth-workspace-nav-tile-body,
+  .terminal-sidebar .wealth-workspace-nav-compact-label { will-change: auto; }
+
+  .terminal-sidebar-desktop nav a:not(.wealth-workspace-nav-tile) {
+    gap: 12px;
+    border-radius: 10px;
+    font-size: .84rem;
+    font-weight: 500;
+    white-space: nowrap;
+    transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+  }
+  .terminal-sidebar-desktop .terminal-nav-icon {
+    flex: 0 0 20px;
+    width: 20px;
+    height: 20px;
+    stroke-width: 1.7;
+    filter: none;
+  }
+  .terminal-sidebar-desktop nav a > span { min-width: 0; }
+  .terminal-sidebar-desktop .terminal-nav-section-label { padding-left: 12px; margin-top: 6px; }
+  .terminal-sidebar-desktop nav a.wealth-workspace-nav-tile {
+    box-shadow: 0 1px 2px rgb(0 0 0 / 5%), inset 0 1px 0 rgb(255 255 255 / 18%);
+    gap: 10px;
+    transform: none;
+  }
+  .terminal-shell-collapsed .terminal-sidebar-desktop nav a:not(.wealth-workspace-nav-tile) {
+    height: 54px;
+    min-height: 54px;
+    gap: 5px;
+    justify-content: center;
+    padding: 6px 0;
+  }
+  .terminal-shell-collapsed .terminal-sidebar-desktop nav a:not(.wealth-workspace-nav-tile) > span {
+    font-size: .59rem;
+    font-weight: 500;
+    line-height: 1.2;
+    letter-spacing: 0;
+    width: 100%;
+  }
+  .terminal-shell-collapsed .terminal-sidebar-desktop nav a.wealth-workspace-nav-tile { gap: 4px; }
+  .terminal-shell-collapsed .terminal-sidebar-desktop .wealth-workspace-nav-compact-label { font-weight: 600; }
+  .terminal-sidebar-desktop .sidebar-toggle-button { border-radius: 9px; transition: background-color 160ms ease, color 160ms ease; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .terminal-shell, .terminal-sidebar-desktop, .terminal-sidebar-desktop * { transition: none !important; animation: none !important; }
+}
+
+/* Hover expansion stays local; the workspace does not reflow per frame. */
+@media (min-width: 1024px) {
+  .terminal-shell { transition: none; }
+  .terminal-shell-hover-expanded { grid-template-columns: 76px minmax(0, 1fr); }
+  .terminal-sidebar-desktop {
+    width: 260px;
+    z-index: 45;
+    gap: 8px;
+    padding: 12px;
+    transition: width 150ms ease-out;
+  }
+  .terminal-shell-collapsed .terminal-sidebar-desktop { width: 76px; gap: 6px; }
+  .terminal-shell-hover-expanded .terminal-sidebar-desktop { box-shadow: 8px 0 24px rgb(0 0 0 / 8%); }
+  .terminal-sidebar-desktop .terminal-sidebar-primary { scrollbar-gutter: auto; }
+  .terminal-sidebar-desktop nav { gap: 1px; }
+  .terminal-sidebar-desktop nav a:not(.wealth-workspace-nav-tile) { height: 36px; min-height: 36px; }
+  .terminal-shell-collapsed .terminal-sidebar-desktop nav a:not(.wealth-workspace-nav-tile) {
+    height: 46px;
+    min-height: 46px;
+    gap: 3px;
+    padding: 4px 0;
+  }
+  .terminal-sidebar-desktop nav a.wealth-workspace-nav-tile { min-height: 62px; padding-top: 6px; padding-bottom: 6px; transition: background-color 150ms ease, border-color 150ms ease; }
+  .terminal-shell-collapsed .terminal-sidebar-desktop nav a.wealth-workspace-nav-tile { height: 54px; min-height: 54px; padding: 3px 0; }
+  .terminal-sidebar-desktop .terminal-nav-divider { margin: 4px 0; }
+  .terminal-sidebar-desktop .terminal-sidebar-utilities { gap: 6px; }
+  .terminal-sidebar-desktop .terminal-sidebar-footer { padding-top: 6px; }
+  .terminal-sidebar-desktop .wealth-workspace-nav-tile-body,
+  .terminal-sidebar-desktop .wealth-workspace-nav-compact-label { transition: opacity 100ms ease; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .terminal-sidebar-desktop { transition: none; }
 }

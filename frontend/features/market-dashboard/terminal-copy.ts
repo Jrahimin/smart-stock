@@ -15,7 +15,7 @@ export const dashboardEntryConditions: Record<AppLocale, StockDecisionLanguage["
   bn: {
     breakout_continuation: "দাম নির্ধারিত সীমা পেরিয়ে ওপরে টিকে থাকলেই কেনার কথা ভাবুন। কেনাবেচা দুর্বল হলে বা দাম এমন সীমা পেরোলে যাতে শর্ত আর খাটে না, সিদ্ধান্তটি আবার বিবেচনা করুন।",
     breakout_trigger_session: "নির্ধারিত দামের ওপরে লেনদেন শেষ হলে এবং কেনাবেচার পরিমাণ সেই ওঠাকে সমর্থন করলেই কেনার কথা ভাবুন।",
-    pullback_zone: "দাম নির্ধারিত সমর্থনমূল্য বা চলমান গড়ের কাছে ফিরে এসে সেখানে টিকে থাকলেই কেনার কথা ভাবুন।",
+    pullback_zone: "দাম নির্ধারিত সমর্থনমূল্য বা চলমান এভারেজের কাছে ফিরে এসে সেখানে টিকে থাকলেই কেনার কথা ভাবুন।",
     ready_near_range: "দেখানো সীমার কাছাকাছি দাম থাকলে কেনার শর্ত পূরণ হচ্ছে।",
     available_near_range_short: "দেখানো সীমার কাছাকাছি দাম থাকলে কেনার শর্ত পূরণ হচ্ছে।",
     close_above_price: ({ price }) => `দাম ${price}-এর ওপরে দিন শেষ করলে এবং কেনাবেচার পরিমাণ সেই ওঠাকে সমর্থন করলেই কেনার কথা ভাবুন।`,
@@ -31,7 +31,7 @@ const copy = {
     postClose: "Post-close snapshot", closed: "Market closed", syncing: "Updating snapshot", synced: "Synced",
     snapshotTime: "Snapshot time (Dhaka)", syncTime: "Last sync time (Dhaka)",
     breadth: "Market breadth", up: "Up", flat: "Flat", down: "Down", turnover: "Turnover", volume: "Volume",
-    shares: "shares", versusAverage: "30-day avg", noAverage: "No 30-day comparison", sectorLeader: "Sector leader",
+    shares: "shares", versusAverage: "recent avg", noAverage: "Recent average unavailable", sectorLeader: "Sector leader",
     sectorLeaderBasis: "Equal-weight average of eligible stocks",
     vsPrevious: "vs. prior session", indexDetails: "Index details", dayOpen: "Open", dayHigh: "High", dayLow: "Low",
     returns: ["1 month", "6 months", "1 year"], range: "52-week range", pulse: "Open Market Pulse",
@@ -55,7 +55,14 @@ const copy = {
     sharedStaleWait: "Why Wait: these stocks need more recent or complete data.",
     actions: { POTENTIAL_BUY: "Potential Buy", HOLD: "Hold", WAIT: "Wait", SELL: "Sell" },
     risks: { LOW: "Low risk", MEDIUM: "Medium risk", HIGH: "High risk" },
-    timeline: "Market timeline", timelineEmpty: "No separate market events reported for this snapshot.",
+    timeline: "Market timeline", timelineEmpty: "No market alerts for this snapshot.",
+    timelineError: "Market alerts couldn’t load. Use Refresh to try again.",
+    timelineCached: "Showing saved alerts; the latest request failed.",
+    snapshotUpdate: "Generated snapshot update", moverEvent: "Session mover", marketAlert: "Generated market alert", sourceLink: "Source",
+    insightsTitle: "Insights", marketInterpretation: "Market interpretation", tradingActivity: "Turnover",
+    insightsEmpty: "Market interpretation is not available for this snapshot.",
+    insightsError: "Market insights couldn’t load. Use Refresh to try again.",
+    intradayInterpretation: "Intraday reading; the session is still open.",
     serviceError: "Some market sections couldn’t load. Use Refresh to try again.",
   },
   bn: {
@@ -65,8 +72,8 @@ const copy = {
     postClose: "লেনদেন শেষে", closed: "বাজার বন্ধ", syncing: "তথ্য হালনাগাদ হচ্ছে", synced: "হালনাগাদ",
     snapshotTime: "বাজারচিত্রের সময় (ঢাকা)", syncTime: "শেষ হালনাগাদের সময় (ঢাকা)",
     breadth: "শেয়ারের ওঠানামা", up: "বেড়েছে", flat: "অপরিবর্তিত", down: "কমেছে", turnover: "লেনদেনের মূল্য", volume: "কেনাবেচার পরিমাণ",
-    shares: "শেয়ার", versusAverage: "৩০ দিনের গড়", noAverage: "৩০ দিনের গড়ের তথ্য নেই", sectorLeader: "শীর্ষ খাত",
-    sectorLeaderBasis: "যোগ্য শেয়ারগুলোর সমান ওজনে গড়",
+    shares: "শেয়ার", versusAverage: "সাম্প্রতিক এভারেজ", noAverage: "সাম্প্রতিক এভারেজের তথ্য নেই", sectorLeader: "শীর্ষ খাত",
+    sectorLeaderBasis: "যোগ্য শেয়ারগুলোর সমান ওজনে এভারেজ",
     vsPrevious: "আগের কার্যদিবসের তুলনায়", indexDetails: "সূচকের বিস্তারিত", dayOpen: "শুরুর মান", dayHigh: "সর্বোচ্চ", dayLow: "সর্বনিম্ন",
     returns: ["১ মাস", "৬ মাস", "১ বছর"], range: "৫২ সপ্তাহের সীমা", pulse: "মার্কেট পালস দেখুন",
     pulseDescription: "কোন খাত এগিয়ে ছিল আর এরপর কী নজরে রাখবেন, দেখুন।",
@@ -74,7 +81,7 @@ const copy = {
     map: "খাতের মানচিত্র", mode: "খাতের মানচিত্র সাজানোর ভিত্তি", marketCap: "বাজারমূল্য", liquidity: "তারল্য",
     coverage: (n: number) => `মানচিত্রে ${n}টি শেয়ার`, mapEmpty: "এই বাজারচিত্রে মানচিত্রে দেখানোর মতো শেয়ার নেই।",
     sectorMove: "খাতের পরিবর্তন: তথ্য থাকলে লেনদেনের মূল্য অনুযায়ী ওজন",
-    mappedEqualWeight: "সমান ওজনে গড়",
+    mappedEqualWeight: "সমান ওজনে এভারেজ",
     mapPreview: (shown: number, total: number) => `ঝলক · ${total}টি খাতের মধ্যে ${shown}টি`,
     mapOrder: "সাজানোর ধরন বদলালে খাত ও শেয়ারের ক্রম বদলায়।",
     tileDetails: "শেয়ারের তথ্য দেখুন", pickStock: "একটি প্রতীক বাছুন", stockDetailLink: "শেয়ারের বিস্তারিত খুলুন",
@@ -89,7 +96,14 @@ const copy = {
     sharedStaleWait: "কেন অপেক্ষা: এই শেয়ারগুলোর আরও সাম্প্রতিক বা পূর্ণাঙ্গ তথ্য দরকার।",
     actions: { POTENTIAL_BUY: "কেনার সম্ভাবনা", HOLD: "ধরে রাখুন", WAIT: "অপেক্ষা করুন", SELL: "বিক্রি" },
     risks: { LOW: "কম ঝুঁকি", MEDIUM: "মাঝারি ঝুঁকি", HIGH: "বেশি ঝুঁকি" },
-    timeline: "বাজারের ঘটনাক্রম", timelineEmpty: "এই বাজারচিত্রে আলাদা কোনো ঘটনা জানানো হয়নি।",
+    timeline: "বাজারের ঘটনাক্রম", timelineEmpty: "এই বাজারচিত্রের কোনো সতর্কবার্তা নেই।",
+    timelineError: "বাজারের সতর্কবার্তা আসেনি। রিফ্রেশ করে আবার চেষ্টা করুন।",
+    timelineCached: "আগের সতর্কবার্তা দেখানো হচ্ছে। সর্বশেষ অনুরোধটি ব্যর্থ হয়েছে।",
+    snapshotUpdate: "বাজারের তথ্য থেকে তৈরি হালনাগাদ", moverEvent: "কার্যদিবসের শীর্ষ পরিবর্তন", marketAlert: "তথ্য থেকে তৈরি সতর্কবার্তা", sourceLink: "তথ্যের উৎস",
+    insightsTitle: "বাজারের ব্যাখ্যা", marketInterpretation: "বাজার কী বলছে", tradingActivity: "লেনদেনের মূল্য",
+    insightsEmpty: "এই বাজারচিত্রের ব্যাখ্যা পাওয়া যায়নি।",
+    insightsError: "বাজারের ব্যাখ্যা আসেনি। রিফ্রেশ করে আবার চেষ্টা করুন।",
+    intradayInterpretation: "চলতি কার্যদিবসের চিত্র। লেনদেন এখনও চলছে।",
     serviceError: "বাজারের কিছু তথ্য আসেনি। আবার চেষ্টা করতে রিফ্রেশ করুন।",
   },
 };
@@ -116,10 +130,10 @@ export function marketHeadline({ breadth, pulse }: MarketDashboardModel, locale:
   const majorityDown = breadth.total > 0 && breadth.declining > breadth.total / 2;
 
   if (majorityUp && below) return bn
-    ? "বেশির ভাগ শেয়ারের দাম বেড়েছে, তবে কেনাবেচার পরিমাণ গড়ের চেয়ে কম ছিল।"
+    ? "বেশির ভাগ শেয়ারের দাম বেড়েছে, তবে কেনাবেচার পরিমাণ এভারেজের চেয়ে কম ছিল।"
     : "Most stocks rose, but trading volume stayed below average";
   if (majorityUp && pulse.volumeLabel !== "N/A" && ratio > 1) return bn
-    ? "বেশির ভাগ শেয়ারের দাম বেড়েছে, কেনাবেচাও ছিল গড়ের চেয়ে বেশি।"
+    ? "বেশির ভাগ শেয়ারের দাম বেড়েছে, কেনাবেচাও ছিল এভারেজের চেয়ে বেশি।"
     : "Most stocks rose on above-average volume";
   if (majorityUp) return bn ? "বেশির ভাগ শেয়ারের দাম বেড়েছে" : "Most stocks rose";
   if (majorityDown) return bn ? "বেশির ভাগ শেয়ারের দাম কমেছে" : "Most stocks fell";

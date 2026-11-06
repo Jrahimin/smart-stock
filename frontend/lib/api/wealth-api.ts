@@ -6,12 +6,6 @@ import type {
   WealthSeasonalContext,
   WealthToolCalculateResponse,
 } from "@/features/wealth/types/wealth-types";
-import type {
-  TaxPlannerCalculateRequest,
-  TaxPlannerCalculateResponse,
-} from "@/features/wealth/types/tax-planner-types";
-import type { TaxPlannerConfigResponse } from "@/features/wealth/types/tax-planner-config-types";
-
 const NO_STORE = { cache: "no-store" } as RequestInit;
 
 export function calculateWealthTool(
@@ -22,16 +16,6 @@ export function calculateWealthTool(
   return backendApiPost<WealthToolCalculateResponse>(`/wealth/tools/${toolSlug}/calculate`, {
     inputs,
     assumptions: assumptions ?? { country_code: "BD" },
-  });
-}
-
-export function calculateTaxPlanner(payload: TaxPlannerCalculateRequest) {
-  return backendApiPost<TaxPlannerCalculateResponse>("/wealth/tax-planner/calculate", payload);
-}
-
-export function fetchTaxPlannerConfig(countryCode = "BD") {
-  return backendApiGet<TaxPlannerConfigResponse>("/wealth/tax-planner/config", {
-    country_code: countryCode,
   });
 }
 

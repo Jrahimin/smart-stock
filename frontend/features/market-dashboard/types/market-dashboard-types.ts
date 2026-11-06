@@ -108,6 +108,8 @@ export type MarketMoverModel = {
 };
 
 export type MarketTimelineItemModel = {
+  kind?: "snapshot" | "mover" | "alert";
+  sourceUrl?: string;
   time: string;
   title: string;
   description: string;

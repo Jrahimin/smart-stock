@@ -30,11 +30,20 @@ export function TerminalAppShell({ children, dashboardLocale = DEFAULT_LOCALE }:
   const { user, isAuthenticated, isLoading, logout } = useAuth();
   const sidebarCollapsed = useWorkspaceStore((state) => state.sidebarCollapsed);
   const collapseSidebar = useWorkspaceStore((state) => state.collapseSidebar);
+  const toggleSidebar = useWorkspaceStore((state) => state.toggleSidebar);
   const theme = useWorkspaceStore((state) => state.theme);
   const [storeHydrated, setStoreHydrated] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [guideMobileNavigationOpen, setGuideMobileNavigationOpen] = useState(false);
   const [isSidebarHoverExpanded, setSidebarHoverExpanded] = useState(false);
+  const sidebarHoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const queueSidebarHover = (expanded: boolean) => {
+    if (sidebarHoverTimer.current) clearTimeout(sidebarHoverTimer.current);
+    sidebarHoverTimer.current = setTimeout(() => setSidebarHoverExpanded(expanded), expanded ? 60 : 80);
+  };
+  useEffect(() => () => {
+    if (sidebarHoverTimer.current) clearTimeout(sidebarHoverTimer.current);
+  }, []);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -63,7 +72,7 @@ export function TerminalAppShell({ children, dashboardLocale = DEFAULT_LOCALE }:
   };
 
   return (
-    <div className={isSidebarCollapsed ? "terminal-shell terminal-shell-collapsed" : "terminal-shell"}>
+    <div className={`${isSidebarCollapsed ? "terminal-shell terminal-shell-collapsed" : "terminal-shell"}${sidebarCollapsed && isSidebarHoverExpanded ? " terminal-shell-hover-expanded" : ""}`}>
       <MobileAppHeader
         guideLocale={dashboardLocale}
         isMenuOpen={isMobileNavigationOpen}
@@ -80,8 +89,8 @@ export function TerminalAppShell({ children, dashboardLocale = DEFAULT_LOCALE }:
       />
       <aside
         className="terminal-sidebar terminal-sidebar-desktop"
-        onMouseEnter={() => setSidebarHoverExpanded(true)}
-        onMouseLeave={() => setSidebarHoverExpanded(false)}
+        onMouseEnter={() => queueSidebarHover(true)}
+        onMouseLeave={() => queueSidebarHover(false)}
       >
         <div className="terminal-sidebar-top">
           <Link aria-label="StockWealth BD" className="terminal-brand" href="/">
@@ -99,8 +108,9 @@ export function TerminalAppShell({ children, dashboardLocale = DEFAULT_LOCALE }:
             aria-label={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
             className="sidebar-toggle-button"
             onClick={() => {
+              if (sidebarHoverTimer.current) clearTimeout(sidebarHoverTimer.current);
               if (isSidebarCollapsed) {
-                setSidebarHoverExpanded(true);
+                toggleSidebar();
                 return;
               }
 
