@@ -16,15 +16,15 @@ const dialogs = {
     },
     quick: {
       eyebrow: "Start with an annual estimate",
-      message: "Quick uses yearly totals. Replace the example salary with your annual amount. Check the resident assumptions and any special situations in Detailed.",
+      message: "Quick uses three yearly amounts under the ordinary resident assumptions shown here. Filing credits are still unknown.",
     },
     detailed: {
       eyebrow: "Add the facts that matter",
       message: "Check your profile, income and eligible investments in three steps. Complex sources show a review warning before entry. Optional tax payments are available only when the active rules support filing balances. Your Quick entries stay here.",
     },
     rebate: {
-      eyebrow: "Read your annual estimate",
-      message: "Annual Tax includes the rebate already applied. Potential additional saving is a separate opportunity. Tax Journey explains your current facts; use the comparison below it to explore extra Investment.",
+      eyebrow: "Read the two totals",
+      message: "Annual tax is after your current rebate. Could still save is the possible extra reduction from more eligible investment; it has not been deducted again. Move the slider to compare.",
     },
     finish: {
       eyebrow: "Review and find official help",
@@ -38,15 +38,15 @@ const dialogs = {
     },
     quick: {
       eyebrow: "বার্ষিক হিসাব দিয়ে শুরু করুন",
-      message: "দ্রুত হিসাবে বছরের মোট অঙ্ক দিন। নমুনা বেতন বদলে নিজের বার্ষিক অঙ্ক দিন। নিবাসী করদাতার ধারণা ও বিশেষ পরিস্থিতি বিস্তারিত অংশে যাচাই করুন।",
+      message: "দ্রুত হিসাবে দেখানো সাধারণ নিবাসী করদাতার ধারণা অনুযায়ী তিনটি বার্ষিক অঙ্ক ব্যবহার হয়। কর সমন্বয় এখনও অজানা।",
     },
     detailed: {
       eyebrow: "প্রয়োজনীয় তথ্য যোগ করুন",
       message: "তিন ধাপে পরিচয়, আয় ও যোগ্য বিনিয়োগ যাচাই করুন। জটিল আয়ের উৎসে তথ্য দেওয়ার আগেই পর্যালোচনার বার্তা দেখাবে। সক্রিয় নিয়মে দাখিলের হিসাব থাকলেই ঐচ্ছিক কর পরিশোধ যোগ করা যাবে। দ্রুত হিসাবের তথ্য থাকবে।",
     },
     rebate: {
-      eyebrow: "বার্ষিক করের হিসাব বুঝে নিন",
-      message: "বার্ষিক করের অঙ্কে প্রয়োগ করা রেয়াত ধরা আছে। আরও সাশ্রয়ের সম্ভাবনা আলাদা সুযোগ। Tax Journey বর্তমান তথ্যের ব্যাখ্যা করে; অতিরিক্ত Investment দেখতে নিচের তুলনা ব্যবহার করুন।",
+      eyebrow: "দুটি অঙ্ক বুঝে নিন",
+      message: "বার্ষিক কর হলো বর্তমান রেয়াতের পরের অঙ্ক। আরও বাঁচতে পারে হলো অতিরিক্ত যোগ্য বিনিয়োগে সম্ভাব্য বাড়তি সাশ্রয়; এটি আবার বাদ দেওয়া হয়নি। তুলনা করতে স্লাইডার সরান।",
     },
     finish: {
       eyebrow: "যাচাই করুন ও সরকারি সাহায্য দেখুন",

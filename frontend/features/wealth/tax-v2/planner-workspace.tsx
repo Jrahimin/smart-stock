@@ -270,6 +270,7 @@ function CurrentPlanner({ owner, locale, config, selected, configError, facts, u
   const validationNotice = validations.length > 0 && <div id="tax-v2-field-error" role="alert" className={css.notice}>{validations.map((item, i) => <div key={item.path + ":" + i}><p>{fieldIssueText(item, locale)}</p><Button onClick={() => edit(item.path)}>{t("Go to the affected field", "সংশ্লিষ্ট ঘরে যান")}</Button></div>)}</div>;
   return <div className={css.stack} ref={root}>
     <TaxHero locale={locale} identity={selected.identity} rules={selected.rules} policies={selected.investment_policies} base={visibleResult?.base} />
+    {provenance === "example" && <p className={css.exampleHint}>{t("Editable example · replace the salary with your yearly amount", "নমুনা হিসাব · নিজের বার্ষিক বেতন দিয়ে বদলে নিন")}</p>}
     {disabled && <p role="alert" className={css.notice}>{t("Estimates are temporarily unavailable. Your entries are kept in this tab.", "হিসাব সাময়িকভাবে পাওয়া যাচ্ছে না। এই ট্যাবে আপনার তথ্য থাকছে।")}</p>}
     <div className="wealth-tax-mode-segment" data-guide="tax-planner-mode">
       <span className="wealth-tax-mode-segment-label" id="tax-planner-mode-label">{t("Estimate mode", "হিসাবের ধরন")}</span>
@@ -301,7 +302,7 @@ function CurrentPlanner({ owner, locale, config, selected, configError, facts, u
           {!adjustmentsOpen && validationNotice}
     </form>
     {methodNotice && <p role="status" className={css.notice}>{t("Category comparison reset because the counted Investment method changed. Your entered contributions are kept.", "হিসাবে ধরা Investment-এর পদ্ধতি বদলানোয় শ্রেণিভিত্তিক তুলনা ফিরিয়ে নেওয়া হয়েছে। দেওয়া জমার তথ্য রাখা আছে।")}</p>}
-    {(selected.identity.supports_settlement || facts.credits.length > 0 || facts.filing) && <InfoDialog title={selected.identity.supports_settlement ? t("Optional tax adjustments", "ঐচ্ছিক কর সমন্বয়") : t("Previously entered payment records", "আগে দেওয়া পরিশোধের তথ্য")} compact open={adjustmentsOpen} onOpenChange={setAdjustmentsOpen}>
+    {<InfoDialog title={t("Optional tax adjustments", "ঐচ্ছিক কর সমন্বয়")} compact open={adjustmentsOpen} onOpenChange={setAdjustmentsOpen}>
       <CreditsStep {...formProps} />{adjustmentsOpen && validationNotice}<Button onClick={() => { setAdjustmentsOpen(false); runEstimate(true); }}>{t("Apply adjustments", "সমন্বয় প্রয়োগ করুন")}</Button>
     </InfoDialog>}
     <div className="wealth-tax-results-region" data-guide="tax-planner-result" aria-busy={updating}>
@@ -317,9 +318,8 @@ function CurrentPlanner({ owner, locale, config, selected, configError, facts, u
               </div> : <p className={css.muted}>{t("Enter your facts to see the annual estimate and any available filing balance.", "বার্ষিক কর ও উপলভ্য দাখিলের বাকি কর দেখতে তথ্য দিন।")}</p>}
           </section></>}
     </div>
-    {visibleResult && <TaxJourney result={visibleResult} locale={locale} incomeFacts={facts.income} rules={selected.rules} presentation={presentation} />}
-    <ScenarioForm {...formProps} onReviewFact={edit} asOf={config.as_of} calculate={() => runEstimate()} disabled={disabled} base={comparable?.base} result={current?.result} pending={updating && !!facts.scenario} invalid={validations.some((item) => item.path.startsWith("scenario")) || !!current?.error} />
-    <EligibleInvestments rules={selected.rules} policies={selected.investment_policies} locale={locale} />
+    <ScenarioForm {...formProps} asOf={config.as_of} calculate={() => runEstimate()} disabled={disabled || !comparable} base={comparable?.base} result={current?.result} pending={updating && !!facts.scenario} invalid={validations.some((item) => item.path.startsWith("scenario")) || !!current?.error} />
+    {visibleResult && <TaxJourney result={visibleResult} locale={locale} incomeFacts={facts.income} rules={selected.rules} presentation={presentation} onExploreSavings={exploreSavings} />}
     {owner && <details className={css.browserDraft} open>
           <summary>{t("Browser draft", "ব্রাউজারে খসড়া")}</summary>
           <div className={css.row}><Button onClick={saveBrowserDraft}>{t("Save on this browser", "এই ব্রাউজারে সংরক্ষণ করুন")}</Button>
