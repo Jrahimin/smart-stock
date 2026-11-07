@@ -94,7 +94,7 @@ describe("wealth landing language", () => {
     expect(mobile[0]?.dialog.message).toContain("সম্পদের কোনো সিদ্ধান্ত");
   });
 
-  it("covers year selection, annual estimates, filing and official guidance in both tours", () => {
+  it("covers active rules, annual estimates, comparison and conditional filing scope in both tours", () => {
     const desktop = getTaxPlannerDesktopGuideSteps("en");
     const mobile = getTaxPlannerMobileGuideSteps("bn");
     expect(desktop.map((step) => step.id)).toEqual(["welcome", "quick", "detailed", "rebate", "finish"]);
@@ -104,10 +104,12 @@ describe("wealth landing language", () => {
       '[data-guide="tax-planner-help"]',
     ]);
     expect(mobile.map((step) => step.target)).toEqual(desktop.map((step) => step.target));
-    expect(desktop[1]?.dialog.message).toContain("Filing credits are still unknown");
-    expect(desktop[3]?.dialog.message).toContain("balance at filing");
+    expect(desktop[1]?.dialog.message).toContain("Quick uses yearly totals");
+    expect(desktop[3]?.dialog.message).toContain("Potential additional saving is a separate opportunity");
+    expect(desktop[2]?.dialog.message).toContain("only when the active rules support filing balances");
+    expect(mobile[2]?.dialog.message).toContain("সক্রিয় নিয়মে দাখিলের হিসাব থাকলেই");
     expect(mobile[0]?.dialog.message).toContain("সক্রিয় নিয়ম");
-    expect(mobile[3]?.dialog.message).toContain("দাখিলের বাকি কর");
+    expect(mobile[3]?.dialog.message).toContain("Tax Journey বর্তমান তথ্যের ব্যাখ্যা করে");
     expect(mobile[4]?.dialog.message).toContain("সরকারি ই-রিটার্ন");
   });
 });

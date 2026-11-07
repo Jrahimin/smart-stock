@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { BackendApiError } from "@/lib/api/backend-api-client";
-import { calculateWithRevisionRefresh, issueFromError, publishTaxDraft } from "./api";
+import { calculateWithRevisionRefresh, issueFromError, issuesFromError, publishTaxDraft } from "./api";
 import { buildTaxRequest, draftKey, incomeEntry, initialFacts, investmentEntry, normalizeMoneyInput, quickSalary, readDraft, writeDraft } from "./facts";
 import { config, previewFixture } from "./test-fixtures";
 import { sourceHref } from "./rule-sources";
@@ -159,3 +159,87 @@ describe("revision API", () => {
   });
 });
 
+
+
+describe("public planning lifecycle regressions", () => {
+  it("round trips explicit uncertainty without replacing it with an annual default", () => {
+    const facts = initialFacts();
+    facts.income = [incomeEntry("private_employment", quickSalary, "900000")];
+    expect(buildTaxRequest(facts, year, "forward_planning", true).request!.coverage.foreign_or_treaty_income).toBe("no");
+    facts.coverage.foreign_or_treaty_income = "no";
+    facts.answeredPaths = ["coverage.foreign_or_treaty_income", "profile.new_taxpayer_floor", "income." + quickSalary + ".benefits_valuation_complete"];
+    facts.coverage.foreign_or_treaty_income = "unknown";
+    const data = new Map<string, string>();
+    const storage = { getItem: (key: string) => data.get(key) ?? null, setItem: (key: string, value: string) => { data.set(key, value); } };
+    writeDraft(storage, "owner", "2026-27", "forward_planning", "revision", facts);
+    const restored = readDraft(storage, "owner", "2026-27", "forward_planning")!.facts;
+    const built = buildTaxRequest(restored, year, "forward_planning", true).request!;
+    expect(built.coverage.foreign_or_treaty_income).toBe("unknown");
+    expect(built.coverage.wealth_surcharge).toBe("no");
+    expect(built.profile.new_taxpayer_floor).toBe("unknown");
+    expect(built.income[0]).toMatchObject({ benefits_valuation_complete: "unknown" });
+    expect(restored.answeredPaths).toEqual(facts.answeredPaths);
+  });
+  it("compares normalized base facts independently of an invalid hypothetical and inactive raw edits", () => {
+    const facts = initialFacts();
+    facts.investmentMode = "categories"; facts.categoryAmounts = { dps: "40000" };
+    const buildBase = () => buildTaxRequest({ ...facts, scenario: null, scenarioConfirmed: false }, year, "forward_planning", true).request;
+    const original = buildBase();
+    facts.coverage.foreign_or_treaty_income = "no";
+    facts.answeredPaths = ["coverage.foreign_or_treaty_income"];
+    facts.categoryAmounts.empty_retained = ""; facts.inactiveCategories = ["empty_retained"];
+    facts.aggregate = "invalid inactive total";
+    facts.scenario = { mode: "confirmed_eligible_total", amount: "invalid", contributed_on: "", confirmed_for_year: true };
+    expect(buildTaxRequest(facts, year, "forward_planning", true).request).toBeNull();
+    expect(buildBase()).toEqual(original);
+  });
+  it.each(["", "2026-11-01"])("omits inactive settlement records but preserves their draft values (%s)", (date) => {
+    const facts = initialFacts();
+    facts.filing = { filing_date: date, return_from_abroad_exception: "unknown", extension_or_other_exception: "yes" };
+    facts.credits = [{ id: "record", kind: "withholding", amount: "bad", paid_on: "", assessment_year: "2026-27", qualifying_claim_confirmed: "unknown" }];
+    facts.creditStatus = "confirmed_none"; facts.profile.first_return = "yes";
+    const planning = buildTaxRequest(facts, config("2027-28").selected!, "forward_planning", true);
+    expect(planning.issues).toEqual([]);
+    expect(planning.request).toMatchObject({ filing: null, credits: [], credits_completeness: "unknown", profile: { first_return: "unknown" } });
+    expect(facts.filing.filing_date).toBe(date); expect(facts.credits[0].amount).toBe("bad");
+    expect(buildTaxRequest(facts, year, "forward_planning", true).issues.map((issue) => issue.path)).toContain("credits.0.amount");
+    expect(buildTaxRequest(facts, year, "forward_planning", true).issues.some((issue) => issue.path === "filing.filing_date")).toBe(!date);
+  });
+  it("collects simultaneous field issues and explicitly inactivates a retired category without losing amounts", () => {
+    const facts = initialFacts(); facts.income = [incomeEntry("private_employment", "a", "bad"), incomeEntry("ordinary_other", "b", "-2")];
+    facts.investmentMode = "categories"; facts.categoryAmounts = { dps: "30000", retired: "12000" };
+    expect(buildTaxRequest(facts, year, "forward_planning", true).issues).toEqual([
+      { path: "income.0.amount" }, { path: "income.1.amount" }, { path: "planning-investments.retired", code: "retired_category" },
+    ]);
+    facts.income = []; facts.inactiveCategories = ["retired"];
+    expect(buildTaxRequest(facts, year, "forward_planning", true).request!.investments).toEqual({ mode: "planning_category_totals", entries: [{ category: "dps", amount: "30000" }] });
+    expect(facts.categoryAmounts.retired).toBe("12000");
+  });
+  it("returns every schema error with a normalized actionable path", () => {
+    expect(issuesFromError(new BackendApiError("Invalid", 422, "VALIDATION_ERROR", { errors: [
+      { loc: ["body", "income", 0, "private_employment", "amount"], msg: "Bad income" },
+      { loc: ["body", "scenario", "itemized", "entry", "contributed_on"], msg: "Bad date" },
+    ] })).map((issue) => issue.path)).toEqual(["income.0.amount", "scenario.entry.contributed_on"]);
+    expect(issuesFromError(new BackendApiError("Invalid", 422, "VALIDATION_ERROR", { field: "scenario.amount" }))[0].path).toBe("scenario.amount");
+  });
+  it.each(["TAX_CALCULATIONS_SUSPENDED", "TAX_RULES_UNAVAILABLE"])("invalidates a retained estimate immediately on %s", async (code) => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(json(503, { message: "Unavailable", error_code: code })));
+    const invalidate = vi.fn();
+    await expect(calculateWithRevisionRefresh(request(), new AbortController().signal, vi.fn(), invalidate)).rejects.toMatchObject({ code });
+    expect(invalidate).toHaveBeenCalledOnce();
+  });
+  it.each(["suspended", "unselected", "retry-failed", "refresh-failed"])("invalidates before refresh and installs authoritative configuration on %s", async (mode) => {
+    const next = config("2026-27", "published-2");
+    if (mode === "suspended") next.calculations_suspended = true;
+    if (mode === "unselected") next.selected = null;
+    const invalidated = vi.fn(), refreshed = vi.fn();
+    const fetchMock = vi.fn().mockResolvedValueOnce(json(409, { message: "Changed", error_code: "RULESET_CHANGED" }));
+    fetchMock.mockImplementationOnce(async () => { expect(invalidated).toHaveBeenCalledOnce(); return mode === "refresh-failed" ? json(503, { message: "offline" }) : json(200, { success: true, data: next }); });
+    fetchMock.mockResolvedValueOnce(json(503, { message: "retry failed" }));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(calculateWithRevisionRefresh(request(), new AbortController().signal, refreshed, invalidated)).rejects.toBeInstanceOf(Error);
+    expect(invalidated).toHaveBeenCalledOnce();
+    if (mode === "refresh-failed") expect(refreshed).not.toHaveBeenCalled(); else expect(refreshed).toHaveBeenCalledWith(next);
+    expect(fetchMock).toHaveBeenCalledTimes(mode === "retry-failed" ? 3 : 2);
+  });
+});

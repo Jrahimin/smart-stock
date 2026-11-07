@@ -5,7 +5,7 @@ import { channel } from "node:diagnostics_channel";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { setBackendAccessToken } from "@/lib/api/backend-api-client";
 import { TaxPlannerV2Admin } from "./admin-workspace";
 import {
@@ -31,22 +31,32 @@ vi.mock("next/navigation", () => ({
 }));
 
 const button = (name: string | RegExp) => screen.queryByRole("button", { name }) ?? screen.getByRole("tab", { name });
-const click = (name: string | RegExp) => fireEvent.click(button(name));
+const click = (name: string | RegExp) => {
+  const control = screen.queryByRole("button", { name }) ?? screen.queryByRole("tab", { name }) ?? screen.queryByRole("button", { name, hidden: true }) ?? screen.queryByText(name, { selector: "summary" });
+  if (!control) throw new Error("Missing control " + name);
+  for (let node = control.parentElement; node; node = node.parentElement) if (node instanceof HTMLDetailsElement && !node.open) fireEvent.click(node.querySelector("summary")!);
+  fireEvent.click(control);
+};
 const fill = (name: string | RegExp, value: string, scope: HTMLElement = document.body) => {
   const field = within(scope).getByLabelText(name);
+  for (let node = field.parentElement; node; node = node.parentElement) if (node instanceof HTMLDetailsElement && !node.open) fireEvent.click(node.querySelector("summary")!);
   fireEvent.change(field, { target: { value } });
   return field;
 };
-const salary = "Gross private salary, including bonuses";
+const salary = "Annual salary, including bonuses";
 const ordinary = "Other confirmed ordinary taxable income";
-const annual = "Estimated annual liability";
+const annual = "Estimated annual Tax";
 const filingBalance = "Estimated balance at filing";
 const submitEstimate = () => {
   if (screen.queryByRole("button", { name: "Apply adjustments" })) { click("Apply adjustments"); return; }
   if (!screen.queryByRole("button", { name: "Calculate estimate" })) click("3. Investments");
   click("Calculate estimate");
 };
-const result = () => screen.findByRole("region", { name: annual });
+const result = async () => waitFor(() => {
+  const container = screen.getByRole("heading", { name: annual }).closest<HTMLElement>(".wealth-tax-results");
+  expect(container).not.toBeNull();
+  return container!;
+});
 
 function show(node: ReactNode) {
   const query = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
@@ -56,7 +66,7 @@ function show(node: ReactNode) {
 async function openPlanner() {
   show(<TaxPlannerV2Workspace locale="en" />);
   expect(await screen.findByLabelText(salary)).toHaveValue("900000");
-  fill(salary, "");
+  click("Detailed planner"); click("2. Income"); click("Remove source"); click("Quick estimate");
 }
 
 const scopeQuestions = [
@@ -117,8 +127,10 @@ function row(scope: HTMLElement, name: string, amount: string) {
 }
 
 async function headline(name: string, amount: string) {
-  const heading = await screen.findByRole("heading", { name });
-  expect(await within(heading.parentElement!).findByText(amount)).toBeVisible();
+  await waitFor(() => {
+    const heading = screen.getByRole("heading", { name });
+    expect(within(heading.parentElement!).getByText(amount)).toBeVisible();
+  });
 }
 
 function useAdmin() {
@@ -180,10 +192,25 @@ describe("tax planner UI with the loopback PostgreSQL API", () => {
     }));
   });
 
+  // The current endpoint follows the latest published pack across years. These
+  // settlement and dated-record cases require the disposable 2026-27 pack;
+  // earlier UI revision tests can legitimately have made 2027-28 active.
+  beforeEach(async () => {
+    const active = await getTaxConfig();
+    if (active.selected?.identity.assessment_year !== "2026-27") {
+      setBackendAccessToken(superAdminToken);
+      try { await publishCopy("2026-27"); } finally { setBackendAccessToken(null); }
+    }
+    const selected = (await getTaxConfig()).selected!;
+    expect(selected.identity.assessment_year).toBe("2026-27");
+    expect(selected.identity.supports_settlement).toBe(true);
+  });
+
   afterAll(() => vi.unstubAllGlobals());
 
   afterEach(() => {
     cleanup();
+    vi.restoreAllMocks();
     setBackendAccessToken(null);
     auth.user = null;
     auth.isAuthenticated = false;
@@ -197,16 +224,16 @@ describe("tax planner UI with the loopback PostgreSQL API", () => {
     click("Detailed planner");
     click("3. Investments");
     expect(screen.queryByLabelText("Contribution date")).not.toBeInTheDocument();
+    click("By category · simple amounts");
+    fill("Investment category to add", "dps"); click("Add category");
     fill("Deposit pension scheme contributions · Annual eligible amount", "40000");
     await headline(annual, "BDT 16,000");
-    const hero = screen.getByRole("complementary", { name: "Savings preview" });
-    expect(within(hero).getByText("BDT 16,000")).toBeVisible();
-    expect(within(hero).getByText("BDT 11,000")).toBeVisible();
+    expect(screen.getByText("Could save more with eligible Investment").nextElementSibling).toHaveTextContent("BDT 11,000");
     const slider = screen.getByRole("slider", { name: "Additional tax-saving investment to simulate" });
     expect(slider).toBeEnabled();
     fireEvent.change(slider, { target: { value: "40000" } });
-    const play = screen.getByRole("heading", { name: "What If I Invest More?" }).closest("section")!;
-    await waitFor(() => expect(within(play).getByText("Additional Annual Tax Saving").nextElementSibling).toHaveTextContent("BDT 4,000"));
+    const play = screen.getByRole("heading", { name: "What if I invest more?" }).closest("section")!;
+    await waitFor(() => expect(within(play).getByText("Actual additional saving from this Investment").nextElementSibling).toHaveTextContent("BDT 4,000"));
     fill("Deposit pension scheme contributions · Annual eligible amount", "240000");
     await headline(annual, "BDT 8,000");
     const details = openBreakdown(await result(), "Investments, deductions and rebate");
@@ -223,6 +250,9 @@ describe("tax planner UI with the loopback PostgreSQL API", () => {
     await headline(annual, "BDT 20,000");
     click("Detailed planner");
     click("3. Investments");
+    click("By category · simple amounts");
+    const chooser = screen.getByLabelText("Investment category to add") as HTMLSelectElement;
+    for (const option of [...chooser.options].filter((option) => option.value)) { fill("Investment category to add", option.value); click("Add category"); }
     const fields = screen.getAllByRole("textbox", { name: /Annual eligible amount/ });
     expect(fields).toHaveLength(14);
     for (const field of fields) fireEvent.change(field, { target: { value: "1000" } });
@@ -231,7 +261,6 @@ describe("tax planner UI with the loopback PostgreSQL API", () => {
     fill("Government securities · Annual eligible amount", "300000");
     fill("Savings certificates · Annual eligible amount", "300000");
     await headline(annual, "BDT 5,000");
-    expect(screen.getByRole("slider")).toBeDisabled();
     const details = openBreakdown(await result(), "Investments, deductions and rebate");
     row(details, "Eligible investments", "BDT 500,000");
   });
@@ -242,12 +271,12 @@ describe("tax planner UI with the loopback PostgreSQL API", () => {
     await headline(annual, "BDT 20,000");
     click("Detailed planner");
     await headline(annual, "BDT 20,000");
-    expect(screen.getByLabelText(scopeQuestions[0])).toHaveValue("unknown");
+    expect(screen.getByLabelText(scopeQuestions[0])).toHaveValue("");
     const slider = screen.getByRole("slider", { name: "Additional tax-saving investment to simulate" });
     expect(slider).toBeEnabled();
     fireEvent.change(slider, { target: { value: "40000" } });
-    const play = screen.getByRole("heading", { name: "What If I Invest More?" }).closest("section")!;
-    await waitFor(() => expect(within(play).getByText("Additional Annual Tax Saving").nextElementSibling).toHaveTextContent("BDT 4,000"));
+    const play = screen.getByRole("heading", { name: "What if I invest more?" }).closest("section")!;
+    await waitFor(() => expect(within(play).getByText("Actual additional saving from this Investment").nextElementSibling).toHaveTextContent("BDT 4,000"));
     click("Quick estimate");
     await headline(annual, "BDT 20,000");
     expect(screen.getByLabelText(salary)).toHaveValue("900000");
@@ -290,13 +319,13 @@ describe("tax planner UI with the loopback PostgreSQL API", () => {
 
     click("Detailed planner");
     const wealth = scopeQuestions[0];
-    expect(screen.getByLabelText(wealth)).toHaveValue("unknown");
+    expect(screen.getByLabelText(wealth)).toHaveValue("");
     confirmProfile(wealth);
     click("Optional tax adjustments");
     fill("Credit information", "confirmed_none");
     requestFiling("2026-10-01");
     submitEstimate();
-    expect(await screen.findByText("Annual liability is incomplete. Review the facts below.")).toBeVisible();
+    expect(await screen.findByText("Annual liability needs information or review. Check the affected facts below.")).toBeVisible();
     expect(screen.getByText(/A filing balance cannot be estimated/)).toBeVisible();
     const annualCard = screen.getByRole("heading", { name: annual }).parentElement!;
     const filingCard = screen.getByRole("heading", { name: filingBalance }).parentElement!;
@@ -316,9 +345,10 @@ describe("tax planner UI with the loopback PostgreSQL API", () => {
     submitEstimate();
     await headline(annual, "BDT 20,000");
     click("Save on this browser");
-    const key = draftKey(superAdminId, "2026-27", "forward_planning");
+    const activeYear = (await getTaxConfig()).selected!.identity.assessment_year;
+    const key = draftKey(superAdminId, activeYear, "forward_planning");
     expect(JSON.parse(localStorage.getItem(key)!)).toMatchObject({
-      schema: 4, facts: { income: [{ amount: "900000", benefits_valuation_complete: "unknown" }] },
+      schema: 5, facts: { income: [{ amount: "900000", benefits_valuation_complete: "unknown" }] },
     });
 
     click("Detailed planner");
@@ -414,7 +444,7 @@ describe("tax planner UI with the loopback PostgreSQL API", () => {
     click("Detailed planner");
     confirmProfile();
     click("3. Investments");
-    click("Verify individual contributions for filing");
+    click("Checked records");
     for (const amount of ["90000", "150000"]) {
       click("Add contribution");
       const categories = screen.getAllByLabelText("Investment category");
@@ -490,62 +520,31 @@ describe("tax planner UI with the loopback PostgreSQL API", () => {
     }
   });
 
-  it("keeps the savings slider tied to the active backend rules", async () => {
-    await openPlanner();
-    fill(salary, "900000");
-    fill("Already eligible investment total", "50000");
-    expect(screen.queryByLabelText(/I have verified eligibility/)).not.toBeInTheDocument();
-    // The original Quick interaction recalculates after editing the annual fields.
+  it("compares actual saving under the active rules without changing the current Journey", async () => {
+    await openPlanner(); fill(salary, "900000"); fill("Already eligible investment total", "50000");
     await headline(annual, "BDT 15,000");
-    expect(screen.getByText("You Could Still Save")).toBeVisible();
-    const initialJourney = screen.getByRole("heading", { name: "Your tax journey, simplified" }).closest("section")!;
-    expect(initialJourney.querySelectorAll(".wealth-tax-journey-item")).toHaveLength(8);
-    const play = screen.getByRole("heading", { name: "What If I Invest More?" }).closest("section")!;
-    const scroll = vi.fn();
-    Object.defineProperty(play, "scrollIntoView", { value: scroll });
-    fireEvent.click(within(initialJourney).getByRole("button", { name: /Explore More Savings/ }));
-    expect(scroll).toHaveBeenCalledWith({ behavior: "smooth", block: "start" });
-    expect(play).toHaveFocus();
-    expect(within(play).getByText("Potential Additional Annual Tax Saving").nextElementSibling).toHaveTextContent("BDT 10,000");
-    const slider = within(play).getByRole("slider", { name: "Additional tax-saving investment to simulate" });
-    expect(slider).toBeEnabled();
-    fireEvent.change(slider, { target: { value: "10000" } });
-    await waitFor(() => {
-      const saving = within(play).getByText("Additional Annual Tax Saving");
-      expect(saving.nextElementSibling).toHaveTextContent("BDT 1,000");
-    });
-    expect(slider).toBeEnabled();
-    fireEvent.change(slider, { target: { value: "20000" } });
-    await waitFor(() => {
-      const saving = within(play).getByText("Additional Annual Tax Saving");
-      expect(saving.nextElementSibling).toHaveTextContent("BDT 2,000");
-    });
-    await headline(annual, "BDT 15,000");
-    fireEvent.click(within(play).getByRole("button", { name: /Fine-tune comparison/ }));
-    expect(screen.getByLabelText("Hypothetical contribution date")).toHaveValue("2026-06-30");
-    fireEvent.click(screen.getByRole("button", { name: /^Close/ }));
-    const detail = openBreakdown(await result(), "Calculation details and sources");
-    expect(within(detail).getByRole("heading", { name: "Scenario comparison" })).toBeVisible();
-    fireEvent.click(within(detail).getByRole("button", { name: /^Close/ }));
-    fireEvent.change(slider, { target: { value: "100000" } });
-    await waitFor(() => expect(within(play).getByRole("progressbar")).toHaveAttribute("aria-valuenow", "100"));
-    expect(within(play).getByText("No further annual tax saving")).toBeVisible();
-    fireEvent.change(slider, { target: { value: "130000" } });
-    await waitFor(() => {
-      const journey = screen.getByRole("heading", { name: "Your scenario tax journey" }).closest("section")!;
-      const checkpoint = (label: string) => within(journey).getByText(label, { selector: ".wealth-tax-journey-label" }).parentElement!.querySelector("strong");
-      expect(checkpoint("Tax Before Rebate")).toHaveTextContent("BDT 20,000");
-      expect(checkpoint("Rebate Before Minimum Tax")).toHaveTextContent("BDT 18,000");
-      expect(checkpoint("Tax After Rebate")).toHaveTextContent("BDT 2,000");
-      expect(checkpoint("Minimum Tax Top-up")).toHaveTextContent("BDT 3,000");
-      expect(checkpoint("Annual Liability")).toHaveTextContent("BDT 5,000");
-    });
-    expect(within(play).getByRole("progressbar")).toHaveAttribute("aria-valuenow", "100");
-    expect(within(play).getByText("Further Eligible Investment Needed").nextElementSibling).toHaveTextContent("BDT 0");
-    expect(within(play).getByText("✓ Target Achieved")).toBeVisible();
-    expect(within(play).getByText("Total Eligible Investment").nextElementSibling).toHaveTextContent("BDT 180,000");
-    expect(play.querySelectorAll(".wealth-tax-slider-marker")).toHaveLength(4);
-    expect(play.querySelector(".wealth-tax-slider-fill")).toBeInTheDocument();
+    const journey = screen.getByRole("heading", { name: "How your current annual Tax was calculated" }).closest("section")!;
+    const play = screen.getByRole("heading", { name: "What if I invest more?" }).closest("section")!;
+    const scroll = vi.fn(); Object.defineProperty(play, "scrollIntoView", { value: scroll });
+    click(/Explore Investment/); expect(play).toHaveFocus();
+    const saving = () => within(play).getByText("Actual additional saving from this Investment").nextElementSibling;
+    expect(saving()).toHaveTextContent("BDT 0");
+    const slider = within(play).getByRole("slider");
+    for (const [amount, expected] of [["10000", "BDT 1,000"], ["20000", "BDT 2,000"], ["130000", "BDT 10,000"]]) {
+      fireEvent.change(slider, { target: { value: amount } });
+      await waitFor(() => expect(saving()).toHaveTextContent(expected));
+      expect(journey).toHaveTextContent("BDT 15,000");
+      await headline(annual, "BDT 15,000");
+    }
+    expect(within(play).getByText("Proposed Tax").nextElementSibling).toHaveTextContent("BDT 5,000");
+    click("Fine-tune comparison"); expect(screen.getByLabelText("Hypothetical contribution date")).toHaveValue("2026-06-30");
+    fill("Hypothetical contribution date", "2025-06-30");
+    await waitFor(() => expect(saving()).toHaveTextContent("BDT 0"));
+    fill("Additional Investment", "50000");
+    expect(screen.getByLabelText("Hypothetical contribution date")).toHaveValue("2025-06-30");
+    await waitFor(() => expect(saving()).toHaveTextContent("BDT 0"));
+    click("Reset comparison"); await waitFor(() => expect(saving()).toHaveTextContent("BDT 0"));
+    expect(screen.getByLabelText(salary)).toHaveValue("900000");
   });
 
   it("focuses a server validation error and replaces a draft immediately after saving", async () => {
@@ -558,31 +557,37 @@ describe("tax planner UI with the loopback PostgreSQL API", () => {
       const controls = await screen.findByRole("region", { name: "Assessment year and revision" });
       const history = await within(controls).findByRole("combobox", { name: "Revision history" }) as HTMLSelectElement;
       fireEvent.change(within(controls).getByRole("combobox", { name: "Assessment year" }), { target: { value: "2027-28" } });
-      fireEvent.click(within(controls).getByRole("button", { name: "Open existing draft" }));
+      fireEvent.click(await within(controls).findByRole("button", { name: "Open existing draft" }));
       const editor = await screen.findByRole("region", { name: "Selected rule revision" });
-      await waitFor(() => expect(within(editor).getByRole("button", { name: "Save draft" })).toBeVisible());
+      await waitFor(() => expect(within(controls).getByRole("button", { name: "Save draft" })).toBeVisible());
+      fireEvent.click(within(editor).getByRole("tab",{name:"Review & publish"}));
       const actions = within(editor).getByRole("region", { name: "Draft workflow" });
 
-      const eligibility = openBreakdown(editor, "Investment eligibility, deduction and caps");
+      fireEvent.click(within(editor).getByRole("tab",{name:"Investments & rebate"}));
+      const eligibility = within(editor).getByRole("heading",{name:"Investment eligibility, deduction and caps"}).closest("section")!;
       const cap = within(eligibility).getByRole("textbox", { name: "Shared DPS cap (BDT)" });
       fireEvent.change(cap, { target: { value: "" } });
-      const group = cap.closest("details")!;
-      fireEvent.click(within(group).getByText("Investment eligibility, deduction and caps"));
-      fireEvent.click(within(actions).getByRole("button", { name: "Save draft" }));
+      fireEvent.click(within(editor).getByRole("tab",{name:"Overview"}));
+      fireEvent.click(within(controls).getByRole("button", { name: "Save draft" }));
       await waitFor(() => expect(cap).toHaveFocus());
-      expect(group.open).toBe(true);
+      expect(within(editor).getByRole("tab",{name:/Investments & rebate/})).toHaveAttribute("aria-selected","true");
       expect(screen.getByRole("alert")).toHaveTextContent("Request validation failed");
       expect((await getTaxRevision(draft.id)).edit_version).toBe(draft.edit_version);
+      fireEvent.click(within(editor).getByRole("tab",{name:"Review & publish"}));
       fireEvent.click(within(actions).getByRole("button", { name: "Discard unsaved edits" }));
+      fireEvent.click(within(screen.getByRole("dialog",{name:"Discard unsaved edits?"})).getByRole("button",{name:"Discard edits"}));
+      await waitFor(()=>expect(within(controls).getByRole("button",{name:"Save draft"})).toBeDisabled());
 
-      const profile = within(editor).getByText("Profiles and minimum tax", { selector: "summary" }).parentElement!;
+      fireEvent.click(within(editor).getByRole("tab",{name:"Tax rules"}));
+      const profile = within(editor).getByRole("heading",{name:"Profiles and minimum tax"}).closest("section")!;
       fireEvent.change(within(profile).getByRole("textbox", { name: "General taxpayer (BDT)" }), { target: { value: "410000" } });
-      fireEvent.click(within(actions).getByRole("button", { name: "Save draft" }));
+      fireEvent.click(within(controls).getByRole("button", { name: "Save draft" }));
       expect(await within(editor).findByText("Draft saved. Preview these exact values before publishing.")).toBeVisible();
       const changed = await getTaxRevision(draft.id);
       expect(changed.edit_version).toBe(draft.edit_version + 1);
       expect(changed.content_hash).not.toBe(draft.content_hash);
       fireEvent.change(history, { target: { value: previous } });
+      fireEvent.click(within(controls).getByText("Draft actions",{selector:"summary"}));
       fireEvent.click(await within(controls).findByRole("button", { name: "Replace draft with selected revision" }));
       const confirmation = within(controls).getByRole("region", { name: "Confirm draft discard" });
       const confirm = within(confirmation).getByRole("button", { name: "Discard and create replacement draft" });
@@ -593,7 +598,7 @@ describe("tax planner UI with the loopback PostgreSQL API", () => {
       expect(confirm).toBeDisabled();
       fireEvent.click(within(confirmation).getByRole("checkbox", { name: "I confirm this saved draft can be discarded." }));
       fireEvent.click(confirm);
-      expect(await within(controls).findByText(/Replacement draft created/)).toBeVisible();
+      expect(await screen.findByText(/Replacement draft created/)).toBeVisible();
       await waitFor(() => {
         expect(history).toBeEnabled();
         expect(history.selectedOptions[0]).toHaveTextContent(/ · Draft$/);
@@ -612,11 +617,11 @@ describe("tax planner UI with the loopback PostgreSQL API", () => {
       });
       expect(retained.discarded_at).toBeTruthy();
       fireEvent.change(history, { target: { value: retained.id } });
-      const historyDetail = await screen.findByRole("region", { name: "Selected rule revision" });
-      expect(await within(historyDetail).findByText(reason)).toBeVisible();
-      const retainedProfile = within(historyDetail).getByText("Profiles and minimum tax", { selector: "summary" }).parentElement!;
-      expect(within(retainedProfile).getByRole("textbox", { name: "General taxpayer (BDT)" })).toBeDisabled();
-      expect(within(retainedProfile).getByRole("textbox", { name: "General taxpayer (BDT)" })).toHaveValue("410000");
+      expect(await screen.findByText(reason)).toBeVisible();
+      const historyDetail = screen.getByRole("region", { name: "Selected rule revision" });
+      fireEvent.click(within(historyDetail).getByRole("tab",{name:"Tax rules"}));
+      expect(within(historyDetail).getByRole("tabpanel",{name:"Tax rules"})).toHaveTextContent("BDT 410,000");
+      expect(within(historyDetail).queryByRole("textbox",{name:"General taxpayer (BDT)"})).not.toBeInTheDocument();
     } finally {
       if (cleanupDraft) {
         let current = await getTaxRevision(cleanupDraft.id);
@@ -643,17 +648,20 @@ describe("tax planner UI with the loopback PostgreSQL API", () => {
       const controls = await screen.findByRole("region", { name: "Assessment year and revision" });
       await within(controls).findByRole("combobox", { name: "Revision history" });
       fireEvent.change(within(controls).getByRole("combobox", { name: "Assessment year" }), { target: { value: "2027-28" } });
-      fireEvent.click(within(controls).getByRole("button", { name: "Open existing draft" }));
+      fireEvent.click(await within(controls).findByRole("button", { name: "Open existing draft" }));
       const editor = await screen.findByRole("region", { name: "Selected rule revision" });
-      await waitFor(() => expect(within(editor).getByRole("button", { name: "Save draft" })).toBeVisible());
+      await waitFor(() => expect(within(controls).getByRole("button", { name: "Save draft" })).toBeVisible());
+      fireEvent.click(within(editor).getByRole("tab",{name:"Review & publish"}));
       const actions = within(editor).getByRole("region", { name: "Draft workflow" });
-      const profile = within(editor).getByText("Profiles and minimum tax", { selector: "summary" }).parentElement!;
+      fireEvent.click(within(editor).getByRole("tab",{name:"Tax rules"}));
+      const profile = within(editor).getByRole("heading",{name:"Profiles and minimum tax"}).closest("section")!;
       fireEvent.change(within(profile).getByRole("textbox", { name: "General taxpayer (BDT)" }), { target: { value: "415000" } });
-      fireEvent.click(within(actions).getByRole("button", { name: "Save draft" }));
+      fireEvent.click(within(controls).getByRole("button", { name: "Save draft" }));
       expect(await within(editor).findByText("Draft saved. Preview these exact values before publishing.")).toBeVisible();
       const savedHash = within(editor).getByText("Content hash", { selector: "dt" }).nextElementSibling?.textContent;
       expect(savedHash).toMatch(/^[a-f0-9]{64}$/);
       expect(savedHash).not.toBe(draft.content_hash);
+      fireEvent.click(within(controls).getByText("Draft actions",{selector:"summary"}));
       fireEvent.click(within(controls).getByRole("button", { name: "Discard saved draft" }));
       const confirmation = within(controls).getByRole("region", { name: "Confirm draft discard" });
       expect(confirmation).toHaveTextContent(`edit ${draft.edit_version + 1}`);
@@ -661,7 +669,7 @@ describe("tax planner UI with the loopback PostgreSQL API", () => {
       fill("Reason for discarding this draft", standaloneReason, confirmation);
       fireEvent.click(within(confirmation).getByLabelText("I confirm this saved draft can be discarded."));
       fireEvent.click(within(confirmation).getByRole("button", { name: "Confirm discard saved draft" }));
-      expect(await within(controls).findByText(/Draft discarded and retained in history/)).toBeVisible();
+      expect(await screen.findByText(/Draft discarded and retained in history/)).toBeVisible();
       discarded = true;
       expect(await getTaxRevision(draft.id)).toMatchObject({
         status: "discarded", discard_reason: standaloneReason, content_hash: savedHash,
