@@ -531,7 +531,7 @@ const english: WealthToolsLanguage = {
   tax: {
     title: "Tax Planner",
     hero:
-      "Get a clearer estimate before you make a tax-saving decision.",
+      "See your estimated Tax and explore what eligible Investment could change.",
     potentialSavings: "Potential Annual Tax Savings",
     error:
       "Could not calculate this estimate right now. Check your connection and try again.",
@@ -950,7 +950,7 @@ const bangla: WealthToolsLanguage = {
   tax: {
     title: "Tax Planner",
     hero:
-      "Tax-saving investment করার আগে বছরে tax কত হতে পারে, আর কতটা কমানো সম্ভব—একবার দেখে নিন।",
+      "বছরের Tax-এর হিসাব দেখুন, আর সরকার নির্ধারিত Investment-এ কতটা সাশ্রয় হতে পারে বুঝে নিন।",
     potentialSavings: "বছরে tax কতটা কমতে পারে",
     error:
       "এখন tax estimate তৈরি করা যাচ্ছে না। Internet connection ঠিক আছে কি না দেখে আবার চেষ্টা করুন।",

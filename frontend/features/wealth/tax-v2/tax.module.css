@@ -69,6 +69,31 @@
 .template :global(.wealth-tax-journey-flow-wrap) { scrollbar-width: thin; }
 .template :global(.wealth-tax-journey-scroll-nav) { display: flex; align-items: center; justify-content: end; gap: 8px; color: var(--muted); font-size: .7rem; }
 .template :global(.wealth-tax-journey-scroll-nav[data-overflow="false"]) { display: none; }
+.journey :global(.wealth-tax-journey-node) {
+  container-type:inline-size; gap:6px; padding:12px 8px 10px;
+  background:linear-gradient(155deg,color-mix(in srgb,var(--panel) 96%,white),var(--panel));
+  box-shadow:inset 0 1px 0 rgb(255 255 255 / 12%),0 3px 7px rgb(10 20 40 / 5%);
+}
+.journey :global(.wealth-tax-journey-node)::before { opacity:.18; }
+.journey :global(.wealth-tax-journey-icon-wrap)::before { opacity:.2; box-shadow:none; }
+.journey :global(.wealth-tax-journey-icon) { background:color-mix(in srgb,var(--primary) 7%,var(--panel)); box-shadow:inset 0 1px 0 rgb(255 255 255 / 14%),0 3px 6px rgb(10 20 40 / 7%); }
+.journey :global(.wealth-tax-node-positive .wealth-tax-journey-icon) { background:color-mix(in srgb,var(--positive) 8%,var(--panel)); }
+.journey :global(.wealth-tax-node-warning .wealth-tax-journey-icon) { background:color-mix(in srgb,var(--warning) 8%,var(--panel)); }
+.journey :global(.wealth-tax-journey-label) { width:100%; min-height:3.9em; line-height:1.3; font-size:.68rem; letter-spacing:0; text-wrap:balance; overflow-wrap:normal; }
+.journey :global(.wealth-tax-journey-amount) { display:grid; gap:2px; width:100%; font-weight:650; color:var(--foreground); text-shadow:none; font-variant-numeric:tabular-nums; }
+.journey :global(.wealth-tax-journey-amount) > small { color:var(--muted); font-size:.58rem; font-weight:500; }
+.journeyNumber { font-size:clamp(.65rem,calc(150cqi / var(--journey-digits,6)),1.08rem); line-height:1.25; white-space:nowrap; }
+.journeyAccent { width:30px; height:3px; border-radius:999px; background:var(--border); box-shadow:inset 0 1px 0 rgb(255 255 255 / 18%),0 1px 2px rgb(10 20 40 / 5%); }
+.template .journey :global(.wealth-tax-journey-caption) { display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:4px; min-height:2.7em; font-size:.63rem; line-height:1.4; }
+.journey :global(.wealth-tax-journey-arrow-glow) { opacity:0; }
+.journey :global(.wealth-tax-journey-arrow-icon) { box-shadow:inset 0 1px 0 rgb(255 255 255 / 12%),0 2px 4px rgb(10 20 40 / 6%); border-color:var(--border); color:var(--muted); }
+.journey :global(.wealth-tax-journey-connector) { opacity:.3; }
+.journey :global(.wealth-tax-journey-node-destination) { background:linear-gradient(155deg,color-mix(in srgb,var(--primary) 12%,var(--panel)),var(--panel)); border-color:color-mix(in srgb,var(--primary) 48%,var(--border)); box-shadow:inset 0 1px 0 rgb(255 255 255 / 22%),0 5px 12px rgb(10 20 40 / 12%); }
+.journey :global(.wealth-tax-journey-final-amount) { color:var(--primary); font-weight:800; }
+.journey :global(.wealth-tax-journey-final-amount) .journeyNumber { font-size:clamp(.7rem,calc(165cqi / var(--journey-digits,6)),1.3rem); }
+.journey :global(.wealth-tax-journey-node-minimum_tax) { border-color:color-mix(in srgb,var(--warning) 50%,var(--border)); }
+.journey :global(.wealth-tax-info-icon):focus-visible { outline:2px solid var(--primary); outline-offset:2px; }
+@media(prefers-reduced-motion:reduce) { .journey :global(.wealth-tax-journey-node) { transition:none; } .journey :global(.wealth-tax-journey-flow-wrap) { scroll-behavior:auto; } }
 .template :global(.wealth-tax-story-card) h3 { margin: 0; font-size: inherit; font-weight: inherit; }
 .template :global(.wealth-tax-jar-unavailable) { opacity: .55; }
 .yearControls { display: flex; align-items: end; flex-wrap: wrap; gap: 8px 16px; }
@@ -248,3 +273,302 @@
 .assumptionNote {font-size:.8rem;line-height:1.6}
 .assumptionNote ul {padding-inline-start:18px}
 .template [tabindex="-1"] {scroll-margin-top:76px}
+
+/* Focused material refinements: retain the restored composition and artwork. */
+.template :global(.wealth-tax-hero)::before {
+  background:radial-gradient(circle at 70% 20%,color-mix(in srgb,var(--primary) 5%,transparent),transparent 55%);
+}
+.template :global(.wealth-tax-hero) {
+  background:linear-gradient(120deg,color-mix(in srgb,var(--primary) 3%,var(--panel)),var(--panel));
+  box-shadow:0 8px 22px rgb(15 23 42 / 7%),inset 0 1px 0 rgb(255 255 255 / 8%);
+}
+.template .heroSummary {
+  border:1px solid var(--border);
+  background:linear-gradient(110deg,var(--panel),color-mix(in srgb,var(--positive) 4%,var(--panel)));
+  box-shadow:0 4px 12px rgb(15 23 42 / 8%),inset 0 1px 0 rgb(255 255 255 / 8%);
+}
+.heroSummary .heroExample { grid-column:1 / -1; margin:0 10px 9px; color:var(--foreground); font-size:.7rem; line-height:1.5; font-weight:600; }
+.heroSummary :global(.eyebrow) { color:color-mix(in srgb,var(--foreground) 80%,var(--muted)); font-size:.65rem; line-height:1.5; }
+.heroSummary > div > span { color:color-mix(in srgb,var(--foreground) 75%,var(--muted)); font-size:.7rem; line-height:1.5; }
+.template :global(.wealth-tax-hero) :is(.wealth-tax-badge,.wealth-tax-chip) { border-color:var(--border); background:color-mix(in srgb,var(--primary) 4%,var(--panel)); color:color-mix(in srgb,var(--foreground) 85%,var(--muted)); }
+.template :global(.wealth-tax-hero) :global(.wealth-tax-jar-glow) { fill:color-mix(in srgb,var(--primary) 14%,transparent); }
+.template :global(.wealth-tax-hero) :global(.wealth-tax-jar-outline) { stroke:color-mix(in srgb,var(--primary) 35%,var(--border)); }
+.template :global(.wealth-tax-hero-subtitle) { color:color-mix(in srgb,var(--foreground) 75%,var(--muted)); }
+.template :global(.wealth-tax-hero) :is(button,summary,a):focus-visible { outline:2px solid var(--primary); outline-offset:3px; }
+@media(max-width:860px) {
+  .template :global(.wealth-tax-hero) { gap:10px; padding:14px 12px; }
+  .template :global(.wealth-tax-hero-aside) { gap:6px; }
+  .template :global(.wealth-tax-hero) :global(.wealth-tax-jar) { width:64px; }
+  .template .heroSummary { padding:10px 6px; text-align:start; }
+  .heroSummary .heroExample { margin-bottom:7px; }
+}
+@media(prefers-reduced-motion:reduce) {
+  .template :global(.wealth-tax-hero) *, .template :global(.wealth-tax-hero) *::before, .template :global(.wealth-tax-hero) *::after { animation:none !important; transition:none !important; }
+}
+.template :global(.wealth-tax-jar-glow) {fill:color-mix(in srgb,var(--primary) 38%,transparent)}
+.template :global(.wealth-tax-play) {
+  background:linear-gradient(160deg,color-mix(in srgb,var(--primary) 10%,var(--panel)),var(--panel));
+  gap:10px;
+}
+.template :global(.wealth-tax-play-layout) {gap:12px}
+.template :global(.wealth-tax-slider-markers) {line-height:1.5}
+
+/* Quick estimate only: quiet secondary action and readable currency. */
+.quickRefined .detailAction { background:transparent; border-color:transparent; box-shadow:none; color:var(--muted); padding-inline:0; font-weight:500; }
+.moneyEntry { display:flex; align-items:center; gap:8px; border:1px solid var(--border); border-radius:10px; padding-inline:10px; background:var(--panel); }
+.moneyEntry > span { color:var(--muted); font-size:.75rem; }
+.template .moneyEntry input { border:0; background:transparent; min-width:0; width:100%; font-variant-numeric:tabular-nums; }
+.moneyEntry:focus-within { outline:2px solid var(--primary); outline-offset:2px; }
+/* Compound money controls have one surface and one focus indicator. */
+.template .field .moneyEntry input:not([type="checkbox"]),
+.dialogBody .field .moneyEntry input:not([type="checkbox"]),
+.template .simulatorAmountBox input,
+.template .simulatorAmountBox input:focus-visible {
+  border:0; border-radius:0; background:transparent; outline:none; box-shadow:none;
+}
+.template .field :is(input,select,textarea):focus-visible {
+  outline:2px solid var(--primary); outline-offset:2px;
+}
+.template .field .moneyEntry input:focus-visible { outline:none; }
+.template .field :is(input,select,textarea)[aria-invalid="true"]:focus-visible,
+.dialogBody .field :is(input,select,textarea)[aria-invalid="true"]:focus-visible { outline-color:#df9254; }
+.moneyEntry:has(input[aria-invalid="true"]),
+.simulatorAmountBox:has(input[aria-invalid="true"]) { border-color:#df9254; }
+.moneyEntry:has(input[aria-invalid="true"]):focus-within,
+.simulatorAmountBox:has(input[aria-invalid="true"]):focus-within { outline-color:#df9254; }
+
+@media(max-width:600px) { .template .quickRefined :global(.wealth-form-grid) { grid-template-columns:minmax(0,1fr); } }
+
+/* Detailed step disclosures retain the existing cards and navigation. */
+.scopedDisclosure { min-width:0; border:1px solid var(--border); border-radius:12px; padding:10px 12px; }
+.scopedDisclosure > summary { cursor:pointer; font-size:.82rem; font-weight:650; color:var(--foreground); }
+.scopedDisclosure[open] > summary { margin-bottom:12px; }
+.scopedDisclosure > h3 { margin:12px 0 8px; font-size:.85rem; }
+.scopeNote { color:var(--muted); font-size:.78rem; line-height:1.6; margin:6px 0; }
+.screenGroup { border:0; border-top:1px solid var(--border); padding:12px 0; margin-top:12px; min-width:0; }
+.screenGroup legend { font-size:.85rem; font-weight:650; padding-inline-end:10px; }
+.sourceSummary { color:var(--muted); font-size:.72rem; line-height:1.5; }
+.template details:global(.wealth-tax-income-card) > summary { list-style:none; cursor:pointer; flex-wrap:wrap; }
+.template details:global(.wealth-tax-income-card) > summary::after { content:"+"; margin-inline-start:auto; }
+.template details:global(.wealth-tax-income-card)[open] > summary::after { content:"−"; }
+.template details:global(.wealth-tax-income-card) > summary::-webkit-details-marker { display:none; }
+.template :is(.scopedDisclosure > summary,details:global(.wealth-tax-income-card) > summary):focus-visible { outline:2px solid var(--primary); outline-offset:3px; border-radius:6px; }
+.template .amountTile[hidden] { display:none; }
+.template :global(.wealth-tax-quick) h2 > span { display:inline-flex; vertical-align:middle; }
+
+.template .fields > :is(.scopeNote,.scopedDisclosure) { grid-column:1 / -1; }
+
+.template details:global(.wealth-tax-income-card) { display:block; height:auto; align-self:start; }
+.template details:global(.wealth-tax-income-card) > summary { display:grid; grid-template-columns:42px minmax(0,1fr) 16px; align-items:center; }
+.template details:global(.wealth-tax-income-card) > summary > :global(.wealth-tax-income-card-icon) { grid-row:1 / 3; }
+.template details:global(.wealth-tax-income-card) > summary > h3 { min-height:0; }
+.template details:global(.wealth-tax-income-card) > summary > .sourceSummary { grid-column:2; grid-row:2; }
+.template details:global(.wealth-tax-income-card) > summary::after { grid-column:3; grid-row:1 / 3; }
+
+/* Always-open income cards and optional source details. */
+.incomeCardHeader { display:grid; grid-template-columns:42px minmax(0,1fr); align-items:center; gap:4px 10px; padding:10px 12px; }
+.incomeCardHeader > :global(.wealth-tax-income-card-icon) { grid-row:1 / 3; }
+.incomeCardHeader h3 { min-height:0; }
+.incomeCardHeader .sourceSummary { grid-column:2; }
+.incomeDetailToggle, .sourceDetails { grid-column:1 / -1; min-width:0; }
+.sourceDetails > summary { display:none; }
+.sourceDetails[open] { display:grid; gap:10px; padding-top:8px; }
+
+.incomeCardHeader { min-height:72px; }
+
+/* Detailed planner polish: keep heading help adjacent and amounts aligned. */
+.template .incomeHeading { display:flex; align-items:center; gap:8px; margin-bottom:2px; }
+.template .incomeHeading h2 { margin:0; min-width:0; }
+.incomeHeading > .description { flex:0 0 auto; }
+.template .incomeCardHeader { grid-template-rows:minmax(34px,auto) auto; align-content:start; }
+.template .incomeCardHeader h3 { line-height:1.35; }
+.template .incomeDetailToggle .check { align-items:flex-start; line-height:1.5; }
+.template .incomeDetailToggle input { flex-shrink:0; margin-top:3px; }
+@media(prefers-reduced-motion:reduce) { .template .amountTile { transition:none; } }
+
+/* Approved savings-first simulator. All styling stays local to this section. */
+.template .simulator { --sim-indigo:color-mix(in srgb,var(--primary) 72%,var(--foreground) 28%); --sim-teal:color-mix(in srgb,var(--positive) 64%,var(--muted) 36%); display:grid; gap:14px; padding:20px; background:linear-gradient(145deg,color-mix(in srgb,var(--primary) 3%,var(--panel)),var(--panel) 55%); border:1px solid color-mix(in srgb,var(--primary) 15%,var(--border)); border-radius:18px; box-shadow:inset 0 1px 0 rgb(255 255 255 / 9%),0 10px 28px rgb(10 20 40 / 9%),0 2px 5px rgb(10 20 40 / 4%); }
+.simulatorHeading { display:flex; align-items:center; gap:10px; }
+.simulatorHeading::before { content:""; width:4px; height:20px; flex:0 0 auto; border-radius:4px; background:linear-gradient(var(--sim-indigo),var(--sim-teal)); }
+.simulatorHeading h2 { margin:0; font-size:1.25rem; line-height:1.4; font-weight:650; }
+.simulatorOutcomes { display:grid; grid-template-columns:58px minmax(190px,1.05fr) minmax(230px,1fr); align-items:center; gap:14px; padding-block:6px; }
+.simulatorArtwork { display:grid; place-items:center; }
+.simulatorArtwork :global(.wealth-tax-jar-compact) { width:64px; }
+.simulatorArtwork :global(.wealth-tax-jar-glow) { fill:color-mix(in srgb,var(--sim-indigo) 15%,transparent); }
+.simulatorArtwork :global(.wealth-tax-jar-outline) { stroke:color-mix(in srgb,var(--sim-indigo) 50%,var(--border)); }
+.simulatorArtwork :global(.wealth-tax-jar-lid) { fill:var(--sim-indigo); }
+.simulatorArtwork :global(.wealth-tax-jar-spark) { opacity:.35; }
+.simulatorSaving { display:grid; gap:4px; padding:10px 14px; border-radius:16px; background:linear-gradient(115deg,color-mix(in srgb,var(--sim-teal) 10%,var(--panel)),color-mix(in srgb,var(--sim-teal) 3%,var(--panel))); box-shadow:inset 0 1px 0 rgb(255 255 255 / 8%),inset 1px 0 0 color-mix(in srgb,var(--sim-teal) 12%,transparent); }
+.simulatorSaving > span { font-size:.78rem; color:var(--muted); }
+.simulatorSaving > small { font-size:.7rem; line-height:1.5; color:var(--muted); }
+.simulatorSaving strong,.simulatorTaxes strong { display:flex; align-items:baseline; gap:6px; font-variant-numeric:tabular-nums; font-weight:650; }
+.simulatorSaving strong { color:var(--sim-teal); }
+.simulatorSaving strong > small { font-size:.8rem; font-weight:500; letter-spacing:0; }
+.simulatorSaving .simulatorNumber { font-size:clamp(2rem,3.5vw,2.9rem); line-height:1.2; letter-spacing:-.045em; overflow-wrap:anywhere; min-width:0; }
+.simulatorTaxes { display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1.1fr); gap:10px; align-items:center; padding:12px 14px; border:1px solid color-mix(in srgb,var(--sim-indigo) 12%,var(--border)); border-radius:12px; background:linear-gradient(135deg,color-mix(in srgb,var(--sim-indigo) 7%,var(--panel)),color-mix(in srgb,var(--sim-indigo) 2%,var(--panel))); box-shadow:inset 0 1px 0 rgb(255 255 255 / 7%),0 3px 9px rgb(10 20 40 / 4%); }
+.simulatorTaxes > div { display:grid; gap:5px; min-width:0; }
+.simulatorTaxes > span { color:var(--muted); }
+.simulatorTaxes > div > span { min-height:2.8em; color:var(--muted); font-size:.75rem; line-height:1.4; }
+.simulatorTaxes strong { gap:4px; min-width:0; }
+.simulatorTaxes strong > small { font-size:.65rem; font-weight:500; color:var(--muted); }
+.simulatorTaxes .simulatorNumber { font-size:clamp(1rem,1.8vw,1.4rem); line-height:1.4; letter-spacing:-.03em; overflow-wrap:anywhere; min-width:0; }
+.simulatorTaxes > div:last-child .simulatorNumber { color:var(--sim-indigo); }
+.srOnly { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+.simulatorControls { display:flex; align-items:end; gap:12px; flex-wrap:wrap; }
+.simulatorAmountLabel { display:grid; gap:6px; color:var(--muted); font-size:.75rem; flex:0 1 310px; min-width:0; }
+.simulatorAmountBox { display:flex; align-items:baseline; gap:10px; padding:9px 12px; border:1px solid color-mix(in srgb,var(--sim-indigo) 22%,var(--border)); border-radius:10px; background:linear-gradient(var(--panel),color-mix(in srgb,var(--sim-indigo) 5%,var(--panel))); box-shadow:inset 0 1px 0 rgb(255 255 255 / 8%),0 3px 8px rgb(10 20 40 / 4%); }
+.simulatorAmountBox > span { font-size:.75rem; }
+.template .simulatorAmountBox input { border:0; background:transparent; padding:0; margin:0; border-radius:3px; min-width:0; width:100%; color:var(--foreground); font-size:1.5rem; line-height:1.5; font-weight:600; font-variant-numeric:tabular-nums; }
+.simulatorAmountBox:focus-within { outline:2px solid var(--sim-indigo); outline-offset:2px; }
+.simulatorReset { font-size:.75rem; line-height:1.5; padding:8px 10px; border:1px solid var(--border); border-radius:8px; color:var(--muted); background:color-mix(in srgb,var(--sim-indigo) 4%,var(--panel)); box-shadow:inset 0 1px 0 rgb(255 255 255 / 8%); cursor:pointer; }
+.simulatorReset:disabled { opacity:.5; cursor:default; }
+.simulatorCategory { font-size:.8rem; }
+.simulatorSlider { min-width:0; }
+.simulatorRail { position:relative; height:44px; display:flex; align-items:center; }
+.template .simulatorRange { appearance:none; -webkit-appearance:none; width:100%; height:44px; margin:0; padding:0; background:transparent; cursor:pointer; }
+.simulatorRange::-webkit-slider-runnable-track { height:8px; border:0; border-radius:10px; background:linear-gradient(to right,var(--sim-indigo) var(--simulator-ratio),var(--border) var(--simulator-ratio)); box-shadow:inset 0 1px 2px rgb(10 20 40 / 9%); }
+.simulatorRange::-webkit-slider-thumb { appearance:none; -webkit-appearance:none; margin-top:-7px; width:22px; height:22px; border-radius:50%; border:3px solid var(--panel); background:var(--sim-indigo); box-shadow:0 0 0 5px color-mix(in srgb,var(--sim-indigo) 15%,transparent),0 0 15px color-mix(in srgb,var(--sim-indigo) 38%,transparent),0 2px 5px rgb(10 20 40 / 18%); }
+.simulatorRange::-moz-range-track { height:8px; border:0; border-radius:10px; background:linear-gradient(to right,var(--sim-indigo) var(--simulator-ratio),var(--border) var(--simulator-ratio)); }
+.simulatorRange::-moz-range-thumb { width:18px; height:18px; border-radius:50%; border:3px solid var(--panel); background:var(--sim-indigo); box-shadow:0 0 0 5px color-mix(in srgb,var(--sim-indigo) 15%,transparent),0 0 15px color-mix(in srgb,var(--sim-indigo) 38%,transparent); }
+.simulatorRange:active::-webkit-slider-thumb { box-shadow:0 0 0 7px color-mix(in srgb,var(--sim-indigo) 20%,transparent),0 0 20px color-mix(in srgb,var(--sim-indigo) 45%,transparent); }
+.simulatorRange:disabled { cursor:default; opacity:.55; }
+.simulatorBubble { position:absolute; top:-17px; left:var(--simulator-bubble); transform:translateX(-50%); font-size:.7rem; line-height:1.5; color:var(--foreground); background:var(--panel); border:1px solid var(--border); border-radius:5px; padding:2px 6px; white-space:nowrap; pointer-events:none; visibility:hidden; }
+.simulatorRail:focus-within .simulatorBubble,.simulatorRail[data-dragging] .simulatorBubble { visibility:visible; }
+.simulatorEndpoints { display:flex; justify-content:space-between; gap:12px; padding-inline:4px; color:var(--muted); font-size:.7rem; line-height:1.5; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+.simulatorMarkerRow { position:relative; height:30px; margin-inline:11px; }
+.simulatorMarker { position:absolute; left:var(--simulator-marker); transform:translateX(-100%); max-width:100%; width:max-content; padding:0; background:transparent; border:0; border-radius:4px; color:var(--sim-indigo); font-size:.7rem; line-height:1.5; text-align:right; cursor:pointer; }
+.simulatorMarker > span:last-child { text-decoration:underline dotted; text-underline-offset:4px; }
+.simulatorMarkerTick { position:absolute; right:0; top:-34px; height:14px; width:2px; background:var(--sim-indigo); pointer-events:none; }
+.simulatorMarker[data-align="start"] { transform:none; text-align:left; }
+.simulatorMarker[data-align="start"] .simulatorMarkerTick { right:auto; left:0; }
+.simulatorNotice { font-size:.78rem; line-height:1.5; color:var(--foreground); padding:8px 10px; margin:0; border-radius:8px; background:color-mix(in srgb,var(--sim-teal) 7%,var(--panel)); }
+.simulatorFooter { display:flex; flex-wrap:wrap; align-items:start; gap:8px 22px; border-top:1px solid var(--border); padding-top:10px; }
+.simulatorRules { font-size:.75rem; color:var(--muted); min-width:0; max-width:100%; }
+.simulatorRules > summary { width:fit-content; border-radius:5px; cursor:pointer; }
+.simulatorRules[open] { flex:1 1 100%; }
+.simulatorRules > p { margin:10px 0; max-width:70ch; line-height:1.6; }
+.simulatorFacts { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px 20px; margin:12px 0; }
+.simulatorFacts > div { display:grid; gap:3px; min-width:0; }
+.simulatorFacts dt { font-size:.72rem; }
+.simulatorFacts dd { font-weight:600; color:var(--foreground); overflow-wrap:anywhere; }
+.simulatorRuleTools { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+.simulatorFooter .compactReadingButton { width:auto; padding:0; background:transparent; border:0; box-shadow:none; gap:5px; color:var(--muted); }
+.simulatorFooter .compactReadingButton strong { font-size:.75rem; font-weight:500; }
+.simulatorFooter .compactReadingButton .readingIcon,.simulatorFooter .compactReadingButton .readingArrow { display:none; }
+.simulator :is(.simulatorReset,.simulatorMarker,.simulatorRules > summary):focus-visible { outline:2px solid var(--sim-indigo); outline-offset:3px; }
+@media(max-width:760px) {
+ .simulatorOutcomes { grid-template-columns:48px minmax(0,1fr); gap:8px 12px; padding-block:2px; }
+ .simulatorArtwork :global(.wealth-tax-jar-compact) { width:56px; }
+ .simulatorSaving { padding:8px 10px; }
+ .simulatorSaving .simulatorNumber { font-size:2.6rem; }
+ .simulatorTaxes { grid-column:1 / -1; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); padding:10px 12px; }
+ .simulatorTaxes .simulatorNumber { font-size:1.4rem; }
+ .simulatorAmountLabel { flex:1 1 0; }
+ .simulatorFacts { grid-template-columns:minmax(0,1fr); }
+ .template .simulator { padding:16px; gap:12px; }
+ .simulatorHeading h2 { font-size:1.1rem; }
+ .simulatorControls { flex-wrap:nowrap; }
+ .simulatorReset { flex:0 0 auto; }
+ .simulatorMarkerRow { height:38px; }
+}
+@media(prefers-reduced-motion:reduce) { .simulator *, .simulator *::before, .simulator *::after { animation:none !important; transition:none !important; } }
+
+.template .simulatorRange:focus-visible { outline:none; }
+.simulatorRange:focus-visible::-webkit-slider-thumb { box-shadow:0 0 0 3px var(--panel),0 0 0 6px var(--sim-indigo),0 0 16px color-mix(in srgb,var(--sim-indigo) 40%,transparent); }
+.simulatorRange:focus-visible::-moz-range-thumb { box-shadow:0 0 0 3px var(--panel),0 0 0 6px var(--sim-indigo),0 0 16px color-mix(in srgb,var(--sim-indigo) 40%,transparent); }
+
+/* Approved three-tile insight layout; no surrounding section selectors. */
+.simulatorOutcomes { grid-template-columns:116px minmax(0,1fr); align-items:start; gap:14px; padding:0; }
+.simulatorArtwork { align-self:start; align-content:start; gap:3px; color:var(--muted); text-align:center; }
+.simulatorArtwork :global(.wealth-tax-jar-compact) { width:116px; margin:0; }
+.simulatorArtwork > span,.simulatorArtwork > small { font-size:.7rem; line-height:1.4; }
+.simulatorArtwork > strong { display:flex; align-items:baseline; gap:4px; color:var(--sim-teal); font-variant-numeric:tabular-nums; }
+.simulatorArtwork .simulatorNumber { font-size:1.25rem; }
+.simulatorArtwork strong small { font-size:.65rem; }
+.jarMedallion > circle:first-child { fill:color-mix(in srgb,var(--panel) 85%,var(--positive)); stroke:color-mix(in srgb,var(--positive) 55%,var(--border)); stroke-width:1.2; }
+.jarMedallion > circle:nth-child(2) { fill:none; stroke:color-mix(in srgb,var(--positive) 25%,var(--panel)); stroke-width:1; }
+.jarMedallion text { fill:var(--foreground); font-family:"Noto Sans Bengali",sans-serif; font-size:23px; font-weight:600; }
+.simulatorTiles { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:9px; align-items:stretch; min-width:0; }
+.simulatorTile { padding:8px 10px; border:1px solid color-mix(in srgb,var(--sim-indigo) 14%,var(--border)); border-radius:12px; background:linear-gradient(145deg,color-mix(in srgb,var(--sim-indigo) 8%,var(--panel)),color-mix(in srgb,var(--sim-indigo) 2%,var(--panel))); box-shadow:inset 0 1px 0 rgb(255 255 255 / 12%),inset 0 -2px 0 color-mix(in srgb,var(--border) 65%,transparent),0 3px 5px rgb(10 20 40 / 5%),0 8px 18px rgb(10 20 40 / 6%); min-width:0; }
+.simulatorTile:nth-child(2) { background:linear-gradient(145deg,color-mix(in srgb,var(--sim-teal) 8%,var(--panel)),color-mix(in srgb,var(--sim-teal) 2%,var(--panel))); }
+.simulatorTile:nth-child(3) { background:linear-gradient(145deg,color-mix(in srgb,var(--sim-indigo) 11%,var(--panel)),color-mix(in srgb,var(--sim-teal) 5%,var(--panel))); }
+.simulatorTile { border-color:color-mix(in srgb,var(--sim-indigo) 23%,var(--border)); background:linear-gradient(135deg,color-mix(in srgb,var(--sim-indigo) 13%,var(--panel)),color-mix(in srgb,var(--sim-indigo) 4%,var(--panel))); box-shadow:inset 0 1px 0 rgb(255 255 255 / 23%),inset 0 -3px 0 color-mix(in srgb,var(--sim-indigo) 10%,var(--border)),0 3px 5px rgb(10 20 40 / 7%),0 9px 16px rgb(10 20 40 / 9%); }
+.simulatorTile:nth-child(2) { background:linear-gradient(135deg,color-mix(in srgb,var(--sim-teal) 13%,var(--panel)),color-mix(in srgb,var(--sim-teal) 3%,var(--panel))); }
+.simulatorTile:nth-child(3) { background:linear-gradient(135deg,color-mix(in srgb,var(--sim-indigo) 16%,var(--panel)),color-mix(in srgb,var(--sim-teal) 6%,var(--panel))); }
+@media(min-width:761px) {
+ .simulatorOutcomes { position:relative; }
+ .simulatorArtwork { position:absolute; inset:0 auto auto 0; width:116px; }
+ .simulatorTiles { grid-column:2; }
+ .simulatorControls { margin-inline-start:130px; }
+}
+.simulatorTile > div { display:grid; gap:3px; min-width:0; }
+.simulatorTile > div + div { display:flex; align-items:baseline; flex-wrap:wrap; gap:3px 6px; border-top:1px solid var(--border); margin-top:6px; padding-top:6px; }
+.simulatorTile > div > span { min-height:2.7em; font-size:.72rem; line-height:1.35; color:var(--muted); }
+.simulatorTile > div:last-child > span { min-height:0; font-size:.68rem; }
+.simulatorTile > div:last-child .simulatorNumber { font-size:.85rem; }
+.simulatorTile > div:last-child strong { color:var(--muted); gap:2px; }
+.simulatorTile > div:last-child strong small { font-size:.5rem; }
+.simulatorTile strong { display:flex; align-items:baseline; gap:4px; font-variant-numeric:tabular-nums; font-weight:600; }
+.simulatorTile strong small { font-size:.65rem; font-weight:500; color:var(--muted); }
+.simulatorTile .simulatorNumber { font-size:1.25rem; line-height:1.3; overflow-wrap:anywhere; min-width:0; }
+
+.template .simulator { gap:10px; padding:16px; }
+.simulatorControls { gap:8px; }
+.simulatorAmountLabel { display:flex; align-items:center; gap:8px; flex:0 1 auto; }
+.simulatorAmountBox { width:148px; padding:5px 8px; }
+.template .simulatorAmountBox input { font-size:1.1rem; }
+.simulatorSetMax { border:1px solid color-mix(in srgb,var(--sim-indigo) 25%,var(--border)); border-radius:8px; padding:8px 10px; color:var(--sim-indigo); background:color-mix(in srgb,var(--sim-indigo) 8%,var(--panel)); font-size:.75rem; cursor:pointer; }
+.simulatorSetMax:disabled { opacity:.5; cursor:default; }
+.simulatorInlineSaving { display:flex; align-items:baseline; gap:6px; margin-inline-start:auto; color:var(--muted); font-size:.72rem; }
+.simulatorInlineSaving strong { display:flex; align-items:baseline; gap:4px; color:var(--sim-teal); }
+.simulatorInlineSaving .simulatorNumber { font-size:1.2rem; }
+.simulatorInlineSaving strong small { font-size:.65rem; }
+.simulatorSelectedTotal { color:var(--muted); font-size:.7rem; line-height:1.4; margin-top:5px; }
+.simulatorRail { height:34px; }
+.template .simulatorRange { height:34px; }
+.simulatorNotch { position:absolute; left:var(--simulator-marker); top:10px; width:2px; height:14px; background:var(--sim-indigo); pointer-events:none; z-index:1; }
+.simulatorSetMax:focus-visible { outline:2px solid var(--sim-indigo); outline-offset:3px; }
+.simulatorProjection { padding:10px 12px 12px; border:1px solid color-mix(in srgb,var(--sim-indigo) 25%,var(--border)); border-radius:12px; background:linear-gradient(115deg,color-mix(in srgb,var(--sim-indigo) 9%,var(--panel)),color-mix(in srgb,var(--sim-teal) 8%,var(--panel))); box-shadow:inset 0 1px 0 rgb(255 255 255 / 18%),0 4px 12px rgb(10 20 40 / 6%); }
+.simulatorProjectionHeading { display:flex; align-items:center; gap:6px; font-size:.73rem; font-weight:600; color:var(--sim-indigo); margin-bottom:8px; }
+.simulatorProjectionValues { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+.simulatorProjectionValues > div { display:grid; align-content:start; gap:4px; min-width:0; }
+.simulatorProjectionValues > div + div { border-inline-start:1px solid color-mix(in srgb,var(--sim-indigo) 18%,var(--border)); padding-inline-start:12px; }
+.simulatorProjectionValues > div > span { font-size:.75rem; color:var(--muted); }
+.simulatorProjectionValues strong { display:flex; align-items:baseline; gap:4px; font-variant-numeric:tabular-nums; }
+.simulatorProjectionValues .simulatorNumber { font-size:1.65rem; line-height:1.25; overflow-wrap:anywhere; min-width:0; }
+.simulatorProjectionValues strong small { font-size:.65rem; color:var(--muted); }
+.simulatorProjectionValues > div > small { font-size:.68rem; line-height:1.45; color:var(--muted); }
+.simulatorProjectionValues > div:nth-child(2) strong { color:var(--sim-teal); text-shadow:0 2px 9px color-mix(in srgb,var(--sim-teal) 14%,transparent); }
+.simulatorProjectionValues > div:nth-child(2) .simulatorNumber { font-size:1.85rem; font-weight:750; }
+.simulatorProjectionValues > div:last-child strong { color:var(--sim-indigo); }
+@media(max-width:760px){
+ .simulatorProjection { padding:9px; }
+ .simulatorProjectionValues { gap:7px; }
+ .simulatorProjectionValues > div + div { padding-inline-start:7px; }
+ .simulatorProjectionValues > div > span { font-size:.68rem; min-height:2.7em; }
+ .simulatorProjectionValues > div { container-type:inline-size; }
+ .simulatorProjectionValues .simulatorNumber { font-size:clamp(.65rem,calc(150cqi / var(--money-characters,6)),1.1rem); white-space:nowrap; overflow-wrap:normal; }
+ .simulatorProjectionValues strong { gap:2px; flex-wrap:wrap; }
+ .simulatorProjectionValues strong small { font-size:.5rem; }
+ .simulatorProjectionValues > div > small { font-size:.62rem; }
+ .simulatorOutcomes { grid-template-columns:76px minmax(0,1fr); gap:8px; }
+ .simulatorArtwork :global(.wealth-tax-jar-compact) { width:82px; }
+ .simulatorArtwork { min-width:0; }
+ .simulatorArtwork > strong { gap:2px; }
+ .simulatorArtwork .simulatorNumber { font-size:.95rem; }
+ .simulatorArtwork strong small { font-size:.5rem; }
+ .simulatorTiles { grid-template-columns:repeat(2,minmax(0,1fr)); gap:7px; }
+ .simulatorTile { padding:7px 8px; }
+ .simulatorTile .simulatorNumber { font-size:1.1rem; }
+ .simulatorTile > div:last-child > span { min-height:0; }
+ .simulatorTile:last-child { grid-column:1 / -1; display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:8px; }
+ .simulatorTile:last-child > div + div { margin:0; padding:0 0 0 8px; border-top:0; border-inline-start:1px solid var(--border); box-shadow:none; }
+ .simulatorTile:last-child > div:first-child > span { min-height:2.7em; }
+ .simulatorTile:last-child > div:last-child { align-content:center; }
+ .simulatorProjectionValues > div:nth-child(2) .simulatorNumber { font-size:clamp(.65rem,calc(150cqi / var(--money-characters,6)),1.25rem); }
+ .simulatorControls { flex-wrap:wrap; align-items:end; gap:6px; }
+ .simulatorAmountLabel { display:grid; flex:1 1 0; min-width:0; gap:4px; }
+ .simulatorAmountBox { width:100%; }
+ .simulatorInlineSaving { flex:1 1 100%; justify-content:end; margin:0; }
+ .simulatorSetMax,.simulatorReset { flex:0 0 auto; padding:8px; }
+}

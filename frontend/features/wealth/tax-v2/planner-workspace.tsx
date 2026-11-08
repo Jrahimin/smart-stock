@@ -10,7 +10,7 @@ import type { AppLocale } from "@/lib/locale/app-locale";
 import { calculateWithRevisionRefresh, getTaxConfig, invalidatesTaxRules, issueFromError, issuesFromError } from "./api";
 import type { PublicConfig, SelectedYear, TaxResult } from "./contracts";
 import { buildTaxRequest, draftKey, hasPlanningAssumptions, initialFacts, incomeEntry, quickSalary, planningDefaults, readDraft, writeDraft, type Facts } from "./facts";
-import { Button, translator } from "./fields";
+import { bdt, Button, translator } from "./fields";
 import { focusField } from "./focus-field";
 import { CompactFieldHelp } from "./fields";
 import { CreditsStep, IncomeStep, InvestmentsStep, ProfileStep, QuickForm, ScenarioForm } from "./planner-form";
@@ -257,19 +257,19 @@ function CurrentPlanner({ owner, locale, config, selected, configError, facts, u
     immediateCalculation.current = String(attempt + 1) + ":" + JSON.stringify(request);
     setAttempt((value) => value + 1);
     if (issue) edit(issue.path);
-    else if (scroll) requestAnimationFrame(() => root.current?.querySelector(".wealth-tax-results-region")?.scrollIntoView?.({ behavior: "smooth", block: "start" }));
+    else if (scroll) requestAnimationFrame(() => { const region = root.current?.querySelector<HTMLElement>(".wealth-tax-results-region"); region?.scrollIntoView?.({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" }); region?.focus({ preventScroll: true }); });
   }
   function chooseMode(next: "quick" | "detailed") {
     setMode(next); setStep(0);
   }
   function exploreSavings() {
     const simulator = root.current?.querySelector<HTMLElement>("#tax-planner-play-explore");
-    simulator?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+    simulator?.scrollIntoView?.({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
     simulator?.focus({ preventScroll: true });
   }
   const validationNotice = validations.length > 0 && <div id="tax-v2-field-error" role="alert" className={css.notice}>{validations.map((item, i) => <div key={item.path + ":" + i}><p>{fieldIssueText(item, locale)}</p><Button onClick={() => edit(item.path)}>{t("Go to the affected field", "সংশ্লিষ্ট ঘরে যান")}</Button></div>)}</div>;
   return <div className={css.stack} ref={root}>
-    <TaxHero locale={locale} identity={selected.identity} rules={selected.rules} policies={selected.investment_policies} base={visibleResult?.base} />
+    <TaxHero locale={locale} identity={selected.identity} rules={selected.rules} policies={selected.investment_policies} base={visibleResult?.base} provenance={provenance} />
     {provenance === "example" && <p className={css.exampleHint}>{t("Editable example · replace the salary with your yearly amount", "নমুনা হিসাব · নিজের বার্ষিক বেতন দিয়ে বদলে নিন")}</p>}
     {disabled && <p role="alert" className={css.notice}>{t("Estimates are temporarily unavailable. Your entries are kept in this tab.", "হিসাব সাময়িকভাবে পাওয়া যাচ্ছে না। এই ট্যাবে আপনার তথ্য থাকছে।")}</p>}
     <div className="wealth-tax-mode-segment" data-guide="tax-planner-mode">
@@ -285,7 +285,7 @@ function CurrentPlanner({ owner, locale, config, selected, configError, facts, u
         <button type="button" role="tab" aria-controls="tax-planner-panel" id="tax-planner-tab-detailed" aria-selected={mode === "detailed"} tabIndex={mode === "detailed" ? 0 : -1} className={mode === "detailed" ? "wealth-tax-segment-active" : ""} data-guide="tax-planner-detailed" onClick={() => chooseMode("detailed")}><span aria-hidden="true">✦</span> {t("Detailed planner", "বিস্তারিত হিসাব")}</button>
       </div>
     </div>
-    <p className={css.modeScope}>{mode === "quick" ? t("Quick: yearly totals. Resident individual · check special situations in Detailed.", "দ্রুত হিসাব: বছরের মোট অঙ্ক। নিবাসী ব্যক্তি করদাতা · বিশেষ পরিস্থিতি বিস্তারিত অংশে যাচাই করুন।") : t("Detailed: check supported income sources and Investment conditions. This is an annual estimate, not a filing-ready return.", "বিস্তারিত হিসাব: সমর্থিত আয়ের উৎস ও বিনিয়োগের শর্ত যাচাই করুন। এটি বার্ষিক অনুমান, দাখিলের জন্য প্রস্তুত রিটার্ন নয়।")}</p>
+    <p className={css.modeScope}>{mode === "quick" ? t("Quick: yearly totals for an initial estimate.", "দ্রুত হিসাব: বছরের মোট অঙ্ক দিয়ে প্রাথমিক ধারণা নিন।") : t("Detailed: check income sources, profile and Investment conditions.", "বিস্তারিত হিসাব: আয়ের উৎস, ব্যক্তিগত তথ্য ও Investment-এর শর্ত যাচাই করুন।")}</p>
     <form noValidate className="wealth-tax-workspace-card wealth-panel" onSubmit={(event) => {
           event.preventDefault();
           runEstimate(true);
@@ -305,7 +305,7 @@ function CurrentPlanner({ owner, locale, config, selected, configError, facts, u
     {<InfoDialog title={t("Optional tax adjustments", "ঐচ্ছিক কর সমন্বয়")} compact open={adjustmentsOpen} onOpenChange={setAdjustmentsOpen}>
       <CreditsStep {...formProps} />{adjustmentsOpen && validationNotice}<Button onClick={() => { setAdjustmentsOpen(false); runEstimate(true); }}>{t("Apply adjustments", "সমন্বয় প্রয়োগ করুন")}</Button>
     </InfoDialog>}
-    <div className="wealth-tax-results-region" data-guide="tax-planner-result" aria-busy={updating}>
+    <div className="wealth-tax-results-region" tabIndex={-1} role="region" aria-label={t("Current tax estimate", "বর্তমান করের হিসাব") + (visibleResult?.base.annual_liability != null ? ": " + bdt(visibleResult.base.annual_liability, locale) : "")} data-guide="tax-planner-result" aria-busy={updating}>
         <p role="status" className={css.updateStatus}>{visibleResult && (updating || issue || current?.error) ? scenarioOnly ? t("Current estimate kept. The proposed comparison is updating or needs attention.", "বর্তমান হিসাব রাখা আছে। প্রস্তাবিত তুলনা হালনাগাদ হচ্ছে বা যাচাই প্রয়োজন।") : issue || current?.error ? t("Last calculated estimate · check the affected entry to update it.", "শেষ হিসাব করা ফল · হালনাগাদ করতে সংশ্লিষ্ট তথ্য যাচাই করুন।") : t("Updating estimate… Previous estimate shown until you pause typing.", "হিসাব হালনাগাদ হচ্ছে… লেখা থামানো পর্যন্ত আগের ফল দেখাবে।") : ""}</p>
         {!!current?.error && !apiIssue && visibleResult && <div role="alert" className={css.notice}><p>{scenarioOnly ? t("The proposed comparison is unavailable. Your current estimate is preserved.", "প্রস্তাবিত তুলনা পাওয়া যাচ্ছে না। বর্তমান হিসাব রাখা আছে।") : t("The estimate could not update. Your entries are preserved.", "হিসাব হালনাগাদ হয়নি। আপনার তথ্য রাখা আছে।")}</p><Button onClick={() => runEstimate()}>{t("Try again", "আবার চেষ্টা করুন")}</Button></div>}
         {visibleResult ? <PlannerResults result={visibleResult} rules={selected.rules} locale={locale} onEdit={edit} conditional={conditional} presentation={presentation} onExploreSavings={exploreSavings} /> : <>
@@ -319,7 +319,7 @@ function CurrentPlanner({ owner, locale, config, selected, configError, facts, u
           </section></>}
     </div>
     <ScenarioForm {...formProps} asOf={config.as_of} calculate={() => runEstimate()} disabled={disabled || !comparable} base={comparable?.base} result={current?.result} pending={updating && !!facts.scenario} invalid={validations.some((item) => item.path.startsWith("scenario")) || !!current?.error} />
-    {visibleResult && <TaxJourney result={visibleResult} locale={locale} incomeFacts={facts.income} rules={selected.rules} presentation={presentation} onExploreSavings={exploreSavings} />}
+    {visibleResult && <TaxJourney result={visibleResult} locale={locale} incomeFacts={facts.income} rules={selected.rules} presentation={{...presentation,freshness:updating && !facts.scenario?"updating":presentation.freshness}} onExploreSavings={exploreSavings} onShowDetails={() => root.current?.querySelector<HTMLButtonElement>("[data-tax-calculation-details] button")?.click()} />}
     {owner && <details className={css.browserDraft} open>
           <summary>{t("Browser draft", "ব্রাউজারে খসড়া")}</summary>
           <div className={css.row}><Button onClick={saveBrowserDraft}>{t("Save on this browser", "এই ব্রাউজারে সংরক্ষণ করুন")}</Button>

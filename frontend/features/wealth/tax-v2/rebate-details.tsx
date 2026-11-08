@@ -24,8 +24,8 @@ export function rebateLimitLabels(base: TaxBreakdown, locale: AppLocale) {
   return labels;
 }
 
-export function RebateDetails({ base, rules, locale, align = "end" }: {
-  base: TaxBreakdown; rules?: RulePack; locale: AppLocale; align?: "start" | "center" | "end";
+export function RebateDetails({ base, rules, locale, align = "end", visualHint }: {
+  base: TaxBreakdown; rules?: RulePack; locale: AppLocale; align?: "start" | "center" | "end"; visualHint?: string;
 }) {
   const t = translator(locale), amount = (value: string | null) => value === null ? "—" : bdt(value, locale);
   return <TaxInfoTooltip align={align} ariaLabel={t("How your rebate is calculated", "রেয়াত কীভাবে হিসাব হয়")} panelClassName="wealth-tax-info-popover--wide">
@@ -40,6 +40,7 @@ export function RebateDetails({ base, rules, locale, align = "end" }: {
       <p className="wealth-tax-breakdown-result"><span>{t("Usable tax reduction", "ব্যবহারযোগ্য কর হ্রাস")}</span><strong>{amount(base.rebate.effective_tax_reduction)}</strong></p>
       <p className="wealth-tax-breakdown-limiter"><span>{t("Current limiting rules", "বর্তমান সীমাবদ্ধতার নিয়ম")}</span><strong>{rebateLimitLabels(base, locale).join(" · ")}</strong></p>
     </div>
+    {visualHint && <p>{visualHint}</p>}
   </TaxInfoTooltip>;
 }
 

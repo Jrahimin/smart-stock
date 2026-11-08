@@ -42,7 +42,7 @@ export function PlannerResults({ result, rules, locale, onEdit, conditional = fa
       {settlement && base.excess_credits && hasMoney(base.excess_credits) && <p>{t("Excess eligible credits (not a refund approval): ", "অতিরিক্ত যোগ্য কর সমন্বয় (ফেরতের অনুমোদন নয়): ")}{m(base.excess_credits)}</p>}
     </div>}
     {base.missing_facts.length > 0 && <div className={css.stack}><h3>{t("What to review", "যা যাচাই করবেন")}</h3>{notes(base.missing_facts, true)}</div>}
-    <InfoDialog title={t("Calculation details and sources", "হিসাবের বিবরণ ও উৎস")} subtitle={t("Follow the numbers · explore the official rules", "ধাপে ধাপে হিসাব · সরকারি নিয়ম দেখুন")} icon="▤">
+    <div data-tax-calculation-details><InfoDialog title={t("Calculation details and sources", "হিসাবের বিবরণ ও উৎস")} subtitle={t("Follow the numbers · explore the official rules", "ধাপে ধাপে হিসাব · সরকারি নিয়ম দেখুন")} icon="▤">
     <EstimateState locale={locale} {...presentation} />
     <AssumptionNotes result={result} locale={locale} defaults={presentation?.defaults} />
     <div className={css.explainHero}><span aria-hidden="true">✦</span><div><h3>{t("Your tax, one step at a time", "আপনার কর, ধাপে ধাপে")}</h3><p>{t("Income → tax bands → investment rebate → minimum tax. Open a card to see what counted and why.", "আয় → করের ধাপ → বিনিয়োগ রেয়াত → ন্যূনতম কর। কীভাবে হিসাব হয়েছে জানতে কার্ড খুলুন।")}</p></div></div>
@@ -101,7 +101,7 @@ export function PlannerResults({ result, rules, locale, onEdit, conditional = fa
       <p className={css.muted}>{t("Rules reviewed on ", "নিয়ম যাচাইয়ের তারিখ ")}{dateLabel(result.rules_reviewed_on, locale)}</p>
       <p className={css.pre}>{result.revision_id} · {result.content_hash}</p>
     </details>
-    </InfoDialog>
+    </InfoDialog></div>
   </div>;
 }
 
