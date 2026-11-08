@@ -1,4 +1,4 @@
-import { createContext, useContext, useId, type ReactNode } from "react";
+import { createContext, useContext, useId, useState, type ReactNode } from "react";
 import type { AppLocale } from "@/lib/locale/app-locale";
 import type { Answer } from "./contracts";
 import { normalizeMoneyInput } from "./facts";
@@ -23,37 +23,38 @@ export function dateLabel(value: string, locale: AppLocale) {
 }
 export const CompactFieldHelp = createContext(false);
 
-type Shared = { label: string; path?: string; help?: string; disabled?: boolean; tooltip?: ReactNode; tooltipLabel?: string };
+type Shared = { label: string; path?: string; help?: string; disabled?: boolean; invalid?: boolean; tooltip?: ReactNode; tooltipLabel?: string };
 type InputProps = Shared & {
   value: string; onChange: (value: string) => void; type?: "text" | "date" | "number";
-  money?: boolean; min?: string; max?: string; maxLength?: number; placeholder?: string;
+  moneyLocale?: AppLocale; money?: boolean; min?: string; max?: string; maxLength?: number; placeholder?: string;
   ariaLabel?: string;
 };
-export function Input({ label, ariaLabel, path, help, disabled, value, onChange, type = "text", money, min, max, maxLength, placeholder, tooltip, tooltipLabel }: InputProps) {
+export function Input({ label, ariaLabel, path, help, disabled, invalid, value, onChange, type = "text", money, min, max, maxLength, placeholder, tooltip, tooltipLabel, moneyLocale }: InputProps) {
   const id = useId();
+  const [editing, setEditing] = useState(false);
   const compact = useContext(CompactFieldHelp);
   const info = tooltip ?? (compact ? help : undefined);
   const inlineHelp = compact && info ? undefined : help;
-  const input = <input id={id + "-input"} type={type} value={value} disabled={disabled} inputMode={money ? "decimal" : undefined}
+  const input = <input id={id + "-input"} type={type} value={moneyLocale && !editing && /^\d+(\.\d+)?$/.test(value) ? bdt(value, moneyLocale).replace(/^(BDT |৳)/, "") : value} onFocus={() => setEditing(true)} onBlur={() => setEditing(false)} disabled={disabled} inputMode={money ? "decimal" : undefined}
       min={min} max={max} maxLength={maxLength ?? (money ? 22 : undefined)} placeholder={placeholder}
-      aria-label={ariaLabel} aria-labelledby={ariaLabel ? undefined : id + "-label"} aria-describedby={inlineHelp ? id : undefined} onChange={(event) => onChange(money ? normalizeMoneyInput(event.target.value) : event.target.value)} />;
+      aria-invalid={invalid || undefined} aria-label={ariaLabel} aria-labelledby={ariaLabel ? undefined : id + "-label"} aria-describedby={inlineHelp ? id : undefined} onChange={(event) => onChange(money ? normalizeMoneyInput(event.target.value) : event.target.value)} />;
   if (info) return <div className={css.field} data-path={path}>
     <div className="wealth-field-label-row"><label id={id + "-label"} htmlFor={id + "-input"}>{label}</label><TaxInfoTooltip ariaLabel={tooltipLabel ?? "More about " + label}>{info}</TaxInfoTooltip></div>
-    {input}{inlineHelp && <small id={id} className={css.muted}>{inlineHelp}</small>}
+    {moneyLocale ? <div className={css.moneyEntry}><span aria-hidden="true">{moneyLocale === "bn" ? "৳" : "BDT"}</span>{input}</div> : input}{inlineHelp && <small id={id} className={css.muted}>{inlineHelp}</small>}
   </div>;
   return <label className={css.field} data-path={path}><span id={id + "-label"}>{label}</span>
-    {input}
+    {moneyLocale ? <div className={css.moneyEntry}><span aria-hidden="true">{moneyLocale === "bn" ? "৳" : "BDT"}</span>{input}</div> : input}
     {help && <small id={id} className={css.muted}>{help}</small>}
   </label>;
 }
-export function Select<T extends string>({ label, path, help, disabled, value, options, onChange }: Shared & {
+export function Select<T extends string>({ label, path, help, disabled, invalid, value, options, onChange }: Shared & {
   value: T; options: readonly (readonly [T, string])[]; onChange: (value: T) => void;
 }) {
   const id = useId(), compact = useContext(CompactFieldHelp);
   return <div className={css.field} data-path={path}>
     <div className="wealth-field-label-row"><label id={id + "-label"} htmlFor={id + "-input"}>{label}</label>
       {compact && help && <TaxInfoTooltip ariaLabel={"More about " + label}>{help}</TaxInfoTooltip>}</div>
-    <select id={id + "-input"} value={value} disabled={disabled} aria-labelledby={id + "-label"} aria-describedby={!compact && help ? id : undefined}
+    <select id={id + "-input"} value={value} disabled={disabled} aria-invalid={invalid || undefined} aria-labelledby={id + "-label"} aria-describedby={!compact && help ? id : undefined}
       onChange={(event) => onChange(event.target.value as T)}>
       {options.map(([key, title]) => <option key={key} value={key}>{title}</option>)}
     </select>{!compact && help && <small id={id} className={css.muted}>{help}</small>}

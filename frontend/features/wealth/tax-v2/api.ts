@@ -6,18 +6,23 @@ const publicPath = "/wealth/tax-planner/v2";
 const adminPath = "/admin/tax-planner/v2";
 const noStore = (signal?: AbortSignal): RequestInit => ({ cache: "no-store", signal });
 
-export function issueFromError(error: unknown): Issue | null {
-  if (!(error instanceof BackendApiError) || error.status !== 422) return null;
+export function issuesFromError(error: unknown): Issue[] {
+  if (!(error instanceof BackendApiError) || error.status !== 422) return [];
   const details = error.details?.errors;
   if (!Array.isArray(details) || !details.length) {
     const field = error.details?.field;
-    return typeof field === "string" ? { path: field, message: error.message, code: error.code } : null;
+    return typeof field === "string" ? [{ path: field, message: error.message, code: error.code }] : [];
   }
-  const first = details[0] as { loc?: (string | number)[]; msg?: string; type?: string };
-  const loc = first.loc?.filter((part) => part !== "body" && part !== "query") ?? [];
-  if (loc[0] === "income" && loc.length > 3 && typeof loc[1] === "number" && incomeDiscriminators.has(String(loc[2]))) loc.splice(2, 1);
-  if ((loc[0] === "investments" || loc[0] === "scenario") && (loc[1] === "itemized" || loc[1] === "confirmed_eligible_total" || loc[1] === "planning_category_totals")) loc.splice(1, 1);
-  return { path: loc.join("."), message: first.msg, code: first.type };
+  return details.map((detail: { loc?: (string | number)[]; msg?: string; type?: string }) => {
+    const loc = detail.loc?.filter((part) => part !== "body" && part !== "query") ?? [];
+    if (loc[0] === "income" && loc.length > 3 && typeof loc[1] === "number" && incomeDiscriminators.has(String(loc[2]))) loc.splice(2, 1);
+    if ((loc[0] === "investments" || loc[0] === "scenario") && (loc[1] === "itemized" || loc[1] === "confirmed_eligible_total" || loc[1] === "planning_category_totals")) loc.splice(1, 1);
+    return { path: loc.join("."), message: detail.msg, code: detail.type };
+  });
+}
+export function issueFromError(error: unknown): Issue | null { return issuesFromError(error)[0] ?? null; }
+export function invalidatesTaxRules(error: unknown) {
+  return error instanceof BackendApiError && ["RULESET_CHANGED", "TAX_CALCULATIONS_SUSPENDED", "TAX_RULES_UNAVAILABLE"].includes(error.code ?? "");
 }
 
 const incomeDiscriminators = new Set([
@@ -38,18 +43,20 @@ export async function calculateWithRevisionRefresh(
   request: TaxRequest,
   signal: AbortSignal,
   onRefresh: (config: PublicConfig) => void,
+  onRulesInvalidated?: () => void,
 ) {
   try {
     return await calculateTax(request, signal);
   } catch (error) {
+    if (invalidatesTaxRules(error)) onRulesInvalidated?.();
     if (!(error instanceof BackendApiError) || error.code !== "RULESET_CHANGED") throw error;
     const config = await getTaxConfig(signal);
     signal.throwIfAborted();
+    onRefresh(config);
     const revision = config.selected?.identity.revision_id;
     if (!revision || config.calculations_suspended) {
       throw new BackendApiError("Tax estimates are temporarily unavailable", 503, "TAX_RULES_UNAVAILABLE");
     }
-    onRefresh(config);
     return calculateTax({ ...request, assessment_year: config.selected!.identity.assessment_year, purpose: "forward_planning", expected_ruleset_revision: revision }, signal);
   }
 }

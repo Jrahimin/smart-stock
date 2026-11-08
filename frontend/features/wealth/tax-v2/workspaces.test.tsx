@@ -15,6 +15,7 @@ import { BackendApiError } from "@/lib/api/backend-api-client";
 import type { TaxRequest, TaxResult, Year } from "./contracts";
 
 import { draftKey } from "./facts";
+import { coverageNames } from "./labels";
 
 import { config, previewFixture, result, revision } from "./test-fixtures";
 
@@ -80,7 +81,7 @@ function setup(children: ReactNode) {
 
 const button = (name: string | RegExp) => screen.queryByRole("button", { name }) ?? screen.getByRole("tab", { name });
 
-const salaryLabel = "Gross private salary, including bonuses";
+const salaryLabel = "Annual salary, including bonuses";
 
 beforeEach(() => {
 
@@ -102,533 +103,421 @@ beforeEach(() => {
 
 afterEach(() => { cleanup(); localStorage.clear(); });
 
+const reveal = (label: string | RegExp) => {
+  const summary = screen.getByText(label, { selector: "summary" });
+  if (!summary.closest("details")!.open) fireEvent.click(summary);
+};
+const annualCard = () => screen.getByRole("heading", { name: "Estimated annual Tax" }).parentElement!;
+const journey = () => screen.getByRole("heading", { name: "How your current annual Tax was calculated" }).closest("section")!;
+const play = () => screen.getByRole("heading", { name: "What if I invest more?" }).closest("section")!;
+const metric = (label: string) => within(play()).getByText(label).nextElementSibling!;
+function comparisonResult(req: TaxRequest) {
+  const response = result(req);
+  if (req.scenario) response.scenario = { breakdown: { ...response.base, annual_liability: "19000" }, eligible_increment: "10000", annual_saving: "1000", settlement_saving: null, limiting_reason: null, is_historical: false };
+  return response;
+}
+
 describe("public planner", () => {
-  it.each(["en", "bn"] as const)("keeps three steps and simple tiles through CZM and verification in %s", async (locale) => {
+  it.each(["en", "bn"] as const)("shows actual aggregate assumptions with a verified new-taxpayer profile in %s", async (locale) => {
+    mocks.calculate.mockImplementation(async (req: TaxRequest) => result(req, { assumptions: req.investments.mode === "confirmed_eligible_total" ? [
+      { message_id: "user_confirmed_eligible_investment_total", rule_id: "rebate.general", field_path: "investments", values: [] },
+    ] : [] }));
     setup(<TaxPlannerV2Workspace locale={locale} />);
+    await waitFor(() => expect(mocks.calculate).toHaveBeenCalledOnce());
     const bn = locale === "bn";
-    fireEvent.click(await screen.findByRole("tab", { name: bn ? "বিস্তারিত হিসাব" : "Detailed planner" }));
-    const steps = screen.getByRole("list", { name: bn ? "বিস্তারিত হিসাবের ধাপ" : "Detailed planner steps" });
-    expect(within(steps).getAllByRole("button")).toHaveLength(3);
+    fireEvent.click(button(bn ? "বিস্তারিত হিসাব" : "Detailed planner"));
+    reveal(bn ? "করমুক্ত সীমা, নির্ভরশীল ও ন্যূনতম Tax · বদলান" : "Allowance, dependents and minimum Tax · edit");
+    fireEvent.change(screen.getByLabelText(bn ? "নতুন করদাতার ন্যূনতম করের যোগ্য?" : "Eligible for the new taxpayer minimum?"), { target: { value: "yes" } });
+    reveal(bn ? "ব্যতিক্রম যাচাই করুন" : "Check exceptions");
+    for (const [key, names] of Object.entries(coverageNames)) if (key !== "other_part2_donation_claims") fireEvent.change(screen.getByLabelText(names[bn ? 1 : 0]), { target: { value: "no" } });
+    fireEvent.click(button(bn ? "2. আয়" : "2. Income"));
+    fireEvent.change(screen.getByLabelText(bn ? "চাকরির নগদবহির্ভূত সুবিধার মূল্য নির্ধারণ হয়েছে?" : "All noncash employment benefits valued?"), { target: { value: "yes" } });
     fireEvent.click(button(bn ? "3. বিনিয়োগ" : "3. Investments"));
-    const field = bn ? "ডিপিএস · বার্ষিক যোগ্য অঙ্ক" : "DPS · Annual eligible amount";
-    fireEvent.change(screen.getByLabelText(field), { target: { value: "40000" } });
-    const add = button(bn ? "সিজেডএম অনুদান যোগ করুন" : "Add CZM donation");
-    fireEvent.click(add);
-    expect(add).toBeDisabled();
-    expect(screen.getByText(bn ? "হিসাব ও সিমুলেটর হালনাগাদ করতে অনুদানের অঙ্ক ও পরিশোধের তারিখ দিন, অথবা এই অনুদান সরান।" : "Complete the donation amount and payment date, or remove this entry, to refresh your estimate and simulator.")).toBeVisible();
-    expect(screen.getAllByLabelText(bn ? "অনুদানের অঙ্ক" : "Donation amount")).toHaveLength(1);
-    await waitFor(() => expect(screen.getByLabelText(bn ? "অনুদানের অঙ্ক" : "Donation amount")).toHaveFocus());
-    fireEvent.click(button(bn ? "অনুদান সরান" : "Remove donation"));
-    expect(add).toBeEnabled();
-    expect(screen.queryByText(/Complete the donation amount|হিসাব ও সিমুলেটর হালনাগাদ করতে/)).not.toBeInTheDocument();
-    expect(screen.getByLabelText(field)).toHaveValue("40000");
-    fireEvent.click(button(bn ? "রিটার্নের জন্য পৃথক জমা যাচাই করুন" : "Verify individual contributions for filing"));
-    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
-    expect(screen.getByLabelText(field)).toHaveValue("40000");
-    await waitFor(() => expect(mocks.calculate.mock.lastCall![0].investments.mode).toBe("planning_category_totals"));
-  });
-  it("accepts DPS directly in its tile and keeps category and total methods separate", async () => {
-    setup(<TaxPlannerV2Workspace locale="en" />);
-    await screen.findByLabelText(salaryLabel);
-    fireEvent.click(button("Detailed planner"));
-    fireEvent.click(button("3. Investments"));
-    expect(screen.queryByLabelText("How to enter investments")).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("Contribution date")).not.toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("DPS · Annual eligible amount"), { target: { value: "40000" } });
-    await waitFor(() => expect(mocks.calculate.mock.lastCall![0].investments).toEqual({ mode: "planning_category_totals", entries: [{ category: "dps", amount: "40000" }] }));
-    expect(screen.getByRole("slider")).toBeEnabled();
-    fireEvent.click(button("One eligible total"));
-    fireEvent.change(screen.getByLabelText("Already eligible investment total"), { target: { value: "80000" } });
-    await waitFor(() => expect(mocks.calculate.mock.lastCall![0].investments).toEqual({ mode: "confirmed_eligible_total", amount: "80000", confirmed_for_year: true }));
-    fireEvent.click(button("By category · simple amounts"));
-    expect(screen.getByLabelText("DPS · Annual eligible amount")).toHaveValue("40000");
-    await waitFor(() => expect(mocks.calculate.mock.lastCall![0].investments.mode).toBe("planning_category_totals"));
-    fireEvent.click(button("Quick estimate"));
-    fireEvent.click(button(/Review category amounts/));
-    expect(screen.getByRole("heading", { name: "Investments and deductions" })).toBeVisible();
+    fireEvent.change(screen.getByLabelText(bn ? "যোগ্য বিনিয়োগের নিশ্চিত মোট" : "Already eligible investment total"), { target: { value: "40000" } });
+    await waitFor(() => expect(mocks.calculate.mock.lastCall![0].investments).toMatchObject({ mode: "confirmed_eligible_total", amount: "40000" }));
+    const card = screen.getByRole("heading", { name: bn ? "আনুমানিক বার্ষিক কর" : "Estimated annual Tax" }).closest("section")!;
+    expect(card).toHaveTextContent(bn ? "আপনার দেওয়া যোগ্য মোট ধরে পরিকল্পনার হিসাব হয়েছে।" : "Treats your entered eligible total as a planning assumption.");
+    expect(card).not.toHaveTextContent(/regular taxpayer minimum|সাধারণ করদাতার ন্যূনতম|salary benefits|বেতন সুবিধা/);
+    expect(mocks.calculate.mock.lastCall![0].profile.new_taxpayer_floor).toBe("yes");
   });
 
-  it("can add a payment after confirming no credits without retaining a contradictory zero-credit answer", async () => {
+  it("keeps the refreshed base comparable after one successful revision retry", async () => {
+    const next = config("2026-27", "rules-B");
+    mocks.calculate.mockImplementation(async (req: TaxRequest, _signal: AbortSignal, refresh: (nextConfig: ReturnType<typeof config>) => void, invalidate: () => void) => {
+      if (!req.scenario) return result(req);
+      invalidate(); refresh(next);
+      return comparisonResult({ ...req, expected_ruleset_revision: "rules-B" });
+    });
+    const view = setup(<TaxPlannerV2Workspace locale="en" />);
+    await waitFor(() => expect(metric("Current Tax")).toHaveTextContent("BDT 20,000"));
+    fireEvent.click(button("+BDT 10,000"));
+    await waitFor(() => expect(metric("Proposed Tax")).toHaveTextContent("BDT 19,000"));
+    expect(mocks.calculate).toHaveBeenCalledTimes(2);
+    expect(view.queryClient.getQueryData(["tax-planner-v2", "config", "current"])).toEqual(next);
+    expect(metric("Current Tax")).toHaveTextContent("BDT 20,000"); expect(screen.getByRole("slider")).toBeEnabled();
+  });
+
+  it("keeps a normalized base comparable after an explicit default confirmation and an empty category tile", async () => {
+    setup(<TaxPlannerV2Workspace locale="en" />);
+    await waitFor(() => expect(mocks.calculate).toHaveBeenCalledOnce());
+    fireEvent.click(button("Detailed planner")); reveal("Check exceptions");
+    fireEvent.change(screen.getByLabelText("Is there foreign or treaty income?"), { target: { value: "no" } });
+    expect(metric("Current Tax")).toHaveTextContent("BDT 20,000"); expect(screen.getByRole("slider")).toBeEnabled();
+    fireEvent.click(button("3. Investments")); fireEvent.click(button("By category · simple amounts")); fireEvent.click(button("Add category"));
+    fireEvent.change(screen.getByLabelText("DPS · Annual eligible amount"), { target: { value: "40000" } });
+    await waitFor(() => expect(mocks.calculate.mock.lastCall![0].investments).toMatchObject({ entries: [{ category: "dps", amount: "40000" }] }));
+    const counts = mocks.calculate.mock.calls.length;
+    fireEvent.click(button("Quick estimate"));
+    fireEvent.change(screen.getByLabelText("Additional Investment"), { target: { value: "bad" } });
+    expect(metric("Current Tax")).toHaveTextContent("BDT 20,000"); expect(screen.getByRole("slider")).toBeEnabled();
+    expect(annualCard()).not.toHaveTextContent("Last calculated");
+    expect(mocks.calculate.mock.calls.length).toBe(counts);
+  });
+
+  it("preserves the simulator for an empty supported category alongside a counted category", async () => {
+    const available = config(); available.selected!.investment_policies.push({ category: "life_insurance", policy: "insurance", cap_group: null, rule_id: "investment.life_insurance" });
+    available.selected!.rules.investment_presentation.push({ category: "life_insurance", label_en: "Life insurance", label_bn: "জীবন বীমা", visible: true, order: 2 });
+    mocks.getConfig.mockResolvedValue(available);
+    setup(<TaxPlannerV2Workspace locale="en" />);
+    await waitFor(() => expect(mocks.calculate).toHaveBeenCalledOnce());
+    fireEvent.click(button("Detailed planner")); fireEvent.click(button("3. Investments")); fireEvent.click(button("By category · simple amounts")); fireEvent.click(button("Add category"));
+    fireEvent.change(screen.getByLabelText("DPS · Annual eligible amount"), { target: { value: "40000" } });
+    await waitFor(() => expect(mocks.calculate.mock.lastCall![0].investments).toMatchObject({ entries: [{ category: "dps", amount: "40000" }] }));
+    fireEvent.change(screen.getByLabelText("Investment category to add"), { target: { value: "life_insurance" } }); fireEvent.click(button("Add category"));
+    expect(screen.getByLabelText("Life insurance · Annual eligible amount")).toHaveValue("");
+    expect(metric("Current Tax")).toHaveTextContent("BDT 20,000"); expect(screen.getByRole("slider")).toBeEnabled();
+    fireEvent.change(screen.getByLabelText("Additional Investment"), { target: { value: "bad" } });
+    expect(metric("Current Tax")).toHaveTextContent("BDT 20,000"); expect(annualCard()).not.toHaveTextContent("Last calculated");
+  });
+
+  it.each(["TAX_CALCULATIONS_SUSPENDED", "TAX_RULES_UNAVAILABLE", "RULESET_CHANGED"])("hides the old current estimate when a comparison discovers %s", async (code) => {
+    mocks.calculate.mockImplementation(async (req: TaxRequest) => { if (req.scenario) throw new BackendApiError("Unavailable", 503, code); return result(req); });
+    setup(<TaxPlannerV2Workspace locale="en" />);
+    await waitFor(() => expect(metric("Current Tax")).toHaveTextContent("BDT 20,000"));
+    fireEvent.click(button("+BDT 10,000"));
+    await waitFor(() => expect(annualCard()).not.toHaveTextContent("BDT 20,000"));
+    expect(screen.queryByRole("heading", { name: "How your current annual Tax was calculated" })).not.toBeInTheDocument();
+    expect(metric("Current Tax")).toHaveTextContent("—");
+    expect(screen.getByLabelText(salaryLabel)).toHaveValue("900000");
+    expect(screen.queryByRole("button", { name: /Calculation details and sources/ })).not.toBeInTheDocument();
+  });
+
+  it.each(["suspended", "unselected", "retry-failed"])("installs an authoritative rules refresh and drops A on %s", async (mode) => {
+    const next = config("2027-28", "rules-B");
+    if (mode === "suspended") next.calculations_suspended = true;
+    if (mode === "unselected") next.selected = null;
+    mocks.calculate.mockImplementation(async (req: TaxRequest, _signal: AbortSignal, refresh: (nextConfig: ReturnType<typeof config>) => void, invalidate: () => void) => {
+      if (!req.scenario) return result(req);
+      if (req.expected_ruleset_revision === "published-1") { invalidate(); refresh(next); }
+      throw new Error("retry unavailable");
+    });
+    const view = setup(<TaxPlannerV2Workspace locale="en" />);
+    await waitFor(() => expect(metric("Current Tax")).toHaveTextContent("BDT 20,000"));
+    fireEvent.click(button("+BDT 10,000"));
+    await waitFor(() => expect(view.queryClient.getQueryData(["tax-planner-v2", "config", "current"])).toEqual(next));
+    expect(screen.queryByRole("heading", { name: "How your current annual Tax was calculated" })).not.toBeInTheDocument();
+    if (mode !== "unselected") expect(annualCard()).not.toHaveTextContent("BDT 20,000");
+  });
+
+  it("keeps explicit exception uncertainty on the wire without requesting a filing balance", async () => {
+    setup(<TaxPlannerV2Workspace locale="en" />);
+    await waitFor(() => expect(mocks.calculate).toHaveBeenCalledOnce());
+    fireEvent.click(button("Detailed planner")); reveal("Check exceptions");
+    const field = screen.getByLabelText("Is there foreign or treaty income?");
+    expect(field).toHaveValue(""); // Untouched assumption can be changed directly to Not sure.
+    fireEvent.change(field, { target: { value: "unknown" } });
+    await waitFor(() => expect(mocks.calculate.mock.lastCall![0].coverage.foreign_or_treaty_income).toBe("unknown"));
+    expect(mocks.calculate.mock.lastCall![0].filing).toBeNull();
+  });
+
+  it.each(["local", "api"])("provides separate actionable links for simultaneous %s issues", async (source) => {
+    if (source === "api") mocks.calculate.mockImplementation(async (req: TaxRequest) => { if (req.income[0].amount !== "900000") throw new BackendApiError("Invalid", 422, "VALIDATION_ERROR", { errors: [
+      { loc: ["body", "income", 0, "private_employment", "amount"], msg: "bad amount" },
+      { loc: ["body", "income", 0, "private_employment", "excluded_group_insurance_benefit"], msg: "bad excluded amount" },
+    ] }); return result(req); });
+    setup(<TaxPlannerV2Workspace locale="en" />);
+    await waitFor(() => expect(mocks.calculate).toHaveBeenCalledOnce());
+    fireEvent.click(button("Detailed planner")); fireEvent.click(button("2. Income"));
+    fireEvent.change(screen.getByLabelText("Gross amount before withholding"), { target: { value: source === "local" ? "bad" : "950000" } });
+    if (source === "local") fireEvent.change(screen.getByLabelText("Verified exempt group insurance included above"), { target: { value: "bad" } });
+    fireEvent.click(screen.getByRole("button", { name: /Private employment/ }));
+    await waitFor(() => expect(screen.getAllByRole("button", { name: "Go to the affected field" })).toHaveLength(2));
+    const issues = screen.getByRole("alert");
+    expect(issues).toHaveTextContent("Income source 1 · Amount");
+    expect(issues).toHaveTextContent("Income source 1 · Exempt group insurance");
+    fireEvent.click(screen.getAllByRole("button", { name: "Go to the affected field" })[0]);
+    await waitFor(() => expect(screen.getByLabelText("Gross amount before withholding")).toHaveFocus());
+    fireEvent.click(screen.getAllByRole("button", { name: "Go to the affected field" })[1]);
+    await waitFor(() => expect(screen.getByLabelText("Verified exempt group insurance included above")).toHaveFocus());
+  });
+
+  it("uses base retry wording when no hypothetical exists", async () => {
+    setup(<TaxPlannerV2Workspace locale="en" />);
+    await waitFor(() => expect(mocks.calculate).toHaveBeenCalledOnce());
+    mocks.calculate.mockRejectedValue(new Error("offline"));
+    fireEvent.click(button("Calculate estimate"));
+    await waitFor(() => expect(screen.getByText("The estimate could not update. Your entries are preserved.")).toBeVisible());
+    expect(screen.queryByText("The proposed comparison is unavailable. Your current estimate is preserved.")).not.toBeInTheDocument();
+  });
+
+  it("isolates entered facts and pending results when the signed-in account changes", async () => {
+    const view = setup(<TaxPlannerV2Workspace locale="en" />);
+    await waitFor(() => expect(mocks.calculate).toHaveBeenCalledOnce());
+    let finish!: (value: TaxResult) => void;
+    mocks.calculate.mockImplementationOnce(() => new Promise<TaxResult>((resolve) => { finish = resolve; }));
+    fireEvent.change(screen.getByLabelText(salaryLabel), { target: { value: "1800000" } });
+    await waitFor(() => expect(mocks.calculate).toHaveBeenCalledTimes(2));
+    const [oldRequest, oldSignal] = mocks.calculate.mock.calls[1];
+    mocks.auth.user = { id: "account-b", role: "SUPER_ADMIN" }; view.rerender(<TaxPlannerV2Workspace locale="en" />);
+    expect(oldSignal.aborted).toBe(true); expect(screen.getByLabelText(salaryLabel)).toHaveValue("900000");
+    await act(async () => finish(result(oldRequest, { annual_liability: "999" })));
+    await waitFor(() => expect(mocks.calculate).toHaveBeenCalledTimes(3));
+    expect(annualCard()).not.toHaveTextContent("BDT 999");
+    expect(annualCard()).toHaveTextContent("Example · based on BDT 900,000 annual salary");
+    expect(localStorage.length).toBe(0);
+  });
+
+  it.each(["en", "bn"] as const)("keeps example identity across mode, locale and comparison in %s", async (locale) => {
+    mocks.calculate.mockImplementation(async (req: TaxRequest) => comparisonResult(req));
+    const view = setup(<TaxPlannerV2Workspace locale={locale} />);
+    await waitFor(() => expect(mocks.calculate).toHaveBeenCalledOnce());
+    const bn = locale === "bn";
+    expect(screen.getAllByText(/Example · based|নমুনা · বছরে/)).toHaveLength(2);
+    fireEvent.click(button(bn ? "বিস্তারিত হিসাব" : "Detailed planner"));
+    const steps = screen.getByRole("list", { name: bn ? "বিস্তারিত হিসাবের ধাপ" : "Detailed planner steps" });
+    fireEvent.click(within(steps).getAllByRole("button")[2]);
+    expect(steps).not.toHaveTextContent("✓");
+    expect(within(steps).getAllByRole("button")[1]).not.toHaveAttribute("aria-current");
+    fireEvent.change(screen.getByRole("slider"), { target: { value: "10000" } });
+    await waitFor(() => expect(mocks.calculate).toHaveBeenCalledTimes(2));
+    expect(screen.getAllByText(/Example · based|নমুনা · বছরে/)).toHaveLength(2);
+    view.rerender(<TaxPlannerV2Workspace locale={bn ? "en" : "bn"} />);
+    expect(screen.getAllByText(/Example · based|নমুনা · বছরে/)).toHaveLength(2);
+    expect(mocks.calculate).toHaveBeenCalledTimes(2);
+  });
+
+  it("personalizes the base from actual amounts and retains the same calculation across layouts", async () => {
+    setup(<TaxPlannerV2Workspace locale="en" />);
+    const field = await screen.findByLabelText(salaryLabel);
+    await waitFor(() => expect(mocks.calculate).toHaveBeenCalledOnce());
+    fireEvent.change(field, { target: { value: "980000" } });
+    await waitFor(() => expect(mocks.calculate).toHaveBeenCalledTimes(2));
+    expect(annualCard()).toHaveTextContent("Your current facts");
+    expect(annualCard()).toHaveTextContent("BDT 20,000");
+    fireEvent.click(button("Detailed planner"));
+    fireEvent.click(button("2. Income"));
+    expect(screen.getAllByRole("article")).toHaveLength(2); // selected salary and Journey endpoint
+    expect(screen.queryByRole("article", { name: "Business or professional income" })).not.toBeInTheDocument();
+    expect(within(screen.getByRole("article", { name: "Private employment" })).getByLabelText("Gross amount before withholding")).toHaveValue("980000");
+    fireEvent.click(button("Quick estimate"));
+    expect(screen.getByLabelText(salaryLabel)).toHaveValue("980000");
+    expect(mocks.calculate).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps all three Investment representations exclusive and preserves inactive amounts and dated zero records", async () => {
     setup(<TaxPlannerV2Workspace locale="en" />);
     await screen.findByLabelText(salaryLabel);
-    fireEvent.click(button("Detailed planner"));
+    fireEvent.click(button("Detailed planner")); fireEvent.click(button("3. Investments"));
+    fireEvent.change(screen.getByLabelText("Already eligible investment total"), { target: { value: "80000" } });
+    await waitFor(() => expect(mocks.calculate.mock.lastCall![0].investments).toMatchObject({ mode: "confirmed_eligible_total", amount: "80000" }));
+    fireEvent.click(button("By category · simple amounts"));
+    expect(screen.queryByLabelText("DPS · Annual eligible amount")).not.toBeInTheDocument();
+    fireEvent.click(button("Add category"));
+    fireEvent.change(screen.getByLabelText("DPS · Annual eligible amount"), { target: { value: "40000" } });
+    await waitFor(() => expect(mocks.calculate.mock.lastCall![0].investments).toEqual({ mode: "planning_category_totals", entries: [{ category: "dps", amount: "40000" }] }));
+    fireEvent.click(button("Checked records")); fireEvent.click(button("Add contribution"));
+    fireEvent.change(screen.getByLabelText("Contribution amount"), { target: { value: "0" } });
+    fireEvent.change(screen.getByLabelText("Contribution date"), { target: { value: "2026-01-10" } });
+    await waitFor(() => expect(mocks.calculate.mock.lastCall![0].investments).toMatchObject({ mode: "itemized", entries: [{ amount: "0", contributed_on: "2026-01-10", qualification: "unknown" }] }));
+    fireEvent.click(button("One eligible total"));
+    expect(screen.getByLabelText("Already eligible investment total")).toHaveValue("80000");
+    await waitFor(() => expect(mocks.calculate.mock.lastCall![0].investments.mode).toBe("confirmed_eligible_total"));
+    fireEvent.click(button("By category · simple amounts"));
+    expect(screen.getByLabelText("DPS · Annual eligible amount")).toHaveValue("40000");
+    fireEvent.click(button("Checked records"));
+    expect(screen.getByLabelText("Contribution date")).toHaveValue("2026-01-10");
+    expect(screen.getByLabelText("Contribution amount")).toHaveValue("0");
+    expect(screen.getByText(/Counts in this estimate:/)).toHaveTextContent("checked individual records");
+  });
+
+  it("keeps current Tax and Journey on the base and resets only the hypothetical", async () => {
+    mocks.calculate.mockImplementation(async (req: TaxRequest) => comparisonResult(req));
+    setup(<TaxPlannerV2Workspace locale="en" />);
+    await waitFor(() => expect(mocks.calculate).toHaveBeenCalledOnce());
+    expect(metric("Actual additional saving from this Investment")).toHaveTextContent("BDT 0");
+    fireEvent.click(button("+BDT 10,000"));
+    await waitFor(() => expect(metric("Proposed Tax")).toHaveTextContent("BDT 19,000"));
+    expect(metric("Actual additional saving from this Investment")).toHaveTextContent("BDT 1,000");
+    expect(annualCard()).toHaveTextContent("BDT 20,000");
+    expect(journey()).toHaveTextContent("BDT 20,000");
+    expect(journey()).not.toHaveTextContent("BDT 19,000");
+    fireEvent.click(button("Reset comparison"));
+    await waitFor(() => expect(metric("Actual additional saving from this Investment")).toHaveTextContent("BDT 0"));
+    expect(screen.getByLabelText(salaryLabel)).toHaveValue("900000");
+    await waitFor(() => expect(mocks.calculate.mock.lastCall![0].scenario).toBeNull());
+  });
+
+  it.each(["amount", "date", "api-field", "api-network"])("preserves valid current results across a failing hypothetical: %s", async (failure) => {
+    mocks.calculate.mockImplementation(async (req: TaxRequest) => {
+      if (req.scenario && failure === "api-field") throw new BackendApiError("Invalid hypothetical date", 422, "VALIDATION_ERROR", { field: "scenario.contributed_on" });
+      if (req.scenario && failure === "api-network") throw new Error("offline");
+      return comparisonResult(req);
+    });
+    setup(<TaxPlannerV2Workspace locale="en" />);
+    await waitFor(() => expect(mocks.calculate).toHaveBeenCalledOnce());
+    fireEvent.change(screen.getByLabelText("Additional Investment"), { target: { value: failure === "amount" ? "-1" : "10000" } });
+    if (failure === "date") { reveal("Fine-tune comparison"); fireEvent.change(screen.getByLabelText("Hypothetical contribution date"), { target: { value: "" } }); }
+    if (failure.startsWith("api")) await waitFor(() => expect(mocks.calculate).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(metric("Proposed Tax")).toHaveTextContent("—"));
+    expect(metric("Actual additional saving from this Investment")).toHaveTextContent("—");
+    expect(annualCard()).toHaveTextContent("BDT 20,000");
+    expect(annualCard()).not.toHaveTextContent("Last calculated");
+    expect(journey()).toHaveTextContent("BDT 20,000");
+    fireEvent.click(button(/Calculation details and sources/));
+    const help = screen.getByRole("dialog");
+    expect(help).toHaveTextContent("BDT 20,000");
+    expect(help).not.toHaveTextContent("BDT 19,000");
+    expect(help).not.toHaveTextContent("Scenario comparison");
+  });
+
+  it("preserves a fine-tuned date through numeric, shortcut and slider edits", async () => {
+    setup(<TaxPlannerV2Workspace locale="en" />);
+    await waitFor(() => expect(mocks.calculate).toHaveBeenCalledOnce());
+    reveal("Fine-tune comparison"); fireEvent.click(button("Customize comparison"));
+    fireEvent.change(screen.getByLabelText("Hypothetical contribution date"), { target: { value: "2025-06-01" } });
+    fireEvent.change(screen.getByLabelText("Additional Investment"), { target: { value: "50000" } });
+    expect(screen.getByLabelText("Hypothetical contribution date")).toHaveValue("2025-06-01");
+    fireEvent.click(button("+BDT 10,000"));
+    expect(screen.getByLabelText("Hypothetical contribution date")).toHaveValue("2025-06-01");
+    fireEvent.change(screen.getByRole("slider"), { target: { value: "20000" } });
+    await waitFor(() => expect(mocks.calculate.mock.lastCall![0].scenario).toMatchObject({ amount: "20000", contributed_on: "2025-06-01" }));
+  });
+
+  it("clears an incompatible category hypothetical when changing the counted Investment method", async () => {
+    setup(<TaxPlannerV2Workspace locale="en" />);
+    await waitFor(() => expect(mocks.calculate).toHaveBeenCalledOnce());
+    fireEvent.click(button("Detailed planner")); fireEvent.click(button("3. Investments")); fireEvent.click(button("Checked records"));
+    reveal("Fine-tune comparison"); fireEvent.click(button("Customize comparison"));
+    fireEvent.change(screen.getByLabelText("Scenario basis"), { target: { value: "itemized" } });
+    expect(screen.getByLabelText("Contribution date")).toHaveValue("2026-06-30");
+    fireEvent.click(button("One eligible total"));
+    expect(screen.getByText(/Category comparison reset/)).toBeVisible();
+    expect(screen.getByLabelText("Additional Investment")).toHaveValue("0");
+    await waitFor(() => expect(mocks.calculate.mock.lastCall![0].scenario).toBeNull());
+  });
+
+  it.each(["needs_review", "unsupported"] as const)("does not resolve a returned %s hypothetical to the current Tax", async (annual_status) => {
+    mocks.calculate.mockImplementation(async (req: TaxRequest) => {
+      const response = comparisonResult(req);
+      if (response.scenario) response.scenario = { ...response.scenario, annual_saving: null, breakdown: { ...response.scenario.breakdown, annual_status, annual_liability: null } };
+      return response;
+    });
+    setup(<TaxPlannerV2Workspace locale="en" />);
+    await waitFor(() => expect(mocks.calculate).toHaveBeenCalledOnce());
+    fireEvent.click(button("+BDT 10,000"));
+    await waitFor(() => expect(mocks.calculate).toHaveBeenCalledTimes(2));
+    expect(metric("Proposed Tax")).toHaveTextContent("—");
+    expect(metric("Actual additional saving from this Investment")).toHaveTextContent("—");
+    expect(annualCard()).toHaveTextContent("BDT 20,000"); expect(journey()).toHaveTextContent("BDT 20,000");
+  });
+
+  it("labels retained base values while updating, cancels old requests and hides different-rule results", async () => {
+    const view = setup(<TaxPlannerV2Workspace locale="en" />);
+    const field = await screen.findByLabelText(salaryLabel);
+    await waitFor(() => expect(mocks.calculate).toHaveBeenCalledOnce());
+    let finish!: (response: TaxResult) => void;
+    mocks.calculate.mockImplementationOnce(() => new Promise<TaxResult>((resolve) => { finish = resolve; }));
+    fireEvent.change(field, { target: { value: "1200000" } });
+    expect(annualCard()).toHaveTextContent("Previous estimate · updating");
+    expect(journey()).toHaveTextContent("Previous estimate · updating");
+    await waitFor(() => expect(mocks.calculate).toHaveBeenCalledTimes(2));
+    const [old, signal] = mocks.calculate.mock.calls[1];
+    fireEvent.change(field, { target: { value: "1300000" } });
+    expect(signal.aborted).toBe(true);
+    await act(async () => finish({ ...result(old), base: { ...result(old).base, annual_liability: "999" } }));
+    expect(annualCard()).not.toHaveTextContent("BDT 999");
+    act(() => view.queryClient.setQueryData(["tax-planner-v2", "config", "current"], config("2027-28", "next")));
+    await waitFor(() => expect(annualCard()).not.toHaveTextContent("BDT 20,000"));
+    expect(screen.getByLabelText(salaryLabel)).toHaveValue("1300000");
+  });
+
+  it.each(["needs_review", "unsupported"] as const)("withholds a %s result and navigates to a collapsed exception without false completion", async (status) => {
+    mocks.calculate.mockImplementation(async (req: TaxRequest) => result(req, { annual_status: status, annual_liability: null,
+      missing_facts: [{ message_id: "coverage_wealth_surcharge_unknown", rule_id: "scope.wealth_and_vehicle", field_path: "coverage.wealth_surcharge", values: [] }, { message_id: "employment_benefit_valuation_needed", rule_id: "income.employment", field_path: "income.0.benefits_valuation_complete", values: [] }] }));
+    setup(<TaxPlannerV2Workspace locale="en" />);
+    await waitFor(() => expect(screen.getAllByRole("button", { name: "Edit facts" })).toHaveLength(2));
+    expect(annualCard()).not.toHaveTextContent("BDT 20,000");
+    fireEvent.click(screen.getAllByRole("button", { name: "Edit facts" })[0]);
+    const question = screen.getByLabelText("Could wealth surcharge apply?");
+    await waitFor(() => expect(question).toHaveFocus());
+    expect(question).toBeVisible();
+    fireEvent.click(screen.getAllByRole("button", { name: "Edit facts" })[1]);
+    await waitFor(() => expect(screen.getByLabelText("All noncash employment benefits valued?")).toHaveFocus());
+    expect(screen.getByRole("list", { name: "Detailed planner steps" })).not.toHaveTextContent("✓");
+  });
+
+  it("preserves a dated zero income and opens its date when an issue targets it", async () => {
+    setup(<TaxPlannerV2Workspace locale="en" />);
+    await screen.findByLabelText(salaryLabel);
+    fireEvent.click(button("Detailed planner")); fireEvent.click(button("2. Income"));
+    reveal("Specific receipt date (optional)");
+    fireEvent.change(screen.getByLabelText("Income date (optional for annual totals)"), { target: { value: "2025-07-01" } });
+    fireEvent.change(screen.getByLabelText("Gross amount before withholding"), { target: { value: "0" } });
+    fireEvent.click(button("Quick estimate"));
+    expect(screen.getByLabelText(salaryLabel)).toHaveValue("0");
+    fireEvent.click(button("Detailed planner")); fireEvent.click(button("2. Income"));
+    expect(screen.getByLabelText("Income date (optional for annual totals)")).toHaveValue("2025-07-01");
+    await waitFor(() => expect(mocks.calculate.mock.lastCall![0].income[0]).toMatchObject({ amount: "0", earned_on: "2025-07-01" }));
+  });
+
+  it("restores with uncertain provenance and requires an explicit calculation", async () => {
+    setup(<TaxPlannerV2Workspace locale="en" />);
+    await waitFor(() => expect(mocks.calculate).toHaveBeenCalledOnce());
+    fireEvent.click(button("Save on this browser")); fireEvent.click(button("Restore saved draft"));
+    expect(screen.getByText("Draft restored. Review the entries before calculating.")).toBeVisible();
+    reveal(/Allowance, dependents/); fireEvent.click(button("Woman"));
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 550)); });
+    expect(mocks.calculate).toHaveBeenCalledOnce();
+    fireEvent.click(button("3. Investments")); fireEvent.click(button("Calculate estimate"));
+    await waitFor(() => expect(mocks.calculate).toHaveBeenCalledTimes(2));
+    expect(annualCard()).toHaveTextContent("Restored estimate");
+    const saved = JSON.parse(localStorage.getItem(draftKey("account-a", "2026-27", "forward_planning"))!).facts;
+    expect(saved.coverage.wealth_surcharge).toBe("unknown");
+    expect(saved.profile.new_taxpayer_floor).toBe("unknown");
+  });
+
+  it("removes unavailable new settlement actions while preserving previously entered payments", async () => {
+    const view = setup(<TaxPlannerV2Workspace locale="en" />);
+    await screen.findByLabelText(salaryLabel);
     fireEvent.click(button("Optional tax adjustments"));
     fireEvent.change(screen.getByLabelText("Credit information"), { target: { value: "confirmed_none" } });
     fireEvent.click(button("Add tax payment"));
     expect(screen.getByLabelText("Credit information")).toHaveValue("unknown");
-    expect(screen.getByLabelText("Tax paid")).toBeVisible();
-  });
-  it("preserves the estimate and usable slider when switching layouts and exposes common income fields", async () => {
-    setup(<TaxPlannerV2Workspace locale="en" />);
-    await screen.findByLabelText(salaryLabel);
-    await waitFor(() => expect(mocks.calculate).toHaveBeenCalledOnce());
-    fireEvent.click(button("Detailed planner"));
-    expect(screen.getByRole("heading", { name: "Estimated annual liability" }).parentElement).toHaveTextContent("BDT 20,000");
-    expect(screen.getByRole("slider")).toBeEnabled();
-    expect(screen.queryByRole("button", { name: /Not sure about age/ })).not.toBeInTheDocument();
-    fireEvent.click(button("2. Income"));
-    for (const name of ["Private employment", "Business or professional income", "Bank interest", "Other ordinary taxable income"]) {
-      const card = screen.getByRole("article", { name });
-      expect(within(card).getByRole("button", { expanded: true })).toBeVisible();
-      expect(within(card).getAllByRole("textbox").length).toBeGreaterThan(0);
-    }
-    expect(mocks.calculate).toHaveBeenCalledOnce();
-    expect(mocks.calculate.mock.lastCall![0].income).toHaveLength(1);
-  });
-
-  it("debounces rapid edits, keeps labelled previous values, and calculates only the final amount", async () => {
-    setup(<TaxPlannerV2Workspace locale="en" />);
-    const field = await screen.findByLabelText(salaryLabel);
-    await waitFor(() => expect(mocks.calculate).toHaveBeenCalledOnce());
-    vi.useFakeTimers();
-    try {
-      for (const value of ["1", "12", "1200000"]) fireEvent.change(field, { target: { value } });
-      await act(async () => { await vi.advanceTimersByTimeAsync(499); });
-      expect(mocks.calculate).toHaveBeenCalledOnce();
-      expect(screen.getByRole("heading", { name: "Estimated annual liability" }).parentElement).toHaveTextContent("BDT 20,000");
-      expect(screen.getByText(/Updating estimate/)).toBeVisible();
-      await act(async () => { await vi.advanceTimersByTimeAsync(1); });
-      expect(mocks.calculate).toHaveBeenCalledTimes(2);
-      expect(mocks.calculate.mock.lastCall![0].income[0].amount).toBe("1200000");
-    } finally { vi.useRealTimers(); }
-  });
-
-  it("opens the rule-driven eligible investment guide and restores focus on close", async () => {
-    setup(<TaxPlannerV2Workspace locale="en" />);
-    const trigger = await screen.findByRole("button", { name: /What investments qualify/ });
-    fireEvent.click(trigger);
-    expect(screen.getByRole("dialog")).toHaveTextContent("DPS");
-    expect(screen.getByRole("dialog")).toHaveTextContent("BDT 120,000");
-    expect(screen.getByRole("dialog")).toHaveTextContent("Maximum statutory rebate");
+    fireEvent.change(screen.getByLabelText("Tax paid"), { target: { value: "5000" } });
     fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
-    expect(trigger).toHaveFocus();
+    act(() => view.queryClient.setQueryData(["tax-planner-v2", "config", "current"], config("2027-28")));
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Optional tax adjustments" })).not.toBeInTheDocument());
+    fireEvent.click(button("Previously entered payment records"));
+    expect(screen.getByLabelText("Tax paid")).toHaveValue("5000");
+    expect(screen.queryByRole("button", { name: "Add tax payment" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Estimate the balance at filing")).not.toBeInTheDocument();
   });
 
-  it("starts with an editable example and calculates eligible totals and slider changes without opt-in", async () => {
-    setup(<TaxPlannerV2Workspace locale="en" />);
-    expect(await screen.findByLabelText(salaryLabel)).toHaveValue("900000");
-    await waitFor(() => expect(mocks.calculate).toHaveBeenCalledOnce());
-    fireEvent.change(screen.getByLabelText("Already eligible investment total"), { target: { value: "10000" } });
-    await waitFor(() => expect(mocks.calculate.mock.lastCall![0].investments).toMatchObject({ amount: "10000", confirmed_for_year: true }));
-    expect(screen.queryByLabelText(/I have verified eligibility/)).not.toBeInTheDocument();
-    const slider = screen.getByRole("slider");
-    expect(slider).toBeEnabled();
-    fireEvent.change(slider, { target: { value: "20000" } });
-    await waitFor(() => expect(mocks.calculate.mock.lastCall![0].scenario).toMatchObject({ amount: "20000", confirmed_for_year: true, contributed_on: "2026-06-30" }));
-    fireEvent.click(screen.getByRole("button", { name: /Calculation details and sources/ }));
-    expect(screen.getByRole("dialog", { name: "Calculation details and sources" })).toHaveTextContent("Your tax, one step at a time");
-    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-  });
-
-  it("keeps entered amounts when the administrator activates a new year's rules", async () => {
-    const { queryClient } = setup(<TaxPlannerV2Workspace locale="en" />);
-    fireEvent.change(await screen.findByLabelText(salaryLabel), { target: { value: "980000" } });
-    await waitFor(() => expect(mocks.calculate).toHaveBeenCalledOnce());
-    act(() => queryClient.setQueryData(["tax-planner-v2", "config", "current"], config("2027-28", "published-next")));
-    expect(screen.getByLabelText(salaryLabel)).toHaveValue("980000");
-    expect(screen.queryByLabelText("Assessment year")).not.toBeInTheDocument();
-    await waitFor(() => expect(mocks.calculate.mock.lastCall![0]).toMatchObject({ assessment_year: "2027-28", expected_ruleset_revision: "published-next", income: [{ amount: "980000" }] }));
-  });
-
-  it("keeps a conditional annual estimate in Detailed without persisting assumptions", async () => {
-
-    mocks.calculate.mockImplementation(async (req: TaxRequest) => result(req, {
-
-      allowance: "450000", annual_liability: "15000",
-
-    }));
-
+  it("retains keyboard mode control, guide targets, help dismissal and direct simulator focus", async () => {
     const view = setup(<TaxPlannerV2Workspace locale="en" />);
-
-    await screen.findByLabelText(salaryLabel);
-
-    fireEvent.click(button("Detailed planner"));
-
-    fireEvent.click(screen.getByRole("button", { name: /^Woman/ }));
-
     await waitFor(() => expect(mocks.calculate).toHaveBeenCalledOnce());
-
-    await waitFor(() => expect(view.container.querySelector(".wealth-tax-about-allowance-insight")).toHaveTextContent("BDT 450,000"));
-
-    expect(mocks.calculate.mock.lastCall![0]).toMatchObject({ profile: { woman: true, new_taxpayer_floor: "no" }, coverage: { wealth_surcharge: "no" }, credits_completeness: "unknown" });
-
-    expect(screen.getByText("Conditional planning estimate")).toBeVisible();
-
-    expect(screen.getByRole("heading", { name: "Estimated annual liability" }).parentElement).not.toHaveTextContent("BDT 20,000");
-
-    fireEvent.click(button("2. Income"));
-
-    fireEvent.change(within(screen.getByRole("article", { name: "Private employment" })).getByLabelText("Gross amount before withholding"), { target: { value: "950000" } });
-
-    await waitFor(() => expect(mocks.calculate).toHaveBeenCalledTimes(2));
-
-    expect(mocks.calculate.mock.lastCall![0]).toMatchObject({ income: [{ kind: "private_employment", amount: "950000", benefits_valuation_complete: "yes" }], coverage: { wealth_surcharge: "no" }, credits_completeness: "unknown" });
-
-    expect(screen.getByText("Conditional planning estimate")).toBeVisible();
-    fireEvent.click(button("Save on this browser"));
-    expect(JSON.parse(localStorage.getItem(draftKey("account-a", "2026-27", "forward_planning"))!).facts).toMatchObject({ profile: { woman: true, new_taxpayer_floor: "unknown" }, coverage: { wealth_surcharge: "unknown" }, income: [{ benefits_valuation_complete: "unknown" }] });
-
-  });
-
-  it("retains a same-revision base during incomplete scenario entry and hides it when the published revision changes", async () => {
-
-    mocks.calculate.mockImplementation(async (req: TaxRequest) => ({
-
-      ...result(req, { annual_liability: req.expected_ruleset_revision === "published-2" ? "17000" : "20000" }),
-
-      content_hash: req.expected_ruleset_revision === "published-2" ? "hash-2" : "hash",
-
-    }));
-
-    const { queryClient } = setup(<TaxPlannerV2Workspace locale="en" />);
-
-    fireEvent.change(await screen.findByLabelText(salaryLabel), { target: { value: "900000" } });
-
-    const play = screen.getByRole("heading", { name: "What If I Invest More?" }).closest("section")!;
-
-    const currentTax = () => within(play).getByText("Current Tax").nextElementSibling;
-
-    await waitFor(() => expect(currentTax()).toHaveTextContent("BDT 20,000"));
-
-    fireEvent.click(within(play).getByRole("button", { name: /Fine-tune comparison/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Customize comparison" }));
-    fireEvent.change(screen.getByLabelText("Hypothetical eligible amount"), { target: { value: "" } });
-
-    expect(screen.getByLabelText("Hypothetical eligible amount")).toHaveValue("");
-
-    expect(currentTax()).toHaveTextContent("BDT 20,000");
-
-    expect(within(play).getByText("Further Eligible Investment Needed").nextElementSibling).toHaveTextContent("BDT 150,000");
-
-    const refreshed = config("2026-27", "published-2");
-
-    refreshed.selected!.identity.content_hash = "hash-2";
-
-    refreshed.selected!.rules.rebate.investment_rate = "11";
-
-    act(() => queryClient.setQueryData(["tax-planner-v2", "config", "current"], refreshed));
-
-    await waitFor(() => expect(currentTax()).toHaveTextContent("—"));
-
-    expect(within(play).queryByText("BDT 20,000")).not.toBeInTheDocument();
-
-    expect(within(play).queryByText("BDT 150,000")).not.toBeInTheDocument();
-
-    expect(within(play).queryByRole("button", { name: "How your rebate is calculated" })).not.toBeInTheDocument();
-
-    expect(within(play).getByRole("progressbar")).not.toHaveAttribute("aria-valuenow");
-
-    expect(mocks.calculate).toHaveBeenCalledOnce();
-
-    fireEvent.change(screen.getByLabelText("Hypothetical eligible amount"), { target: { value: "1000" } });
-
-    fireEvent.click(screen.getByRole("button", { name: /^Close/ }));
-
-    await waitFor(() => expect(currentTax()).toHaveTextContent("BDT 17,000"));
-
-    expect(mocks.calculate.mock.lastCall![0]).toMatchObject({ expected_ruleset_revision: "published-2" });
-
-    fireEvent.click(within(play).getByRole("button", { name: "How your rebate is calculated" }));
-
-    expect(screen.getByRole("tooltip")).toHaveTextContent("Investment limit · 11%");
-
-  });
-
-  it("keeps restored facts behind explicit calculation even after a Detailed edit", async () => {
-
-    setup(<TaxPlannerV2Workspace locale="en" />);
-
-    fireEvent.change(await screen.findByLabelText(salaryLabel), { target: { value: "900000" } });
-
-    await waitFor(() => expect(mocks.calculate).toHaveBeenCalledOnce());
-
-    fireEvent.click(button("Save on this browser"));
-
-    fireEvent.click(button("Restore saved draft"));
-
-    expect(screen.getByText("Draft restored. Review the entries before calculating.")).toBeVisible();
-
-    fireEvent.click(screen.getByRole("button", { name: /^Woman/ }));
-
-    // Waiting beyond the calculation debounce proves restore did not submit these edits.
-
-    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 400)); });
-
-    expect(mocks.calculate).toHaveBeenCalledOnce();
-
-    fireEvent.click(button("Optional tax adjustments"));
-
-    fireEvent.click(button("Apply adjustments"));
-
-    await waitFor(() => expect(mocks.calculate).toHaveBeenCalledTimes(2));
-
-    expect(mocks.calculate.mock.lastCall![0]).toMatchObject({ profile: { woman: true }, income: [{ amount: "900000", benefits_valuation_complete: "yes" }], coverage: { wealth_surcharge: "no" } });
-
-  });
-
-  it("shares income between modes and keeps the filing and planning facts separate", async () => {
-
-    setup(<TaxPlannerV2Workspace locale="en" />);
-
-    fireEvent.change(await screen.findByLabelText(salaryLabel), { target: { value: "900000" } });
-
-    fireEvent.click(button("Calculate estimate"));
-
-    const headline = await screen.findByRole("heading", { name: "Estimated annual liability" });
-
-    expect(within(headline.parentElement!).getByText("BDT 20,000")).toBeVisible();
-
-    expect(screen.getByText(/annual estimate does not include the filing balance/)).toBeVisible();
-
-    expect(mocks.calculate.mock.calls[0][0]).toMatchObject({ income: [{ amount: "900000", basis: "gross" }], credits_completeness: "unknown", filing: null });
-
-    fireEvent.click(button("Detailed planner"));
-
-    fireEvent.click(button("2. Income"));
-
-    expect(within(screen.getByRole("article", { name: "Private employment" })).getByLabelText("Gross amount before withholding")).toHaveValue("900000");
-
-    fireEvent.click(button("Quick estimate"));
-
-    expect(screen.getByLabelText(salaryLabel)).toHaveValue("900000");
-
-    expect(screen.queryByLabelText("Assessment year")).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("Purpose")).not.toBeInTheDocument();
-    expect(screen.getByLabelText(salaryLabel)).toHaveValue("900000");
-
-  });
-
-  it("ignores an old response after account change and never restores another owner's draft", async () => {
-
-    let complete!: (value: TaxResult) => void;
-
-    mocks.calculate.mockReturnValue(new Promise<TaxResult>((resolve) => { complete = resolve; }));
-
-    const view = setup(<TaxPlannerV2Workspace locale="en" />);
-
-    fireEvent.change(await screen.findByLabelText(salaryLabel), { target: { value: "980000" } });
-
-    fireEvent.click(button("Save on this browser"));
-
-    expect(localStorage.getItem(draftKey("account-a", "2026-27", "forward_planning"))).toContain("980000");
-
-    fireEvent.click(button("Calculate estimate"));
-
-    await waitFor(() => expect(mocks.calculate).toHaveBeenCalledOnce());
-
-    const [req, signal] = mocks.calculate.mock.calls[0];
-
-    mocks.auth.user = { id: "account-b", role: "SUPER_ADMIN" };
-
-    view.rerender(<TaxPlannerV2Workspace locale="en" />);
-
-    expect(signal.aborted).toBe(true);
-
-    await act(async () => { complete(result(req)); });
-
-    fireEvent.click(button("Restore saved draft"));
-
-    expect(screen.getByText("No saved draft for the active rules.")).toBeVisible();
-
-    expect(screen.getByLabelText(salaryLabel)).toHaveValue("900000");
-
-    expect(screen.queryByText("BDT 20,000")).toBeNull();
-
-  });
-
-  it("shows incomplete scope instead of a liability and leads back to the relevant fact", async () => {
-
-    mocks.calculate.mockImplementation(async (req: TaxRequest) => result(req, {
-
-      annual_status: "needs_review", annual_liability: null, settlement_status: "needs_review",
-
-      missing_facts: [{ message_id: "coverage_wealth_surcharge_unknown", rule_id: "scope.wealth_and_vehicle", field_path: "coverage.wealth_surcharge", values: [] }],
-
-    }));
-
-    setup(<TaxPlannerV2Workspace locale="en" />);
-
-    await screen.findByLabelText(salaryLabel);
-
-    fireEvent.click(button("Calculate estimate"));
-
-    expect(await screen.findByText(/Annual liability is incomplete/)).toBeVisible();
-
-    const headline = screen.getByRole("heading", { name: "Estimated annual liability" });
-
-    expect(within(headline.parentElement!).queryByText("BDT 20,000")).toBeNull();
-
-    fireEvent.click(button("Edit facts"));
-
-    const question = await screen.findByLabelText("Could wealth surcharge apply?");
-
-    await waitFor(() => expect(question).toHaveFocus());
-
-  });
-
-  it("retains visible tour anchors and opens a collapsed income card before focusing a missing fact", async () => {
-
-    mocks.calculate.mockImplementation(async (req: TaxRequest) => result(req, {
-
-      annual_status: "needs_review", annual_liability: null,
-
-      missing_facts: [{ message_id: "employment_benefit_valuation_needed", rule_id: "income.employment", field_path: "income.0.benefits_valuation_complete", values: [] }],
-
-    }));
-
-    setup(<TaxPlannerV2Workspace locale="en" />);
-
-    fireEvent.change(await screen.findByLabelText(salaryLabel), { target: { value: "900000" } });
-
-    expect(await screen.findByText(/Annual liability is incomplete/)).toBeVisible();
-
-    for (const step of [...getTaxPlannerDesktopGuideSteps("en"), ...getTaxPlannerMobileGuideSteps("en")]) {
-
-      if (step.target) expect(document.querySelector(step.target)).toBeVisible();
-
-    }
-
-    act(() => mocks.guideStep?.({ active: true, stepId: "finish" }));
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    act(() => mocks.guideStep?.({ active: false, stepId: null }));
-
-    expect(screen.getByRole("heading", { name: "Tax planner guide" })).toBeVisible();
-
-    fireEvent.click(button("Detailed planner"));
-
-    fireEvent.click(button("2. Income"));
-
-    const card = screen.getByRole("heading", { name: "Private employment" }).closest("article")!;
-
-    fireEvent.click(within(card).getByRole("button", { expanded: true }));
-
-    fireEvent.click(await screen.findByRole("button", { name: "Edit facts" }));
-
-    const valuation = screen.getByLabelText("All noncash employment benefits valued?");
-
-    await waitFor(() => expect(valuation).toHaveFocus());
-
-    expect(within(card).getByRole("button", { expanded: true })).toBeVisible();
-
-  });
-
-  it("preserves keyboard modes, original help popovers and review Edit actions", async () => {
-
-    setup(<TaxPlannerV2Workspace locale="en" />);
-
-    await screen.findByLabelText(salaryLabel);
-
-    fireEvent.click(screen.getByRole("button", { name: "More about eligible investments" }));
-
-    expect(screen.getByRole("tooltip")).toHaveTextContent("we assume your entered total is eligible");
-
-    fireEvent.keyDown(document, { key: "Escape" });
-
-    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
-
     const quick = screen.getByRole("tab", { name: /Quick estimate/ });
-
-    quick.focus();
-
     fireEvent.keyDown(quick, { key: "ArrowRight" });
-
-    const detailed = screen.getByRole("tab", { name: /Detailed planner/ });
-
-    await waitFor(() => expect(detailed).toHaveFocus());
-
-    expect(detailed).toHaveAttribute("aria-selected", "true");
-
-    expect(screen.getByRole("tabpanel")).toHaveAttribute("aria-labelledby", detailed.id);
-
-    fireEvent.click(screen.getByRole("button", { name: /^Senior Citizen/ }));
-
-    fireEvent.change(screen.getByLabelText("Eligible disabled dependents"), { target: { value: "1" } });
-
-    fireEvent.click(button("3. Investments"));
-
-    const dpsAmount = screen.getByLabelText("DPS · Annual eligible amount");
-    expect(dpsAmount).toBeVisible();
-    expect(screen.queryByLabelText("Contribution date")).not.toBeInTheDocument();
-    fireEvent.change(dpsAmount, { target: { value: "10000" } });
-
-    fireEvent.click(button("Optional tax adjustments"));
-
-    expect(screen.getByText("Tax Saving Investments").closest("article")).toHaveTextContent("BDT 10,000");
-
-    const profileReview = screen.getByText("Tax Profile").closest("article")!;
-
-    expect(profileReview).toHaveTextContent("Senior Citizen");
-
-    expect(profileReview).toHaveTextContent("1 dependent claims");
-
-    fireEvent.click(button("Edit Income Sources"));
-
-    expect(screen.getByRole("heading", { name: "How do you earn money?" })).toBeVisible();
-
-    fireEvent.click(button("Optional tax adjustments"));
-
-    fireEvent.click(button("Edit Tax Profile"));
-
-    expect(screen.getByRole("heading", { name: "Profile and coverage" })).toBeVisible();
-
-    fireEvent.click(button("Optional tax adjustments"));
-
-    fireEvent.click(button("Edit Tax Saving Investments"));
-
-    fireEvent.change(screen.getByLabelText("DPS · Annual eligible amount"), { target: { value: "" } });
-    expect(screen.getByLabelText("DPS · Annual eligible amount")).toHaveValue("");
-
+    await waitFor(() => expect(screen.getByRole("tab", { name: /Detailed planner/ })).toHaveFocus());
+    for (const step of [...getTaxPlannerDesktopGuideSteps("en"), ...getTaxPlannerMobileGuideSteps("en")]) if (step.target) expect(view.container.querySelector(step.target)).toBeVisible();
+    fireEvent.click(button(/Explore Investment/)); expect(play()).toHaveFocus();
+    const help = button(/What investments qualify/); fireEvent.click(help);
+    expect(screen.getByRole("dialog")).toHaveTextContent("BDT 120,000");
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" }); expect(help).toHaveFocus();
+    act(() => mocks.guideStep?.({ active: true, stepId: "finish" }));
+    act(() => mocks.guideStep?.({ active: false, stepId: null }));
+    expect(screen.getByRole("heading", { name: "Tax planner guide" })).toBeVisible();
   });
-
-  it("keeps snapshot explanations and the original savings CTA active", async () => {
-
-    mocks.calculate.mockImplementation(async (req: TaxRequest) => result(req, { income: [
-
-      { id: req.income[0].id, kind: "private_employment", classification: "ordinary", entered_amount: "900000", excluded_amount: "0", deductible_amount: "300000", taxable_amount: "600000", special_tax: "0", reason_codes: [] },
-
-    ] }));
-
-    setup(<TaxPlannerV2Workspace locale="en" />);
-
-    fireEvent.change(await screen.findByLabelText(salaryLabel), { target: { value: "900000" } });
-
-    const headline = await screen.findByRole("heading", { name: "Estimated annual liability" });
-
-    const snapshot = headline.closest("section")!;
-
-    fireEvent.click(within(snapshot).getByRole("button", { name: "How effective tax rate is calculated" }));
-
-    expect(screen.getByRole("tooltip")).toHaveTextContent("Annual liability divided");
-
-    fireEvent.keyDown(document, { key: "Escape" });
-
-    fireEvent.click(within(snapshot).getByRole("button", { name: "What income before allowance means" }));
-
-    expect(screen.getByRole("tooltip")).toHaveTextContent("Ordinary income BDT 600,000");
-
-    fireEvent.keyDown(document, { key: "Escape" });
-
-    fireEvent.click(within(snapshot).getByRole("button", { name: "How your rebate is calculated" }));
-
-    expect(screen.getByRole("tooltip")).toHaveTextContent("Investment limit");
-
-    fireEvent.keyDown(document, { key: "Escape" });
-
-    const simulator = document.getElementById("tax-planner-play-explore")!;
-
-    const scroll = vi.fn();
-
-    Object.defineProperty(simulator, "scrollIntoView", { value: scroll });
-
-    fireEvent.click(button(/Explore More Savings/));
-
-    expect(scroll).toHaveBeenCalledWith({ behavior: "smooth", block: "start" });
-
-    expect(simulator).toHaveFocus();
-
-  });
-
 });
 
 describe("admin planner", () => {
@@ -641,6 +530,7 @@ describe("admin planner", () => {
 
     setup(<TaxPlannerV2Admin />);
 
+    fireEvent.click(await screen.findByRole("tab", {name:"Review & publish"}));
     fireEvent.click(await screen.findByRole("button", { name: "Validate and preview" }));
 
     const publish = await screen.findByRole("button", { name: "Publish revision for AY 2026-27 · make active" });
@@ -671,6 +561,7 @@ describe("admin planner", () => {
 
     setup(<TaxPlannerV2Admin />);
 
+    fireEvent.click(await screen.findByRole("tab", {name:"Tax rules"}));
     const general = await screen.findByLabelText("General taxpayer (BDT)");
 
     fireEvent.change(general, { target: { value: "410000" } });
@@ -692,4 +583,64 @@ describe("admin planner", () => {
     expect(screen.getByLabelText("General taxpayer (BDT)")).toHaveValue("400000");
 
   });
+  it("keeps edits across tabs, warns on selection changes, and saves the full draft", async () => {
+    mocks.save.mockImplementation(async (_id,_version,rules) => ({...revision(),rules,edit_version:2}));
+    setup(<TaxPlannerV2Admin/>);
+    fireEvent.click(await screen.findByRole("tab",{name:"Tax rules"}));
+    fireEvent.change(screen.getByLabelText("General taxpayer (BDT)"),{target:{value:"410000"}});
+    fireEvent.click(screen.getByRole("tab",{name:"Labels & visibility"}));
+    fireEvent.change(screen.getByLabelText("dps English label"),{target:{value:"Monthly savings"}});
+    fireEvent.click(screen.getByRole("tab",{name:/Tax rules/}));
+    expect(screen.getByLabelText("General taxpayer (BDT)")).toHaveValue("410000");
+    expect(screen.getByRole("tab",{name:/Labels & visibility/})).toHaveTextContent("•");
+    fireEvent.change(screen.getByLabelText("Assessment year"),{target:{value:"2027-28"}});
+    expect(screen.getByRole("dialog",{name:"Discard unsaved edits?"})).toBeVisible();
+    fireEvent.click(screen.getByRole("button",{name:"Keep editing"}));
+    expect(screen.getByLabelText("Assessment year")).toHaveValue("2026-27");
+    fireEvent.click(screen.getByRole("button",{name:"Save draft"}));
+    await screen.findByText("Draft saved. Preview these exact values before publishing.");
+    expect(mocks.save.mock.calls[0][2]).toMatchObject({thresholds:{general:"410000"},investment_presentation:[expect.objectContaining({label_en:"Monthly savings"}),expect.anything()]});
+    expect(screen.getByRole("button",{name:"Save draft"})).toBeDisabled();
+  });
+  it("routes save errors back to their tab and field without losing edits", async () => {
+    mocks.save.mockRejectedValue(new BackendApiError("Request validation failed",422,"VALIDATION_ERROR",{errors:[{loc:["body","rules","dps_cap"],msg:"Required amount"}]}));
+    setup(<TaxPlannerV2Admin/>);
+    fireEvent.click(await screen.findByRole("tab",{name:"Investments & rebate"}));
+    fireEvent.change(screen.getByLabelText("Shared DPS cap (BDT)"),{target:{value:""}});
+    fireEvent.click(screen.getByRole("tab",{name:"Overview"}));
+    fireEvent.click(screen.getByRole("button",{name:"Save draft"}));
+    await waitFor(()=>expect(screen.getByLabelText("Shared DPS cap (BDT)")).toHaveFocus());
+    expect(screen.getByRole("tab",{name:/Investments & rebate/})).toHaveAttribute("aria-selected","true");
+    expect(screen.getByRole("alert")).toHaveTextContent("Required amount");
+    expect(screen.getByLabelText("Shared DPS cap (BDT)")).toHaveAttribute("aria-invalid","true");
+    expect(screen.getByLabelText("Shared DPS cap (BDT)")).toHaveAccessibleDescription(/Required amount/);
+    fireEvent.change(screen.getByLabelText("Shared DPS cap (BDT)"),{target:{value:"120000"}});
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+  it("shows published values, searchable hidden categories, and keyboard tabs", async () => {
+    mocks.revisions.mockResolvedValue([revision("published")]);mocks.getRevision.mockResolvedValue(revision("published"));
+    setup(<TaxPlannerV2Admin/>);
+    const overview=await screen.findByRole("tab",{name:"Overview"});
+    fireEvent.keyDown(overview,{key:"ArrowRight"});
+    expect(screen.getByRole("tab",{name:"Tax rules"})).toHaveFocus();
+    expect(screen.getByRole("tabpanel",{name:"Tax rules"})).toHaveTextContent("BDT 400,000");
+    expect(screen.queryByRole("textbox",{name:"General taxpayer (BDT)"})).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab",{name:"Labels & visibility"}));
+    fireEvent.change(screen.getByLabelText("Category visibility"),{target:{value:"hidden"}});
+    expect(screen.getByRole("table")).toHaveTextContent("Government securities");
+    fireEvent.change(screen.getByLabelText("Search categories"),{target:{value:"no match"}});
+    expect(screen.getByText("No categories match these filters.")).toBeVisible();
+    expect(screen.queryByRole("button",{name:"Save draft"})).not.toBeInTheDocument();
+  });
+
+  it("keeps admins read-only even when the selected revision is a draft",async()=>{
+    mocks.auth.user={id:"viewer",role:"ADMIN"};
+    setup(<TaxPlannerV2Admin/>);
+    fireEvent.click(await screen.findByRole("tab",{name:"Tax rules"}));
+    expect(screen.queryByRole("button",{name:"Save draft"})).not.toBeInTheDocument();
+    expect(screen.queryByRole("button",{name:"Create draft"})).not.toBeInTheDocument();
+    expect(screen.queryByRole("textbox",{name:"General taxpayer (BDT)"})).not.toBeInTheDocument();
+    expect(screen.getByRole("tabpanel",{name:"Tax rules"})).toHaveTextContent("BDT 400,000");
+  });
+
 });

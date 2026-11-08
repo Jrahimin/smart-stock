@@ -1,6 +1,8 @@
 import type { Coverage, Credit, Deduction, Filing, Income, Investment, Profile, Purpose, Scenario, SelectedYear, TaxRequest, Year } from "./contracts";
 
 export type Facts = {
+  answeredPaths?: string[];
+  inactiveCategories?: string[];
   profile: Profile;
   coverage: Coverage;
   income: Income[];
@@ -19,7 +21,7 @@ export type Facts = {
 export type Issue = { path: string; message?: string; code?: string };
 export const quickSalary = "quick-salary";
 export const quickOther = "quick-other";
-const draftSchema = 4;
+const draftSchema = 5;
 
 function isQuickSalary(entry: Income): entry is Extract<Income, { kind: "private_employment" }> {
   return entry.kind === "private_employment" && entry.id === quickSalary;
@@ -79,93 +81,84 @@ function validDate(value: string) {
   return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value && !value.startsWith("0000");
 }
 
-export function hasPlanningAssumptions(facts: Facts) {
-  return facts.investmentMode === "categories" && Object.values(facts.categoryAmounts ?? {}).some(hasMoney) || facts.filing === null && (
-    facts.profile.new_taxpayer_floor === "unknown" ||
-    Object.entries(facts.coverage).some(([key, answer]) => key !== "other_part2_donation_claims" && answer === "unknown") ||
-    facts.income.some((entry) => isQuickSalary(entry) && entry.basis === "gross" && entry.benefits_valuation_complete === "unknown")
-  );
+export function planningDefaults(facts: Facts, selected?: SelectedYear): string[] {
+  if (facts.filing && selected?.identity.supports_settlement !== false) return [];
+  const untouched = (path: string) => !facts.answeredPaths?.includes(path);
+  return [
+    ...(facts.profile.new_taxpayer_floor === "unknown" && untouched("profile.new_taxpayer_floor") ? ["profile.new_taxpayer_floor"] : []),
+    ...Object.entries(facts.coverage).filter(([key, answer]) => key !== "other_part2_donation_claims" && answer === "unknown" && untouched("coverage." + key)).map(([key]) => "coverage." + key),
+    ...facts.income.flatMap((entry, i) => isQuickSalary(entry) && entry.basis === "gross" && entry.benefits_valuation_complete === "unknown" && untouched("income." + entry.id + ".benefits_valuation_complete") ? ["income." + i + ".benefits_valuation_complete"] : []),
+  ];
+}
+export function hasPlanningAssumptions(facts: Facts, selected?: SelectedYear) {
+  return planningDefaults(facts, selected).length > 0 || facts.investmentMode === "categories" && Object.entries(facts.categoryAmounts ?? {}).some(([key, amount]) => !facts.inactiveCategories?.includes(key) && hasMoney(amount));
 }
 
-export function buildTaxRequest(facts: Facts, selected: SelectedYear, purpose: Purpose, planningAssumptions = false): { request: TaxRequest | null; issue?: Issue } {
+export function buildTaxRequest(facts: Facts, selected: SelectedYear, purpose: Purpose, planningAssumptions = false): { request: TaxRequest | null; issue?: Issue; issues: Issue[] } {
   const { identity } = selected;
-  const conditionalAnnual = planningAssumptions && facts.filing === null;
-  const err = (path: string): { request: null; issue: Issue } => ({ request: null, issue: { path } });
+  const defaults = planningAssumptions ? planningDefaults(facts, selected) : [];
+  const issues: Issue[] = [];
+  const add = (path: string, code?: string) => { issues.push({ path, ...(code ? { code } : {}) }); };
   for (const [i, income] of facts.income.entries()) {
-    if (!validMoney(income.amount)) return err("income." + i + ".amount");
-    if (income.kind === "private_employment" && !validMoney(income.excluded_group_insurance_benefit)) return err("income." + i + ".excluded_group_insurance_benefit");
-    if (income.kind === "ordinary_business" && income.gross_receipts !== null && !validMoney(income.gross_receipts)) return err("income." + i + ".gross_receipts");
+    if (!validMoney(income.amount)) add("income." + i + ".amount");
+    if (income.kind === "private_employment" && !validMoney(income.excluded_group_insurance_benefit)) add("income." + i + ".excluded_group_insurance_benefit");
+    if (income.kind === "ordinary_business" && income.gross_receipts !== null && !validMoney(income.gross_receipts)) add("income." + i + ".gross_receipts");
     if ("expenses" in income) {
-      for (const [j, expense] of (income.expenses ?? []).entries()) {
-        if (!validMoney(expense.amount)) return err("income." + i + ".expenses." + j + ".amount");
-      }
+      for (const [j, expense] of (income.expenses ?? []).entries()) if (!validMoney(expense.amount)) add("income." + i + ".expenses." + j + ".amount");
     }
   }
-  function investmentIssue(entry: Investment, path: string) {
-    if (!validMoney(entry.amount)) return path + ".amount";
-    if (!validDate(entry.contributed_on)) return path + ".contributed_on";
-    if (entry.actual_sum_assured_excluding_bonus != null && !validMoney(entry.actual_sum_assured_excluding_bonus)) return path + ".actual_sum_assured_excluding_bonus";
-    if (entry.certified_eligible_amount != null && !validMoney(entry.certified_eligible_amount)) return path + ".certified_eligible_amount";
-    for (const field of ["employee_annual", "employer_annual"] as const) {
-      if (entry.recognized_pf_contributions && !validMoney(entry.recognized_pf_contributions[field])) return path + ".recognized_pf_contributions." + field;
-    }
-    return null;
+  function investmentIssues(entry: Investment, path: string) {
+    if (!validMoney(entry.amount)) add(path + ".amount");
+    if (!validDate(entry.contributed_on)) add(path + ".contributed_on");
+    if (entry.actual_sum_assured_excluding_bonus != null && !validMoney(entry.actual_sum_assured_excluding_bonus)) add(path + ".actual_sum_assured_excluding_bonus");
+    if (entry.certified_eligible_amount != null && !validMoney(entry.certified_eligible_amount)) add(path + ".certified_eligible_amount");
+    for (const field of ["employee_annual", "employer_annual"] as const) if (entry.recognized_pf_contributions && !validMoney(entry.recognized_pf_contributions[field])) add(path + ".recognized_pf_contributions." + field);
   }
-  if (facts.investmentMode === "aggregate" && facts.aggregate && !validMoney(facts.aggregate)) return err("investments.amount");
-  if (facts.investmentMode === "categories") {
-    for (const [category, amount] of Object.entries(facts.categoryAmounts ?? {})) {
-      if (amount && !validMoney(amount)) return err("planning-investments." + category);
-      if (!selected.investment_policies.some((policy) => policy.category === category)) return err("planning-investments." + category);
-    }
+  if (facts.investmentMode === "aggregate" && facts.aggregate && !validMoney(facts.aggregate)) add("investments.amount");
+  if (facts.investmentMode === "categories") for (const [category, amount] of Object.entries(facts.categoryAmounts ?? {})) {
+    if (facts.inactiveCategories?.includes(category)) continue;
+    if (amount && !validMoney(amount)) add("planning-investments." + category);
+    if (!selected.investment_policies.some((policy) => policy.category === category)) add("planning-investments." + category, "retired_category");
   }
-  // Entered eligible totals are a planning assumption; individual categories can be checked in Detailed.
-  if (facts.investmentMode === "itemized") {
-    for (const [i, entry] of facts.investments.entries()) {
-      const issue = investmentIssue(entry, "investments.entries." + i);
-      if (issue) return err(issue);
-    }
-  }
+  if (facts.investmentMode === "itemized") for (const [i, entry] of facts.investments.entries()) investmentIssues(entry, "investments.entries." + i);
   for (const [i, entry] of facts.deductions.entries()) {
-    if (!validMoney(entry.amount)) return err("income_deductions." + i + ".amount");
-    if (!validDate(entry.paid_on)) return err("income_deductions." + i + ".paid_on");
+    if (!validMoney(entry.amount)) add("income_deductions." + i + ".amount");
+    if (!validDate(entry.paid_on)) add("income_deductions." + i + ".paid_on");
   }
-  for (const [i, entry] of facts.credits.entries()) {
-    if (!validMoney(entry.amount)) return err("credits." + i + ".amount");
-    if (!validDate(entry.paid_on)) return err("credits." + i + ".paid_on");
-    if (entry.kind === "withholding" && !facts.income.some(({ id }) => id === entry.income_id)) return err("credits." + i + ".income_id");
+  if (identity.supports_settlement) {
+    for (const [i, entry] of facts.credits.entries()) {
+      if (!validMoney(entry.amount)) add("credits." + i + ".amount");
+      if (!validDate(entry.paid_on)) add("credits." + i + ".paid_on");
+      if (entry.kind === "withholding" && !facts.income.some(({ id }) => id === entry.income_id)) add("credits." + i + ".income_id");
+    }
+    if (facts.creditStatus === "confirmed_none" && facts.credits.length) add("credits_completeness");
+    if (facts.filing && !validDate(facts.filing.filing_date)) add("filing.filing_date");
   }
-  if (facts.creditStatus === "confirmed_none" && facts.credits.length) return err("credits_completeness");
-  if (facts.filing && !validDate(facts.filing.filing_date)) return err("filing.filing_date");
   if (facts.scenario?.mode === "confirmed_eligible_total") {
-    if (!validMoney(facts.scenario.amount)) return err("scenario.amount");
-    if (!validDate(facts.scenario.contributed_on)) return err("scenario.contributed_on");
-    if (!facts.scenarioConfirmed) return err("scenario.confirmed_for_year");
+    if (!validMoney(facts.scenario.amount)) add("scenario.amount");
+    if (!validDate(facts.scenario.contributed_on)) add("scenario.contributed_on");
+    if (!facts.scenarioConfirmed) add("scenario.confirmed_for_year");
   }
   if (facts.scenario?.mode === "itemized") {
-    const issue = investmentIssue(facts.scenario.entry, "scenario.entry");
-    if (issue) return err(issue);
-    if (facts.investmentMode === "aggregate" && hasMoney(facts.aggregate)) return err("scenario");
-    if (facts.investmentMode === "categories" && Object.values(facts.categoryAmounts ?? {}).some(hasMoney)) return err("scenario");
+    investmentIssues(facts.scenario.entry, "scenario.entry");
+    if (facts.investmentMode === "aggregate" && hasMoney(facts.aggregate)) add("scenario", "scenario_method_conflict");
+    if (facts.investmentMode === "categories" && Object.entries(facts.categoryAmounts ?? {}).some(([key, amount]) => !facts.inactiveCategories?.includes(key) && hasMoney(amount))) add("scenario", "scenario_method_conflict");
   }
+  if (issues.length) return { request: null, issue: issues[0], issues };
   return {
+    issues,
     request: {
       schema_version: 2, assessment_year: identity.assessment_year, expected_ruleset_revision: identity.revision_id, purpose,
-      profile: conditionalAnnual && facts.profile.new_taxpayer_floor === "unknown"
-        ? { ...facts.profile, new_taxpayer_floor: "no" } : facts.profile,
-      coverage: conditionalAnnual ? Object.fromEntries(Object.entries(facts.coverage).map(([key, answer]) => [
-        key, key !== "other_part2_donation_claims" && answer === "unknown" ? "no" : answer,
-      ])) as Coverage : facts.coverage,
-      income: conditionalAnnual ? facts.income.map((entry) => (
-        isQuickSalary(entry) && entry.basis === "gross" && entry.benefits_valuation_complete === "unknown"
-          ? { ...entry, benefits_valuation_complete: "yes" } : entry
-      )) : facts.income,
+      profile: { ...facts.profile, ...(defaults.includes("profile.new_taxpayer_floor") ? { new_taxpayer_floor: "no" as const } : {}), ...(!identity.supports_settlement ? { first_return: "unknown" as const } : {}) },
+      coverage: Object.fromEntries(Object.entries(facts.coverage).map(([key, answer]) => [key, defaults.includes("coverage." + key) ? "no" : answer])) as Coverage,
+      income: facts.income.map((entry, i) => defaults.includes("income." + i + ".benefits_valuation_complete") ? { ...entry, benefits_valuation_complete: "yes" as const } : entry),
       investments: facts.investmentMode === "categories"
-        ? { mode: "planning_category_totals", entries: Object.entries(facts.categoryAmounts ?? {}).filter(([, amount]) => amount && hasMoney(amount)).map(([category, amount]) => ({ category, amount })) }
+        ? { mode: "planning_category_totals", entries: Object.entries(facts.categoryAmounts ?? {}).filter(([key, amount]) => !facts.inactiveCategories?.includes(key) && amount && hasMoney(amount)).map(([category, amount]) => ({ category, amount })) }
         : facts.investmentMode === "aggregate" && hasMoney(facts.aggregate)
         ? { mode: "confirmed_eligible_total", amount: facts.aggregate, confirmed_for_year: true }
         : { mode: "itemized", entries: facts.investmentMode === "itemized" ? facts.investments : [] },
-      income_deductions: facts.deductions, credits: facts.credits, credits_completeness: facts.creditStatus,
-      filing: facts.filing, scenario: facts.scenario,
+      income_deductions: facts.deductions, credits: identity.supports_settlement ? facts.credits : [], credits_completeness: identity.supports_settlement ? facts.creditStatus : "unknown",
+      filing: identity.supports_settlement ? facts.filing : null, scenario: facts.scenario,
     },
   };
 }
@@ -178,7 +171,7 @@ export function readDraft(storage: Pick<Storage, "getItem">, owner: string, year
     const raw = storage.getItem(draftKey(owner, year, purpose));
     if (!raw) return null;
     const data = JSON.parse(raw) as { schema?: number; owner?: string; year?: Year; purpose?: Purpose; revision?: string; facts?: Facts };
-    if ((data.schema !== 2 && data.schema !== 3 && data.schema !== draftSchema) ||
+    if ((data.schema !== 2 && data.schema !== 3 && data.schema !== 4 && data.schema !== draftSchema) ||
       data.owner !== owner || data.year !== year || data.purpose !== purpose ||
       typeof data.revision !== "string" || !data.facts?.profile || !data.facts.coverage ||
       ![data.facts.income, data.facts.investments, data.facts.credits, data.facts.deductions].every(Array.isArray)) return null;
@@ -190,7 +183,7 @@ export function readDraft(storage: Pick<Storage, "getItem">, owner: string, year
       ])) as Coverage;
       if (facts.profile.new_taxpayer_floor === "no") facts.profile.new_taxpayer_floor = "unknown";
     }
-    if (data.schema !== draftSchema) {
+    if (data.schema === 2 || data.schema === 3) {
       // Older Quick salary entries had no way to distinguish assumed and confirmed "yes".
       facts.income = facts.income.map((entry) => (
         isQuickSalary(entry) && entry.benefits_valuation_complete === "yes"
