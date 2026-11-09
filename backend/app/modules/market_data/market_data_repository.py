@@ -311,7 +311,7 @@ class MarketDataRepository(BaseRepository[DailyPrice]):
         )
         context = await resolve_finalized_decision_generation(self, exchange=exchange)
         publication = await DecisionSnapshotRepository(self.session).latest_publication(
-            exchange=exchange, generation_id=context.sync_id if context else None,
+            exchange=exchange, generation_id=context.sync_id if context else None, metadata_only=True,
         )
         return publication, context
 

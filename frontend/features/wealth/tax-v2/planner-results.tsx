@@ -18,7 +18,7 @@ export function PlannerResults({ result, rules, locale, onEdit, conditional = fa
   const settlement = available && base.settlement_status === "complete" && base.estimated_payable !== null;
   const category = (key: string) => {
     const row = rules.investment_presentation.find((item) => item.category === key);
-    return row ? locale === "bn" ? row.label_bn : row.label_en : t("Confirmed eligible total", "যোগ্য বিনিয়োগের নিশ্চিত মোট");
+    return row ? locale === "bn" ? row.label_bn : row.label_en : t("Eligible investment", "যোগ্য Investment");
   };
   const notes = (items: Guidance[], edit = false) => <ul className={css.list}>{items.map((item, i) =>
     <li key={i} className={css.card + " " + css.stack}><span>{guidanceText(item, locale)}</span>

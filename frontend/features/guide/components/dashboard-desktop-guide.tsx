@@ -554,7 +554,7 @@ export function DashboardDesktopGuide({
                 onConfirmSkip={skipGuide}
                 onNext={moveNext}
                 onPrevious={() => setStepIndex((index) => Math.max(0, index - 1))}
-                onSkip={() => setSkipConfirmationOpen(true)}
+                onSkip={isTaxPlannerJourney ? skipGuide : () => setSkipConfirmationOpen(true)}
                 onSuppressContextualPromptsChange={setSuppressContextualPrompts}
                 phaseLabel={phase.label}
                 phaseStepCount={phase.stepCount}

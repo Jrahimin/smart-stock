@@ -7,6 +7,7 @@ from fastapi import Depends
 from sqlalchemy import case, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import defer
 
 from app.core.database_session import get_db_session
 from app.core.enums import ExchangeCode
@@ -64,10 +65,15 @@ class DecisionSnapshotRepository:
         await self.session.execute(statement)
         await self.session.commit()
 
-    async def latest_publication(self, *, exchange, before_date=None, generation_id=None):
+    async def latest_publication(self, *, exchange, before_date=None, generation_id=None, metadata_only=False):
         statement = select(DecisionGenerationCapture).where(
             DecisionGenerationCapture.exchange == exchange,
         )
+        # Read consumers never need the captured replay inputs. Freshness checks
+        # need only identity/status, not the potentially large universe result.
+        statement = statement.options(defer(DecisionGenerationCapture.input_payload, raiseload=True))
+        if metadata_only:
+            statement = statement.options(defer(DecisionGenerationCapture.result_payload, raiseload=True))
         if before_date is not None:
             statement = statement.where(DecisionGenerationCapture.session_date < before_date)
         if generation_id is not None:
