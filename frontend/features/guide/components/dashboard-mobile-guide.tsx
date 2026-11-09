@@ -14,7 +14,7 @@ import { getWealthGuideControls, getWealthGuideNudgeCopy } from "@/features/guid
 import { getTaxPlannerGuideControls, getTaxPlannerGuideNudgeCopy } from "@/features/guide/dialogs/tax-planner-dialogs";
 import type { ProductGuideStepState } from "@/features/guide/components/dashboard-desktop-guide";
 import { useMobileGuideController, type ProductGuideJourney } from "@/features/guide/hooks/use-dashboard-sidebar-guide-controller";
-import { useGuideTargetLayout } from "@/features/guide/hooks/use-guide-target-layout";
+import { getVisibleTarget, useGuideTargetLayout } from "@/features/guide/hooks/use-guide-target-layout";
 import type { AppLocale } from "@/lib/locale/app-locale";
 import { DEFAULT_LOCALE } from "@/lib/locale/app-locale";
 
@@ -73,6 +73,40 @@ export function DashboardMobileGuide({
   });
   const spotlightRect = targetSnapshot?.spotlightRect ?? null;
   const isNavigationStep = isProductJourney ? stepIndex > 0 : preferSidebar;
+
+  // Reserve space only during this tour so the final help target can sit above
+  // the sheet. Normal planner composition is unchanged after dismissal.
+  useLayoutEffect(() => {
+    if (!isTaxPlannerJourney || !isGuideActive) return;
+    const workspace = document.querySelector<HTMLElement>(".wealth-tax-planner-workspace");
+    const sheet = document.querySelector<HTMLElement>(".guide-mobile-sheet");
+    if (!workspace || !sheet) return;
+    const previous = workspace.style.paddingBottom;
+    const reserve = () => { workspace.style.paddingBottom = sheet.getBoundingClientRect().height + 96 + "px"; };
+    reserve();
+    const observer = new ResizeObserver(reserve);
+    observer.observe(sheet);
+    return () => {
+      observer.disconnect();
+      workspace.style.paddingBottom = previous;
+      requestAnimationFrame(() => {
+        // Finish opens permanent help: keep that dialog's focus. Skipping
+        // instead returns keyboard users to the always-visible tour launcher.
+        if (!document.querySelector('dialog[open], [role="dialog"]')) {
+          document.querySelector<HTMLElement>(".mobile-app-header-guide-button")?.focus({ preventScroll: true });
+        }
+      });
+    };
+  }, [isTaxPlannerJourney, isGuideActive]);
+
+  useLayoutEffect(() => {
+    if (!isTaxPlannerJourney || !isGuideActive || !currentStep?.target) return;
+    const frame = requestAnimationFrame(() => {
+      const target = getVisibleTarget(currentStep.target!);
+      if (target) window.scrollBy({ top: target.getBoundingClientRect().top - 88, behavior: "instant" });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [isTaxPlannerJourney, isGuideActive, currentStep?.target]);
 
   useEffect(() => {
     if (!isWealthJourney) return;

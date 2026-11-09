@@ -26,6 +26,8 @@ class Settings(BaseSettings):
     alembic_database_url: str | None = None
     backend_cors_origins: str = "http://localhost:3000"
     frontend_base_url: str = "http://localhost:3000"
+    tax_planner_v2_release_enabled: bool = False
+    tax_planner_v2_calculations_suspended: bool = False
     jwt_secret_key: str = "change-me-in-local-development-only"
     jwt_algorithm: str = "HS256"
     jwt_access_token_expire_minutes: int = Field(default=15, ge=1)

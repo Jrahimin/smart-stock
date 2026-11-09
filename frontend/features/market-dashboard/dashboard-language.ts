@@ -32,10 +32,12 @@ export type MarketMoodInsightKey =
 export type TurnoverLiquidityInsightKey = "strong_liquidity" | "weak_liquidity" | "average_liquidity";
 
 export type TurnoverInsightContext = {
+  averageSessions?: number;
   turnoverLabel: string;
   vsYesterday: string;
   vs30DayAvg: string;
   liquidityKey: TurnoverLiquidityInsightKey;
+  intraday?: boolean;
 };
 
 function buildEnglishDecisionReasons(): DecisionReasonCopy {
@@ -383,7 +385,7 @@ const dashboardLanguage = {
       volume_not_confirming:
         "Prices are rising, but volume is not confirming the move yet.",
       volume_confirms_move: "Volume is keeping pace with the move.",
-      strong_liquidity: "Strong liquidity today.",
+      strong_liquidity: "Trading activity is above its recent average.",
       weak_liquidity: "Liquidity is running below the recent average.",
       average_liquidity: "Liquidity is near the recent average.",
       participation_above: "Participation is above the recent average.",
@@ -474,7 +476,7 @@ const dashboardLanguage = {
         momentum: "momentum",
         accumulation: "accumulation",
         volatility: "volatility",
-        valuation: "valuation",
+        valuation: "Trading activity",
         risk: "risk",
         quality: "quality",
       },
@@ -507,7 +509,7 @@ const dashboardLanguage = {
             `${signalCount} highlighted signals include heuristic evidence and risk metadata.`,
         },
         turnoverContext: {
-          title: "Turnover context",
+          title: "Trading activity",
           descriptionMissing:
             "Turnover data is unavailable. Do not treat this as zero market activity—it may be a data sync or availability issue.",
           liquidityGuidance: {
@@ -519,11 +521,12 @@ const dashboardLanguage = {
               "Thin participation raises slippage risk—reduce size and favor higher-turnover names.",
           },
           descriptionAvailable: (context, liquidityLabel, guidance) => {
+            if (context.intraday) return `Turnover so far is BDT ${context.turnoverLabel}. The session is still open; comparisons with completed sessions are provisional.`;
             const sessionChange =
               context.vsYesterday !== "N/A" ? ` (${context.vsYesterday} vs prior session)` : "";
             const averageContext =
-              context.vs30DayAvg !== "N/A" ? `30-session avg is ${context.vs30DayAvg}. ` : "";
-            return `Latest turnover is ${context.turnoverLabel}${sessionChange}. ${averageContext}${liquidityLabel} ${guidance}`;
+              context.vs30DayAvg !== "N/A" ? `${context.averageSessions ?? 30}-session avg is BDT ${context.vs30DayAvg}. ` : "";
+            return `Recorded session turnover is BDT ${context.turnoverLabel}${sessionChange}. ${averageContext}${liquidityLabel} ${guidance}`;
           },
         },
         partialData: {
@@ -712,7 +715,7 @@ const dashboardLanguage = {
         momentum: "momentum",
         accumulation: "accumulation",
         volatility: "volatility",
-        valuation: "valuation",
+        valuation: "কেনাবেচার অবস্থা",
         risk: "ঝুঁকি",
         quality: "ডেটার মান",
       },
@@ -729,15 +732,15 @@ const dashboardLanguage = {
             })[key],
           descriptions: {
             accumulation:
-              "Breadth ভালো এবং participation বাড়ছে—ভালো liquidity থাকা stock-এর trend চলার সুযোগ আগে দেখুন।",
-            bullish: "Breadth ও price action দুটোই ভালো; সর্বশেষ session-এ বাজারের momentum ঊর্ধ্বমুখী।",
-            bearish: "Decliner বেশি; তাই opportunity দেখার আগে risk যাচাই করে নিন।",
+              "বেশি শেয়ারের দাম বাড়ছে, কেনাবেচাও বাড়ছে। বেশি লেনদেন হয় এমন শেয়ারের দিকে নজর রাখুন।",
+            bullish: "সর্বশেষ বাজারের তথ্যে শেয়ারের দাম ও বাজারের গতি ঊর্ধ্বমুখী।",
+            bearish: "বেশি শেয়ারের দাম কমছে। কোনো সুযোগ বিবেচনার আগে ঝুঁকি যাচাই করুন।",
             high_volatility:
-              "Volatility বেশি; বাজারের দিকের চেয়ে position sizing আর data quality দেখা এখন বেশি জরুরি।",
+              "দামে ওঠানামা বেশি। বিনিয়োগের পরিমাণ ও তথ্যের নির্ভরযোগ্যতা যাচাই করুন।",
             weak_recovery:
-              "বাজার ঘুরে দাঁড়ানোর চেষ্টা করছে, কিন্তু Breadth এখনো recovery নিশ্চিত করছে না।",
+              "বাজার ঘুরে দাঁড়ানোর চেষ্টা করছে, তবে এখনও অনেক শেয়ারের দাম সেই গতিকে সমর্থন করছে না।",
             cautious:
-              "বাজারের দিকটা mixed; headline movement-এর পেছনে না ছুটে confirmation আসা পর্যন্ত অপেক্ষা করুন।",
+              "বাজারে মিশ্র গতি দেখা যাচ্ছে। দামের পরিবর্তন টেকসই কি না, নিশ্চিত হওয়ার অপেক্ষা করুন।",
           },
         },
         signalCoverage: {
@@ -746,23 +749,24 @@ const dashboardLanguage = {
             `এই ${signalCount}টি signal-এর heuristic evidence ও risk দেখে কারণ বোঝা যাবে।`,
         },
         turnoverContext: {
-          title: "Turnover-এর ছবি",
+          title: "কেনাবেচার অবস্থা",
           descriptionMissing:
-            "Turnover data এখনো পাওয়া যায়নি। বাজারে লেনদেন হয়নি ধরে নেবেন না—sync বা data availability সমস্যা হতে পারে।",
+            "লেনদেনের মূল্যের তথ্য পাওয়া যায়নি। এটিকে শূন্য লেনদেন ধরে নেবেন না।",
           liquidityGuidance: {
             strong_liquidity:
-              "এক্ষেত্রে trend ধরে রাখার সম্ভাবনা বেশি—নতুন entry-তে এগুলো আগে দেখুন",
+              "বেশি লেনদেন হয় এমন শেয়ারে দামের গতি ধরে থাকার সম্ভাবনা বিবেচনা করুন",
             average_liquidity:
-              "Participation স্বাভাবিক—position বাড়ানোর আগে confirmation দেখুন",
+              "বিনিয়োগ বাড়ানোর আগে দামের গতি নিশ্চিত হওয়ার অপেক্ষা করুন",
             weak_liquidity:
-              "লেনদেন কম হলে slippage ঝুঁকি বাড়ে—size কমান এবং বেশি turnover-এর stock বেছে নিন",
+              "কম লেনদেনে প্রত্যাশিত দামে কেনাবেচা করা কঠিন হতে পারে। বিনিয়োগের পরিমাণ ও শেয়ারের লেনদেন বিবেচনা করুন",
           },
           descriptionAvailable: (context, liquidityLabel, guidance) => {
+            if (context.intraday) return `এখন পর্যন্ত লেনদেনের মূল্য BDT ${context.turnoverLabel}। কার্যদিবস চলছে, তাই সম্পন্ন কার্যদিবসের সঙ্গে তুলনা এখনও সাময়িক।`;
             const sessionChange =
-              context.vsYesterday !== "N/A" ? ` (গত session-এর তুলনায় ${context.vsYesterday})` : "";
+              context.vsYesterday !== "N/A" ? ` (আগের কার্যদিবসের তুলনায় ${context.vsYesterday})` : "";
             const averageContext =
-              context.vs30DayAvg !== "N/A" ? `30-session গড় ${context.vs30DayAvg}। ` : "";
-            return `সর্বশেষ turnover ${context.turnoverLabel}${sessionChange}। ${averageContext}${liquidityLabel}—${guidance}।`;
+              context.vs30DayAvg !== "N/A" ? `${(context.averageSessions ?? 30).toLocaleString("bn-BD")} কার্যদিবসের গড় BDT ${context.vs30DayAvg}। ` : "";
+            return `দেখানো কার্যদিবসে লেনদেনের মূল্য BDT ${context.turnoverLabel}${sessionChange}। ${averageContext}${liquidityLabel}। ${guidance}।`;
           },
         },
         partialData: {

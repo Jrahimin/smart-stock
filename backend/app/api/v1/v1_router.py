@@ -28,6 +28,8 @@ from app.modules.stocks.stocks_router import router as stocks_router
 from app.modules.user_preferences.user_preferences_router import router as user_preferences_router
 from app.modules.watchlists.watchlists_router import router as watchlists_router
 from app.modules.wealth.tax_config.tax_config_admin_router import router as tax_config_admin_router
+from app.modules.wealth.tax_planner_v2.revision_router import admin_router as tax_planner_v2_admin
+from app.modules.wealth.tax_planner_v2.revision_router import public_router as tax_planner_v2_public
 from app.modules.wealth.wealth_router import router as wealth_router
 from app.schemas.system_version import SystemVersionData
 
@@ -39,6 +41,7 @@ router.include_router(admin_dashboard_router)
 router.include_router(admin_users_router)
 router.include_router(admin_configuration_router)
 router.include_router(tax_config_admin_router)
+router.include_router(tax_planner_v2_admin)
 router.include_router(admin_jobs_router)
 router.include_router(admin_email_campaigns_router)
 router.include_router(stocks_router)
@@ -46,6 +49,7 @@ router.include_router(watchlists_router)
 router.include_router(portfolios_router)
 router.include_router(user_preferences_router)
 router.include_router(wealth_router)
+router.include_router(tax_planner_v2_public)
 router.include_router(market_data_router)
 router.include_router(market_dashboard_router)
 router.include_router(market_pulse_router)

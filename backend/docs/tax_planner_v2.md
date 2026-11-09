@@ -1,106 +1,44 @@
 # Tax Planner V2
 
-Configuration-driven tax calculator for Bangladesh resident individual planning estimates.
+The v2 backend estimates Bangladesh resident individual tax using one active, administrator-published rule revision. Visitors do not select an assessment year or purpose. Publishing a reviewed yearly update or amendment activates it for everyone. [Current operating model](tax_planner_active_calculator.md) · [Implementation plan](tax_planner_final_three_phase_plan.md) · [Forward-year source verification](tax_planner_2027_28_rule_sources.md)
 
-## Design
+## Current backend design
 
-Calculator-first: **3 tables** — one settings row, slab rows, and investment category rows. No fiscal-year history, publish workflow, or singleton side tables.
+`tax_planner_rule_revisions` stores a complete, validated JSONB rules snapshot with its assessment year, income dates, source references, policy version, content hash and publication history. Each year has at most one open draft and one published revision. Published snapshots are immutable. Publication supersedes the old revision and activates the previewed draft in one transaction.
 
-| Table | Purpose |
-|-------|---------|
-| `tax_planner_settings` | Display metadata, profile thresholds, rebate, minimum tax amounts |
-| `tax_slabs` | Progressive slab bands (unique `sort_order`) |
-| `tax_investment_categories` | Label, order, enabled per fixed category key |
+The engine calculates the base estimate and optional scenario from the most recently published revision across all years. The result separates annual liability from supported filing settlement and reports missing facts when a case needs review. Missing or invalid active rules return `503 TAX_RULES_UNAVAILABLE`. A calculation using an older revision ID returns `409 RULESET_CHANGED` so the client can refresh current configuration without losing entered facts. Historical snapshots remain in admin for audit and recovery.
 
-### In code (not configurable)
+| Responsibility | Current backend |
+| --- | --- |
+| Calculation policy | The engine owns income classification, qualification, cap application, tax bands, rebate and settlement arithmetic. |
+| Rules and presentation | Each snapshot contains the applicable rates, thresholds, limits, filing windows, category presentation and legal source references. Category visibility affects presentation only. |
+| Admin workflow | Admins can read revisions and history. Super admins can create and edit drafts, compare preview results and publish a reviewed revision. |
+| Recovery | Copy a verified historical snapshot into a new draft. If a saved draft is open, a super admin can confirm an audited, version-checked replacement without affecting the published rules. Preview and publish the replacement separately. |
 
-- Profile priority: Freedom Fighter → Disability → Woman/Senior → General
-- Location tier codes and minimum-tax resolution order
-- Investment `category_key` → API field mappings
-- Income aggregation and calculation flow
+The public endpoints are `GET /api/v1/wealth/tax-planner/v2/config` and `POST /api/v1/wealth/tax-planner/v2/calculate`. The admin revision workflow is under `/api/v1/admin/tax-planner/v2`. The rollout guide documents request fields, release flags and isolated acceptance commands. [Backend rollout guide](tax_planner_backend_rollout.md)
 
-### Configurable (admin / DB)
+Scope questions start at “Not sure.” Quick and Detailed share the same conditional annual planning estimate: unanswered special-case scope is assumed not to apply, with the ordinary taxpayer minimum and the gross-salary example's benefit-valuation assumption. These request-only assumptions never become saved confirmations. Explicit special cases, unresolved source/category eligibility and filing estimates retain their review requirements. The supported financial-income entries separate gross receipts, qualifying source expenses, and actual withholding. Source links distinguish the audited PDF edition from the public edition and use page anchors only when verified. [Official financial-expense guidance, PDF page 61](https://nbr.gov.bd/uploads/news-scroller/Aykor_Nirdashikha_2026-2027_BG_Press_Modify_Copy.pdf#page=61)
 
-- Threshold amounts, slab amounts/rates, rebate %, caps, minimum tax amounts
-- Investment category visibility, order, labels
-- Display name, disclaimer, tax year label
+## Prepare a release
 
-## Bootstrap
+Rehearse export, migration, staging and publication in an isolated staging database. Repeat the procedure separately for the authorized target. Each environment supplies its own legacy export, archive and revision IDs.
 
-```bash
-cd backend
-alembic upgrade head
-python -m app.scripts.seed_tax_planner_config
-```
+1. Keep `TAX_PLANNER_V2_RELEASE_ENABLED=false`. Select the migration database explicitly and export its legacy settings with `python -m app.scripts.tax_planner_rule_rollout export --output <new-export-file>`.
+2. Apply `python -m alembic upgrade head` against the same database. The additive migration creates the revisions table and retains the three legacy tables.
+3. Run `python -m app.scripts.tax_planner_rule_rollout archive-and-stage --legacy-export <export-file>`. The command reconciles the target rows with the export, archives the legacy settings and stages the verified source drafts for both years. Review the archive hash and draft IDs.
+4. Preview drafts through the admin API and review their source checks and calculation differences. Publish the intended current rules last: the latest publication becomes the single active public calculator. Admin publication is available while public v2 remains dormant.
+5. Coordinate public enablement with the frontend. Verify the intended active pack and expected revision ID as part of cutover. [Detailed rollout procedure](tax_planner_backend_rollout.md)
 
-## APIs
+## Legacy calculator and historical design
 
-**Public**
+The following global tables served the earlier calculator and remain available for legacy operation before cutover and for reconciliation.
 
-- `GET /api/v1/wealth/tax-planner/config`
-- `POST /api/v1/wealth/tax-planner/calculate`
+| Legacy table | Historical purpose |
+| --- | --- |
+| `tax_planner_settings` | Global display metadata, profile thresholds, rebate and location minimum amounts. |
+| `tax_slabs` | Global progressive tax bands, including a stored allowance band. |
+| `tax_investment_categories` | Global category labels, display order and enabled settings. |
 
-**Admin** (`SUPER_ADMIN` write)
+The legacy admin wrote these settings directly. `TaxConfigResolver` used a process-local cache and could use `bangladesh_tax_config.py` when database settings or slabs were missing. The legacy seed, `python -m app.scripts.seed_tax_planner_config`, inserts missing legacy rows. The current v2 bootstrap uses the archive-and-stage workflow above.
 
-- `GET /admin/tax-planner/config`
-- `PUT /admin/tax-planner/config` — all scalar tax-law values in one request
-- `PUT /admin/tax-planner/slabs`
-- `GET/PUT /admin/tax-planner/investment-categories`
-
-## Validation
-
-Writes validate:
-
-- Exactly one allowance slab
-- Unique slab `sort_order`
-- Unique investment category `sort_order`
-- Non-negative amounts for thresholds, rebate, and minimum tax
-
-## Fallback
-
-If settings or slabs are missing, resolver uses `bangladesh_tax_config.py`.
-
----
-
-## Phase 1 — Config engine (complete)
-
-Public calculator reads tax-law values from the database via `TaxConfigResolver`. Frontend uses `GET /wealth/tax-planner/config` for rebate tips, investment cards, and display metadata.
-
-### Acceptance
-
-1. Seed → config API returns tax year label, rebate rules, investment categories
-2. `POST /wealth/tax-planner/calculate` matches pre-refactor numbers for standard scenarios
-3. UI loads cards/tips from config API (no hardcoded rebate constants)
-4. DB threshold edit → calculate output changes without deploy
-5. `is_enabled=false` on a category → hidden in UI and excluded from investment sum
-6. `pytest app/tests/test_wealth_calculations.py` passes
-
----
-
-## Phase 2 — Admin + minimum tax (complete)
-
-### Delivered
-
-| Item | Detail |
-|------|--------|
-| Minimum tax | Amounts on `tax_planner_settings`; floor after rebate; `profile.location_code` |
-| Public UI | Location dropdown on About You step; Tax Journey minimum-tax step when applied |
-| Admin API | `/admin/tax-planner/config`, `/slabs`, `/investment-categories` |
-| Admin UI | `/admin/tax-planner` — scalar config, slab editor, investment categories |
-| Cache | `TaxConfigResolver.invalidate_cache()` on every admin write |
-
-No fiscal-year clone/publish workflow — changes apply immediately (simplified product scope).
-
-### Acceptance
-
-1. `SUPER_ADMIN` edits thresholds, rebate, minimum tax, and slabs in `/admin/tax-planner`
-2. Saved changes appear on public config + calculate after cache invalidation
-3. Investment categories editable globally (labels, order, enabled)
-4. Minimum tax floor applies when configured; location tier overrides national default
-5. Validate end-to-end on public Tax Planner after admin save (no preview API)
-
-### Phase 2 test commands
-
-```bash
-pytest app/tests/test_wealth_calculations.py app/tests/test_tax_planner_config.py -q
-```
+At cutover the legacy public endpoints and legacy admin writes return `410 TAX_PLANNER_UPGRADE_REQUIRED`. Legacy admin reads remain available for reconciliation. [Backend rollout guide](tax_planner_backend_rollout.md)

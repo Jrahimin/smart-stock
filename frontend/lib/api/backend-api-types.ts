@@ -455,6 +455,7 @@ export type BackendDashboardSectorsDto = {
 };
 
 export type BackendDashboardTimelineItemDto = {
+  source_url?: string | null;
   time: string;
   title: string;
   description: string;

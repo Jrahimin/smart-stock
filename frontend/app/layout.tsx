@@ -16,9 +16,12 @@ export const metadata: Metadata = {
   },
   description: siteConfig.defaultDescription,
   icons: {
-    icon: [{ url: "/stock-favicon-32.png", sizes: "32x32", type: "image/png" }],
-    shortcut: "/stock-favicon-32.png",
-    apple: "/stock-icon.png",
+    icon: [
+      { url: "/dashboard/stockwealth-icon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/dashboard/stockwealth-icon-192.png", sizes: "192x192", type: "image/png" },
+    ],
+    shortcut: "/dashboard/stockwealth-icon-32.png",
+    apple: "/dashboard/stockwealth-icon-180.png",
   },
 };
 

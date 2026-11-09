@@ -80,6 +80,8 @@ function localizeTimelineDescription(
   if (suspiciousMatch) {
     return templates.suspiciousDescription(suspiciousMatch[1] ?? "Some");
   }
+  const mover = /^Top session mover in the latest snapshot \((.+)\)\.?$/i.exec(description);
+  if (mover) return `দেখানো কার্যদিবসে দামের পরিবর্তনে শীর্ষে ছিল ${mover[1]}।`;
 
   const resolvedReason = resolveTraderDecisionReason(description);
   if (resolvedReason.key !== "unknown") {
@@ -100,6 +102,7 @@ export function localizeTimelineItem(
   }
 
   return {
+    ...item,
     time: localizeTimelineTime(item.time, templates),
     title: localizeTimelineTitle(item.title, locale, templates),
     description: localizeTimelineDescription(
@@ -116,8 +119,5 @@ export function localizeTimelineItems(
   locale: AppLocale,
   language: DashboardLanguage,
 ): MarketTimelineItemModel[] {
-  return items.filter(({ title, description }) => !(
-    /^Top session mover in the latest snapshot \(.+\)\.?$/i.test(description)
-    || (title === "Market snapshot ready" && /^\d+ active instruments in the latest price snapshot\.?$/i.test(description))
-  )).map((item) => localizeTimelineItem(item, locale, language));
+  return items.map((item) => localizeTimelineItem(item, locale, language));
 }

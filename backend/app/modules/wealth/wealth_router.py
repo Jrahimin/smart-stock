@@ -5,6 +5,16 @@ from fastapi import APIRouter, Depends
 from app.api.dependencies.auth_dependencies import allow_public_access
 from app.core.response_handler import ApiResponse, success_response
 from app.core.security_config import UserContext
+from app.modules.wealth.tax_config.tax_config_schemas import TaxPlannerConfigRead
+from app.modules.wealth.tax_config.tax_config_service import (
+    TaxConfigService,
+    get_tax_config_service,
+)
+from app.modules.wealth.tax_planner_service import TaxPlannerService, get_tax_planner_service
+from app.modules.wealth.tax_planner_v2.http_controls import (
+    TaxPlannerRoute,
+    require_legacy_tax_planner,
+)
 from app.modules.wealth.wealth_calculation_service import WealthCalculationService
 from app.modules.wealth.wealth_comparison_service import WealthComparisonService
 from app.modules.wealth.wealth_guide_service import WealthGuideService
@@ -22,12 +32,10 @@ from app.modules.wealth.wealth_schemas import (
     WealthToolCalculateRequest,
     WealthToolCalculateResponse,
 )
-from app.modules.wealth.tax_config.tax_config_schemas import TaxPlannerConfigRead
-from app.modules.wealth.tax_config.tax_config_service import TaxConfigService, get_tax_config_service
-from app.modules.wealth.tax_planner_service import TaxPlannerService, get_tax_planner_service
 from app.modules.wealth.wealth_service import WealthService, get_wealth_service
 
 router = APIRouter(prefix="/wealth", tags=["wealth"])
+legacy_tax_router = APIRouter(route_class=TaxPlannerRoute)
 
 
 def get_wealth_calculation_service() -> WealthCalculationService:
@@ -54,7 +62,11 @@ async def calculate_wealth_tool(
     return success_response(data=result, message="Wealth tool calculated")
 
 
-@router.get("/tax-planner/config", response_model=ApiResponse[TaxPlannerConfigRead])
+@legacy_tax_router.get(
+    "/tax-planner/config",
+    response_model=ApiResponse[TaxPlannerConfigRead],
+    dependencies=[Depends(require_legacy_tax_planner)],
+)
 async def get_tax_planner_config(
     user_context: Annotated[UserContext, Depends(allow_public_access)],
     tax_config_service: Annotated[TaxConfigService, Depends(get_tax_config_service)],
@@ -65,7 +77,11 @@ async def get_tax_planner_config(
     return success_response(data=config, message="Tax planner config retrieved")
 
 
-@router.post("/tax-planner/calculate", response_model=ApiResponse[TaxPlannerCalculateResponse])
+@legacy_tax_router.post(
+    "/tax-planner/calculate",
+    response_model=ApiResponse[TaxPlannerCalculateResponse],
+    dependencies=[Depends(require_legacy_tax_planner)],
+)
 async def calculate_tax_planner(
     payload: TaxPlannerCalculateRequest,
     user_context: Annotated[UserContext, Depends(allow_public_access)],
@@ -74,6 +90,9 @@ async def calculate_tax_planner(
     del user_context
     result = await tax_planner_service.calculate(payload)
     return success_response(data=result, message="Tax planner calculated")
+
+
+router.include_router(legacy_tax_router)
 
 
 @router.post("/comparisons/{comparison_slug}/evaluate", response_model=ApiResponse[WealthComparisonEvaluateResponse])

@@ -22,6 +22,7 @@ export const SmartSignalFeed = memo(function SmartSignalFeed({
   signals, decision, locale = DEFAULT_LOCALE, loading = false, warmingUp = false, error = false,
 }: SmartSignalFeedProps) {
   const copy = getTerminalCopy(locale);
+  const unavailable = !loading && ((error && !signals.length) || decision?.decision_status === "UNAVAILABLE");
   const state = loading ? copy.loading : error && !signals.length ? copy.signalsUnavailable
     : decision?.decision_status === "UNAVAILABLE" ? copy.signalsUnavailable
     : warmingUp && !signals.length ? copy.signalsUpdating : !signals.length ? copy.signalsEmpty : null;
@@ -45,7 +46,7 @@ export const SmartSignalFeed = memo(function SmartSignalFeed({
   return <section className="sw-signals" aria-labelledby="sw-signals-title" aria-busy={loading}>
     <div className="sw-section-head" data-guide="smart-signals" data-guide-extent="sw-signal-example">
       <div className="sw-section-heading">
-        <h2 className="sw-section-title" id="sw-signals-title">{copy.signals}</h2>
+        <h2 className="sw-section-title" id="sw-signals-title">Smart Signals</h2>
         <DecisionPublicationLabel decision={decision} locale={locale} />
       </div>
       <Link className="sw-section-link" href="/signals" prefetch={false}>{copy.signalCenter} <span aria-hidden="true">→</span></Link>
@@ -76,6 +77,6 @@ export const SmartSignalFeed = memo(function SmartSignalFeed({
           <td role="cell">{copy.risks[risk] ?? copy.missing}</td>
         </tr>;
       })}</tbody>
-    </table> : <p className="sw-state" role={loading ? "status" : undefined}>{state}</p>}
+    </table> : <p className={unavailable ? "sw-state sw-signals-unavailable" : "sw-state"} role={loading || unavailable ? "status" : undefined}>{state}</p>}
   </section>;
 });

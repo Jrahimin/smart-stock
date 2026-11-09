@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useId, useRef, useState, type KeyboardEvent } from "react";
+import { useId, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 
 import type { TerminalCopy } from "@/features/market-dashboard/terminal-copy";
 import type { MarketDashboardModel } from "@/features/market-dashboard/types/market-dashboard-types";
@@ -25,8 +25,8 @@ export function TerminalMovers({ movers, copy, loading }: { movers: MarketDashbo
 
   return <section className="sw-movers" aria-labelledby={`${id}-title`}>
     <div data-guide="market-discovery">
-      <h2 className="sw-section-title" id={`${id}-title`}>{copy.movers}</h2>
-      <div className="sw-mover-tabs" role="tablist" aria-labelledby={`${id}-title`}>
+      <h2 className="sw-section-title" id={`${id}-title`}>Market movers</h2>
+      <div className="sw-mover-tabs" style={{ "--sw-active-tab": tabs.indexOf(selected) } as CSSProperties} role="tablist" aria-labelledby={`${id}-title`}>
         {tabs.map((tab, index) => <button
           key={tab} ref={(node) => { tabRefs.current[index] = node; }}
           role="tab" id={`${id}-${tab}`} aria-controls={`${id}-${tab}-panel`} aria-selected={tab === selected}

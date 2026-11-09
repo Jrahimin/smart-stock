@@ -1404,6 +1404,94 @@ class TaxInvestmentCategory(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
 
 
+class TaxPlannerRuleRevision(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """One current or historical tax rule revision, including discarded drafts."""
+
+    __tablename__ = "tax_planner_rule_revisions"
+    __table_args__ = (
+        UniqueConstraint(
+            "country_code", "assessment_year", "revision_number",
+            name="uq_tax_planner_rule_revision_number",
+        ),
+        Index(
+            "uq_tax_planner_rule_draft", "country_code", "assessment_year",
+            unique=True, postgresql_where=text("status = 'draft'"),
+        ),
+        Index(
+            "uq_tax_planner_rule_published", "country_code", "assessment_year",
+            unique=True, postgresql_where=text("status = 'published'"),
+        ),
+        Index(
+            "uq_tax_planner_rule_archive_hash", "country_code", "content_hash",
+            unique=True, postgresql_where=text("status = 'archived_legacy'"),
+        ),
+        CheckConstraint("country_code = 'BD'", name="country"),
+        CheckConstraint(
+            "status IN ('draft', 'published', 'superseded', 'discarded', 'archived_legacy')",
+            name="status",
+        ),
+        CheckConstraint(
+            "(status = 'archived_legacy' AND assessment_year IS NULL "
+            "AND income_period_start IS NULL AND income_period_end IS NULL) OR "
+            "(status <> 'archived_legacy' AND assessment_year IS NOT NULL "
+            "AND assessment_year ~ '^[0-9]{4}-[0-9]{2}$' AND income_period_start IS NOT NULL "
+            "AND income_period_end IS NOT NULL AND income_period_start <= income_period_end)",
+            name="year_period",
+        ),
+        CheckConstraint("revision_number > 0 AND edit_version > 0", name="positive_versions"),
+        CheckConstraint(
+            "payload_schema_version > 0 AND jsonb_typeof(payload) = 'object' "
+            "AND content_hash ~ '^[a-f0-9]{64}$'",
+            name="payload_identity",
+        ),
+        CheckConstraint(
+            "(status IN ('published', 'superseded') AND published_at IS NOT NULL "
+            "AND published_by_user_id IS NOT NULL AND change_reason IS NOT NULL) OR "
+            "(status IN ('draft', 'discarded', 'archived_legacy') AND published_at IS NULL "
+            "AND published_by_user_id IS NULL AND change_reason IS NULL)",
+            name="publication",
+        ),
+        CheckConstraint(
+            "(status = 'discarded' AND discarded_at IS NOT NULL "
+            "AND discarded_by_user_id IS NOT NULL AND discard_reason IS NOT NULL "
+            "AND btrim(discard_reason) <> '') OR "
+            "(status <> 'discarded' AND discarded_at IS NULL "
+            "AND discarded_by_user_id IS NULL AND discard_reason IS NULL)",
+            name="discard_audit",
+        ),
+    )
+
+    country_code: Mapped[str] = mapped_column(String(2), nullable=False)
+    assessment_year: Mapped[str | None] = mapped_column(String(7))
+    income_period_start: Mapped[date | None] = mapped_column(Date)
+    income_period_end: Mapped[date | None] = mapped_column(Date)
+    revision_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    payload_schema_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    engine_policy_version: Mapped[str] = mapped_column(String(80), nullable=False)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    edit_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    # Actor identifiers remain in the audit trail when a user account is deleted.
+    created_by_user_id: Mapped[UUID | None] = mapped_column(PostgresUUID(as_uuid=True))
+    updated_by_user_id: Mapped[UUID | None] = mapped_column(PostgresUUID(as_uuid=True))
+    published_by_user_id: Mapped[UUID | None] = mapped_column(PostgresUUID(as_uuid=True))
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    change_reason: Mapped[str | None] = mapped_column(String(500))
+    discarded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    discarded_by_user_id: Mapped[UUID | None] = mapped_column(PostgresUUID(as_uuid=True))
+    discard_reason: Mapped[str | None] = mapped_column(String(500))
+    copied_from_revision_id: Mapped[UUID | None] = mapped_column(
+        PostgresUUID(as_uuid=True), ForeignKey("tax_planner_rule_revisions.id"),
+    )
+    previewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    preview_content_hash: Mapped[str | None] = mapped_column(String(64))
+    preview_edit_version: Mapped[int | None] = mapped_column(Integer)
+    preview_engine_policy_version: Mapped[str | None] = mapped_column(String(80))
+    preview_against_revision_id: Mapped[UUID | None] = mapped_column(PostgresUUID(as_uuid=True))
+    preview_summary: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+
+
 class DecisionGenerationCapture(UUIDPrimaryKeyMixin, Base):
     """One complete immutable finalized input/result publication, captured from now onward."""
 

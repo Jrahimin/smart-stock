@@ -11,46 +11,46 @@ type TaxPlannerGuideDialogKey = "welcome" | "quick" | "detailed" | "rebate" | "f
 const dialogs = {
   en: {
     welcome: {
-      eyebrow: "👋 A calmer tax season",
-      message: "Let’s turn this year’s numbers into a clear starting point—before tax season gets noisy.",
+      eyebrow: "Your active tax rules",
+      message: "The planner automatically uses the latest rules published by the administrator.",
     },
     quick: {
-      eyebrow: "⚡ Start with the big picture",
-      message: "Just need a first picture? These three yearly numbers give you a useful starting estimate.",
+      eyebrow: "Start with an annual estimate",
+      message: "Quick uses three yearly amounts under the ordinary resident assumptions shown here. Filing credits are still unknown.",
     },
     detailed: {
-      eyebrow: "✦ When the year has more detail",
-      message: "Need the estimate to match your year more closely? Detailed Planner adds the context, one short stop at a time.",
+      eyebrow: "Add the facts that matter",
+      message: "Check your profile, income and eligible investments in three steps. Complex sources show a review warning before entry. Optional tax payments are available only when the active rules support filing balances. Your Quick entries stay here.",
     },
     rebate: {
-      eyebrow: "🌱 See the possible difference",
-      message: "See how a possible eligible investment may change rebate and final tax—before any decision.",
+      eyebrow: "Read the two totals",
+      message: "Annual tax is after your current rebate. Could still save is the possible extra reduction from more eligible investment; it has not been deducted again. Move the slider to compare.",
     },
     finish: {
-      eyebrow: "✨ Your path is clear",
-      message: "Start quick, go detailed when needed, then explore the rebate picture. You’re ready to take it from here.",
+      eyebrow: "Review and find official help",
+      message: "Resolve any missing facts and open the permanent guide for this year’s sources and the official e-Return link.",
     },
   },
   bn: {
     welcome: {
-      eyebrow: "👋 Tax season, একটু শান্তভাবে",
-      message: "চলুন, বছরের অঙ্কটা আগে থেকেই পরিষ্কার করি—শেষ মুহূর্তের চাপের আগেই।",
+      eyebrow: "সক্রিয় করের নিয়ম",
+      message: "পরিকল্পক স্বয়ংক্রিয়ভাবে প্রশাসকের প্রকাশিত সক্রিয় নিয়ম ব্যবহার করে।",
     },
     quick: {
-      eyebrow: "⚡ আগে এক ঝলক",
-      message: "এক ঝলক দেখতে চান? এই তিনটি yearly number-ই শুরু করার মতো estimate দেখাবে।",
+      eyebrow: "বার্ষিক হিসাব দিয়ে শুরু করুন",
+      message: "দ্রুত হিসাবে দেখানো সাধারণ নিবাসী করদাতার ধারণা অনুযায়ী তিনটি বার্ষিক অঙ্ক ব্যবহার হয়। কর সমন্বয় এখনও অজানা।",
     },
     detailed: {
-      eyebrow: "✦ এবার একটু গভীরে",
-      message: "হিসাবটা আপনার বছরের সঙ্গে আরও মিলিয়ে দেখতে চান? Detailed Planner-এ দরকারি তথ্যগুলো ধাপে ধাপে যোগ হবে।",
+      eyebrow: "প্রয়োজনীয় তথ্য যোগ করুন",
+      message: "তিন ধাপে পরিচয়, আয় ও যোগ্য বিনিয়োগ যাচাই করুন। জটিল আয়ের উৎসে তথ্য দেওয়ার আগেই পর্যালোচনার বার্তা দেখাবে। সক্রিয় নিয়মে দাখিলের হিসাব থাকলেই ঐচ্ছিক কর পরিশোধ যোগ করা যাবে। দ্রুত হিসাবের তথ্য থাকবে।",
     },
     rebate: {
-      eyebrow: "🌱 সম্ভাবনাটা মিলিয়ে দেখি",
-      message: "এখানে আগে থেকেই দেখতে পারবেন—eligible investment বদলালে rebate আর final tax কীভাবে বদলাতে পারে।",
+      eyebrow: "দুটি অঙ্ক বুঝে নিন",
+      message: "বার্ষিক কর হলো বর্তমান রেয়াতের পরের অঙ্ক। আরও বাঁচতে পারে হলো অতিরিক্ত যোগ্য বিনিয়োগে সম্ভাব্য বাড়তি সাশ্রয়; এটি আবার বাদ দেওয়া হয়নি। তুলনা করতে স্লাইডার সরান।",
     },
     finish: {
-      eyebrow: "✨ এবার আপনার পালা",
-      message: "আগে Quick, দরকার হলে Detailed, তারপর rebate-এর ছবিটা দেখুন। এবার নিজের মতো করে explore করুন।",
+      eyebrow: "যাচাই করুন ও সরকারি সাহায্য দেখুন",
+      message: "অসম্পূর্ণ তথ্য যাচাই করুন। এই করবর্ষের উৎস ও সরকারি ই-রিটার্নের জন্য স্থায়ী নির্দেশিকা খুলুন।",
     },
   },
 } satisfies Record<AppLocale, Record<TaxPlannerGuideDialogKey, GuideDialog>>;

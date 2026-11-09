@@ -282,6 +282,7 @@ function applyDashboardLocalization(
       turnover: buildTurnoverInsightContext(
         pulse,
         resolveTurnoverLiquidityInsightKey(context.turnoverRatio),
+        model.session.state === "OPEN",
       ),
     },
   );

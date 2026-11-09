@@ -214,6 +214,8 @@ export function useMarketDashboard(options?: {
     model,
     freshness,
     freshnessLoading: freshnessQuery.isLoading,
+    timelineError: alertsQuery.isError,
+    insightsError: sentimentQuery.isError,
     sectionLoading,
     isLoading: isCoreLoading,
     isDeferredLoading: sectionLoading.heatmap || sectionLoading.insights,

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { getPremiumCopy } from "../premium-copy";
 import { useId, useMemo, useState } from "react";
 
 import { sectorName, type TerminalCopy } from "@/features/market-dashboard/terminal-copy";
@@ -11,6 +12,7 @@ import type { AppLocale } from "@/lib/locale/app-locale";
 export function InstitutionalHeatmap({ tiles, copy, locale, loading }: {
   tiles: HeatmapTileModel[]; copy: TerminalCopy; locale: AppLocale; loading: boolean;
 }) {
+  const premium = getPremiumCopy(locale);
   const [mode, setMode] = useState<"size" | "liquidity">("size");
   const [expanded, setExpanded] = useState(false);
   const [pickedId, setPickedId] = useState("");
@@ -44,34 +46,24 @@ export function InstitutionalHeatmap({ tiles, copy, locale, loading }: {
   return <section className="sw-map" aria-labelledby={id + "-title"} aria-busy={loading}>
     <div data-guide="sector-map">
       <div className="sw-map-header">
-        <h2 className="sw-section-title" id={id + "-title"}>{copy.map}</h2>
-        <div className="sw-mode" aria-label={copy.mode} aria-describedby={tiles.length ? id + "-order" : undefined} role="group">
-          <button aria-pressed={mode === "size"} onClick={() => setMode("size")} type="button">{copy.marketCap}</button>
-          <button aria-pressed={mode === "liquidity"} onClick={() => setMode("liquidity")} type="button">{copy.liquidity}</button>
-        </div>
-      </div>
-      {!loading && tiles.length > 0 ? <><div className="sw-map-meta">
+        <h2 className="sw-section-title" id={id + "-title"}>Sector map</h2>
         <div className="sw-map-legend">
           <span className="sw-positive"><i aria-hidden="true" />{copy.up}</span>
           <span><i aria-hidden="true" />{copy.flat}</span>
           <span className="sw-negative"><i aria-hidden="true" />{copy.down}</span>
         </div>
-        <p className="sw-map-basis">{copy.sectorMove}</p>
-        <div className="sw-map-coverage">
-          <span>{copy.coverage(tiles.length)}</span>
-          {hasMore ? <button aria-controls={id + "-tiles"} aria-expanded={expanded} className="sw-map-expand" type="button" onClick={() => setExpanded(!expanded)}>
-            {expanded ? copy.showLess : copy.showFullMap} <span aria-hidden="true">{expanded ? "↑" : "↓"}</span>
-          </button> : null}
-        </div>
       </div>
-      <div className="sw-map-inspect">
-        <div className="sw-map-caption">
-          <p className={active ? "sw-map-order is-reading" : "sw-map-order"} id={id + "-order"}>
-            {!expanded && hasMore ? <strong>{copy.mapPreview(visibleGroups.length, sectorGroups.length)}. </strong> : null}
-            {copy.mapOrder}
-          </p>
-          {active ? <p className="sw-map-readout" aria-hidden="true"><strong>{active.symbol}</strong> · {tileDetails(active)}</p> : null}
+      {!loading && tiles.length > 0 ? <>
+      <div className="sw-map-toolbar">
+        <div className="sw-mode" aria-label={copy.mode} aria-describedby={tiles.length ? id + "-order" : undefined} role="group">
+          <button aria-pressed={mode === "size"} onClick={() => setMode("size")} type="button">{copy.marketCap}</button>
+          <button aria-pressed={mode === "liquidity"} onClick={() => setMode("liquidity")} type="button">{copy.liquidity}</button>
         </div>
+        <span className="sw-map-scope" id={id + "-order"}>{!expanded && hasMore ? copy.mapPreview(visibleGroups.length, sectorGroups.length) : copy.coverage(tiles.length)}</span>
+        {hasMore ? <button aria-controls={id + "-tiles"} aria-expanded={expanded} className="sw-map-expand" type="button" onClick={() => setExpanded(!expanded)}>
+          {expanded ? copy.showLess : copy.showFullMap} <span aria-hidden="true">{expanded ? "↑" : "↓"}</span>
+        </button> : null}
+        <div className="sw-map-inspect">
         <details>
           <summary>{copy.tileDetails}</summary>
           <div className="sw-map-picker">
@@ -85,6 +77,11 @@ export function InstitutionalHeatmap({ tiles, copy, locale, loading }: {
               <Link href={picked.href} prefetch={false}>{copy.stockDetailLink} <span aria-hidden="true">→</span></Link></> : null}
           </div>
         </details>
+        </div>
+      </div>
+      <div className="sw-map-explanation">
+        <details className="sw-map-method"><summary>{premium.methodology}</summary><p>{copy.coverage(tiles.length)}. {copy.mapOrder} {premium.method}</p></details>
+        <p className="sw-map-readout" aria-hidden="true">{active ? <><strong>{active.symbol}</strong> · {tileDetails(active)}</> : null}</p>
       </div>
       </> : null}
     </div>
