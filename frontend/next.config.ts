@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 const projectRoot = path.dirname(fileURLToPath(import.meta.url));
 
 const nextConfig: NextConfig = {
+  allowedDevOrigins: ["127.0.0.1"],
   reactStrictMode: true,
   output: "standalone",
   // Monorepo layout: repo root has an empty lockfile; keep Next rooted on frontend/.

@@ -1,0 +1,477 @@
+INFO:     Started server process [26884]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+2026-11-09 05:54:32,518 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 120.82ms
+INFO:     127.0.0.1:6022 - "GET /api/v1/market/freshness HTTP/1.1" 200 OK
+2026-11-09 05:54:32,599 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/overview completed with 200 in 9.86ms
+INFO:     127.0.0.1:6024 - "GET /api/v1/dashboard/overview HTTP/1.1" 200 OK
+2026-11-09 05:54:32,605 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/sectors completed with 200 in 2.96ms
+INFO:     127.0.0.1:6026 - "GET /api/v1/dashboard/sectors HTTP/1.1" 200 OK
+2026-11-09 05:54:32,610 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/movers completed with 200 in 2.97ms
+INFO:     127.0.0.1:6027 - "GET /api/v1/dashboard/movers HTTP/1.1" 200 OK
+2026-11-09 05:54:38,051 | INFO | app.core.perf_timing | perf dashboard.overview: total=6719.0ms [db.freshness=0.0ms, db.summaries=4214.0ms, db.latest_prices=2495.1ms, compute.snapshot_rows=9.9ms]
+2026-11-09 05:54:39,306 | INFO | app.core.perf_timing | perf dashboard.overview: total=7149.2ms [db.freshness=0.0ms, db.summaries=4214.0ms, db.latest_prices=2495.1ms, compute.snapshot_rows=9.9ms, metrics.local=16.0ms, db.summaries.deep=414.2ms]
+2026-11-09 05:54:39,306 | INFO | app.core.perf_timing | perf dashboard.overview: total=7580.1ms [db.freshness=0.0ms, db.summaries=4214.0ms, db.latest_prices=2495.1ms, compute.snapshot_rows=9.9ms, metrics.local=16.0ms, db.summaries.deep=414.2ms, metrics.dsex=430.9ms]
+2026-11-09 05:54:39,713 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 4.86ms
+INFO:     127.0.0.1:6078 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 05:54:39,718 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/sectors completed with 200 in 7.96ms
+INFO:     127.0.0.1:6080 - "GET /api/v1/dashboard/sectors?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 05:54:39,721 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/movers completed with 200 in 11.31ms
+INFO:     127.0.0.1:6081 - "GET /api/v1/dashboard/movers?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 05:54:39,722 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/overview completed with 200 in 12.50ms
+INFO:     127.0.0.1:6079 - "GET /api/v1/dashboard/overview?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 05:54:40,998 | INFO | app.core.perf_timing | perf rebuild_market_read_cache: total=9250.9ms [rebuild.overview=7982.0ms, rebuild.sectors=837.0ms, rebuild.movers=431.9ms]
+2026-11-09 05:54:40,998 | INFO | app.jobs.market_cache_rebuild | rebuild_market_read_cache DSE: success=True steps=[('overview', True), ('sectors', True), ('movers', True)]
+2026-11-09 05:54:48,545 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 4.31ms
+INFO:     127.0.0.1:12006 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 05:54:48,549 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/sectors completed with 200 in 6.91ms
+2026-11-09 05:54:48,549 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/overview completed with 200 in 7.76ms
+INFO:     127.0.0.1:12008 - "GET /api/v1/dashboard/sectors?exchange=DSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:12007 - "GET /api/v1/dashboard/overview?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 05:54:48,551 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/movers completed with 200 in 8.71ms
+INFO:     127.0.0.1:12009 - "GET /api/v1/dashboard/movers?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 05:55:10,932 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 4.29ms
+INFO:     127.0.0.1:5735 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 05:55:10,940 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/movers completed with 200 in 6.94ms
+2026-11-09 05:55:10,940 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/overview completed with 200 in 7.74ms
+INFO:     127.0.0.1:5738 - "GET /api/v1/dashboard/movers?exchange=DSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:5736 - "GET /api/v1/dashboard/overview?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 05:55:10,940 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/sectors completed with 200 in 7.54ms
+INFO:     127.0.0.1:5737 - "GET /api/v1/dashboard/sectors?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 05:55:38,911 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 5.41ms
+INFO:     127.0.0.1:6142 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 05:55:38,919 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/overview completed with 200 in 9.41ms
+2026-11-09 05:55:38,919 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/sectors completed with 200 in 8.81ms
+2026-11-09 05:55:38,919 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/movers completed with 200 in 8.36ms
+INFO:     127.0.0.1:6143 - "GET /api/v1/dashboard/overview?exchange=DSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:6144 - "GET /api/v1/dashboard/sectors?exchange=DSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:6145 - "GET /api/v1/dashboard/movers?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 05:55:58,293 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 12.50ms
+INFO:     127.0.0.1:7110 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 05:55:58,308 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/movers completed with 200 in 18.93ms
+2026-11-09 05:55:58,308 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/sectors completed with 200 in 19.58ms
+2026-11-09 05:55:58,308 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/overview completed with 200 in 22.61ms
+INFO:     127.0.0.1:7114 - "GET /api/v1/dashboard/movers?exchange=DSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:7113 - "GET /api/v1/dashboard/sectors?exchange=DSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:7111 - "GET /api/v1/dashboard/overview?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 05:57:17,916 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 10.73ms
+INFO:     127.0.0.1:11175 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 05:57:17,938 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/overview completed with 200 in 30.36ms
+2026-11-09 05:57:17,939 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/movers completed with 200 in 30.41ms
+2026-11-09 05:57:17,939 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/sectors completed with 200 in 30.88ms
+INFO:     127.0.0.1:11176 - "GET /api/v1/dashboard/overview?exchange=DSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:11178 - "GET /api/v1/dashboard/movers?exchange=DSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:11177 - "GET /api/v1/dashboard/sectors?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 05:58:16,940 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 24.65ms
+INFO:     127.0.0.1:9417 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 05:58:16,946 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/overview completed with 200 in 28.25ms
+INFO:     127.0.0.1:9418 - "GET /api/v1/dashboard/overview?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 05:58:16,948 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/movers completed with 200 in 26.87ms
+2026-11-09 05:58:16,949 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/sectors completed with 200 in 30.54ms
+INFO:     127.0.0.1:9420 - "GET /api/v1/dashboard/movers?exchange=DSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:9419 - "GET /api/v1/dashboard/sectors?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 05:58:35,366 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 22.70ms
+INFO:     127.0.0.1:3164 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 05:58:35,371 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/overview completed with 200 in 27.15ms
+2026-11-09 05:58:35,371 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/sectors completed with 200 in 27.12ms
+2026-11-09 05:58:35,371 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/movers completed with 200 in 26.06ms
+INFO:     127.0.0.1:3165 - "GET /api/v1/dashboard/overview?exchange=DSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:3166 - "GET /api/v1/dashboard/sectors?exchange=DSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:3167 - "GET /api/v1/dashboard/movers?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 05:58:35,485 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 18.48ms
+INFO:     127.0.0.1:3164 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 05:58:35,489 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/sectors completed with 200 in 20.15ms
+2026-11-09 05:58:35,489 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/movers completed with 200 in 20.62ms
+INFO:     127.0.0.1:3166 - "GET /api/v1/dashboard/sectors?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 05:58:35,489 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/overview completed with 200 in 22.62ms
+INFO:     127.0.0.1:3167 - "GET /api/v1/dashboard/movers?exchange=DSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:3165 - "GET /api/v1/dashboard/overview?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 05:58:45,746 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 4.16ms
+INFO:     127.0.0.1:8130 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 05:58:45,755 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/sectors completed with 200 in 9.89ms
+2026-11-09 05:58:45,756 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/overview completed with 200 in 10.19ms
+2026-11-09 05:58:45,756 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/movers completed with 200 in 10.20ms
+INFO:     127.0.0.1:8132 - "GET /api/v1/dashboard/sectors?exchange=DSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:8131 - "GET /api/v1/dashboard/overview?exchange=DSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:8133 - "GET /api/v1/dashboard/movers?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 05:59:49,474 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 5.31ms
+INFO:     127.0.0.1:3720 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 05:59:49,485 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/overview completed with 200 in 9.77ms
+2026-11-09 05:59:49,485 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/sectors completed with 200 in 9.88ms
+2026-11-09 05:59:49,485 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/movers completed with 200 in 9.91ms
+INFO:     127.0.0.1:3721 - "GET /api/v1/dashboard/overview?exchange=DSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:3722 - "GET /api/v1/dashboard/sectors?exchange=DSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:3723 - "GET /api/v1/dashboard/movers?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 05:59:49,653 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 3.66ms
+INFO:     127.0.0.1:3720 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 05:59:49,665 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/sectors completed with 200 in 8.34ms
+2026-11-09 05:59:49,665 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/movers completed with 200 in 7.61ms
+INFO:     127.0.0.1:3722 - "GET /api/v1/dashboard/sectors?exchange=DSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:3723 - "GET /api/v1/dashboard/movers?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 05:59:49,666 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/overview completed with 200 in 10.03ms
+INFO:     127.0.0.1:3721 - "GET /api/v1/dashboard/overview?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 05:59:50,885 | INFO | app.middlewares.request_logging_middleware | OPTIONS /api/v1/auth/refresh completed with 200 in 0.13ms
+INFO:     127.0.0.1:4881 - "OPTIONS /api/v1/auth/refresh HTTP/1.1" 200 OK
+2026-11-09 05:59:50,969 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/wealth/seasonal-context completed with 200 in 3.17ms
+INFO:     127.0.0.1:13514 - "GET /api/v1/wealth/seasonal-context HTTP/1.1" 200 OK
+2026-11-09 05:59:50,994 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/market-alerts completed with 200 in 17.13ms
+2026-11-09 05:59:50,994 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/market-sentiment completed with 200 in 14.49ms
+2026-11-09 05:59:50,994 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/heatmap completed with 200 in 17.32ms
+INFO:     127.0.0.1:7961 - "GET /api/v1/dashboard/market-alerts?exchange=DSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:7259 - "GET /api/v1/dashboard/market-sentiment?exchange=DSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:7401 - "GET /api/v1/dashboard/heatmap?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 05:59:55,262 | INFO | app.middlewares.request_logging_middleware | POST /api/v1/auth/refresh completed with 401 in 4374.25ms
+2026-11-09 05:59:55,262 | INFO | app.middlewares.request_logging_middleware | POST /api/v1/auth/refresh completed with 401 in 4236.32ms
+INFO:     127.0.0.1:4881 - "POST /api/v1/auth/refresh HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:7401 - "POST /api/v1/auth/refresh HTTP/1.1" 401 Unauthorized
+2026-11-09 06:00:19,943 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/universe-rows completed with 200 in 28972.33ms
+INFO:     127.0.0.1:8539 - "GET /api/v1/market/universe-rows?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:00:44,783 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/universe-rows completed with 200 in 33662.92ms
+INFO:     127.0.0.1:13716 - "GET /api/v1/market/universe-rows?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:00:59,978 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 11.00ms
+INFO:     127.0.0.1:3652 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:00:59,990 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/overview completed with 200 in 15.99ms
+INFO:     127.0.0.1:3653 - "GET /api/v1/dashboard/overview?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:00:59,991 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/sectors completed with 200 in 15.37ms
+INFO:     127.0.0.1:3654 - "GET /api/v1/dashboard/sectors?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:00:59,995 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/movers completed with 200 in 18.37ms
+INFO:     127.0.0.1:3655 - "GET /api/v1/dashboard/movers?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:01:47,569 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 5.21ms
+INFO:     127.0.0.1:4393 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:01:47,576 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/movers completed with 200 in 9.88ms
+2026-11-09 06:01:47,576 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/overview completed with 200 in 10.16ms
+2026-11-09 06:01:47,577 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/sectors completed with 200 in 10.19ms
+INFO:     127.0.0.1:4396 - "GET /api/v1/dashboard/movers?exchange=DSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:4394 - "GET /api/v1/dashboard/overview?exchange=DSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:4395 - "GET /api/v1/dashboard/sectors?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:01:48,381 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/wealth/seasonal-context completed with 200 in 4.92ms
+INFO:     127.0.0.1:2736 - "GET /api/v1/wealth/seasonal-context HTTP/1.1" 200 OK
+2026-11-09 06:01:48,406 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/market-sentiment completed with 200 in 21.98ms
+2026-11-09 06:01:48,406 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/heatmap completed with 200 in 24.62ms
+INFO:     127.0.0.1:4618 - "GET /api/v1/dashboard/market-sentiment?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:01:48,406 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/market-alerts completed with 200 in 24.86ms
+INFO:     127.0.0.1:8077 - "GET /api/v1/dashboard/heatmap?exchange=DSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:7844 - "GET /api/v1/dashboard/market-alerts?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:02:10,264 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/universe-rows completed with 200 in 21887.87ms
+INFO:     127.0.0.1:6055 - "GET /api/v1/market/universe-rows?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:02:48,872 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 4.57ms
+INFO:     127.0.0.1:12314 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:02:48,883 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/sectors completed with 200 in 8.81ms
+INFO:     127.0.0.1:12316 - "GET /api/v1/dashboard/sectors?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:02:48,885 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/movers completed with 200 in 9.02ms
+2026-11-09 06:02:48,885 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/overview completed with 200 in 10.43ms
+INFO:     127.0.0.1:12317 - "GET /api/v1/dashboard/movers?exchange=DSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:12315 - "GET /api/v1/dashboard/overview?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:03:48,334 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 2.30ms
+INFO:     127.0.0.1:14917 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:04:41,637 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 30.04ms
+INFO:     127.0.0.1:9824 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:04:41,642 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/overview completed with 200 in 33.81ms
+2026-11-09 06:04:41,642 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/movers completed with 200 in 31.86ms
+2026-11-09 06:04:41,643 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/sectors completed with 200 in 32.02ms
+INFO:     127.0.0.1:9825 - "GET /api/v1/dashboard/overview?exchange=DSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:9827 - "GET /api/v1/dashboard/movers?exchange=DSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:9826 - "GET /api/v1/dashboard/sectors?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:04:42,703 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 3.46ms
+INFO:     127.0.0.1:9824 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:04:42,709 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/sectors completed with 200 in 7.45ms
+2026-11-09 06:04:42,709 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/movers completed with 200 in 7.61ms
+INFO:     127.0.0.1:9826 - "GET /api/v1/dashboard/sectors?exchange=DSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:9827 - "GET /api/v1/dashboard/movers?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:04:42,710 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/overview completed with 200 in 9.23ms
+INFO:     127.0.0.1:9825 - "GET /api/v1/dashboard/overview?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:04:42,788 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 5.09ms
+INFO:     127.0.0.1:13379 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:04:42,793 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/movers completed with 200 in 7.71ms
+2026-11-09 06:04:42,794 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/overview completed with 200 in 9.64ms
+INFO:     127.0.0.1:13383 - "GET /api/v1/dashboard/movers?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:04:42,794 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/sectors completed with 200 in 9.06ms
+INFO:     127.0.0.1:13380 - "GET /api/v1/dashboard/overview?exchange=DSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:13381 - "GET /api/v1/dashboard/sectors?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:04:42,893 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 4.31ms
+INFO:     127.0.0.1:9824 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:04:42,917 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/overview completed with 200 in 25.38ms
+2026-11-09 06:04:42,917 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/movers completed with 200 in 24.20ms
+INFO:     127.0.0.1:9825 - "GET /api/v1/dashboard/overview?exchange=DSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:9827 - "GET /api/v1/dashboard/movers?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:04:42,918 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/sectors completed with 200 in 25.73ms
+INFO:     127.0.0.1:9826 - "GET /api/v1/dashboard/sectors?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:05:33,998 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 5.83ms
+INFO:     127.0.0.1:5582 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:05:34,029 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/movers completed with 200 in 29.72ms
+2026-11-09 06:05:34,030 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/sectors completed with 200 in 30.31ms
+INFO:     127.0.0.1:5585 - "GET /api/v1/dashboard/movers?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:05:34,030 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/overview completed with 200 in 30.57ms
+INFO:     127.0.0.1:5584 - "GET /api/v1/dashboard/sectors?exchange=DSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:5583 - "GET /api/v1/dashboard/overview?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:06:38,222 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 9.15ms
+INFO:     127.0.0.1:1155 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:06:47,432 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 7.86ms
+INFO:     127.0.0.1:4349 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:06:47,437 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/overview completed with 200 in 11.42ms
+2026-11-09 06:06:47,438 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/sectors completed with 200 in 10.79ms
+2026-11-09 06:06:47,438 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/movers completed with 200 in 9.20ms
+INFO:     127.0.0.1:4350 - "GET /api/v1/dashboard/overview?exchange=DSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:4351 - "GET /api/v1/dashboard/sectors?exchange=DSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:4352 - "GET /api/v1/dashboard/movers?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:06:48,493 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 17.62ms
+INFO:     127.0.0.1:4349 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:06:48,499 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/movers completed with 200 in 21.13ms
+2026-11-09 06:06:48,499 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/sectors completed with 200 in 21.53ms
+2026-11-09 06:06:48,499 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/overview completed with 200 in 21.67ms
+INFO:     127.0.0.1:4352 - "GET /api/v1/dashboard/movers?exchange=DSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:4351 - "GET /api/v1/dashboard/sectors?exchange=DSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:4350 - "GET /api/v1/dashboard/overview?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:06:48,571 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 6.64ms
+INFO:     127.0.0.1:7130 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:06:48,583 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/sectors completed with 200 in 13.29ms
+INFO:     127.0.0.1:7132 - "GET /api/v1/dashboard/sectors?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:06:48,585 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/overview completed with 200 in 15.09ms
+INFO:     127.0.0.1:7131 - "GET /api/v1/dashboard/overview?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:06:48,587 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/movers completed with 200 in 14.85ms
+INFO:     127.0.0.1:7133 - "GET /api/v1/dashboard/movers?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:06:48,702 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 7.44ms
+INFO:     127.0.0.1:4349 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:06:48,710 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/sectors completed with 200 in 13.02ms
+2026-11-09 06:06:48,711 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/movers completed with 200 in 13.25ms
+2026-11-09 06:06:48,711 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/overview completed with 200 in 13.63ms
+INFO:     127.0.0.1:4351 - "GET /api/v1/dashboard/sectors?exchange=DSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:4352 - "GET /api/v1/dashboard/movers?exchange=DSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:4350 - "GET /api/v1/dashboard/overview?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:06:53,904 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 3.88ms
+INFO:     127.0.0.1:4976 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:06:58,318 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/pulse/summary completed with 200 in 20102.84ms
+2026-11-09 06:07:04,250 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/pulse/briefing completed with 200 in 26033.40ms
+2026-11-09 06:07:20,261 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/pulse/briefing completed with 200 in 26355.78ms
+2026-11-09 06:07:21,135 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/pulse/summary completed with 200 in 27231.70ms
+2026-11-09 06:07:26,601 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/pulse/summary completed with 200 in 27340.74ms
+INFO:     127.0.0.1:7995 - "GET /api/v1/market/pulse/summary?exchange=DSE&previous_snapshot=%257B%2522last_synced_at%2522%253A%25222026-07-21T14%253A48%253A39.955435Z%2522%252C%2522score_version%2522%253A%2522pulse-attention-v2%2522%252C%2522decision_taxonomy_version%2522%253A%2522v2%2522%252C%2522focus_stock_ids%2522%253A%255B%255D%252C%2522scores%2522%253A%257B%257D%252C%2522recommendations%2522%253A%257B%257D%252C%2522alert_ids%2522%253A%255B%255D%257D HTTP/1.1" 200 OK
+2026-11-09 06:07:38,556 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/pulse/summary completed with 200 in 39295.83ms
+INFO:     127.0.0.1:1854 - "GET /api/v1/market/pulse/summary?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:08:03,047 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 6.94ms
+INFO:     127.0.0.1:10029 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:10030 - "GET /api/v1/dashboard/overview?exchange=DSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:10032 - "GET /api/v1/dashboard/movers?exchange=DSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:10031 - "GET /api/v1/dashboard/sectors?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:08:03,053 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/overview completed with 200 in 11.52ms
+2026-11-09 06:08:03,053 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/movers completed with 200 in 11.08ms
+2026-11-09 06:08:03,055 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/sectors completed with 200 in 12.50ms
+2026-11-09 06:08:38,215 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 7.76ms
+INFO:     127.0.0.1:2169 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:08:38,234 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/sectors completed with 200 in 23.99ms
+2026-11-09 06:08:38,234 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/movers completed with 200 in 24.08ms
+INFO:     127.0.0.1:2171 - "GET /api/v1/dashboard/sectors?exchange=DSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:2172 - "GET /api/v1/dashboard/movers?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:08:38,235 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/overview completed with 200 in 24.97ms
+INFO:     127.0.0.1:2170 - "GET /api/v1/dashboard/overview?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:08:49,553 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 1.76ms
+INFO:     127.0.0.1:7105 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:09:02,693 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 6.53ms
+INFO:     127.0.0.1:1660 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:09:02,698 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/movers completed with 200 in 9.13ms
+INFO:     127.0.0.1:1663 - "GET /api/v1/dashboard/movers?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:09:02,699 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/sectors completed with 200 in 10.30ms
+2026-11-09 06:09:02,699 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/overview completed with 200 in 12.53ms
+INFO:     127.0.0.1:1662 - "GET /api/v1/dashboard/sectors?exchange=DSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:1661 - "GET /api/v1/dashboard/overview?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:10:49,565 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 1.90ms
+INFO:     127.0.0.1:10675 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:12:49,577 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 1.51ms
+INFO:     127.0.0.1:7453 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:14:49,593 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 2.02ms
+INFO:     127.0.0.1:11816 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:16:49,603 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 1.29ms
+INFO:     127.0.0.1:4467 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:18:49,617 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 1.52ms
+INFO:     127.0.0.1:13974 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:20:49,625 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 1.59ms
+INFO:     127.0.0.1:1948 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:21:49,562 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/overview completed with 200 in 5.74ms
+INFO:     127.0.0.1:13763 - "GET /api/v1/dashboard/overview?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:21:49,585 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/sectors completed with 200 in 5.50ms
+INFO:     127.0.0.1:6538 - "GET /api/v1/dashboard/sectors?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:21:49,585 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/movers completed with 200 in 6.43ms
+INFO:     127.0.0.1:13763 - "GET /api/v1/dashboard/movers?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:22:49,633 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 1.63ms
+INFO:     127.0.0.1:5903 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:23:04,260 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 2.24ms
+INFO:     127.0.0.1:4020 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:23:05,707 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 10.10ms
+INFO:     127.0.0.1:10997 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:23:05,722 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/sectors completed with 200 in 16.66ms
+2026-11-09 06:23:05,723 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/overview completed with 200 in 18.18ms
+2026-11-09 06:23:05,723 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/movers completed with 200 in 17.05ms
+INFO:     127.0.0.1:10999 - "GET /api/v1/dashboard/sectors?exchange=DSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:10998 - "GET /api/v1/dashboard/overview?exchange=DSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:11000 - "GET /api/v1/dashboard/movers?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:23:07,018 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 16.51ms
+INFO:     127.0.0.1:10997 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:23:07,028 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/overview completed with 200 in 23.36ms
+INFO:     127.0.0.1:10998 - "GET /api/v1/dashboard/overview?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:23:07,030 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/sectors completed with 200 in 24.61ms
+2026-11-09 06:23:07,030 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/movers completed with 200 in 23.97ms
+INFO:     127.0.0.1:10999 - "GET /api/v1/dashboard/sectors?exchange=DSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:11000 - "GET /api/v1/dashboard/movers?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:23:07,223 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 9.01ms
+INFO:     127.0.0.1:14361 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:23:07,235 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/movers completed with 200 in 15.42ms
+INFO:     127.0.0.1:14364 - "GET /api/v1/dashboard/movers?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:23:07,237 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/overview completed with 200 in 20.62ms
+2026-11-09 06:23:07,238 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/sectors completed with 200 in 19.64ms
+INFO:     127.0.0.1:14362 - "GET /api/v1/dashboard/overview?exchange=DSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:14363 - "GET /api/v1/dashboard/sectors?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:25:08,940 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 3.52ms
+INFO:     127.0.0.1:11042 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:27:08,952 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 4.48ms
+INFO:     127.0.0.1:13974 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:29:08,977 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 6.49ms
+INFO:     127.0.0.1:2021 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:31:08,999 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 3.12ms
+INFO:     127.0.0.1:2185 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:33:09,008 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 4.43ms
+INFO:     127.0.0.1:4056 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:35:09,033 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 4.91ms
+INFO:     127.0.0.1:8983 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:37:09,054 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 4.54ms
+INFO:     127.0.0.1:8050 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:38:08,961 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/overview completed with 200 in 21.38ms
+INFO:     127.0.0.1:4000 - "GET /api/v1/dashboard/overview?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:39:09,071 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 3.55ms
+INFO:     127.0.0.1:1471 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:41:09,083 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 4.60ms
+INFO:     127.0.0.1:1896 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:43:09,102 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 3.97ms
+INFO:     127.0.0.1:11128 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:45:09,118 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 4.43ms
+INFO:     127.0.0.1:13116 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:47:09,130 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 4.60ms
+INFO:     127.0.0.1:11620 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:49:09,142 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 4.03ms
+INFO:     127.0.0.1:4526 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:51:09,155 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 2.29ms
+INFO:     127.0.0.1:6041 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:53:09,010 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/overview completed with 200 in 35.55ms
+INFO:     127.0.0.1:1438 - "GET /api/v1/dashboard/overview?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:53:09,155 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 3.26ms
+INFO:     127.0.0.1:1438 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:55:09,182 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 4.32ms
+INFO:     127.0.0.1:7690 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:57:09,199 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 5.39ms
+INFO:     127.0.0.1:8553 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:59:09,209 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 1.70ms
+INFO:     127.0.0.1:9146 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:59:10,309 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 6.09ms
+INFO:     127.0.0.1:4467 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:59:10,317 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/sectors completed with 200 in 9.13ms
+2026-11-09 06:59:10,318 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/movers completed with 200 in 10.16ms
+INFO:     127.0.0.1:4469 - "GET /api/v1/dashboard/sectors?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 06:59:10,318 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/overview completed with 200 in 11.81ms
+INFO:     127.0.0.1:4470 - "GET /api/v1/dashboard/movers?exchange=DSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:4468 - "GET /api/v1/dashboard/overview?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 07:00:20,526 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 5.90ms
+INFO:     127.0.0.1:13489 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 07:00:20,533 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/sectors completed with 200 in 10.42ms
+2026-11-09 07:00:20,534 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/movers completed with 200 in 11.29ms
+INFO:     127.0.0.1:13491 - "GET /api/v1/dashboard/sectors?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 07:00:20,534 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/overview completed with 200 in 12.15ms
+INFO:     127.0.0.1:13492 - "GET /api/v1/dashboard/movers?exchange=DSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:13490 - "GET /api/v1/dashboard/overview?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 07:00:21,580 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 8.37ms
+INFO:     127.0.0.1:13489 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 07:00:21,590 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/movers completed with 200 in 14.10ms
+INFO:     127.0.0.1:13492 - "GET /api/v1/dashboard/movers?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 07:00:21,592 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/overview completed with 200 in 17.58ms
+2026-11-09 07:00:21,594 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/sectors completed with 200 in 17.99ms
+INFO:     127.0.0.1:13490 - "GET /api/v1/dashboard/overview?exchange=DSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:13491 - "GET /api/v1/dashboard/sectors?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 07:00:21,703 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 6.34ms
+INFO:     127.0.0.1:6051 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 07:00:21,711 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/sectors completed with 200 in 9.71ms
+INFO:     127.0.0.1:6053 - "GET /api/v1/dashboard/sectors?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 07:00:21,714 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/overview completed with 200 in 13.54ms
+2026-11-09 07:00:21,714 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/movers completed with 200 in 12.42ms
+INFO:     127.0.0.1:6052 - "GET /api/v1/dashboard/overview?exchange=DSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:6054 - "GET /api/v1/dashboard/movers?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 07:00:21,803 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 7.30ms
+INFO:     127.0.0.1:13489 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 07:00:21,811 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/overview completed with 200 in 13.40ms
+INFO:     127.0.0.1:13490 - "GET /api/v1/dashboard/overview?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 07:00:21,813 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/movers completed with 200 in 14.56ms
+2026-11-09 07:00:21,813 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/sectors completed with 200 in 14.75ms
+INFO:     127.0.0.1:13492 - "GET /api/v1/dashboard/movers?exchange=DSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:13491 - "GET /api/v1/dashboard/sectors?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 07:00:34,409 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 6.09ms
+INFO:     127.0.0.1:6313 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 07:00:34,413 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/sectors completed with 200 in 7.83ms
+INFO:     127.0.0.1:6315 - "GET /api/v1/dashboard/sectors?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 07:00:34,414 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/overview completed with 200 in 9.55ms
+2026-11-09 07:00:34,414 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/movers completed with 200 in 8.35ms
+INFO:     127.0.0.1:6314 - "GET /api/v1/dashboard/overview?exchange=DSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:6316 - "GET /api/v1/dashboard/movers?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 07:01:13,708 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 4.67ms
+INFO:     127.0.0.1:4865 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 07:01:40,271 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/pulse/briefing completed with 200 in 26565.58ms
+2026-11-09 07:01:40,622 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/pulse/summary completed with 200 in 26919.86ms
+2026-11-09 07:01:46,022 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/pulse/briefing completed with 200 in 26696.23ms
+INFO:     127.0.0.1:8510 - "GET /api/v1/market/pulse/briefing?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 07:01:55,284 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 5.07ms
+INFO:     127.0.0.1:14257 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 07:01:55,302 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/sectors completed with 200 in 19.27ms
+INFO:     127.0.0.1:14259 - "GET /api/v1/dashboard/sectors?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 07:01:55,304 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/movers completed with 200 in 21.25ms
+2026-11-09 07:01:55,304 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/overview completed with 200 in 22.12ms
+INFO:     127.0.0.1:14260 - "GET /api/v1/dashboard/movers?exchange=DSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:14258 - "GET /api/v1/dashboard/overview?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 07:02:05,886 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 4.74ms
+INFO:     127.0.0.1:5944 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 07:02:05,891 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/movers completed with 200 in 6.45ms
+INFO:     127.0.0.1:5947 - "GET /api/v1/dashboard/movers?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 07:02:05,892 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/sectors completed with 200 in 7.37ms
+2026-11-09 07:02:05,892 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/overview completed with 200 in 7.50ms
+INFO:     127.0.0.1:5946 - "GET /api/v1/dashboard/sectors?exchange=DSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:5945 - "GET /api/v1/dashboard/overview?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 07:03:04,741 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 4.92ms
+INFO:     127.0.0.1:10995 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 07:03:04,750 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/movers completed with 200 in 9.17ms
+2026-11-09 07:03:04,750 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/overview completed with 200 in 10.13ms
+2026-11-09 07:03:04,750 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/sectors completed with 200 in 9.42ms
+INFO:     127.0.0.1:10998 - "GET /api/v1/dashboard/movers?exchange=DSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:10996 - "GET /api/v1/dashboard/overview?exchange=DSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:10997 - "GET /api/v1/dashboard/sectors?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 07:03:17,898 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 7.20ms
+INFO:     127.0.0.1:13223 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 07:03:17,904 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/sectors completed with 200 in 9.57ms
+INFO:     127.0.0.1:13225 - "GET /api/v1/dashboard/sectors?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 07:03:17,906 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/overview completed with 200 in 11.81ms
+INFO:     127.0.0.1:13224 - "GET /api/v1/dashboard/overview?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 07:03:17,906 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/movers completed with 200 in 11.05ms
+INFO:     127.0.0.1:13226 - "GET /api/v1/dashboard/movers?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 07:03:51,928 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 2.02ms
+INFO:     127.0.0.1:8988 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 07:05:51,934 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 2.15ms
+INFO:     127.0.0.1:10368 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 07:06:32,328 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 5.48ms
+INFO:     127.0.0.1:12395 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 07:06:32,334 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/sectors completed with 200 in 8.55ms
+2026-11-09 07:06:32,334 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/movers completed with 200 in 8.71ms
+2026-11-09 07:06:32,334 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/overview completed with 200 in 9.86ms
+INFO:     127.0.0.1:12397 - "GET /api/v1/dashboard/sectors?exchange=DSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:12398 - "GET /api/v1/dashboard/movers?exchange=DSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:12396 - "GET /api/v1/dashboard/overview?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 07:06:33,030 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 3.90ms
+INFO:     127.0.0.1:12395 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 07:06:33,035 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/sectors completed with 200 in 9.60ms
+2026-11-09 07:06:33,036 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/overview completed with 200 in 9.89ms
+2026-11-09 07:06:33,036 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/movers completed with 200 in 9.81ms
+INFO:     127.0.0.1:12397 - "GET /api/v1/dashboard/sectors?exchange=DSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:12396 - "GET /api/v1/dashboard/overview?exchange=DSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:12398 - "GET /api/v1/dashboard/movers?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 07:06:33,132 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/market/freshness completed with 200 in 6.15ms
+INFO:     127.0.0.1:12395 - "GET /api/v1/market/freshness?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 07:06:33,139 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/movers completed with 200 in 9.96ms
+INFO:     127.0.0.1:12398 - "GET /api/v1/dashboard/movers?exchange=DSE HTTP/1.1" 200 OK
+2026-11-09 07:06:33,139 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/sectors completed with 200 in 10.36ms
+2026-11-09 07:06:33,139 | INFO | app.middlewares.request_logging_middleware | GET /api/v1/dashboard/overview completed with 200 in 10.62ms
+INFO:     127.0.0.1:12397 - "GET /api/v1/dashboard/sectors?exchange=DSE HTTP/1.1" 200 OK
+INFO:     127.0.0.1:12396 - "GET /api/v1/dashboard/overview?exchange=DSE HTTP/1.1" 200 OK

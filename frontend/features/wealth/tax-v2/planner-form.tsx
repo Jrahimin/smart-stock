@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import type { AppLocale } from "@/lib/locale/app-locale";
 import type { Coverage, Credit, FinancialExpense, Income, Investment, Profile, SelectedYear, TaxBreakdown, TaxResult } from "./contracts";
 import { hasMoney, incomeEntry, investmentEntry, normalizeMoneyInput, quickOther, quickSalary, validMoney, type Facts } from "./facts";
@@ -112,8 +112,7 @@ export function QuickForm({ facts, change, locale, openDetailed, openInvestments
 }
 function Aggregate({ facts, change, t, locale, detailed = false }: Pick<FormProps, "facts" | "change"> & { t: Text; locale?: AppLocale; detailed?: boolean }) {
   return <div className={css.stack}>
-    <Input money moneyLocale={locale} placeholder="0" label={detailed ? t("Total Investment", "মোট বিনিয়োগ") : t("Investment already eligible for rebate", "রেয়াতের জন্য ইতিমধ্যে যোগ্য Investment")} tooltipLabel={t("More about eligible investments", "যোগ্য বিনিয়োগ সম্পর্কে আরও জানুন")} tooltip={t("For planning, we assume your entered total is eligible after category rules and shared caps for this income period. Use individual contribution details to check insurance, PF and approved-donation eligibility for the annual estimate.", "পরিকল্পনার হিসাবে ধরে নেওয়া হয় আপনার দেওয়া মোট এই আয়কালের শ্রেণিভিত্তিক নিয়ম ও সম্মিলিত সীমার পর যোগ্য। বার্ষিক হিসাবের জন্য পৃথক জমার বিবরণে বীমা, PF ও অনুমোদিত অনুদানের যোগ্যতা যাচাই করা যায়।")} path="investments.amount" value={facts.aggregate} onChange={(aggregate) => change({ aggregate, aggregateConfirmed: true })} />
-
+    <Input money moneyLocale={locale} placeholder="0" label={detailed ? t("Total Investment", "মোট বিনিয়োগ") : t("Investment already eligible for rebate", "রেয়াতের জন্য ইতিমধ্যে যোগ্য Investment")} tooltipLabel={t("More about eligible investments", "যোগ্য বিনিয়োগ সম্পর্কে আরও জানুন")} tooltip={t("Treated as eligible after category caps. Use Detailed for DPS, insurance or savings certificates.", "শ্রেণির সীমার পর যোগ্য ধরা হয়। DPS, বীমা বা সঞ্চয়পত্রের জন্য বিস্তারিত হিসাব ব্যবহার করুন।")} path="investments.amount" value={facts.aggregate} onChange={(aggregate) => change({ aggregate, aggregateConfirmed: true })} />
   </div>;
 }
 export function ProfileStep({ facts, change, selected, locale, base, focusPath }: FormProps) {
@@ -349,24 +348,41 @@ export function InvestmentsStep({ facts, change, selected, locale, base, focusPa
     return () => cancelAnimationFrame(frame);
   }, [facts.investments]);
   function chooseAmounts() { change({ investmentMode: "categories" }); }
+  const eligible = categories.filter(([category]) => selected.investment_policies.some((policy) => policy.category === category && policy.policy !== "excluded" && policy.policy !== "needs_review"));
+  const common = new Set(["dps", "life_insurance", "savings_certificate", "government_security", "recognized_pf", "government_pf", "listed_security", "fund_unit_etf"]);
+  const lead = eligible.filter(([category]) => common.has(category));
+  const more = lead.length ? eligible.filter(([category]) => !common.has(category)) : [];
+  const shown = lead.length ? lead : eligible;
+  const filledMoreIds = more.filter(([category]) => hasMoney(amounts[category] ?? "")).map(([category]) => category).join("|");
+  const [moreOpen, setMoreOpen] = useState(filledMoreIds.length > 0);
+  const moreKey = more.map(([category]) => category).join("|");
+  useEffect(() => { if (filledMoreIds) setMoreOpen(true); }, [filledMoreIds]);
+  useEffect(() => {
+    if (focusPath && moreKey.split("|").some((category) => category && focusPath.includes(category))) setMoreOpen(true);
+  }, [focusPath, moreKey]);
+  const categoryTile = ([category, label]: readonly [string, string]) => {
+    const policy = selected.investment_policies.find((item) => item.category === category)!;
+    const cap = policy.cap_group === "dps" ? selected.rules.dps_cap : policy.cap_group === "government_securities" ? selected.rules.government_securities_cap : null;
+    const icon = category.includes("insurance") ? "🛡️" : category.includes("pf") || category.includes("pension") ? "🧾" : category === "dps" ? "🏦" : category.includes("government") || category === "savings_certificate" ? "🇧🇩" : category.includes("security") || category.includes("fund") ? "📊" : category.includes("donation") || category === "zakat" ? "🤲" : "💰";
+    return <article key={category} aria-label={label} className={css.amountTile + (hasMoney(amounts[category] ?? "") ? " " + css.amountTileActive : "")}>
+      <div className={css.amountTileHead}><span className="wealth-tax-investment-icon" aria-hidden="true">{icon}</span><h3>{label}</h3></div>
+      <Input money moneyLocale={locale} placeholder="0" label={t("Annual eligible amount", "বার্ষিক যোগ্য অঙ্ক")} ariaLabel={label + " · " + t("Annual eligible amount", "বার্ষিক যোগ্য অঙ্ক")} path={"planning-investments." + category} value={amounts[category] ?? ""} onChange={(amount) => { change({ investmentMode: "categories", categoryAmounts: { ...amounts, [category]: amount } }); }} tooltipLabel={label + t(" eligibility", " যোগ্যতা")} tooltip={cap ? (category === "dps" ? t("Your entered DPS amount counts up to the shared yearly cap: ", "আপনার দেওয়া DPS-এর অঙ্ক সম্মিলিত বার্ষিক সীমা পর্যন্ত ধরা হয়: ") : t("Shared yearly cap: ", "সম্মিলিত বার্ষিক সীমা: ")) + bdt(cap, locale) : t("Enter the eligible portion after the category's legal conditions, for the active income period. This is a planning assumption, not a verified filing claim.", "সক্রিয় আয়কালের জন্য শ্রেণির আইনি শর্তের পর যোগ্য অংশ দিন। এটি পরিকল্পনার ধারণা, যাচাইকৃত রিটার্ন দাবি নয়।")} />
+      {cap && <span className={css.tileCap}>{t("Shared cap ", "সম্মিলিত সীমা ")}{bdt(cap, locale)}</span>}
+    </article>;
+  };
   return <div className={css.investmentLayout} ref={editorRoot}>
     <div className={css.headingRow}><h2 id="tax-v2-form-heading" tabIndex={-1}>{t("Investments and deductions", "বিনিয়োগ ও আয় থেকে বাদ")}</h2><Description>{t("For annual planning, enter eligible yearly amounts directly. DPS and government-security shared caps are applied automatically. For insurance, PF and approved donations, use the eligible portion after their conditions. Individual details can check eligibility for this annual estimate.", "বার্ষিক পরিকল্পনায় সরাসরি যোগ্য বার্ষিক অঙ্ক দিন। ডিপিএস ও সরকারি সিকিউরিটিজের সম্মিলিত সীমা স্বয়ংক্রিয়ভাবে প্রযোজ্য হবে। বীমা, পিএফ ও অনুমোদিত অনুদানে শর্তের পর যোগ্য অংশ দিন। এই বার্ষিক হিসাবের যোগ্যতা যাচাই করতে পৃথক জমার বিবরণ দেওয়া যায়।")}</Description></div>
     <Check label={t("Enter each Investment type separately", "Investment-এর ধরন অনুযায়ী আলাদা এন্ট্রি দিবো")} checked={!totalSelected} onChange={checked => change({investmentMode: checked ? "categories" : "aggregate"})}/>
     <p className={css.investmentCaption}>{totalSelected ? t("Use one total already eligible after all category caps. Category entries are kept separately and are not added again.", "শ্রেণির সব সীমার পর যোগ্য মোট দিন। শ্রেণির অঙ্ক আলাদা রাখা হয়, আবার যোগ হয় না।") : verified ? t("These individual payment details are used for this estimate. Your simple category amounts remain saved separately.", "এই হিসাবে পৃথক পরিশোধের বিবরণ ব্যবহার হচ্ছে। সহজ শ্রেণিভিত্তিক অঙ্ক আলাদাভাবে রাখা আছে।") : t("Enter yearly eligible amounts. Shared caps apply automatically; no payment dates are needed for this planning estimate.", "বার্ষিক যোগ্য অঙ্ক দিন। সম্মিলিত সীমা স্বয়ংক্রিয়ভাবে প্রযোজ্য; এই পরিকল্পনায় পরিশোধের তারিখ লাগবে না।")}</p>
     {facts.investments.length > 0 && !verified && <button type="button" className={css.optionalAction} onClick={() => change({investmentMode:"itemized"})}>{t("Use saved payment details", "আগের পরিশোধের তথ্য ব্যবহার করুন")}</button>}
     {verified && <button type="button" className={css.optionalAction} onClick={chooseAmounts}>{t("Enter category amounts instead", "ধরন অনুযায়ী অঙ্ক দিন")}</button>}
-    {totalSelected ? <Aggregate facts={facts} change={change} t={t} locale={locale} detailed /> : !verified ? <div className={css.amountTiles} aria-label={t("Investment categories", "বিনিয়োগের শ্রেণি")}>
-      {categories.filter(([category]) => selected.investment_policies.some((policy) => policy.category === category && policy.policy !== "excluded" && policy.policy !== "needs_review")).map(([category, label]) => {
-        const policy = selected.investment_policies.find((item) => item.category === category)!;
-        const cap = policy.cap_group === "dps" ? selected.rules.dps_cap : policy.cap_group === "government_securities" ? selected.rules.government_securities_cap : null;
-        const icon = category.includes("insurance") ? "🛡️" : category.includes("pf") || category.includes("pension") ? "🧾" : category === "dps" ? "🏦" : category.includes("government") || category === "savings_certificate" ? "🇧🇩" : category.includes("security") || category.includes("fund") ? "📊" : category.includes("donation") || category === "zakat" ? "🤲" : "💰";
-        return <article key={category} aria-label={label} className={css.amountTile + (hasMoney(amounts[category] ?? "") ? " " + css.amountTileActive : "")}>
-          <div className={css.amountTileHead}><span className="wealth-tax-investment-icon" aria-hidden="true">{icon}</span><h3>{label}</h3></div>
-          <Input money moneyLocale={locale} placeholder="0" label={t("Annual eligible amount", "বার্ষিক যোগ্য অঙ্ক")} ariaLabel={label + " · " + t("Annual eligible amount", "বার্ষিক যোগ্য অঙ্ক")} path={"planning-investments." + category} value={amounts[category] ?? ""} onChange={(amount) => { change({ investmentMode: "categories", categoryAmounts: { ...amounts, [category]: amount } }); }} tooltipLabel={label + t(" eligibility", " যোগ্যতা")} tooltip={cap ? (category === "dps" ? t("Your entered DPS amount counts up to the shared yearly cap: ", "আপনার দেওয়া DPS-এর অঙ্ক সম্মিলিত বার্ষিক সীমা পর্যন্ত ধরা হয়: ") : t("Shared yearly cap: ", "সম্মিলিত বার্ষিক সীমা: ")) + bdt(cap, locale) : t("Enter the eligible portion after the category's legal conditions, for the active income period. This is a planning assumption, not a verified filing claim.", "সক্রিয় আয়কালের জন্য শ্রেণির আইনি শর্তের পর যোগ্য অংশ দিন। এটি পরিকল্পনার ধারণা, যাচাইকৃত রিটার্ন দাবি নয়।")} />
-          {cap && <span className={css.tileCap}>{t("Shared cap ", "সম্মিলিত সীমা ")}{bdt(cap, locale)}</span>}
-        </article>;
-      })}
-    </div> : null}
+    {totalSelected ? <Aggregate facts={facts} change={change} t={t} locale={locale} detailed /> : !verified ? <>
+      <div className={css.amountTiles} aria-label={t("Investment categories", "বিনিয়োগের শ্রেণি")}>{shown.map(categoryTile)}</div>
+      {more.length > 0 && <details className={css.scopedDisclosure} open={moreOpen} onToggle={(event) => setMoreOpen(event.currentTarget.open)}>
+        <summary>{t("More investment categories", "আরও Investment-এর ধরন")}{filledMoreIds ? t(" · amount entered", " · অঙ্ক দেওয়া আছে") : ""}</summary>
+        <div className={css.amountTiles}>{more.map(categoryTile)}</div>
+      </details>}
+    </> : null}
     {(facts.investments.length > 0 || verified) && <details className={css.scopedDisclosure} open={verified || focusPath?.startsWith("investments.entries")}><summary>{t("Saved payment details", "আগের পরিশোধের তথ্য")}{facts.investments.length ? " · " + facts.investments.length : ""}</summary><p className={css.scopeNote}>{t("Check dates, insurance, PF and recipient conditions for the annual estimate. Only these payment details count while this saved method is active.", "বার্ষিক হিসাবের জন্য তারিখ, বীমা, PF ও প্রাপকের শর্ত যাচাই করুন। আগের এই পদ্ধতি সক্রিয় থাকলে শুধু এই পরিশোধের তথ্য ধরা হয়।")}</p>
 
       <div className="wealth-tax-investment-list">
@@ -396,7 +412,7 @@ export function InvestmentsStep({ facts, change, selected, locale, base, focusPa
     <div><Button disabled={facts.deductions.some((entry) => !validMoney(entry.amount) || !entry.paid_on) || facts.deductions.length >= 100} onClick={() => change({ deductions: [...facts.deductions, { id: newId("deduction"), kind: "czm_donation", amount: "", paid_on: "", qualified_bank_transfer: "unknown" }] })}>{t("Add CZM donation", "সিজেডএম অনুদান যোগ করুন")}</Button></div>
   </div>;
 }
-export function CreditsStep({ facts, change, selected, locale, onEditStep }: FormProps) {
+export function CreditsStep({ facts, change, selected, locale, onEditStep, entryLocked = false }: FormProps & { entryLocked?: boolean }) {
   const t = translator(locale), filing = facts.filing;
   const profileLabels = [
     facts.profile.residence === "resident" ? t("Resident", "নিবাসী") : facts.profile.residence === "non_resident" ? t("Non-resident", "অনিবাসী") : t("Residence unconfirmed", "নিবাস নিশ্চিত নয়"),
@@ -407,7 +423,7 @@ export function CreditsStep({ facts, change, selected, locale, onEditStep }: For
   ];
   return <div className={css.stack + " " + css.reviewLayout}>
     {!selected.identity.supports_settlement && <p role="status" className={css.notice}>{t("Annual planning only: the active rules do not support a filing balance or refund estimate. Tax payments do not reduce annual liability; new payment entry is unavailable here. Any previously entered records are preserved.", "শুধু বার্ষিক কর পরিকল্পনা: সক্রিয় নিয়মে দাখিলের বাকি কর বা ফেরতযোগ্য করের হিসাব নেই। কর পরিশোধ বার্ষিক করদায় কমায় না; এখানে নতুন পরিশোধ যোগ করা যাবে না। আগে দেওয়া তথ্য সংরক্ষিত আছে।")}</p>}
-    <div className={css.headingRow}><h2 id="tax-v2-form-heading" tabIndex={-1}>{t("Credits and filing review", "কর সমন্বয় ও রিটার্ন পর্যালোচনা")}</h2><Description>{t("Enter actual withholding or advance payments from your records. Credits reduce a supported filing balance, not annual tax. Unknown credits are not treated as zero.", "নথি থেকে প্রকৃত উৎসে কর বা অগ্রিম কর দিন। কর সমন্বয় প্রযোজ্য দাখিলের বাকি কর কমায়, বার্ষিক কর নয়। অজানা কর সমন্বয়কে শূন্য ধরা হয় না।")}</Description></div>
+    {!entryLocked && <><div className={css.headingRow}><h2 id="tax-v2-form-heading" tabIndex={-1}>{t("Credits and filing review", "কর সমন্বয় ও রিটার্ন পর্যালোচনা")}</h2><Description>{t("Enter actual withholding or advance payments from your records. Credits reduce a supported filing balance, not annual tax. Unknown credits are not treated as zero.", "নথি থেকে প্রকৃত উৎসে কর বা অগ্রিম কর দিন। কর সমন্বয় প্রযোজ্য দাখিলের বাকি কর কমায়, বার্ষিক কর নয়। অজানা কর সমন্বয়কে শূন্য ধরা হয় না।")}</Description></div>
     <div className="wealth-tax-review-grid">
       {[
         [0, t("Tax Profile", "করদাতার পরিচয়"), profileLabels.join(" · ")],
@@ -418,7 +434,7 @@ export function CreditsStep({ facts, change, selected, locale, onEditStep }: For
     <div className={css.creditToolbar}>
     <Select label={t("Credit information", "কর সমন্বয়ের তথ্য")} path="credits_completeness" value={facts.creditStatus} onChange={(creditStatus) => change({ creditStatus })} options={[["unknown", t("Incomplete or unknown", "অসম্পূর্ণ বা অজানা")], ["confirmed_none", t("Confirmed no credits", "কর সমন্বয় নেই বলে নিশ্চিত")], ["complete", t("All credits entered", "সব কর সমন্বয় দেওয়া হয়েছে")]]} />
     <Button disabled={!selected.identity.supports_settlement || facts.credits.length >= 100} onClick={() => change({ creditStatus: facts.creditStatus === "confirmed_none" ? "unknown" : facts.creditStatus, credits: [...facts.credits, { id: newId("credit"), kind: "withholding", amount: "", paid_on: "", assessment_year: selected.identity.assessment_year, qualifying_claim_confirmed: "unknown" }] })}>{t("Add tax payment", "কর পরিশোধ যোগ করুন")}</Button>
-    </div>
+    </div></>}
     {facts.credits.map((credit, i) => {
       const path = "credits." + i;
       const update = (patch: Partial<Credit>) => change({ credits: replaceAt(facts.credits, i, { ...credit, ...patch }) });
@@ -448,7 +464,7 @@ export function CreditsStep({ facts, change, selected, locale, onEditStep }: For
 function SimulatorMoney({ value, locale, available = true }: { value?: string | null; locale: AppLocale; available?: boolean }) {
   if (!available || value == null || !validMoney(value)) return <strong>—</strong>;
   const number = bdt(value, locale).replace(/^(BDT |৳)/, "");
-  return <strong><small aria-hidden="true">{locale === "bn" ? "৳" : "BDT"}</small><span className={css.simulatorNumber} style={{"--money-characters": number.length} as CSSProperties}>{number}</span><span className={css.srOnly}>{locale === "bn" ? " টাকা" : " BDT"}</span></strong>;
+  return <strong><small aria-hidden="true">{locale === "bn" ? "৳" : "BDT"}</small><span key={value} className={css.simulatorNumber} style={{"--money-characters": number.length} as CSSProperties}>{number}</span><span className={css.srOnly}>{locale === "bn" ? " টাকা" : " BDT"}</span></strong>;
 }
 
 function SimulatorAmount({ value, locale, disabled, invalid, onChange }: { value: string; locale: AppLocale; disabled: boolean; invalid: boolean; onChange: (value: string) => void }) {
@@ -519,6 +535,16 @@ export function ScenarioForm({ facts, change, selected, locale, asOf, calculate,
   else if (usefulLimit === null) notice = t("The usable saving limit is unavailable for these facts. Check the eligibility conditions.", "এই তথ্যে ব্যবহারযোগ্য সাশ্রয়ের সীমা পাওয়া যাচ্ছে না। যোগ্যতার শর্ত যাচাই করুন।");
   const setAmount = (next: string) => change({ scenario: { ...(scenario?.mode === "confirmed_eligible_total" ? scenario : conditional()), amount: next }, scenarioConfirmed: true });
   const reset = () => { setDragging(false); change({ scenario: null, scenarioConfirmed: false }); };
+  const keyboardStep = maximum >= 20000 ? 1000 : maximum >= 5000 ? 500 : maximum >= 500 ? 100 : 1;
+  const atUsefulLimit = usefulLimit !== null && sameMoney(validMoney(amount) ? amount : "0", usefulLimit);
+  const nudgeSlider = (event: KeyboardEvent<HTMLInputElement>) => {
+    const direction = event.key === "ArrowRight" || event.key === "ArrowUp" ? 1 : event.key === "ArrowLeft" || event.key === "ArrowDown" ? -1 : 0;
+    if (!direction || !sliderReady) return;
+    event.preventDefault();
+    const jump = event.shiftKey ? keyboardStep * 5 : keyboardStep;
+    const next = Math.min(maximum, Math.max(0, Math.round(sliderAmount) + direction * jump));
+    setAmount(String(next));
+  };
   return <section className={"wealth-tax-play wealth-panel " + css.simulator} data-guide="tax-planner-rebate" data-path="scenario" id="tax-planner-play-explore" tabIndex={-1}>
     <header className={css.simulatorHeading}><h2>{t("What If I Invest More?", "আরও Invest করলে কী হতে পারে?")}</h2></header>
     <div className={css.simulatorOutcomes} role="status" aria-label={t("Investment comparison", "বিনিয়োগের তুলনা")} aria-busy={pending}>
@@ -530,10 +556,10 @@ export function ScenarioForm({ facts, change, selected, locale, asOf, calculate,
       </div>
     </div>
     {scenario?.mode !== "itemized" ? <>
-      <div className={css.simulatorControls}><SimulatorAmount value={amount} locale={locale} disabled={!sliderReady} invalid={invalid || !validMoney(amount)} onChange={setAmount}/><button type="button" className={css.simulatorSetMax} disabled={!sliderReady || usefulLimit === null} onClick={() => usefulLimit !== null && setAmount(usefulLimit)} aria-label={t("Set max: ", "সর্বোচ্চ সেট করি: ")+display(usefulLimit)}>{t("Set max", "সর্বোচ্চ সেট করি")}</button><button type="button" className={css.simulatorReset} disabled={disabled || !scenario} onClick={reset}>{t("Reset", "রিসেট")}</button></div>
-      <div className={css.simulatorSlider} style={{ "--simulator-ratio": ratio * 100 + "%", "--simulator-marker": markerRatio * 100 + "%", "--simulator-bubble": Math.max(8, Math.min(92, ratio * 100)) + "%" } as CSSProperties}>
+      <div className={css.simulatorControls}><SimulatorAmount value={amount} locale={locale} disabled={!sliderReady} invalid={invalid || !validMoney(amount)} onChange={setAmount}/><button type="button" className={css.simulatorSetMax} disabled={!sliderReady || usefulLimit === null || atUsefulLimit} onClick={() => usefulLimit !== null && setAmount(usefulLimit)} aria-label={t("Set max: ", "সর্বোচ্চ সেট করি: ")+display(usefulLimit)}>{t("Set max", "সর্বোচ্চ সেট করি")}</button><button type="button" className={css.simulatorReset} disabled={disabled || !scenario} onClick={reset}>{t("Reset", "রিসেট")}</button></div>
+      <div className={css.simulatorSlider} data-marker-end={markerRatio > 0.82 || undefined} style={{ "--simulator-ratio": ratio * 100 + "%", "--simulator-marker": markerRatio * 100 + "%", "--simulator-bubble": Math.max(8, Math.min(92, ratio * 100)) + "%" } as CSSProperties}>
         <div className={css.simulatorRail} data-dragging={dragging || undefined}>
-          <span className={css.simulatorNotch} aria-hidden="true" hidden={usefulLimit === null || !hasMoney(usefulLimit)}/><input className={css.simulatorRange} type="range" aria-label={t("Additional tax-saving investment to simulate", "তুলনার জন্য অতিরিক্ত করসাশ্রয়ী বিনিয়োগ")} aria-valuetext={display(validMoney(amount) ? amount : null)} aria-describedby="tax-planner-simulator-limit" min={0} max={maximum || 1} step={0.01} value={sliderAmount} disabled={!sliderReady} onPointerDown={() => setDragging(true)} onPointerUp={() => setDragging(false)} onPointerCancel={() => setDragging(false)} onBlur={() => setDragging(false)} onChange={event => setAmount(event.target.value)}/>
+          <span className={css.simulatorNotch} aria-hidden="true" hidden={usefulLimit === null || !hasMoney(usefulLimit)}><span>{t("Limit", "সীমা")}</span></span><input className={css.simulatorRange} type="range" aria-label={t("Additional tax-saving investment to simulate", "তুলনার জন্য অতিরিক্ত করসাশ্রয়ী বিনিয়োগ")} aria-valuetext={display(validMoney(amount) ? amount : null)} aria-describedby="tax-planner-simulator-limit" min={0} max={maximum || 1} step={keyboardStep} value={sliderAmount} disabled={!sliderReady} onKeyDown={nudgeSlider} onPointerDown={() => setDragging(true)} onPointerUp={() => setDragging(false)} onPointerCancel={() => setDragging(false)} onBlur={() => setDragging(false)} onChange={event => setAmount(event.target.value)}/>
           <span className={css.simulatorBubble} aria-hidden="true">{display(validMoney(amount) ? amount : null)}</span>
         </div>
         <div className={css.simulatorEndpoints} aria-hidden="true"><span>{bdt("0", locale)}</span><span>{maximum > 0 ? bdt(String(maximum), locale) : "—"}</span></div>
@@ -542,13 +568,14 @@ export function ScenarioForm({ facts, change, selected, locale, asOf, calculate,
     </> : <div className={css.simulatorControls}><p className={css.simulatorCategory}>{t("Category contribution: ", "শ্রেণিভিত্তিক জমা: ")}{bdt(scenario.entry.amount || "0", locale)}</p><button type="button" className={css.simulatorReset} disabled={disabled} onClick={reset}>{t("Reset", "রিসেট")}</button></div>}
     <div className={css.simulatorProjection} role="status" aria-label={t("With this extra Investment", "এই Investment যোগ করলে")} aria-busy={pending}>
       <div className={css.simulatorProjectionHeading}><span aria-hidden="true">↗</span><span>{t("With this extra Investment", "এই Investment যোগ করলে")}</span></div>
+      <p className={css.simulatorChain}>{t("Extra eligible Investment → additional Tax saving → revised annual Tax", "অতিরিক্ত যোগ্য Investment → অতিরিক্ত Tax সাশ্রয় → নতুন বার্ষিক Tax")}</p>
       <div className={css.simulatorProjectionValues}>
         <div><span>{t("Total Investment", "মোট Investment হবে")}</span><SimulatorMoney value={totalInvestment} locale={locale} available={available}/></div>
         <div><span>{t("Additional Tax saving", "অতিরিক্ত Tax সাশ্রয়")}</span><SimulatorMoney value={selectedSaving} locale={locale} available={available}/>{savedSoFar != null && hasMoney(savedSoFar) && <small>{t("Total saved ", "মোট সাশ্রয় ")}{display(totalSaved)}</small>}</div>
         <div><span>{t("Tax with this Investment", "এই Investment-এ Tax")}</span><SimulatorMoney value={selectedTax} locale={locale} available={available}/></div>
       </div>
     </div>
-    {notice && <p className={css.simulatorNotice} role="status">{notice}</p>}
+    {notice && <p className={css.simulatorNotice + (!sliderReady && available ? " " + css.simulatorNoticeFloor : "")} role="status">{notice}</p>}
     <footer className={css.simulatorFooter}>
       <details className={css.simulatorRules}><summary>{t("How this works", "হিসাবটি যেভাবে হয়")}</summary>
         <dl className={css.simulatorFacts}><div><dt>{t("Current eligible Investment", "বর্তমান যোগ্য Investment")}</dt><dd>{display(base?.eligible_investment)}</dd></div><div><dt>{t("Selected total eligible Investment", "নির্বাচিত মোট যোগ্য Investment")}</dt><dd>{display(totalInvestment)}</dd></div><div><dt>{t("Extra amount at saving limit", "সাশ্রয়ের সীমায় অতিরিক্ত অঙ্ক")}</dt><dd>{display(usefulLimit)}</dd></div><div><dt>{t("Total at saving limit", "সাশ্রয়ের সীমায় মোট Investment")}</dt><dd>{display(totalAtLimit)}</dd></div><div><dt>{t("Current Statutory Rebate", "এখনকার আইনি রেয়াত")}</dt><dd>{display(base?.rebate.entitlement)}</dd></div><div><dt>{t("Scenario Statutory Rebate", "সম্ভাব্য আইনি রেয়াত")}</dt><dd>{display(comparisonReady ? projected?.rebate.entitlement : null)}</dd></div></dl>
@@ -559,7 +586,7 @@ export function ScenarioForm({ facts, change, selected, locale, asOf, calculate,
         <p className={css.dialogIntro}>{t("The slider assumes your extra contribution is eligible after the applicable caps. Compare a different date or check a specific category here.", "স্লাইডারে ধরে নেওয়া হয় অতিরিক্ত জমা প্রযোজ্য সীমার পর যোগ্য। এখানে তারিখ বদলান বা নির্দিষ্ট শ্রেণির যোগ্যতা যাচাই করুন।")}</p>
         {!scenario && <Button onClick={() => change({ scenario: conditional(), scenarioConfirmed: true })}>{t("Customize comparison", "তুলনা সাজান")}</Button>}
         {scenario && <>
-          <Select label={t("Scenario basis", "সম্ভাব্য হিসাবের ভিত্তি")} value={scenario.mode} options={[["confirmed_eligible_total", t("Conditional eligible total", "শর্তসাপেক্ষ যোগ্য মোট")], ...(categories.length && canCheckCategory ? [["itemized", t("Check an investment category", "বিনিয়োগের শ্রেণি যাচাই করুন")] as const] : scenario.mode === "itemized" ? [["itemized", t("Category (requires itemized actuals)", "শ্রেণি (আলাদা জমার তথ্য প্রয়োজন)")] as const] : [])]} onChange={mode => change({ scenario: mode === "itemized" && categories.length ? { mode, entry: investmentEntry(categories[0][0], newId("scenario"), "", date) } : conditional(), scenarioConfirmed: true })}/>
+          <Select label={t("Scenario basis", "তুলনার ভিত্তি")} value={scenario.mode} options={[["confirmed_eligible_total", t("Eligible extra amount", "যোগ্য অতিরিক্ত অঙ্ক")], ...(categories.length && canCheckCategory ? [["itemized", t("Check an investment category", "বিনিয়োগের শ্রেণি যাচাই করুন")] as const] : scenario.mode === "itemized" ? [["itemized", t("One investment category", "একটি Investment-এর ধরন")] as const] : [])]} onChange={mode => change({ scenario: mode === "itemized" && categories.length ? { mode, entry: investmentEntry(categories[0][0], newId("scenario"), "", date) } : conditional(), scenarioConfirmed: true })}/>
           {scenario.mode === "confirmed_eligible_total" ? <div className={css.fields}><Input money label={t("Hypothetical eligible amount", "সম্ভাব্য যোগ্য জমা")} path="scenario.amount" value={scenario.amount} onChange={amount => change({ scenario: { ...scenario, amount }, scenarioConfirmed: true })}/><Input type="date" label={t("Hypothetical contribution date", "সম্ভাব্য জমার তারিখ")} path="scenario.contributed_on" min={start} max={end} value={scenario.contributed_on} onChange={contributed_on => change({ scenario: { ...scenario, contributed_on }, scenarioConfirmed: true })}/></div> : <InvestmentFields entry={scenario.entry} scenario path="scenario.entry" selected={selected} locale={locale} update={entry => change({ scenario: { mode: "itemized", entry } })}/>}
           <p role="status">{t("Current Tax", "বর্তমান Tax")}: {display(base?.annual_liability)} → {t("Proposed Tax", "প্রস্তাবিত Tax")}: {display(comparisonReady ? projected?.annual_liability : null)} · {t("Saving from this additional Investment", "এই অতিরিক্ত Investment-এ সম্ভাব্য সাশ্রয়")}: {display(comparisonReady ? result?.scenario?.annual_saving : null)}</p>
           <div><Button primary disabled={disabled} onClick={calculate}>{t("Calculate comparison", "তুলনা হিসাব করুন")}</Button></div>

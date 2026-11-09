@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getPremiumCopy } from "../premium-copy";
 import Image from "next/image";
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import hero from "./market-overview.module.css";
 
 import { sectorName, marketHeadline, breadthContrast, type TerminalCopy } from "@/features/market-dashboard/terminal-copy";
 import type { MarketDashboardModel } from "@/features/market-dashboard/types/market-dashboard-types";
@@ -52,7 +53,14 @@ export function MarketOverview({ model, copy, locale, freshness, loading, leader
   const turnover = pulse.turnoverContext;
   const volume = pulse.volumeContext;
   const partial = insights.find(({ id }) => id === "partial-data");
-  const context = partial?.description ?? breadthContrast(model, locale);
+  const count = new Intl.NumberFormat(locale === "bn" ? "bn-BD" : "en-BD");
+  const sessionSummary = breadth.total > 0 ? locale === "bn"
+    ? `সর্বশেষ পাওয়া কার্যদিবসে ${count.format(breadth.advancing)}টি শেয়ার বেড়েছে, ${count.format(breadth.declining)}টি কমেছে।`
+    : `In the latest recorded session, ${count.format(breadth.advancing)} stocks rose and ${count.format(breadth.declining)} fell.` : null;
+  const context = partial?.description ?? [sessionSummary, breadthContrast(model, locale)].filter(Boolean).join(" ");
+  const pulseDescription = locale === "bn"
+    ? stale ? "ওই কার্যদিবসের খাতের অগ্রগতি দেখুন।" : "খাতের অগ্রগতি ও বাজারের চিত্র দেখুন।"
+    : stale ? "Leaders from the recorded session." : "Sector leaders and session context.";
   const breadthParts = [[copy.up, breadth.advancing, "positive"], [copy.flat, breadth.unchanged, "neutral"], [copy.down, breadth.declining, "negative"]] as const;
   const detailStats = [
     ...(pulse.indexDayStats ? [
@@ -62,7 +70,7 @@ export function MarketOverview({ model, copy, locale, freshness, loading, leader
       .map((value, index) => [copy.returns[index], value])),
   ];
 
-  return <section className="sw-hero" aria-label={copy.overview} aria-busy={loading}>
+  return <section className={`sw-hero ${hero.hero}`} aria-label={copy.overview} aria-busy={loading}>
     <div className="sw-hero-main" data-guide="market-pulse" data-guide-ready={String(!loading)}>
       <div className="sw-index-stack"><div className="sw-index">
         <span>{pulse.indexName}</span>
@@ -85,9 +93,9 @@ export function MarketOverview({ model, copy, locale, freshness, loading, leader
       <div className="sw-hero-story">
         <div className="sw-session">
           <span className={`sw-session-state${stale || session.state === "PARTIAL" ? " sw-session-caution" : ""}`}>
-            {loading ? copy.syncing : !hasDate ? copy.overview : stale ? copy.stale : status}
+            {loading ? copy.syncing : !hasDate ? copy.overview : `${locale === "bn" ? "এখন বাজার" : "Market now"}: ${stale ? copy.stale : status}`}
           </span>
-          {tradeDate && Number.isFinite(+tradeDate) ? <time dateTime={pulse.latestTradeDate}>{dhakaDate.format(tradeDate)}</time> : null}
+          {tradeDate && Number.isFinite(+tradeDate) ? <time dateTime={pulse.latestTradeDate}>{locale === "bn" ? "কার্যদিবস" : "Session"} · {dhakaDate.format(tradeDate)}</time> : null}
           {time && Number.isFinite(+time) && timestamp ? (
             <time dateTime={timestamp} title={observed ? copy.snapshotTime : copy.syncTime}>
               {observed ? "" : `${copy.synced} `}{dhakaDate.format(time) !== (tradeDate && dhakaDate.format(tradeDate)) ? `${dhakaDate.format(time)} ` : ""}{dhakaTime.format(time)}
@@ -96,6 +104,9 @@ export function MarketOverview({ model, copy, locale, freshness, loading, leader
         </div>
         <h1>{loading ? copy.loading : marketHeadline(model, locale)}</h1>
         {!loading && context ? <p className={partial ? "sw-hero-context sw-hero-context-caution" : "sw-hero-context"}>{context}</p> : null}
+      </div>
+      <div className={hero.artwork} aria-hidden="true">
+        <Image src="/dashboard/market-candlesticks-lens.webp" width={900} height={450} sizes="(max-width: 1100px) 160px, 260px" alt="" priority />
       </div>
     </div>
     <dl className="sw-metrics">
@@ -121,14 +132,14 @@ export function MarketOverview({ model, copy, locale, freshness, loading, leader
         <span className="sw-pulse-copy">
           <small className="sw-destination-eyebrow">{premium.pulseEyebrow}</small>
           <strong id="sw-pulse-title">{copy.pulse} <span aria-hidden="true">↗</span></strong>
-          <span id="sw-pulse-description">{stale ? copy.pulseHistorical : copy.pulseDescription}</span>
+          <span id="sw-pulse-description">{pulseDescription}</span>
         </span>
         <Image className="sw-pulse-art" alt="" sizes="(max-width: 640px) 98px, 150px" height={230} src="/dashboard/market-pulse-ceramic.webp" width={420} />
       </Link>
       <Link className="sw-wealth-card" href="/wealth" prefetch={false} aria-labelledby="sw-wealth-title" aria-describedby="sw-wealth-preview">
         <div className="sw-wealth-content">
           <span className="sw-wealth-label">Wealth Workspace</span>
-          <strong id="sw-wealth-title">{locale === "bn" ? "সঞ্চয় এবং সম্পদের হিসাব রাখুন সহজে" : "Plan savings. Estimate tax."} <span aria-hidden="true">↗</span></strong>
+          <strong id="sw-wealth-title">{locale === "bn" ? "সঞ্চয় ও সম্পদের পরিকল্পনা করুন" : "Plan savings. Estimate tax."} <span aria-hidden="true">↗</span></strong>
           <span id="sw-wealth-preview">{locale === "bn" ? "ট্যাক্স প্ল্যানার · সঞ্চয়পত্র · যাকাত · DPS · FDR" : "Tax Planner · Sanchayapatra · Zakat · DPS · FDR"}</span>
         </div>
         <Image className="sw-wealth-card-art" alt="" sizes="(max-width: 640px) 76px, 120px" height={320} width={480} src="/dashboard/wealth-workspace-trio-v2.webp" />

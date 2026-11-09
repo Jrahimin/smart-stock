@@ -276,11 +276,11 @@ export function DashboardMobileGuide({
                 ? { label: guideControls.dashboardPhase, index: stepIndex, count: 5 }
                 : { label: guideControls.menuPhase, index: stepIndex - 5, count: dashboardMobileGuideSteps.length - 5 }}
               onCancelSkip={() => setSkipConfirmationOpen(false)}
-              onClose={() => setSkipConfirmationOpen(true)}
+              onClose={isTaxPlannerJourney ? handleSkip : () => setSkipConfirmationOpen(true)}
               onConfirmSkip={handleSkip}
               onNext={moveNext}
               onPrevious={movePrevious}
-              onSkip={() => setSkipConfirmationOpen(true)}
+              onSkip={isTaxPlannerJourney ? handleSkip : () => setSkipConfirmationOpen(true)}
               onSuppressContextualPromptsChange={setSuppressContextualPrompts}
               stepCount={dashboardMobileGuideSteps.length}
               stepIndex={stepIndex}

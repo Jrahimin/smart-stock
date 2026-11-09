@@ -129,7 +129,7 @@ export function TaxHero({ locale, identity, base, rules, policies, provenance }:
       <ul aria-label={t("Planner benefits", "পরিকল্পকের সুবিধা")} className="wealth-tax-chip-row">{copy.heroChips.map((chip) => <li className="wealth-tax-chip" key={chip}><span aria-hidden="true">✓</span>{chip}</li>)}</ul>
     </div>
     <div className={heroCss.artwork} aria-hidden="true"><img src="/wealth/tax-hero/tax-investment-folio.webp" alt="" width="600" height="440"/></div>
-    <aside aria-label={t("Savings preview", "সাশ্রয়ের এক নজর")} className={heroCss.preview}>
+    <aside aria-label={t("Savings preview", "সাশ্রয়ের এক নজর")} className={heroCss.preview + (provenance === "example" ? " " + heroCss.example : "")} data-estimate={provenance ?? "personal"}>
       <div className={heroCss.metrics} aria-live="polite">
         {provenance === "example" && <p className={css.heroExample}>{t("Sample · BDT 900,000 yearly salary", "নমুনা · বছরে ৯ লাখ টাকা বেতন")}</p>}
         <div className={css.heroTax}><FileText className={css.heroMetricIcon} aria-hidden="true" size={19} /><p className="eyebrow">{t("Annual tax", "বার্ষিক কর")}</p><strong style={{"--hero-money-length":usableBase(base)?bdt(base!.annual_liability!,locale).length:1} as CSSProperties}>{usableBase(base) ? bdt(base!.annual_liability!, locale) : "—"}</strong><span>{t("After current rebate", "এখনকার রেয়াতের পরে")}</span></div>
@@ -150,11 +150,12 @@ export function TaxSnapshot({ result, locale, conditional = false, rules, presen
     <div className="wealth-tax-snapshot-head"><p className="wealth-tax-section-eyebrow">{t("Tax Snapshot", "Tax Snapshot")}</p><h2>{t("Here’s your current picture", "এখনকার হিসাব এক নজরে")}</h2></div>
     <div className="wealth-tax-story-grid">
       <article className="wealth-tax-story-card wealth-tax-story-pay">
-        {result ? <h3 className="wealth-tax-story-label" id="tax-v2-result-title">{t("Estimated annual liability", "আনুমানিক বার্ষিক করদায়")}</h3>
-          : <span className="wealth-tax-story-label">{t("Estimated annual liability", "আনুমানিক বার্ষিক করদায়")}</span>}
+        {result ? <h3 className="wealth-tax-story-label" id="tax-v2-result-title">{t("Annual Tax", "বার্ষিক Tax")}</h3>
+          : <span className="wealth-tax-story-label">{t("Annual Tax", "বার্ষিক Tax")}</span>}
         <strong>{amount(base?.annual_liability)}</strong>
+        <span className={css.liabilityNote}>{t("Yearly liability · not a payment or refund", "বছরের করদায় · পরিশোধ বা ফেরত নয়")}</span>
       </article>
-      <article className="wealth-tax-story-card wealth-tax-story-save"><span className="wealth-tax-story-label">{t("You Could Still Save", "আরও বাঁচতে পারে")}</span><strong>{amount(base?.rebate.potential_additional_tax_saving)}</strong></article>
+      <article className="wealth-tax-story-card wealth-tax-story-save"><span className="wealth-tax-story-label">{t("Savings still possible", "আরও সাশ্রয় হতে পারে")}</span><strong>{amount(base?.rebate.potential_additional_tax_saving)}</strong></article>
       <article className="wealth-tax-story-card wealth-tax-story-max"><span className="wealth-tax-story-label">{rebateComplete(base) ? base?.annual_liability && !hasMoney(base.annual_liability) ? t("Eligible Investment · No Additional Saving", "যোগ্য বিনিয়োগ · অতিরিক্ত সাশ্রয় নেই") : t("Eligible Investment · Target Met", "যোগ্য বিনিয়োগ · লক্ষ্য পূরণ") : t("Target Eligible Investment", "লক্ষ্যের যোগ্য বিনিয়োগ")}</span><strong>{amount(requiredInvestment(base))}</strong></article>
     </div>
     <div className="wealth-tax-stat-pills" role="list">
