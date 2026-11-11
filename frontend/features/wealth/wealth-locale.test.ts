@@ -104,12 +104,12 @@ describe("wealth landing language", () => {
       '[data-guide="tax-planner-help"]',
     ]);
     expect(mobile.map((step) => step.target)).toEqual(desktop.map((step) => step.target));
-    expect(desktop[1]?.dialog.message).toContain("Quick uses yearly totals");
-    expect(desktop[3]?.dialog.message).toContain("Potential additional saving is a separate opportunity");
+    expect(desktop[1]?.dialog.message).toContain("Quick uses three yearly amounts");
+    expect(desktop[3]?.dialog.message).toContain("it has not been deducted again");
     expect(desktop[2]?.dialog.message).toContain("only when the active rules support filing balances");
     expect(mobile[2]?.dialog.message).toContain("সক্রিয় নিয়মে দাখিলের হিসাব থাকলেই");
     expect(mobile[0]?.dialog.message).toContain("সক্রিয় নিয়ম");
-    expect(mobile[3]?.dialog.message).toContain("Tax Journey বর্তমান তথ্যের ব্যাখ্যা করে");
+    expect(mobile[3]?.dialog.message).toContain("স্লাইডার সরান");
     expect(mobile[4]?.dialog.message).toContain("সরকারি ই-রিটার্ন");
   });
 });

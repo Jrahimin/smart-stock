@@ -66,6 +66,12 @@ export function WealthToolWorkspace({ toolSlug, locale }: WealthToolWorkspacePro
     inputs,
   );
   const productLabel = toolSlug === "emi" ? copy.emi.eyebrow : config.title.split("—")[0]?.trim() ?? config.title;
+  const banglaHeroes = {
+    retirement: { title: "অবসরের লক্ষ্য", prompt: "ভবিষ্যতের লক্ষ্যের কতটা কাছে পৌঁছাতে পারেন?" },
+    cagr: { title: "আগের Growth বুঝে নিন", prompt: "দুটি অঙ্কের মধ্যে গড়ে বছরে কত হারে Growth হয়েছে?" },
+  };
+  const banglaHero = locale === "bn" && (toolSlug === "retirement" || toolSlug === "cagr")
+    ? banglaHeroes[toolSlug] : undefined;
   const coreFields = config.fields.filter((field) => !isDetailField(field) && field.group !== "tenure");
   const tenureFields = config.fields.filter((field) => field.group === "tenure");
   const detailFields = config.fields.filter((field) => isDetailField(field));
@@ -124,11 +130,11 @@ export function WealthToolWorkspace({ toolSlug, locale }: WealthToolWorkspacePro
               ? copy.zakat.heroTitle
               : toolSlug === "emi"
                 ? copy.emi.title
-                : config.title}
+                : banglaHero?.title ?? config.title}
           </h1>
           {toolSlug !== "zakat" ? (
             <p className="wealth-tool-hero-description">
-              {toolSlug === "emi" ? copy.emi.prompt : config.prompt}
+              {toolSlug === "emi" ? copy.emi.prompt : banglaHero?.prompt ?? config.prompt}
             </p>
           ) : null}
           {toolSlug === "zakat" ? (

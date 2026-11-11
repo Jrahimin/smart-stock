@@ -549,13 +549,13 @@ const english: WealthToolsLanguage = {
   comparison: {
     title: "Two paths. Different futures.",
     subtitle:
-      "One path rewards consistency. One path rewards certainty. Move through time and see where each decision leads.",
+      "Compare regular DPS savings with a lump-sum FDR over time.",
     loading: "Exploring futures...",
     error:
       "Could not evaluate this comparison right now.",
     heroEyebrow: "Future simulator",
     prelude:
-      "You are about to explore two possible futures.",
+      "See how the two paths could change.",
     scenarioEyebrow: "Your scenario",
     scenarioTitle: "What you’re comparing",
     alternateEyebrow: "Alternate futures",
@@ -973,13 +973,13 @@ const bangla: WealthToolsLanguage = {
   comparison: {
     title: "দুই পথ, দুই রকম ভবিষ্যৎ",
     subtitle:
-      "এক পথে মাসে মাসে saving, অন্য পথে শুরুতেই lump sum। সময় এগিয়ে দেখে নিন, কোনটা আপনার পরিকল্পনার সঙ্গে বেশি মেলে।",
+      "মাসে মাসে DPS, নাকি একবারে FDR? সময়ের সঙ্গে দুই পথ তুলনা করুন।",
     loading: "দুই option পাশাপাশি মিলিয়ে দেখা হচ্ছে...",
     error:
       "এখন comparison-টা তৈরি করা যাচ্ছে না। একটু পরে আবার চেষ্টা করুন।",
     heroEyebrow: "Future Simulator",
     prelude:
-      "একই টাকা দুইভাবে ব্যবহার করলে সামনে কী বদলাতে পারে—এবার সেটাই দেখুন।",
+      "সময় এগিয়ে সম্ভাব্য ফলাফল দেখুন।",
     scenarioEyebrow: "আপনার হিসাব",
     scenarioTitle: "যে দুই option মিলিয়ে দেখছেন",
     alternateEyebrow: "আরেকভাবে হলে",

@@ -12327,7 +12327,9 @@ button {
 }
 
 .wealth-comparison-narrative-beat-future {
-  opacity: 0.58;
+  /* Keep future context readable in both themes; the active beat is already
+     distinguished by its border, background and position. */
+  opacity: 1;
 }
 
 .wealth-comparison-journey-shell {
@@ -13843,12 +13845,19 @@ button {
 @media (max-width: 720px) {
   .wealth-comparison-hero-canvas {
     min-height: auto;
-    padding: 20px 16px 16px;
+    gap: 10px;
+    padding: 12px;
   }
 
   .wealth-comparison-hero-copy {
+    gap: 6px;
     max-width: none;
+    padding: 12px 14px;
   }
+
+  .wealth-comparison-hero-subtitle { line-height: 1.4; }
+  .wealth-comparison-hero-prelude { margin-top: 0; }
+  :lang(bn) .wealth-comparison-hero-copy h1 { line-height: 1.25; }
 
   .wealth-comparison-hero-abstract {
     inset: 0 0 0 28%;
@@ -13857,7 +13866,18 @@ button {
 
   .wealth-comparison-narrative-beats {
     grid-template-columns: 1fr;
+    gap: 7px;
   }
+
+  .wealth-comparison-narrative-beat {
+    grid-template-columns: 64px minmax(0, 1fr);
+    gap: 2px 8px;
+    align-content: start;
+    padding: 8px 10px;
+  }
+  .wealth-comparison-narrative-beat span { grid-row: 1 / 3; }
+  .wealth-comparison-narrative-beat strong,
+  .wealth-comparison-narrative-beat p { grid-column: 2; }
 
   .wealth-comparison-horizon-bar {
     align-items: stretch;
@@ -13904,6 +13924,10 @@ button {
   .wealth-comparison-route-track-horizontal {
     min-width: 640px;
   }
+}
+
+@media (max-width: 360px) {
+  .wealth-comparison-narrative-beat { grid-template-columns: 52px minmax(0, 1fr); }
 }
 
 .wealth-next-steps {
@@ -32112,6 +32136,61 @@ button {
     width: 100%;
   }
 }
+
+/* Compact text-only Wealth heroes. Their copy is made of direct children,
+   unlike calculator heroes that have a separate mode selector or artwork. */
+.wealth-hero-card:is(.wealth-dps-hero, .wealth-sp-hero) {
+  grid-template-columns: minmax(0, 1fr) max-content;
+  gap: 20px;
+}
+.wealth-hero-card:is(.wealth-dps-hero, .wealth-sp-hero) h1 { max-width: 32ch !important; }
+@media (max-width: 700px) {
+  .wealth-hero-card:is(.wealth-dps-hero, .wealth-sp-hero) { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+}
+:is(.wealth-fdr-hero, .wealth-snapshot-hero) {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+  min-height: 0 !important;
+  padding-block: 18px !important;
+}
+:is(.wealth-fdr-hero, .wealth-snapshot-hero) h1 { margin: 0; max-width: 32ch !important; }
+:is(.wealth-fdr-hero, .wealth-snapshot-hero) > p:not(.eyebrow) { max-width: 75ch; }
+@media (min-width: 1100px) {
+  .wealth-fdr-hero > * { max-width: min(75ch, calc(100% - 160px)); }
+  .wealth-fdr-hero::after {
+    background: url('/images/wealth/decision-icons/fdr-3d.png') center / contain no-repeat;
+    top: 50%; right: 5%; width: 120px; height: 120px;
+    transform: translateY(-50%);
+    filter: drop-shadow(0 8px 10px rgb(25 50 77 / 16%));
+  }
+}
+
+/* Light-mode surfaces for the shared Wealth calculator and Snapshot heroes. */
+:root[data-theme="light"] :is(.wealth-snapshot-hero, .wealth-dps-hero, .wealth-fdr-hero, .wealth-sp-hero, .wealth-tool-hero) {
+  background: radial-gradient(circle at 82% 18%, rgb(126 84 220 / 13%), transparent 32%),
+    linear-gradient(115deg, #f7f9ff, #e9effd);
+  border-color: #cdd8ec;
+  box-shadow: 0 10px 28px rgb(44 61 99 / 10%), inset 0 1px rgb(255 255 255 / 85%);
+}
+:root[data-theme="light"] :is(.wealth-snapshot-hero, .wealth-dps-hero, .wealth-fdr-hero, .wealth-sp-hero, .wealth-tool-hero) h1,
+:root[data-theme="light"] .wealth-tool-hero .wealth-hero-copy h1::first-line {
+  color: #17213b;
+}
+:root[data-theme="light"] :is(.wealth-snapshot-hero, .wealth-dps-hero, .wealth-fdr-hero, .wealth-sp-hero, .wealth-tool-hero) .wealth-hero-copy > p:not(.eyebrow) {
+  color: #52627b;
+}
+:root[data-theme="light"] .wealth-tool-hero .wealth-hero-copy > .eyebrow { color: #5b6780; }
+:root[data-theme="light"] .wealth-tool-hero-visual {
+  background: radial-gradient(circle at 50% 44%, rgb(151 115 255 / 17%), transparent 52%),
+    linear-gradient(145deg, #fff, #e8eafd);
+  border-color: #c8c9ed;
+  box-shadow: inset 0 1px #fff, 0 8px 20px rgb(62 70 120 / 12%);
+}
+:root[data-theme="light"] .wealth-tool-hero-visual-icon { color: #5d50bd; text-shadow: none; }
+:root[data-theme="light"] .wealth-tool-hero-visual-value { color: #202750; }
+:root[data-theme="light"] .wealth-tool-hero-visual-label { color: #52627b; }
 
 /* Final calculator hero density pass. Keep these tool-specific so the Wealth overview can stay spacious. */
 .wealth-tool-workspace > .wealth-tool-hero {
