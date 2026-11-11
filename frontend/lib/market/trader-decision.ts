@@ -14,6 +14,9 @@ export type ResolvedTraderDecision = {
   opportunityScore: number | null;
   entryTiming: string | null;
   entryCondition: string | null;
+  entryApplicability?: import("@/lib/api/stock-decision-support-types").EntryApplicabilityDto | null;
+  measuredSupport?: string | null;
+  opposingConstraint?: string | null;
   source: "decision-engine" | "unavailable";
 };
 
@@ -118,6 +121,9 @@ export function resolveTraderDecision(stock: StockIntelligenceModel): ResolvedTr
       opportunityScore: stock.traderDecision.opportunity_score,
       entryTiming: stock.traderDecision.entry_timing ?? null,
       entryCondition: stock.traderDecision.entry_condition ?? null,
+      entryApplicability: stock.traderDecision.entry_applicability,
+      measuredSupport: stock.traderDecision.measured_support,
+      opposingConstraint: stock.traderDecision.opposing_constraint,
       source: "decision-engine",
     };
   }

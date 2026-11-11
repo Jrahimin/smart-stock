@@ -40,9 +40,7 @@ class PulseScoreBreakdown:
 
 
 def get_volume_ratio(snapshot: TechnicalSnapshot) -> float | None:
-    if snapshot.average_volume is None or snapshot.average_volume <= 0:
-        return None
-    return snapshot.volume / snapshot.average_volume
+    return snapshot.volume_facts.ratio
 
 
 def get_pulse_score_band(score: int) -> PulseScoreBand:
@@ -123,7 +121,7 @@ def _compute_risk_penalty(snapshot: TechnicalSnapshot, decision: TraderDecisionS
     elif snapshot.data_quality == DataQualityFlag.PARTIAL:
         penalty += 6
 
-    risk = decision.risk_label.upper()
+    risk = (decision.legacy_composite_risk_label or decision.risk_label).upper()
     if risk in {"HIGH", "SPECULATIVE"}:
         penalty += 12
     elif risk == "MEDIUM":

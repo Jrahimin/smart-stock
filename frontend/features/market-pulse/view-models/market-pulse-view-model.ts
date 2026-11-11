@@ -43,6 +43,7 @@ function mapPriceTone(value: string): "positive" | "negative" | "neutral" {
 
 function mapFocusStock(stock: BackendFocusStockDto): FocusStockModel {
   return {
+    entryRiskLabel: stock.entry_risk_label,
     rank: stock.rank,
     recommendation: stock.recommendation,
     readiness: stock.entry_readiness,

@@ -35,6 +35,8 @@ async def resolve_published_market_generation(
         exchange=exchange,
         state=MarketDataState.FINALIZED,
     )
+    if finalized is not None and getattr(finalized, "accepted_count", 1) <= 0:
+        finalized = None
     today_finalized = (
         finalized if finalized is not None and finalized.trade_date == today else None
     )
@@ -43,6 +45,9 @@ async def resolve_published_market_generation(
         state=MarketDataState.LIVE,
         trade_date=today,
     )
+
+    if today_live is not None and getattr(today_live, "accepted_count", 1) <= 0:
+        today_live = None
 
     selected = None
     data_state = MarketDataState.STALE
@@ -83,6 +88,8 @@ async def resolve_finalized_decision_generation(
 ) -> PublishedMarketGeneration | None:
     reader = getattr(repository, "get_latest_market_data_generation", None)
     finalized = await reader(exchange=exchange, state=MarketDataState.FINALIZED) if reader else None
+    if finalized is not None and getattr(finalized, "accepted_count", 1) <= 0:
+        return None
     if finalized is not None:
         context = PublishedMarketGeneration(
             trade_date=finalized.trade_date,
@@ -112,7 +119,9 @@ async def resolve_finalized_decision_generation(
     from app.core.audit_hashing import stable_audit_hash
     from app.core.constants.trading_constants import (
         DECISION_TAXONOMY_VERSION,
+        DECISION_CAPTURE_VERSION,
         SHORTLIST_RANKING_VERSION,
+        SCANNER_CONDITION_VERSION,
         TRADING_INPUT_SCHEMA_VERSION,
         TRADING_STRATEGY_VERSION,
         TRADING_THRESHOLD_VERSION,
@@ -123,7 +132,9 @@ async def resolve_finalized_decision_generation(
             TRADING_STRATEGY_VERSION,
             TRADING_THRESHOLD_VERSION,
             DECISION_TAXONOMY_VERSION,
+            DECISION_CAPTURE_VERSION,
             SHORTLIST_RANKING_VERSION,
+            SCANNER_CONDITION_VERSION,
         )
     )[:12]
     return replace(context, sync_id=f"{context.sync_id}:{policy}")

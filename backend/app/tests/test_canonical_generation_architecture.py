@@ -158,6 +158,9 @@ class _CanonicalUniverseDouble:
         self.snapshot = snapshot
         self.current = current
 
+    async def project_current_entries(self, snapshot, **kwargs):
+        return snapshot
+
     async def get_canonical_universe(self, **kwargs):
         return self.snapshot
 

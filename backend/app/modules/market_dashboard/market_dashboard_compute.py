@@ -12,7 +12,7 @@ from app.core.enums import DataQualityFlag, DecisionDisplayAction, TrendDirectio
 from app.models import DailyMarketSummary, Stock
 from app.modules.market_data.market_mover_rules import is_eligible_session_mover
 from app.modules.market_universe.market_universe_compute import technical_snapshot_from_read
-from app.modules.market_dashboard.market_snapshot import DashboardSnapshotRow
+from app.modules.market_dashboard.market_snapshot import DashboardSnapshotRow, dated_breadth_changes
 from app.modules.market_universe.market_universe_schemas import ScoredUniverseRow
 from app.modules.stock_details.decision.technical import TechnicalSnapshot, build_technical_snapshot
 
@@ -27,11 +27,11 @@ def _average(values: list[float]) -> float | None:
     return sum(values) / len(values)
 
 
-def derive_market_breadth_from_snapshot(rows: list[DashboardSnapshotRow]) -> tuple[int, int, int, int]:
-    advancing = sum(1 for row in rows if (row.technical.price_change_percent or 0) > 0)
-    declining = sum(1 for row in rows if (row.technical.price_change_percent or 0) < 0)
-    unchanged = sum(1 for row in rows if (row.technical.price_change_percent or 0) == 0)
-    return advancing, declining, unchanged, len(rows)
+def derive_market_breadth_from_snapshot(rows: list[DashboardSnapshotRow], session_trade_date=None) -> tuple[int, int, int, int]:
+    from app.modules.market_data.breadth import breadth_facts
+    changes = dated_breadth_changes(rows, session_trade_date) if session_trade_date else [row.technical.price_change_percent for row in rows]
+    facts = breadth_facts(changes, cohort="ACTIVE_VALID_OHLC", as_of_date=session_trade_date)
+    return facts.advancing, facts.declining, facts.unchanged, facts.denominator
 
 
 def derive_market_mood_from_snapshot(

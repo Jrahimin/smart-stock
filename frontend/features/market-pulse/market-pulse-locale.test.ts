@@ -1,3 +1,6 @@
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { PulseScoreHeaderCluster } from "./components/pulse-score-badge";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -186,4 +189,12 @@ describe("market pulse language", () => {
       "দাম trigger-এর উপরে দিন শেষ করলে এবং কেনার চাপ ভালো থাকলে entry ভাবতে পারেন।",
     );
   });
+});
+
+
+it("shows score deductions as points rather than inferring a trading-risk tier", () => {
+  const html = renderToStaticMarkup(createElement(PulseScoreHeaderCluster, {score: 80, breakdown: {trend: 30, momentum: 30, volume: 25, signalBoost: 1, riskPenalty: 6, total: 80, contributors: [], band: "Worth Watching"}, copy: getMarketPulseLanguage("en").score}));
+  expect(html).toContain("Attention score deduction");
+  expect(html).toContain("−6");
+  expect(html).not.toContain("Risk Level");
 });

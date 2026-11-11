@@ -33,3 +33,9 @@ describe("Phase 1 presentation contract", () => {
     expect(resolveTraderDecision(blocked)).toMatchObject({ source:"unavailable", confidence:0, evidenceStatus:"UNAVAILABLE", entryCondition:null });
   });
 });
+
+
+it("preserves backend applicability independently of the finalized badge", () => {
+  const stock = { traderDecision: { display_action: "POTENTIAL_BUY", entry_applicability: {status: "INVALIDATED", reason_code: "STOP_BREACHED"}, measured_support: "Uptrend", opposing_constraint: "Near resistance" } } as StockIntelligenceModel;
+  expect(resolveTraderDecision(stock)).toMatchObject({ recommendation: "POTENTIAL_BUY", entryApplicability: {status: "INVALIDATED"}, measuredSupport: "Uptrend", opposingConstraint: "Near resistance" });
+});

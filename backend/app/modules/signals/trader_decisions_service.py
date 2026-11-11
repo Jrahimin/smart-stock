@@ -37,6 +37,7 @@ class TraderDecisionsService:
         del price_window_limit  # universe service uses canonical window from trading_constants
         resolved_exchange = exchange or ExchangeCode.DSE
         snapshot = await self.universe_service.get_canonical_universe(exchange=resolved_exchange)
+        snapshot = await self.universe_service.project_current_entries(snapshot, exchange=resolved_exchange)
         rows = snapshot.rows
         sliced = rows[offset : offset + limit]
 

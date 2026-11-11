@@ -124,7 +124,7 @@ def generate_warnings(
                 severity=WarningSeverity.WARNING,
             )
         )
-    if snapshot.average_volume and snapshot.volume / snapshot.average_volume < VOLUME_THIN_RATIO:
+    if snapshot.average_volume and snapshot.volume_facts.ratio < VOLUME_THIN_RATIO:
         warnings.append(
             SmartWarning(
                 code="weak_volume",
@@ -135,7 +135,7 @@ def generate_warnings(
         )
     elif (
         snapshot.average_volume
-        and snapshot.volume / snapshot.average_volume < VOLUME_EXPANSION_RATIO
+        and snapshot.volume_facts.ratio < VOLUME_EXPANSION_RATIO
         and opportunity.score >= 60
     ):
         warnings.append(

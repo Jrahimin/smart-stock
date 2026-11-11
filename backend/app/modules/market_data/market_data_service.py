@@ -997,36 +997,36 @@ class MarketDataService:
         exchange: ExchangeCode,
         trade_date: date,
     ) -> str:
+        await self.repository.lock_session_publication(exchange=exchange, trade_date=trade_date)
         existing = await self.repository.get_latest_market_data_generation(
             exchange=exchange,
             state=MarketDataState.FINALIZED,
             trade_date=trade_date,
         )
         if existing is not None:
+            if getattr(existing, "accepted_count", 0) <= 0:
+                await self.rollback_transaction()
+                raise MarketSnapshotCoverageError("Existing finalized manifest has no verified accepted coverage")
+            await self.repository.commit()
             return existing.sync_id
+        if not await self.repository.is_market_session_finalized(exchange=exchange, trade_date=trade_date):
+            await self.rollback_transaction()
+            raise MarketSnapshotCoverageError("Finalized DSEX session is required for publication")
         live = await self.repository.get_latest_market_data_generation(
             exchange=exchange,
             state=MarketDataState.LIVE,
             trade_date=trade_date,
         )
         if live is None:
-            # Safe deployment/retry fallback: the finalizer already verified the
-            # price and DSEX inputs.  Older deployments have no LIVE manifest to
-            # promote, but must not leave a verified session permanently hidden.
-            logger.warning(
-                "Finalizing %s %s without a prior LIVE generation; publishing a verified fallback",
-                exchange.value,
-                trade_date,
-            )
+            active, accepted, suspicious = await self._verified_session_coverage(exchange=exchange, trade_date=trade_date)
             return await self.publish_market_generation(
-                exchange=exchange,
-                trade_date=trade_date,
-                state=MarketDataState.FINALIZED,
-                source="verified-finalization-fallback",
-                fetched_count=0,
-                accepted_count=0,
-                suspicious_count=0,
+                exchange=exchange, trade_date=trade_date, state=MarketDataState.FINALIZED,
+                source="verified-finalization-fallback", fetched_count=accepted,
+                accepted_count=accepted, suspicious_count=suspicious,
             )
+        if live.accepted_count <= 0:
+            await self.rollback_transaction()
+            raise MarketSnapshotCoverageError("Cannot finalize a zero-accepted generation")
         await self.repository.update_market_data_generation_state(
             live,
             state=MarketDataState.FINALIZED,
@@ -1065,12 +1065,29 @@ class MarketDataService:
             limit=limit,
         )
 
+    async def _verified_session_coverage(self, *, exchange, trade_date):
+        active, accepted, suspicious = await self.repository.session_symbol_coverage(exchange=exchange, trade_date=trade_date)
+        settings = get_settings()
+        if (active <= 0 or accepted <= 0 or accepted < settings.market_snapshot_min_source_symbols
+            or accepted / active * 100 < settings.market_snapshot_min_active_coverage_percent):
+            await self.rollback_transaction()
+            raise MarketSnapshotCoverageError(
+                f"Session coverage insufficient: active={active}, accepted={accepted}; finalization pending"
+            )
+        return active, accepted, suspicious
+
     async def finalize_market_session(
         self,
         *,
         exchange: ExchangeCode,
         trade_date: date,
     ) -> bool:
+        await self.repository.lock_session_publication(exchange=exchange, trade_date=trade_date)
+        try:
+            await self._verified_session_coverage(exchange=exchange, trade_date=trade_date)
+        except MarketSnapshotCoverageError:
+            logger.warning("Finalization pending: incomplete %s session %s", exchange.value, trade_date)
+            return False
         finalized = await self.repository.finalize_market_session(
             exchange=exchange,
             trade_date=trade_date,

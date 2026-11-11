@@ -110,7 +110,7 @@ export function MarketOverview({ model, copy, locale, freshness, loading, leader
       </div>
     </div>
     <dl className="sw-metrics">
-      <Metric label={copy.breadth} guide="market-breadth">
+      <Metric label={copy.breadth} guide="market-breadth" note={breadth.provenance ? (locale === "bn" ? `সক্রিয় ও বৈধ দামের শেয়ার · ${breadth.provenance.as_of_date} · অজানা ${breadth.provenance.unknown_count}` : `Active stocks with valid prices · ${breadth.provenance.as_of_date} · ${breadth.provenance.unknown_count} unknown`) : undefined}>
         {breadth.total > 0 ? <>
           <div className="sw-breadth-labels">{breadthParts.map(([label, count, tone]) => <span className={`sw-${tone}`} key={tone}><b>{count}</b> {label}</span>)}</div>
           <div className="sw-breadth-bar" aria-hidden="true">{breadthParts.map(([, count, tone]) => <span key={tone} className={`sw-${tone}`} style={{ flexGrow: count }} />)}</div>

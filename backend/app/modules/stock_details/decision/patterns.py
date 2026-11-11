@@ -95,7 +95,7 @@ def _tolerance(snapshot: TechnicalSnapshot) -> float:
 def _volume_confirmed(snapshot: TechnicalSnapshot) -> bool:
     if not snapshot.average_volume or snapshot.average_volume <= 0:
         return False
-    return snapshot.volume / snapshot.average_volume >= VOLUME_EXPANSION_RATIO
+    return snapshot.volume_facts.ratio >= VOLUME_EXPANSION_RATIO
 
 
 def _make_pattern(

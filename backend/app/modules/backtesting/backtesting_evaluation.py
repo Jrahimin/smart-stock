@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter, defaultdict
+from bisect import bisect_right
 from dataclasses import asdict
 from statistics import mean
 from types import SimpleNamespace
@@ -186,6 +187,16 @@ def portfolio_ledger(selections, executions, outcomes, dataset, config):
     cash = config.initial_capital_bdt
     positions, receivables, daily, events = {}, [], [], []
     accepted, rejected = set(), Counter()
+    verified_rejected, acceptance = Counter(), {}
+    uncertain_from = []
+    for item in selections:
+        key = observation_key(item)
+        execution = executions[key]
+        acceptance[key] = False if execution.is_known and not execution.is_filled else None
+        if not execution.is_known:
+            index = bisect_right(dataset.session_dates, item.as_of_date)
+            if index < len(dataset.session_dates):
+                uncertain_from.append(dataset.session_dates[index])
     peak = cash
     maximum_drawdown = 0.0
     unresolved = set()
@@ -221,6 +232,7 @@ def portfolio_ledger(selections, executions, outcomes, dataset, config):
                 ) / action.shares_multiplier
                 position["shares"] *= action.shares_multiplier
         # Conservative cash availability: today's proceeds cannot finance an earlier open order.
+        path_known = not any(cutoff <= day for cutoff in uncertain_from)
         for item in sorted(by_entry[day], key=shortlist_key):
             key = observation_key(item)
             execution = executions[key]
@@ -236,8 +248,12 @@ def portfolio_ledger(selections, executions, outcomes, dataset, config):
             )
             if reason:
                 rejected[reason] += 1
-                events.append({"date": day, "stock_id": str(item.stock_id), "state": reason})
+                acceptance[key] = False if path_known else None
+                if path_known:
+                    verified_rejected[reason] += 1
+                events.append({"date": day, "stock_id": str(item.stock_id), "state": reason, "acceptance_known": path_known})
                 continue
+            acceptance[key] = True if path_known else None
             cash -= debit
             accepted.add(key)
             positions[item.stock_id] = {
@@ -245,6 +261,17 @@ def portfolio_ledger(selections, executions, outcomes, dataset, config):
                 "key": key,
                 "mark": execution.fill_price,
             }
+            # A rejected candidate never becomes a held position. Its
+            # hypothetical exit cannot affect later cash/holding evidence.
+            out = outcomes.get(key)
+            if out is None or out.status != "AVAILABLE":
+                history = histories[item.stock_id]
+                action_days = [value for value in history.corporate_action_dates if day < value <= dataset.session_dates[-1]]
+                index = bisect_right(dataset.session_dates, day)
+                if action_days and out and out.status == "CORPORATE_ACTION_UNRESOLVED":
+                    uncertain_from.append(min(action_days))
+                elif index < len(dataset.session_dates):
+                    uncertain_from.append(dataset.session_dates[index])
             events.append(
                 {
                     "date": day,
@@ -256,8 +283,8 @@ def portfolio_ledger(selections, executions, outcomes, dataset, config):
                 }
             )
         for sid, position in list(positions.items()):
-            outcome = outcomes[position["key"]]
-            if outcome.status == "AVAILABLE" and outcome.outcome_end_date == day:
+            outcome = outcomes.get(position["key"])
+            if outcome and outcome.status == "AVAILABLE" and outcome.outcome_end_date == day:
                 proceeds = (
                     position["shares"] * outcome.exit_price * (1 - config.one_way_cost_bps / 10000)
                 )
@@ -293,14 +320,20 @@ def portfolio_ledger(selections, executions, outcomes, dataset, config):
         previous_day = day
     if positions:
         unresolved.add("OPEN_OR_UNMATURED_POSITIONS")
+    if any(value is None for value in acceptance.values()):
+        unresolved.add("PORTFOLIO_ACCEPTANCE_UNVERIFIED")
     complete = not unresolved
     return {
         "status": "AVAILABLE" if complete else "UNSUPPORTED",
         "limitations": sorted(unresolved),
         "initial_capital_bdt": config.initial_capital_bdt,
         "selection_count": len(selections),
-        "accepted_fill_count": len(accepted),
-        "portfolio_rejection_counts": dict(rejected),
+        "accepted_fill_count": sum(value is True for value in acceptance.values()) if all(value is not None for value in acceptance.values()) else None,
+        "verified_accepted_fill_count": sum(value is True for value in acceptance.values()),
+        "portfolio_rejection_counts": dict(verified_rejected),
+        "modeled_portfolio_rejection_counts": dict(rejected),
+        "acceptance_by_key": {f"{sid}:{day}": value for (sid, day), value in acceptance.items()},
+        "acceptance_verified": all(value is not None for value in acceptance.values()),
         "cash_inclusive_net_return_percent": (
             daily[-1]["equity_bdt"] / config.initial_capital_bdt - 1
         )
@@ -313,7 +346,8 @@ def portfolio_ledger(selections, executions, outcomes, dataset, config):
         "marked_equity_drawdown_percent": maximum_drawdown,
         "daily": daily,
         "events": events,
-        "accepted_keys": sorted(f"{sid}:{day}" for sid, day in accepted),
+        "modeled_accepted_keys": sorted(f"{sid}:{day}" for sid, day in accepted),
+        "accepted_keys": sorted(f"{sid}:{day}" for (sid, day), value in acceptance.items() if value is True),
     }
 
 
@@ -433,8 +467,31 @@ def partition_observations(observations, all_outcomes, folds, frozen, config, da
     return result
 
 
-def reconcile_coverage(dataset, config, observations):
+def reconcile_coverage(dataset, config, observations, input_audit=None):
     counts = Counter()
+    if config.replay_mode != "reconstructed":
+        audit = input_audit or {}
+        attempts = {(row["publication_id"], row["stock_id"], row["date"]) for row in audit.get("attempted_members", ())}
+        if input_audit is None:
+            seen_dates = set()
+            for publication in sorted(dataset.publications, key=lambda row: (row["session_date"], row["observed_at"], row["generation_id"])):
+                day, publication_id = publication["session_date"], publication["generation_id"]
+                if config.publication_ids and publication_id not in config.publication_ids:
+                    continue
+                if day in seen_dates or not config.start_date.isoformat() <= day <= config.end_date.isoformat():
+                    continue
+                seen_dates.add(day)
+                attempts.update((publication_id, member, day) for member in publication["members"])
+        actual = {(row.publication_id, str(row.stock_id), row.as_of_date.isoformat()) for row in observations}
+        exclusions = {(row.get("publication_id"), row.get("stock_id"), row["date"]): row["reason"]
+            for row in audit.get("replay_exclusions", ()) if row.get("stock_id")}
+        reasons = Counter(exclusions.get(key, "NO_ENGINE_RESULT") for key in attempts-actual)
+        return {"population": "PUBLICATION_MEMBERS", "attempted_instrument_sessions": len(attempts),
+            "observations": len(actual), "excluded_members": len(attempts-actual),
+            "exclusion_counts": dict(reasons),
+            "missing_publication_dates": sum(row["reason"] == "PUBLICATION_UNAVAILABLE" for row in audit.get("replay_exclusions", ())),
+            "eligible": sum(item.eligibility_status == EligibilityStatus.ELIGIBLE for item in observations),
+            "ineligible": sum(item.eligibility_status != EligibilityStatus.ELIGIBLE for item in observations)}
     present = {observation_key(item) for item in observations}
     for history in dataset.histories:
         prices = {bar.trade_date: bar for bar in history.prices}
@@ -455,6 +512,29 @@ def reconcile_coverage(dataset, config, observations):
     )
     counts["ineligible"] = len(observations) - counts["eligible"]
     return dict(counts)
+
+
+def ranking_tie_diagnostics(observations):
+    groups = defaultdict(list)
+    for row in observations:
+        if row.eligibility_status == EligibilityStatus.ELIGIBLE:
+            groups[row.as_of_date].append(row)
+    deciding = Counter()
+    equal_quality = equal_liquidity = stable_ties = compared = 0
+    for rows in groups.values():
+        ranked = sorted(rows, key=shortlist_key)
+        if len(ranked) < 6:
+            continue
+        compared += 1
+        left, right = shortlist_key(ranked[4]), shortlist_key(ranked[5])
+        equal_quality += left[:3] == right[:3]
+        equal_liquidity += left[:4] == right[:4]
+        stable_ties += left[:5] == right[:5]
+        index = next((index for index, pair in enumerate(zip(left, right)) if pair[0] != pair[1]), 6)
+        deciding[("eligibility", "readiness", "opportunity_quality", "liquidity_tier", "median_turnover", "symbol", "stock_id")[index]] += 1
+    return {"eligible_dates": len(groups), "cutoff_comparison_dates": compared,
+        "same_readiness_and_quality_at_cutoff": equal_quality, "same_liquidity_tier_at_cutoff": equal_liquidity,
+        "stable_name_tiebreak_dates": stable_ties, "deciding_field": dict(deciding)}
 
 
 def evaluate_replay(dataset, config, observations, folds, frozen):
@@ -483,6 +563,7 @@ def evaluate_replay(dataset, config, observations, folds, frozen):
             }
         reports[partition] = report
     audit = {
+        "ranking_ties": ranking_tie_diagnostics(observations),
         "observations": [asdict(item) for item in observations],
         "markouts": [asdict(out) for out in markouts],
         "strategies": {

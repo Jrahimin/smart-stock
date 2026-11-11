@@ -41,6 +41,8 @@ export type TradePlanVisual = {
   target: number | null;
   riskReward: number | null;
   status: "VALID_ENTRY_PLAN" | "WATCH_ONLY" | "UNAVAILABLE";
+  asOfDate?: string | null;
+  entryApplicability?: StockDecisionSupportDto["entry_applicability"];
 };
 
 export type StockDecisionViewModel = {
@@ -88,14 +90,14 @@ const SIGNAL_TEXT: Record<Exclude<DecisionSignalKey, "warning_ref">, string> = {
   momentum_healthy: "Momentum healthy",
   momentum_fading: "Momentum fading",
   volume_above_average: "Volume above average",
-  weak_volume_confirmation: "Weak volume confirmation",
+  weak_volume_confirmation: "Volume below average",
 };
 
 function buildDecisionSignals(decision: StockDecisionSupportDto): DecisionSignal[] {
   const signals: DecisionSignal[] = [];
   const trend = decision.opportunity.components.find((component) => component.key === "trend");
   const momentum = decision.opportunity.components.find((component) => component.key === "momentum");
-  const volume = decision.opportunity.components.find((component) => component.key === "volume");
+  const volumeRatio = decision.liquidity.latest_volume_ratio;
 
   if (decision.trend === "UPTREND" || (trend && trend.score >= 60)) {
     signals.push({ tone: "positive", key: "uptrend_intact", text: SIGNAL_TEXT.uptrend_intact });
@@ -109,9 +111,9 @@ function buildDecisionSignals(decision: StockDecisionSupportDto): DecisionSignal
     signals.push({ tone: "warning", key: "momentum_fading", text: SIGNAL_TEXT.momentum_fading });
   }
 
-  if (volume && volume.score >= 55) {
+  if (volumeRatio !== null && volumeRatio > 1) {
     signals.push({ tone: "positive", key: "volume_above_average", text: SIGNAL_TEXT.volume_above_average });
-  } else if (volume && volume.score <= 45) {
+  } else if (volumeRatio !== null && volumeRatio < 1) {
     signals.push({ tone: "warning", key: "weak_volume_confirmation", text: SIGNAL_TEXT.weak_volume_confirmation });
   }
 
@@ -212,24 +214,24 @@ export function buildStockDecisionViewModel(
       recommendationTone:
         recommendationToneMap[displayAction] ?? "neutral",
       entryCondition:
-        displayAction === "POTENTIAL_BUY"
+        displayAction === "POTENTIAL_BUY" && decision.entry_applicability?.status === "APPLICABLE"
           ? decision.decision.entry_condition ?? decision.trade_plan.condition_text ?? null
           : null,
       decisionSignals: buildDecisionSignals(decision),
       opportunityScore: decision.opportunity.score,
       opportunityComponents: decision.opportunity.components.map((component) => ({
         key: component.key,
-        label: component.label,
+        label: component.key === "risk_adjustment" ? "Legacy composite risk adjustment" : component.label,
         score: component.score,
-        explanation: component.explanation,
+        explanation: component.key === "risk_adjustment" ? `${component.explanation} This uses the legacy composite score, separately from trading risk.` : component.explanation,
       })),
       riskScore: risk.score,
       riskLabel: risk.label,
       riskComponents: risk.components.map((component) => ({
         key: component.key,
-        label: component.label,
+        label: component.key === "risk_adjustment" ? "Legacy composite risk adjustment" : component.label,
         score: component.score,
-        explanation: component.explanation,
+        explanation: component.key === "risk_adjustment" ? `${component.explanation} This uses the legacy composite score, separately from trading risk.` : component.explanation,
       })),
       pricePositionVisual: {
         support: decision.support,
@@ -249,6 +251,8 @@ export function buildStockDecisionViewModel(
         target: decision.trade_plan.target_high,
         riskReward: decision.trade_plan.risk_reward_ratio,
         status: decision.trade_plan.status ?? "UNAVAILABLE",
+        asOfDate: decision.decision_session_date ?? decision.data_freshness.latest_trade_date,
+        entryApplicability: decision.entry_applicability,
       },
       liquidity: {
         label: decision.liquidity.label,

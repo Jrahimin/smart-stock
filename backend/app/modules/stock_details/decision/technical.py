@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import cached_property
 from datetime import date
 from decimal import Decimal
 from math import isfinite
@@ -398,6 +399,23 @@ def classify_structure(swings: list[SwingPoint]) -> str:
 
 
 @dataclass(frozen=True)
+class VolumeFacts:
+    prior_sample_count: int
+    baseline: float | None
+    current_volume: int
+    ratio: float | None
+    classification: VolumeBehavior
+
+
+def volume_facts(current_volume, baseline, prior_sample_count):
+    ratio = current_volume / baseline if baseline is not None and baseline > 0 else None
+    classification = (VolumeBehavior.UNKNOWN if ratio is None else
+                      VolumeBehavior.EXPANSION if ratio >= VOLUME_EXPANSION_RATIO else
+                      VolumeBehavior.THIN if ratio <= VOLUME_THIN_RATIO else VolumeBehavior.NORMAL)
+    return VolumeFacts(prior_sample_count, baseline, current_volume, ratio, classification)
+
+
+@dataclass(frozen=True)
 class TechnicalSnapshot:
     latest_price: float | None
     previous_close: float | None
@@ -442,12 +460,17 @@ class TechnicalSnapshot:
     missing_session_count: int = 0
     calendar_status: str = "OBSERVED_ROWS_ONLY"
 
+    @cached_property
+    def volume_facts(self) -> VolumeFacts:
+        return volume_facts(self.volume, self.average_volume, self.volume_observation_count)
+
 
 def build_technical_snapshot(
     prices: list[DailyPrice],
     *,
     exchange_session_dates: tuple[date, ...] | list[date] | None = None,
     adjustment_coverage_verified: bool = False,
+    legacy_volume_baseline: bool = False,
 ) -> TechnicalSnapshot | None:
     if not prices:
         return None
@@ -519,11 +542,12 @@ def build_technical_snapshot(
     # Average volume/turnover exclude the latest session so the current bar is
     # measured against its own baseline rather than being diluted into it.
     baseline_prices = valid_prices[-(ELIGIBILITY_ROBUST_BASELINE_WINDOW + 1) : -1]
-    if not baseline_prices:
+    if not baseline_prices and legacy_volume_baseline:
         baseline_prices = valid_prices[:-1] or valid_prices
     traded_baseline_prices = [price for price in baseline_prices if price.volume > 0]
     volume_window = [float(price.volume) for price in traded_baseline_prices]
     average_volume = median(volume_window) if volume_window else None
+    participation = volume_facts(latest.volume, average_volume, len(volume_window))
     turnover_window = [
         value
         for value in (_to_float(price.turnover) for price in traded_baseline_prices)
@@ -603,7 +627,8 @@ def build_technical_snapshot(
         and latest_price > levels.prior_swing_high
         and average_volume
         and average_volume > 0
-        and latest.volume / average_volume >= VOLUME_EXPANSION_RATIO
+        and participation.ratio is not None
+        and participation.ratio >= VOLUME_EXPANSION_RATIO
     ):
         is_breakout = True
 
@@ -655,5 +680,5 @@ def build_technical_snapshot(
             "SOURCE_ADJUSTED_CLOSE" if use_adjusted_close else "RAW_UNADJUSTED"
         ),
         adjusted_close_coverage_ratio=adjusted_coverage,
-        volume_behavior=classify_volume_behavior(latest.volume, average_volume),
+        volume_behavior=participation.classification,
     )

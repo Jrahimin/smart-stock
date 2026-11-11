@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import logging
 from datetime import UTC, date, datetime
 from typing import Annotated
 
 from fastapi import Depends
-from sqlalchemy import case, select
+from sqlalchemy import case, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import defer
@@ -50,20 +51,75 @@ def decision_snapshot_values(row: ScoredUniverseRow) -> dict[str, object] | None
     }
 
 
+logger = logging.getLogger(__name__)
+
+
 class DecisionSnapshotRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
     async def publish_generation(
         self, *, exchange, generation_id, session_date, inputs, payload
-    ) -> None:
-        """Commit all source inputs and results together; retries cannot overwrite history."""
+    ) -> DecisionGenerationCapture:
+        """Commit atomically and return the durable winner, including on duplicate retries."""
+        from app.modules.market_data.publication_lock import lock_session_publication
+        await lock_session_publication(self.session, exchange=exchange, session_date=session_date)
         statement = insert(DecisionGenerationCapture).values(
             exchange=exchange, generation_id=generation_id, session_date=session_date,
             observed_at=datetime.now(UTC), input_payload=inputs, result_payload=payload,
         ).on_conflict_do_nothing(index_elements=["exchange", "generation_id"])
         await self.session.execute(statement)
+        winner = await self.session.scalar(select(DecisionGenerationCapture).where(
+            DecisionGenerationCapture.exchange == exchange,
+            DecisionGenerationCapture.generation_id == generation_id,
+        ).execution_options(populate_existing=True))
+        if winner is None or winner.invalidated_at is not None:
+            await self.session.rollback()
+            raise RuntimeError("Published generation winner is missing or withdrawn")
         await self.session.commit()
+        logger.info("decision_generation_publication strategy=%s generation=%s observed_at=%s session=%s",
+            winner.result_payload.get("strategy_version"), winner.generation_id, winner.observed_at, winner.session_date)
+        return winner
+
+    async def list_captures(self, *, exchange, start_date=None, end_date=None):
+        statement = select(DecisionGenerationCapture).where(DecisionGenerationCapture.exchange == exchange)
+        if start_date is not None:
+            statement = statement.where(DecisionGenerationCapture.session_date >= start_date)
+        if end_date is not None:
+            statement = statement.where(DecisionGenerationCapture.session_date <= end_date)
+        return list((await self.session.scalars(statement.order_by(
+            DecisionGenerationCapture.session_date, DecisionGenerationCapture.observed_at,
+        ))).all())
+
+    async def get_publication(self, *, exchange, generation_id):
+        return await self.session.scalar(select(DecisionGenerationCapture).where(
+            DecisionGenerationCapture.exchange == exchange,
+            DecisionGenerationCapture.generation_id == generation_id,
+        ).options(defer(DecisionGenerationCapture.input_payload, raiseload=True)))
+
+    async def get_replay_publication(self, *, exchange, generation_id):
+        """Explicit background replay read; request readers keep their narrow projection."""
+        return await self.session.scalar(select(DecisionGenerationCapture).where(
+            DecisionGenerationCapture.exchange == exchange, DecisionGenerationCapture.generation_id == generation_id,
+        ).execution_options(populate_existing=True))
+
+    async def publication_coverage(self, *, exchange, generation_id):
+        # Return only the small coverage manifest, never replay inputs/results.
+        where = (DecisionGenerationCapture.exchange == exchange, DecisionGenerationCapture.generation_id == generation_id)
+        value = await self.session.execute(select(
+            DecisionGenerationCapture.input_payload["universe_membership"],
+            DecisionGenerationCapture.input_payload["membership_provenance"],
+            DecisionGenerationCapture.input_payload["excluded_members"],
+        ).where(*where))
+        manifest = value.one_or_none()
+        if manifest is None:
+            return {}
+        keys = list((await self.session.scalars(select(func.jsonb_object_keys(
+            DecisionGenerationCapture.input_payload["inputs"],
+        )).where(*where))).all())
+        membership, provenance, exclusions = manifest
+        return {"universe_membership": membership, "membership_provenance": provenance,
+                "excluded_members": exclusions, "input_keys": keys}
 
     async def latest_publication(self, *, exchange, before_date=None, generation_id=None, metadata_only=False):
         statement = select(DecisionGenerationCapture).where(

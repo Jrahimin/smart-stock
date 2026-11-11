@@ -190,3 +190,20 @@ Component layers:
 - Market data: `backend/docs/market_data.md`
 - Decision support: `backend/docs/stock_decision_support.md`
 - API reference: `backend/docs/api_collection.md`
+
+
+### Current status and breadth provenance
+
+Focus and monitor stocks add `entry_applicability` and `entry_risk_label`.
+`actionable_trigger` is true only when the current projection is `APPLICABLE`,
+including on cached response/summary hits. Finalized recommendations and Pulse
+ranking weights are preserved. `score_breakdown.risk_penalty_semantics` is
+`ATTENTION_SCORE_POINTS`; the deduction continues using legacy composite risk.
+
+`coverage.market_status` and the hero session label come from current freshness,
+separately from `coverage.decision_session_date` and generation. `coverage.breadth`
+and `briefing.breadth` describe the canonical eligible same-session cohort, a
+±0.05% neutral band and completed-session source. They include `advancing`,
+`declining`, `unchanged`, `known_count`, `unknown_count`, `cohort_count`,
+`denominator` and `as_of_date`. Unknown changes are never unchanged; the
+percentage denominator is the known-change population (possibly zero).

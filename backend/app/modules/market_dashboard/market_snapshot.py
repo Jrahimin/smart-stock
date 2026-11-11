@@ -29,6 +29,10 @@ class DashboardMarketSnapshot:
     rows: list[DashboardSnapshotRow]
 
 
+def dated_breadth_changes(rows, session_trade_date):
+    return [row.technical.price_change_percent if row.price.trade_date == session_trade_date else None for row in rows]
+
+
 async def load_dashboard_market_snapshot(
     repository: MarketDataRepository,
     *,

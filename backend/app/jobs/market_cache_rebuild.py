@@ -149,6 +149,9 @@ async def _rebuild_current_universe(
             promoter = getattr(service, "promote_cached_generation", None)
             if promoter is not None and not await promoter(exchange=exchange, generation=generation):
                 continue
+            recorder = getattr(service, "ensure_cached_shadow_receipt", None)
+            if recorder is not None:
+                await recorder(exchange=exchange, generation=generation)
             return "universe-current"
         rows = await service.recompute_scored_universe(exchange, generation=generation)
         if await service.cache_scored_universe(

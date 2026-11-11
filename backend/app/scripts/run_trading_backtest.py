@@ -13,7 +13,7 @@ import json
 import os
 import sys
 from dataclasses import asdict
-from datetime import date
+from datetime import date, datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -67,11 +67,18 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         type=Path,
         help="Fail when the current replay does not reproduce a prior manifest/report",
     )
+    parser.add_argument("--replay-mode", choices=("reconstructed", "captured", "capture_diagnostic"), default="reconstructed")
+    parser.add_argument("--strategy-version", default=None)
+    parser.add_argument("--publication-id", action="append", default=[], help="Explicit original/correction vintage for captured replay")
+    parser.add_argument("--horizons", default="3,5,10,20", help="Explicit exchange-session horizons; use 10 for primary-only analysis")
+    parser.add_argument("--session-open-overrides", type=Path, help="JSON mapping verified session dates to applicable opening times")
+    parser.add_argument("--no-sensitivities", action="store_true")
+    parser.add_argument("--omit-dataset-in-report", action="store_true", help="Keep the full archive in dataset-output rather than duplicate it in report JSON")
     return parser.parse_args(argv)
 
 
 def _json_default(value: Any) -> Any:
-    if isinstance(value, (date, Enum)):
+    if isinstance(value, (date, datetime, Enum)):
         return value.isoformat() if isinstance(value, date) else value.value
     if isinstance(value, UUID):
         return str(value)
@@ -85,7 +92,13 @@ async def _run(args: argparse.Namespace) -> int:
     from app.modules.backtesting.backtesting_repository import BacktestingRepository
     from app.modules.backtesting.backtesting_service import BacktestingService
 
+    from app.core.core_config import get_settings
+    from app.core.constants.trading_constants import TRADING_STRATEGY_VERSION
     config = BacktestConfig(
+        publication_ids=tuple(args.publication_id), replay_mode=args.replay_mode, strategy_version=args.strategy_version or TRADING_STRATEGY_VERSION,
+        horizons=tuple(int(value) for value in args.horizons.split(",")),
+        session_open_time=get_settings().market_open_time, session_close_time=get_settings().market_close_time,
+        session_open_overrides=tuple(sorted(json.loads(args.session_open_overrides.read_text()).items())) if args.session_open_overrides else tuple(sorted(get_settings().market_session_open_overrides.items())),
         exchange=ExchangeCode(args.exchange),
         start_date=args.start,
         end_date=args.end,
@@ -101,13 +114,15 @@ async def _run(args: argparse.Namespace) -> int:
         from app.modules.backtesting.backtesting_service import run_dataset
 
         report = run_dataset(
-            restore_dataset(json.loads(args.dataset_input.read_text(encoding="utf-8"))), config
+            restore_dataset(json.loads(args.dataset_input.read_text(encoding="utf-8"))), config, sensitivities=not args.no_sensitivities
         )
     else:
         from app.core.database_session import AsyncSessionLocal
 
+        from sqlalchemy import text
         async with AsyncSessionLocal() as session:
-            report = await BacktestingService(BacktestingRepository(session)).run(config)
+            await session.execute(text("SET TRANSACTION READ ONLY"))
+            report = await BacktestingService(BacktestingRepository(session)).run(config, sensitivities=not args.no_sensitivities)
     if args.dataset_output:
         args.dataset_output.parent.mkdir(parents=True, exist_ok=True)
         args.dataset_output.write_text(
@@ -125,7 +140,10 @@ async def _run(args: argparse.Namespace) -> int:
             )
             return 2
 
-    payload = json.dumps(asdict(report), default=_json_default, indent=2, sort_keys=True)
+    result = asdict(report)
+    if args.omit_dataset_in_report:
+        result["audit"].pop("dataset", None)
+    payload = json.dumps(result, default=_json_default, indent=2, sort_keys=True)
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(payload + "\n", encoding="utf-8")

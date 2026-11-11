@@ -445,3 +445,15 @@ def test_ex_date_drop_waits_instead_of_sell() -> None:
     assert bundle.trade_plan.status != TradePlanStatus.VALID_ENTRY_PLAN
 
 
+
+
+def test_summary_counterargument_uses_measured_weakness_without_changing_decision():
+    from app.modules.stock_details.decision.summary import build_trader_decision_summary
+    prices = _build_uptrend_prices()
+    bundle = compute_trader_decision_from_prices(prices, category="A", reference_date=prices[-1].trade_date)
+    assert bundle is not None
+    no_constraints = replace(bundle, decision=replace(bundle.decision, constraints=()))
+    summary = build_trader_decision_summary(no_constraints)
+    assert "Weakest setup factor:" in summary.opposing_constraint
+    assert summary.recommendation == no_constraints.decision.recommendation
+    assert summary.opportunity_score == no_constraints.opportunity.score

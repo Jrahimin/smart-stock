@@ -24,6 +24,8 @@ def dataset_archive(dataset):
         {
             "schema": "replay-input-archive-v1",
             "session_dates": dataset.session_dates,
+            "observed_session_dates": dataset.observed_session_dates,
+            "publications": dataset.publications,
             "limitations": dataset.limitations,
             "market_summaries": [_market_summary_payload(row) for row in dataset.market_summaries],
             "challenger_input_provenance": CHALLENGER_INPUT_PROVENANCE,
@@ -172,4 +174,6 @@ def restore_dataset(payload):
         tuple(map(date.fromisoformat, payload["session_dates"])),
         tuple(summaries),
         tuple(payload["limitations"]),
+        tuple(payload.get("publications", ())),
+        tuple(map(date.fromisoformat, payload.get("observed_session_dates", ()))),
     )

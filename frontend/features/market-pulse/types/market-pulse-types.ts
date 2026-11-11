@@ -17,6 +17,7 @@ export type PulseScoreBreakdownModel = {
 };
 
 export type FocusStockModel = {
+  entryRiskLabel?: string | null;
   recommendation?: string;
   readiness?: string;
   controllingReasonCode?: string | null;

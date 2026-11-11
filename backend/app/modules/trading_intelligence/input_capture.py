@@ -21,6 +21,7 @@ from app.modules.stock_details.decision.market_regime import MarketRegimeResult
 def capture_strategy_input(value: StrategyInput) -> dict:
     return canonicalize_audit_value(
         {
+            "strategy_version": value.strategy_version,
             "stock_id": value.stock_id,
             "symbol": value.symbol,
             "exchange": value.exchange,
@@ -69,13 +70,15 @@ def restore_strategy_input(payload: dict) -> StrategyInput:
         for key in decimal_fields:
             fields[key] = Decimal(fields[key]) if fields[key] is not None else None
         fields["data_quality_flag"] = DataQualityFlag(fields["data_quality_flag"])
-        fields["turnover_provenance"] = TurnoverProvenance(
-            fields["turnover_provenance"] or "UNKNOWN"
+        fields["turnover_provenance"] = (
+            TurnoverProvenance(fields["turnover_provenance"])
+            if fields["turnover_provenance"] is not None else None
         )
         prices.append(DailyPrice(stock_id=UUID(payload["stock_id"]), **fields))
     regime = dict(payload["market_regime"])
     regime["phase"] = MarketRegimePhase(regime["phase"])
     return StrategyInput(
+        strategy_version=payload.get("strategy_version", "trading-intelligence-v2"),
         stock_id=UUID(payload["stock_id"]),
         symbol=payload["symbol"],
         exchange=ExchangeCode(payload["exchange"]),

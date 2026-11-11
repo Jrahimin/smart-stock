@@ -66,3 +66,19 @@ The portfolio page adds or completes one consolidated position through the exist
 2. `PATCH /watchlist/items/{stock_id}` with `is_holding=true`, `quantity`, `buy_price`, and optional `note`.
 
 There is still no transaction ledger, purchase lot history, realized P/L, or partial-sale tracking. Stock autocomplete uses lean `GET /stocks/search` (no per-keystroke quote join); after selection, preview loads the latest close via `GET /stocks/{stock_id}/prices?limit=1`. Incomplete holdings continue to use inline quantity / average-price edits in the table.
+
+
+### Shared account valuation mark
+
+Position value, unrealized P&L, weights, totals and dependent suggestions use the
+resolved display quote and its matching previous close/change/date/source/quality,
+rather than the finalized analysis close. Quantity and cost basis are unchanged.
+A dated last-known positive mark can value holdings while new entry is unverified.
+Missing marks retain incomplete-total flags; stale marks retain daily-change suppression.
+
+The public Portfolio workspace uses the bound quote session/state for price
+status, valuation completeness and daily contribution, separately from the
+immutable `decision_session_date`. Metadata exposes `quote_generation_id` and
+`decision_generation_id`. A null-price display quote triggers the same dated
+positive fallback search as an absent stock, bounded to the quote session.
+A genuinely absent mark remains unavailable and makes totals incomplete.

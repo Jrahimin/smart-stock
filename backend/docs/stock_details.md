@@ -295,3 +295,19 @@ Manual trigger parameters:
 * `scope`: `full` (default) or `stocks` (see **Sync scope** above).
 
 **Typical gap-fill workflow:** run `python -m app.jobs.backfill_daily_prices --date YYYY-MM-DD` for a missing session day (DSE archive, insert-only by default). For a date range, use `--from` / `--to`. Use `sync_stock_details` only when you also need fundamentals or per-symbol AmarStock historical gaps.
+
+
+### Dated plan and current entry status
+
+Decision support and workspace decision support add optional `entry_applicability`
+(top level and nested `decision`). Status is recomputed after cache reads; the
+workspace plan panel displays its reference date and current status/reason.
+Only `APPLICABLE` permits present-tense entry guidance. Older responses still
+render the dated levels with current entry marked unverified. See
+[the universe contract](market_universe.md#current-entry-applicability-release-a-november-2026)
+for precedence, quote usability, low-path invalidation and provenance.
+
+Workspace cache hits bind current applicability and display metrics to the same
+freshly selected quote observation, including raw quote revisions that retain a
+generation ID. Withdrawn plans remain dated and visible with explicit withdrawal;
+missing quotes do not replace that withdrawal with an older actionable plan.

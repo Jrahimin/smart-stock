@@ -31,6 +31,7 @@ from app.modules.market_dashboard.market_dashboard_compute import (
     derive_market_mood_from_snapshot,
 )
 from app.modules.market_dashboard.market_snapshot import (
+    dated_breadth_changes,
     DashboardMarketSnapshot,
     load_dashboard_market_snapshot,
 )
@@ -190,7 +191,7 @@ class MarketDashboardService:
                 data = model.model_validate(cached)
                 after = await self.market_data_service.get_market_freshness(exchange=exchange)
                 if self._same_generation(freshness, after):
-                    return data
+                    return data.model_copy(update={"market_status": after.market_status.value}) if "market_status" in model.model_fields else data
                 continue
 
             perf = PerfReport(f"dashboard.{section}")
@@ -199,7 +200,7 @@ class MarketDashboardService:
             after = await self.market_data_service.get_market_freshness(exchange=exchange)
             if not self._same_generation(freshness, after):
                 continue
-            data = data.model_copy(update={"market_sync_id": freshness.market_sync_id})
+            data = data.model_copy(update={"market_sync_id": freshness.market_sync_id, **({"market_status": after.market_status.value} if "market_status" in model.model_fields else {})})
             perf.log_summary()
             self._last_compute_ms = perf.total_ms
             await self._cache_set(cache_key, data.model_dump(mode="json"))
@@ -313,7 +314,10 @@ class MarketDashboardService:
             perf.log_summary()
             self._last_compute_ms = perf.total_ms
 
+        from app.modules.market_data.breadth import breadth_facts
         return DashboardOverviewRead(
+            market_status=freshness.market_status.value,
+            breadth=breadth_facts(dated_breadth_changes(snapshot.rows, snapshot.session_trade_date), cohort="ACTIVE_VALID_OHLC", as_of_date=snapshot.session_trade_date),
             exchange=exchange,
             session_trade_date=snapshot.session_trade_date,
             last_synced_at=freshness.last_synced_at,
@@ -471,10 +475,7 @@ class MarketDashboardService:
                 end_date=freshness.trade_date,
             )
 
-        advancing, declining, unchanged, _ = derive_market_breadth_from_snapshot(snapshot.rows)
-        if dsex_index.advancing_issues + dsex_index.declining_issues + dsex_index.unchanged_issues > 0:
-            advancing = dsex_index.advancing_issues
-            declining = dsex_index.declining_issues
+        advancing, declining, unchanged, _ = derive_market_breadth_from_snapshot(snapshot.rows, snapshot.session_trade_date)
 
         async with async_perf_stage(perf, "compute.sentiment"):
             market_mood = derive_market_mood_from_snapshot(
@@ -509,7 +510,10 @@ class MarketDashboardService:
             perf.log_summary()
             self._last_compute_ms = perf.total_ms
 
+        from app.modules.market_data.breadth import breadth_facts
         return DashboardMarketSentimentRead(
+            market_status=freshness.market_status.value,
+            breadth=breadth_facts(dated_breadth_changes(snapshot.rows, snapshot.session_trade_date), cohort="ACTIVE_VALID_OHLC", as_of_date=snapshot.session_trade_date),
             exchange=exchange,
             session_trade_date=snapshot.session_trade_date,
             market_mood=market_mood,

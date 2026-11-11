@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from app.modules.stock_details.decision.display_metrics import account_mark_is_usable, resolve_account_mark
+
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Annotated
 from uuid import UUID
@@ -198,11 +200,13 @@ class PortfoliosService:
                 universe.rows,
                 PortfolioWorkspaceMetaRead(
                     exchange=exchange,
-                    published_market_date=universe.meta.session_trade_date,
+                    published_market_date=getattr(universe.meta, "quote_session_date", None) or universe.meta.session_trade_date,
                     live_data_as_of=universe.meta.live_data_as_of,
-                    data_state=universe.meta.data_state,
-                    is_provisional=universe.meta.is_live_session,
-                    market_sync_id=universe.meta.market_sync_id,
+                    data_state=getattr(universe.meta, "quote_data_state", None) or universe.meta.data_state,
+                    is_provisional=getattr(universe.meta, "quote_is_live_session", False) or universe.meta.is_live_session,
+                    market_sync_id=getattr(universe.meta, "quote_generation_id", None) or universe.meta.market_sync_id,
+                    quote_generation_id=getattr(universe.meta, "quote_generation_id", None),
+                    decision_generation_id=getattr(universe.meta, "decision_generation_id", None),
                     decision_session_date=universe.meta.decision_session_date,
                     decision_status=universe.meta.decision_status,
                 ),
@@ -243,7 +247,7 @@ class PortfoliosService:
             for item in items
             if (
                 (universe_row := universe_by_stock.get(item.stock.id)) is None
-                or universe_row.session.close_price <= 0
+                or not account_mark_is_usable(getattr(universe_row, "display_quote", None))
             )
         ]
         fallback_prices = await self.repository.list_latest_positive_prices(
@@ -414,31 +418,14 @@ class PortfoliosService:
     ) -> PortfolioHoldingRead:
         technical = universe_row.technical_snapshot if universe_row is not None else None
         decision = universe_row.decision if universe_row is not None else None
-        if (
-            universe_row is not None
-            and technical is not None
-            and universe_row.session.close_price > 0
-        ):
-            current_price = _decimal(universe_row.session.close_price)
-            previous_close = _decimal(technical.previous_close)
-            price_change = _decimal(technical.price_change)
-            change_percent = _decimal(universe_row.session.change_percent)
-            latest_trade_date = universe_row.session.latest_trade_date
-            data_quality = universe_row.session.data_quality_flag
-            volume = universe_row.session.volume
-        elif fallback_price is not None:
-            current_price = _decimal(fallback_price.close_price)
-            previous_close = _decimal(fallback_price.previous_close_price)
-            price_change = _decimal(fallback_price.price_change)
-            change_percent = _decimal(fallback_price.price_change_percent)
-            latest_trade_date = fallback_price.trade_date
-            data_quality = fallback_price.data_quality_flag
-            volume = fallback_price.volume
-        else:
-            current_price = previous_close = price_change = change_percent = None
-            latest_trade_date = None
-            data_quality = DataQualityFlag.PARTIAL
-            volume = 0
+        mark = resolve_account_mark(row=universe_row, fallback_price=fallback_price)
+        current_price = _decimal(mark.current_price)
+        previous_close = _decimal(mark.previous_close)
+        price_change = _decimal(mark.price_change)
+        change_percent = _decimal(mark.price_change_percent)
+        latest_trade_date = date.fromisoformat(mark.as_of_trade_date) if mark.as_of_trade_date else None
+        data_quality = mark.data_quality or DataQualityFlag.PARTIAL
+        volume = 0 if mark.observation_status == "NO_TRADE" else 1
 
         event_records = [] if relevant_event is None else [relevant_event]
         latest_trading_event = next(
@@ -459,7 +446,7 @@ class PortfoliosService:
             price_status = PortfolioPriceStatus.STALE_LAST_KNOWN
         elif volume == 0:
             price_status = PortfolioPriceStatus.NON_TRADED
-        elif is_provisional:
+        elif mark.observation_status == "PROVISIONAL" or is_provisional:
             price_status = PortfolioPriceStatus.PROVISIONAL
         else:
             price_status = PortfolioPriceStatus.FINALIZED

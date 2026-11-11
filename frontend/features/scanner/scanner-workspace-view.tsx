@@ -1,5 +1,6 @@
 "use client";
 
+import { EntryApplicabilityLabel } from "@/components/market/entry-applicability-label";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
@@ -174,6 +175,7 @@ export function ScannerWorkspaceView({ locale = DEFAULT_LOCALE }: ScannerWorkspa
                               {localizeEntryCondition(decision.entryCondition, locale)}
                             </small>
                           ) : null}
+                          {decision.recommendation === "POTENTIAL_BUY" ? <EntryApplicabilityLabel assessment={decision.entryApplicability} locale={locale} /> : null}
                           <div className="mini-momentum-bar" aria-label={language.states.momentumAria}>
                             <span style={{ width: `${Math.min(100, Math.abs(stock.priceChangePercent ?? 0) * 12)}%` }} />
                           </div>

@@ -28,6 +28,7 @@ from app.modules.stock_details.stock_details_schemas import (
     TradingRiskRead,
 )
 from app.modules.stocks.stocks_schemas import StockRead
+from app.modules.stock_details.decision.entry_applicability import EntryApplicabilityRead
 
 
 class UniverseSessionRead(BaseModel):
@@ -72,6 +73,12 @@ class CanonicalDecisionAnalysisRead(BaseModel):
 
 
 class DisplayQuoteRead(BaseModel):
+    previous_close: float | None = None
+    source: str | None = None
+    data_quality: str | None = None
+    ingested_at: datetime | None = None
+    source_observed_at: datetime | None = None
+    max_age_seconds: int = 1800
     current_price: float | None
     price_change: float | None = None
     price_change_percent: float | None = None
@@ -91,6 +98,7 @@ class ShortlistRead(BaseModel):
 class ScoredUniverseRow(BaseModel):
     """Lightweight exchange-wide row — safe for universe:scored Redis cache."""
 
+    entry_applicability: EntryApplicabilityRead | None = None
     display_quote: DisplayQuoteRead | None = None
     shortlist: ShortlistRead | None = None
     previous_finalized_decision: CanonicalDecisionResultRead | None = None
@@ -104,6 +112,9 @@ class ScoredUniverseRow(BaseModel):
 
 
 class UniverseRowsMetaRead(BaseModel):
+    quote_session_date: date | None = None
+    quote_data_state: MarketDataState | None = None
+    quote_is_live_session: bool = False
     exchange: ExchangeCode
     listed_stock_count: int
     session_trade_date: date | None = None

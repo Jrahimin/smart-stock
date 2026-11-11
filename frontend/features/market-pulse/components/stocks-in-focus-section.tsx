@@ -45,6 +45,7 @@ export function FocusStockCard({ stock, copy, scoreCopy }: FocusStockCardProps) 
         <span className="pulse-focus-conviction-label">{copy.conviction}</span>
         <strong>{stock.actionSummary}</strong>
         <small>{stock.decisionContext}</small>
+        <small>{scoreCopy.tradingRisk}: {stock.entryRiskLabel ?? "—"}</small>
         {stock.controllingReason ? <small>{stock.controllingReason}</small> : null}
       </p>
 

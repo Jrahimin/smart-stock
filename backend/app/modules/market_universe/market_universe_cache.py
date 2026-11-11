@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from app.core.constants.trading_constants import (
     DECISION_TAXONOMY_VERSION,
+    SCANNER_CONDITION_VERSION,
     TRADING_INPUT_SCHEMA_VERSION,
     TRADING_STRATEGY_VERSION,
     TRADING_THRESHOLD_VERSION,
@@ -28,7 +29,7 @@ def universe_cache_key(
     generation = market_sync_id or "unpublished"
     return (
         f"universe:{section}:{exchange_value}:{generation}:{strategy_version}:"
-        f"{threshold_version}:{input_schema_version}:{decision_taxonomy_version}"
+        f"{threshold_version}:{input_schema_version}:{decision_taxonomy_version}:{SCANNER_CONDITION_VERSION}"
     )
 
 

@@ -11,6 +11,7 @@ from app.core.exception_handlers import NotFoundError
 from app.core.redis_client import OptionalRedisClient, get_redis_client
 from app.jobs.market_session_schedule import current_cache_ttl_seconds
 from app.modules.market_data.market_data_schemas import DailyPriceRead
+from app.modules.market_universe.market_universe_schemas import DisplayQuoteRead
 from app.modules.market_universe.market_universe_service import (
     CanonicalUniverseSnapshot,
     UniverseCacheUnavailableError,
@@ -103,17 +104,20 @@ class StockDetailsWorkspaceService:
             await self._resolve_latest_trade_date(exchange=exchange, symbol=symbol)
         )
         generation = canonical_snapshot.generation
-        quote_generation = await self.decision_service.universe_service.resolve_quote_context(
-            exchange=exchange
+        canonical_snapshot = await self.decision_service.universe_service.project_current_entries(
+            canonical_snapshot, exchange=exchange, stock_ids={stock_read.id},
         )
-        quote_generation = quote_generation or generation
+        current_row = canonical_snapshot.row_for_symbol(symbol)
+        quote = current_row.display_quote if current_row and current_row.display_quote else DisplayQuoteRead(current_price=None)
+        quote_generation = canonical_snapshot.quote_generation
+        quote_id = quote_generation.sync_id if quote_generation else None
         cache_key = stock_workspace_cache_key(
             "core-v2",
             exchange,
             symbol,
             latest_trade_date,
             decision_session_key,
-            f"{generation.sync_id}:{quote_generation.sync_id}",
+            f"{generation.sync_id}:{quote_id or 'unavailable'}",
         )
         cached = await self._cache_get(cache_key)
         if cached is not None:
@@ -127,22 +131,30 @@ class StockDetailsWorkspaceService:
             current_quote = await self.decision_service.universe_service.resolve_quote_context(
                 exchange=exchange
             )
-            if current_quote is not None and current_quote.sync_id != quote_generation.sync_id:
+            if (current_quote.sync_id if current_quote else None) != quote_id:
                 raise UniverseCacheUnavailableError(
                     "Quote generation changed while workspace was loading"
                 )
             cached_workspace = StockWorkspaceRead.model_validate(cached)
             if (
                 cached_workspace.decision_generation_id != generation.sync_id
-                or cached_workspace.quote_generation_id != quote_generation.sync_id
+                or cached_workspace.quote_generation_id != quote_id
             ):
                 raise UniverseCacheUnavailableError("Workspace cache identity is invalid")
+            applicability = current_row.entry_applicability if current_row else None
+            display_metrics = self._build_display_metrics(
+                current_price=quote.current_price, as_of_trade_date=quote.as_of_trade_date,
+                decision_support=cached_workspace.decision_support,
+                fundamentals_snapshot=cached_workspace.fundamentals_snapshot, stock=stock_read,
+            ).model_copy(update=quote.model_dump())
             status = "UPDATING" if canonical_snapshot.updating else "CURRENT"
             return cached_workspace.model_copy(
                 update={
                     "decision_status": status,
+                    "display_metrics": display_metrics,
                     "decision_support": cached_workspace.decision_support.model_copy(
-                        update={"decision_status": status}
+                        update={"decision_status": status, "entry_applicability": applicability,
+                            "decision": cached_workspace.decision_support.decision.model_copy(update={"entry_applicability": applicability})}
                     ),
                 }
             )
@@ -156,7 +168,7 @@ class StockDetailsWorkspaceService:
         # Pulse, Dashboard and scanners still expose the prior generation.
         raw_prices = await self.repository.list_daily_prices_window(
             stock_id=stock.id,
-            end_date=quote_generation.trade_date,
+            end_date=quote_generation.trade_date if quote_generation else generation.trade_date,
         )
         # The chart retains the source rows; the shared quote owns all price metrics.
         # Sequential awaits only — this request shares one AsyncSession.
@@ -223,10 +235,6 @@ class StockDetailsWorkspaceService:
             else None
         )
 
-        quotes = await self.decision_service.universe_service.get_display_quotes(
-            {stock.id}, context=quote_generation
-        )
-        quote = quotes[stock.id]
         display_metrics = self._build_display_metrics(
             current_price=quote.current_price,
             as_of_trade_date=quote.as_of_trade_date,
@@ -246,7 +254,7 @@ class StockDetailsWorkspaceService:
             display_metrics=display_metrics,
             market_sync_id=generation.sync_id,
             decision_generation_id=generation.sync_id,
-            quote_generation_id=quote_generation.sync_id,
+            quote_generation_id=quote_id,
             decision_status="UPDATING" if canonical_snapshot.updating else "CURRENT",
             data_state=generation.data_state,
         )
@@ -260,7 +268,7 @@ class StockDetailsWorkspaceService:
         current_quote = await self.decision_service.universe_service.resolve_quote_context(
             exchange=exchange
         )
-        if current_quote is not None and current_quote.sync_id != quote_generation.sync_id:
+        if (current_quote.sync_id if current_quote else None) != quote_id:
             raise UniverseCacheUnavailableError(
                 "Quote generation changed while workspace was loading"
             )

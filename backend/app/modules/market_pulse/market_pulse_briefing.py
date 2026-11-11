@@ -45,16 +45,10 @@ def _sector_name(stock) -> str:
 
 
 def _compute_breadth(rows: list[PulseBriefingRow]) -> dict[str, int]:
-    advancing = sum(1 for row in rows if (row.snapshot.price_change_percent or 0) > 0.05)
-    declining = sum(1 for row in rows if (row.snapshot.price_change_percent or 0) < -0.05)
-    unchanged = max(0, len(rows) - advancing - declining)
-    total = max(len(rows), 1)
-    return {
-        "advancing": advancing,
-        "declining": declining,
-        "unchanged": unchanged,
-        "total": total,
-    }
+    from app.modules.market_data.breadth import breadth_facts
+    facts = breadth_facts([row.snapshot.price_change_percent for row in rows], cohort="CANONICAL_ELIGIBLE_SAME_SESSION", band=0.05)
+    return {"advancing": facts.advancing, "declining": facts.declining,
+            "unchanged": facts.unchanged, "total": max(facts.denominator, 1)}
 
 
 def _sector_performance(rows: list[PulseBriefingRow]) -> dict[str, list[float]]:

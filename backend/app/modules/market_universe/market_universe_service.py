@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from copy import deepcopy
+from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime
 from typing import Annotated
 from uuid import UUID
@@ -95,6 +96,9 @@ class CanonicalUniverseSnapshot:
     generation: PublishedMarketGeneration
     payload: ScoredUniverseCacheRead
     updating: bool = False
+    withdrawn: bool = False
+    entries_projected: bool = False
+    quote_generation: PublishedMarketGeneration | None = None
 
     @property
     def rows(self) -> list[ScoredUniverseRow]:
@@ -121,6 +125,7 @@ class MarketUniverseService:
         self.decision_snapshot_repository = decision_snapshot_repository
         self._last_compute_ms: float | None = None
         self._input_captures: dict = {}
+        self._membership_capture: dict | None = None
 
     @property
     def last_compute_ms(self) -> float | None:
@@ -186,14 +191,10 @@ class MarketUniverseService:
         publication = None
         if self.decision_snapshot_repository is not None:
             publication = await self.decision_snapshot_repository.latest_publication(
-                exchange=exchange, generation_id=context.sync_id
+                exchange=exchange, generation_id=context.sync_id, metadata_only=True
             )
-            if publication is not None and publication.invalidated_at is not None:
-                raise UniverseCacheUnavailableError(
-                    "The prior decision generation has been invalidated"
-                )
 
-        if self.redis.is_available:
+        if self.redis.is_available and not (publication and publication.invalidated_at):
             cache_key = universe_cache_key("scored", exchange, context.sync_id)
             cached = await self._cache_get(cache_key)
             cached_payload = self._parse_cache_payload(cached) if cached is not None else None
@@ -220,7 +221,12 @@ class MarketUniverseService:
                 spawn_rebuild_universe_read_cache(exchange, settings=self.settings)
 
         if publication is not None:
-            payload = self._parse_cache_payload(publication.result_payload)
+            # Load the selected exact durable row, including a withdrawn head.
+            # Never substitute a previous generation for a missing winner.
+            publication = await self.decision_snapshot_repository.get_publication(
+                exchange=exchange, generation_id=publication.generation_id,
+            )
+            payload = self._parse_cache_payload(publication.result_payload) if publication else None
             if payload is not None and self._cache_matches_identity(
                 payload,
                 publication.session_date,
@@ -234,6 +240,7 @@ class MarketUniverseService:
                 )
                 return CanonicalUniverseSnapshot(
                     generation=prior, payload=payload, updating=prior.sync_id != context.sync_id,
+                    withdrawn=publication.invalidated_at is not None,
                 )
 
         raise UniverseCacheUnavailableError(
@@ -242,7 +249,8 @@ class MarketUniverseService:
         )
 
     async def get_scored_universe(self, *, exchange: ExchangeCode) -> list[ScoredUniverseRow]:
-        return (await self.get_canonical_universe(exchange=exchange)).rows
+        snapshot = await self.get_canonical_universe(exchange=exchange)
+        return (await self.project_current_entries(snapshot, exchange=exchange)).rows
 
     async def has_cached_generation(
         self,
@@ -497,6 +505,21 @@ class MarketUniverseService:
                 exchange.value,
             )
             return []
+        self._membership_capture = None
+        membership_reader = getattr(self.market_repository, "list_decision_universe_membership", None)
+        if membership_reader is not None:
+            listed_ids = await membership_reader(exchange=exchange)
+            active, accepted, _ = await self.market_repository.session_symbol_coverage(exchange=exchange, trade_date=decision_session_date)
+            self._membership_capture = {
+                "universe_membership": [str(value) for value in listed_ids],
+                "membership_provenance": {
+                    "status": "OBSERVED_INDEPENDENT_LISTED_SET", "observed_at": datetime.now(UTC).isoformat(),
+                    "decision_session_date": decision_session_date.isoformat(), "listed_count": len(listed_ids),
+                    "accepted_count": accepted,
+                    "market_coverage_verified": bool(active == len(listed_ids) and active and accepted >= self.settings.market_snapshot_min_source_symbols
+                        and accepted / active * 100 >= self.settings.market_snapshot_min_active_coverage_percent),
+                },
+            }
         async with async_perf_stage(perf, "db.price_windows"):
             window_rows = await self.market_repository.list_market_price_windows(
                 exchange=exchange,
@@ -668,12 +691,20 @@ class MarketUniverseService:
         if self.decision_snapshot_repository is not None:
             if not self._input_captures or len(self._input_captures) != len(rows):
                 raise UniverseCachePublicationError("Complete immutable input capture is required")
-            await self.decision_snapshot_repository.publish_generation(
+            winner = await self.decision_snapshot_repository.publish_generation(
                 exchange=exchange,
                 generation_id=context.sync_id,
                 session_date=context.trade_date,
                 inputs={
-                    "universe_membership": [str(row.stock.id) for row in rows],
+                    **(self._membership_capture or {
+                        "universe_membership": [str(row.stock.id) for row in rows],
+                        "membership_provenance": {"status": "UNKNOWN"},
+                    }),
+                    "excluded_members": [
+                        {"stock_id": stock_id, "reason_code": "NO_CAPTURED_INPUT" if stock_id not in self._input_captures else "NO_PUBLISHED_RESULT"}
+                        for stock_id in (self._membership_capture or {}).get("universe_membership", [])
+                        if stock_id not in {str(row.stock.id) for row in rows}
+                    ],
                     "stocks": {
                         str(row.stock.id): row.stock.model_dump(mode="json") for row in rows
                     },
@@ -685,6 +716,21 @@ class MarketUniverseService:
                 },
                 payload=serialized_payload,
             )
+            # Rollback of optional work expires ORM attributes even after the
+            # winner's commit. Retain the exact durable bytes before that work.
+            serialized_payload = deepcopy(winner.result_payload)
+            from app.modules.backtesting.backtesting_shadow import publish_shadow_receipts
+            try:
+                if hasattr(winner, "input_payload"):
+                    await publish_shadow_receipts(self.decision_snapshot_repository.session, winner, self.settings)
+            except Exception:
+                logger.exception("Shadow selection receipt failed; durable canonical publication remains available")
+                await self.decision_snapshot_repository.session.rollback()
+            durable_payload = self._parse_cache_payload(serialized_payload)
+            if durable_payload is None or not self._cache_matches_identity(
+                durable_payload, context.trade_date, context.source_last_synced_at, context.sync_id,
+            ):
+                raise UniverseCachePublicationError("Durable publication winner has invalid identity")
         primary_ttl_seconds = universe_cache_ttl_seconds(
             self.settings,
             data_state=data_state,
@@ -713,6 +759,26 @@ class MarketUniverseService:
             return False
         return True
 
+    async def ensure_cached_shadow_receipt(self, *, exchange, generation):
+        """Background retry only: repair a missing receipt from the exact durable winner."""
+        if self.decision_snapshot_repository is None or not await self.is_input_generation_current(generation, exchange=exchange):
+            return
+        from app.modules.backtesting.backtesting_shadow_repository import TradingShadowRepository
+        from app.modules.backtesting.backtesting_shadow import publish_shadow_receipts
+        from app.modules.backtesting.backtesting_challengers import EXPERIMENT_ID
+        session = self.decision_snapshot_repository.session
+        try:
+            repository = TradingShadowRepository(session)
+            if not await repository.available() or await repository.selection_for_session(
+                exchange=exchange, session_date=generation.trade_date, experiment_id=EXPERIMENT_ID):
+                return
+            winner = await self.decision_snapshot_repository.get_replay_publication(exchange=exchange, generation_id=generation.sync_id)
+            if winner is not None and winner.invalidated_at is None:
+                await publish_shadow_receipts(session, winner, self.settings)
+        except Exception:
+            logger.exception("Missing shadow receipt retry failed; canonical cache remains available")
+            await session.rollback()
+
     async def get_universe_rows(self, *, exchange: ExchangeCode) -> UniverseRowsRead:
         snapshot = await self.get_canonical_universe(exchange=exchange)
         context = snapshot.generation
@@ -725,13 +791,9 @@ class MarketUniverseService:
             MarketDataState.FINALIZATION_PENDING,
             MarketDataState.STALE,
         }
+        snapshot = await self.project_current_entries(snapshot, exchange=exchange)
         rows = snapshot.rows
-        quote_context = await self.resolve_quote_context(exchange=exchange)
-        if quote_context is not None:
-            quotes = await self.get_display_quotes(
-                {row.stock.id for row in rows}, context=quote_context
-            )
-            rows = [row.model_copy(update={"display_quote": quotes[row.stock.id]}) for row in rows]
+        quote_context = snapshot.quote_generation
         listed_stock_count = await self.stocks_repository.count_stocks(
             exchange=exchange,
             is_active=True,
@@ -741,15 +803,16 @@ class MarketUniverseService:
                 "Decision generation changed while universe rows were loading"
             )
         current_quote = await self.resolve_quote_context(exchange=exchange)
-        if quote_context and (
-            current_quote is None or current_quote.sync_id != quote_context.sync_id
-        ):
+        if (quote_context.sync_id if quote_context else None) != (current_quote.sync_id if current_quote else None):
             raise UniverseCacheUnavailableError(
                 "Quote generation changed while universe rows were loading"
             )
         return UniverseRowsRead(
             meta=UniverseRowsMetaRead(
                 exchange=exchange,
+                quote_session_date=quote_context.trade_date if quote_context else None,
+                quote_data_state=quote_context.data_state if quote_context else None,
+                quote_is_live_session=bool(quote_context and quote_context.data_state in {MarketDataState.LIVE, MarketDataState.FINALIZATION_PENDING, MarketDataState.STALE}),
                 listed_stock_count=listed_stock_count,
                 session_trade_date=session_trade_date,
                 decision_session_date=session_trade_date,
@@ -765,6 +828,88 @@ class MarketUniverseService:
             ),
             rows=rows,
         )
+
+    async def project_current_entries(self, snapshot, *, exchange, stock_ids=None):
+        """Lightweight current overlay; never cached with the immutable generation."""
+        from app.modules.stock_details.decision.entry_applicability import (
+            build_entry_path_facts, evaluate_entry_applicability,
+        )
+        from app.core.enums import MarketSessionStatus
+        now = datetime.now(ZoneInfo("Asia/Dhaka"))
+        status = resolve_market_status(now, self.settings)
+        context = await self.resolve_quote_context(exchange=exchange)
+        selected = [row for row in snapshot.rows if stock_ids is None or row.stock.id in stock_ids]
+        ids = {row.stock.id for row in selected}
+        quotes = await self.get_display_quotes(ids, context=context) if context else {}
+        publication = None
+        coverage = False
+        required = await self.resolve_generation_context(exchange=exchange)
+        selected_is_required = (
+            not snapshot.updating and required is not None
+            and required.sync_id == snapshot.generation.sync_id
+        )
+        repository = self.decision_snapshot_repository
+        if repository is not None:
+            publication = await repository.latest_publication(exchange=exchange, generation_id=snapshot.generation.sync_id, metadata_only=True)
+            if selected_is_required and publication is not None and publication.generation_id == snapshot.generation.sync_id:
+                from app.modules.trading_intelligence.capture_inventory import verify_capture_coverage
+                facts = await repository.publication_coverage(exchange=exchange, generation_id=publication.generation_id)
+                coverage = verify_capture_coverage(facts, [str(row.stock.id) for row in snapshot.rows])["verified"]
+        candidates = {row.stock.id for row in selected if row.decision and row.decision.display_action == "POTENTIAL_BUY"}
+        reference = snapshot.generation.trade_date
+        sessions = await self.market_repository.list_recent_exchange_session_dates(exchange=exchange, limit=5000, end_date=now.date()) if candidates else []
+        observed_reader = getattr(self.market_repository, "list_observed_exchange_session_dates", None)
+        observed = await observed_reader(exchange=exchange, start_date=reference, end_date=now.date()) if candidates and observed_reader else []
+        finalized = frozenset(sessions)
+        sessions = sorted(set(sessions) | set(observed) | ({context.trade_date} if context else set()))
+        from datetime import time
+        close = time.fromisoformat(self.settings.market_close_time)
+        ended = frozenset(day for day in sessions if day < now.date() or (
+            day == now.date() and now.time().replace(tzinfo=None) > close
+        ))
+        completed = ended & finalized
+        prices, revisions, journal_start = await self.market_repository.list_entry_path_observations(
+            stock_ids=candidates, start_date=reference, end_date=now.date(),
+        ) if candidates else ([], [], None)
+        actions = await self.market_repository.list_entry_basis_events(stock_ids=candidates, end_date=now.date()) if candidates else {}
+        prices_by_stock = {}
+        revisions_by_stock = {}
+        for price in prices:
+            prices_by_stock.setdefault(price.stock_id, []).append(price)
+        for revision in revisions:
+            revisions_by_stock.setdefault(revision.payload.get("stock_id"), []).append(revision)
+        projected = {}
+        for row in selected:
+            plan = row.analysis.trade_plan if row.analysis else None
+            path = build_entry_path_facts(
+                prices=prices_by_stock.get(row.stock.id, []),
+                revisions=revisions_by_stock.get(str(row.stock.id), []),
+                sessions=sessions, completed_sessions=completed, ended_sessions=ended, reference_date=reference,
+                published_at=publication.observed_at if publication else None, journal_started_at=journal_start,
+                basis_events=actions.get(row.stock.id, ()), plan=plan, average_volume=row.technical_snapshot.average_volume,
+            )
+            applicability = evaluate_entry_applicability(
+                decision=row.decision, plan=plan, eligibility=row.eligibility, quote=quotes.get(row.stock.id),
+                reference_date=reference, now=now, market_open=status == MarketSessionStatus.OPEN,
+                coverage_verified=coverage, path=path,
+                withdrawn=bool(publication and publication.invalidated_at),
+                publication_observed_at=publication.observed_at if publication else None,
+            )
+            decision = row.decision.model_copy(update={"entry_applicability": applicability}) if row.decision else None
+            projected[row.stock.id] = row.model_copy(update={
+                "display_quote": quotes.get(row.stock.id), "entry_applicability": applicability, "decision": decision,
+            })
+        after = await self.resolve_quote_context(exchange=exchange)
+        if (context.sync_id if context else None) != (after.sync_id if after else None):
+            raise UniverseCacheUnavailableError("Quote generation changed while entry applicability was assessed")
+        required_after = await self.resolve_generation_context(exchange=exchange)
+        if (required.sync_id if required else None) != (required_after.sync_id if required_after else None):
+            raise UniverseCacheUnavailableError("Required decision generation changed while entry applicability was assessed")
+        return replace(snapshot, entries_projected=True, quote_generation=context,
+            updating=snapshot.updating or bool(required and required.sync_id != snapshot.generation.sync_id),
+            payload=snapshot.payload.model_copy(update={
+                "rows": [projected.get(row.stock.id, row) for row in snapshot.rows],
+            }))
 
     async def get_display_quotes(
         self, stock_ids: set[UUID], *, context: PublishedMarketGeneration,

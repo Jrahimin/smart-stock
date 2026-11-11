@@ -136,6 +136,60 @@ class MarketDataRepository(BaseRepository[DailyPrice]):
         )
         return list((await self.session.scalars(select(price).where(price.id.in_(ids)))).all())
 
+    async def list_decision_universe_membership(self, *, exchange):
+        """Independent listed population at this calculation instant, before any price join."""
+        return list((await self.session.scalars(select(Stock.id).where(
+            Stock.exchange == exchange, Stock.is_active.is_(True),
+        ).order_by(Stock.id))).all())
+
+    async def list_observed_exchange_session_dates(self, *, exchange, start_date, end_date):
+        return list((await self.session.scalars(select(MarketDataGeneration.trade_date).where(
+            MarketDataGeneration.exchange == exchange, MarketDataGeneration.accepted_count > 0,
+            MarketDataGeneration.trade_date > start_date, MarketDataGeneration.trade_date <= end_date,
+        ).distinct().order_by(MarketDataGeneration.trade_date))).all())
+
+    async def list_entry_basis_events(self, *, stock_ids, end_date):
+        from app.modules.stock_details.decision.entry_applicability import PriceBasisEvent
+        from app.core.enums import CorporateActionSubtype, DividendStatus
+        result = {}
+        if not stock_ids:
+            return result
+        actions = (await self.session.scalars(select(CorporateAction).where(
+            CorporateAction.stock_id.in_(stock_ids), CorporateAction.effective_date <= end_date,
+            CorporateAction.action_subtype.in_([CorporateActionSubtype.SPLIT, CorporateActionSubtype.BONUS,
+                CorporateActionSubtype.RIGHTS, CorporateActionSubtype.MERGER]),
+        ))).all()
+        for action in actions:
+            result.setdefault(action.stock_id, []).append(PriceBasisEvent(action.effective_date, action.action_subtype.value))
+        dividends = (await self.session.scalars(select(DividendEvent).where(
+            DividendEvent.stock_id.in_(stock_ids), DividendEvent.ex_dividend_date <= end_date,
+            DividendEvent.status.in_([DividendStatus.APPROVED, DividendStatus.PAID]),
+            or_(DividendEvent.stock_dividend_percent > 0, DividendEvent.cash_dividend_percent > 0,
+                DividendEvent.cash_amount_per_share > 0),
+        ))).all()
+        for event in dividends:
+            result.setdefault(event.stock_id, []).append(PriceBasisEvent(event.ex_dividend_date, "EX_DIVIDEND"))
+        return result
+
+    async def list_entry_path_observations(self, *, stock_ids, start_date, end_date):
+        """Bulk path and append-only revisions; no per-symbol request queries."""
+        if not stock_ids:
+            return [], [], None
+        prices = list((await self.session.scalars(select(DailyPrice).where(
+            DailyPrice.stock_id.in_(stock_ids), DailyPrice.trade_date > start_date,
+            DailyPrice.trade_date <= end_date,
+        ))).all())
+        revisions = list((await self.session.scalars(select(TradingSourceObservation).where(
+            TradingSourceObservation.source_table == "daily_prices",
+            TradingSourceObservation.session_date > start_date,
+            TradingSourceObservation.session_date <= end_date,
+            TradingSourceObservation.payload["stock_id"].astext.in_([str(value) for value in stock_ids]),
+        ).order_by(TradingSourceObservation.observed_at))).all())
+        journal_started_at = await self.session.scalar(select(func.min(TradingSourceObservation.observed_at)).where(
+            TradingSourceObservation.source_table == "daily_prices",
+        ))
+        return prices, revisions, journal_started_at
+
     async def list_market_price_windows(
         self,
         *,
@@ -764,6 +818,29 @@ class MarketDataRepository(BaseRepository[DailyPrice]):
             )
         )
         return decision_session_date, await self.session.scalar(last_synced_statement)
+
+    async def lock_session_publication(self, *, exchange, trade_date):
+        from app.modules.market_data.publication_lock import lock_session_publication
+        await lock_session_publication(self.session, exchange=exchange, session_date=trade_date)
+
+    async def is_market_session_finalized(self, *, exchange, trade_date):
+        return await self.session.scalar(select(DailyMarketSummary.id).where(
+            DailyMarketSummary.exchange == exchange, DailyMarketSummary.trade_date == trade_date,
+            DailyMarketSummary.index_name == "DSEX", DailyMarketSummary.is_finalized.is_(True),
+        )) is not None
+
+    async def session_symbol_coverage(self, *, exchange, trade_date):
+        active = await self.session.scalar(select(func.count(func.distinct(Stock.symbol))).where(
+            Stock.exchange == exchange, Stock.is_active.is_(True),
+        ))
+        accepted = await self.session.scalar(select(func.count(func.distinct(Stock.symbol))).join(
+            DailyPrice, DailyPrice.stock_id == Stock.id,
+        ).where(Stock.exchange == exchange, Stock.is_active.is_(True), DailyPrice.trade_date == trade_date))
+        suspicious = await self.session.scalar(select(func.count(func.distinct(Stock.symbol))).join(
+            DailyPrice, DailyPrice.stock_id == Stock.id,
+        ).where(Stock.exchange == exchange, Stock.is_active.is_(True), DailyPrice.trade_date == trade_date,
+                DailyPrice.data_quality_flag == DataQualityFlag.SUSPICIOUS))
+        return int(active or 0), int(accepted or 0), int(suspicious or 0)
 
     async def finalize_market_session(
         self,

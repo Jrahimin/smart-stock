@@ -85,9 +85,15 @@ async def test_open_and_post_close_share_live_generation_with_phase_state() -> N
 
 @pytest.mark.asyncio
 async def test_finalization_retry_returns_the_existing_finalized_generation() -> None:
-    finalized = SimpleNamespace(sync_id="same-generation")
+    finalized = SimpleNamespace(sync_id="same-generation", accepted_count=426)
 
     class Repository:
+        async def lock_session_publication(self, **kwargs):
+            pass
+
+        async def commit(self):
+            pass
+
         async def get_latest_market_data_generation(self, *, state, trade_date, **kwargs):
             if state == MarketDataState.FINALIZED and trade_date == TODAY:
                 return finalized

@@ -122,7 +122,7 @@ def test_replay_uses_immutable_capture_instead_of_later_corrected_prices():
     capture = {"observed_at": cutoff.isoformat(), "input": capture_strategy_input(value)}
     history = StockReplayHistory(stock, tuple(prices), captured_inputs=(capture,))
     dataset = BacktestDataset((history,), tuple(row.trade_date for row in prices))
-    config = _config(prices, start_date=day, end_date=day)
+    config = _config(prices, start_date=day, end_date=day, replay_mode="capture_diagnostic")
     first, _ = replay_canonical_engine(dataset, config)
     prices[60].close_price = Decimal(999)
     prices[60].high_price = Decimal(1000)
@@ -168,6 +168,8 @@ def test_canonical_parity_does_not_verify_later_market_revisions_or_current_sect
         days = tuple(row.trade_date for row in prices)
         day = days[60]
         cutoff = datetime.combine(day, time(18), tzinfo=UTC)
+        for row in prices[:61]:
+            row.updated_at = cutoff-timedelta(minutes=1)
         strategy_input = build_strategy_input(
             stock,
             prices[:61],
@@ -206,7 +208,7 @@ def test_canonical_parity_does_not_verify_later_market_revisions_or_current_sect
         for index, session in enumerate(days)
     )
     dataset = BacktestDataset(tuple(histories), days, summaries)
-    config = _config(prices, start_date=day, end_date=day)
+    config = _config(prices, start_date=day, end_date=day, replay_mode="capture_diagnostic")
     observations, _ = replay_canonical_engine(dataset, config)
     for item, history in zip(observations, histories, strict=True):
         history.captured_inputs[0]["expected_decision"] = {
@@ -222,7 +224,8 @@ def test_canonical_parity_does_not_verify_later_market_revisions_or_current_sect
                 "target_price",
             )
         }
-    enriched = enrich_features(observations, dataset)
+    observations, _ = replay_canonical_engine(dataset, config)
+    enriched = enrich_features(observations, dataset, config)
     assert all(item.sector is None for item in observations)
     assert all(dict(row.research_features)["turnover_trades"] == 0 for row in enriched)
     assert all(
@@ -235,8 +238,10 @@ def test_canonical_parity_does_not_verify_later_market_revisions_or_current_sect
     assert coverage == {"available": 0, "total": 2, "fallback_dates": 1}
     evidence = coverage_evidence(dataset, observations, config)
     assert evidence["parity_comparisons"] == 2 and evidence["same_input_parity_failures"] == 0
-    assert evidence["canonical_coverage_verified"] and not evidence["coverage_verified"]
+    assert not evidence["canonical_coverage_verified"] and not evidence["coverage_verified"]
+    assert "LISTED_MEMBERSHIP_COVERAGE_UNKNOWN" in evidence["canonical_coverage_gaps"]
     assert set(evidence["coverage_gaps"]) == {
+        "LISTED_MEMBERSHIP_COVERAGE_UNKNOWN",
         "MARKET_SUMMARY_PIT_UNKNOWN",
         "SECTOR_CLASSIFICATION_PIT_UNKNOWN",
     }

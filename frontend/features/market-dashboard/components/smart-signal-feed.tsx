@@ -1,3 +1,4 @@
+import { EntryApplicabilityLabel } from "@/components/market/entry-applicability-label";
 import Link from "next/link";
 import { memo } from "react";
 
@@ -72,6 +73,7 @@ export const SmartSignalFeed = memo(function SmartSignalFeed({
           <td role="cell"><span className={"sw-action sw-action-" + signal.signal}>{copy.actions[signal.signal]}</span></td>
           <td role="cell" aria-describedby={sharedWait ? "sw-signal-context" : undefined}>
             {condition?.trim() || copy.conditionUnavailable}
+            {signal.signal === "POTENTIAL_BUY" ? <EntryApplicabilityLabel assessment={signal.entryApplicability} locale={locale} /> : null}
             {entry && evidence ? <small className="sw-signal-evidence">{evidence}</small> : null}
           </td>
           <td role="cell">{copy.risks[risk] ?? copy.missing}</td>

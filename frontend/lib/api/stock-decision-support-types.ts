@@ -30,7 +30,16 @@ export type ScoreComponentDto = {
   explanation: string;
 };
 
+export type EntryApplicabilityDto = {
+  status: "NOT_APPLICABLE" | "INVALIDATED" | "EXPIRED" | "UNVERIFIED" | "OUTSIDE_ZONE" | "AWAITING_CONFIRMATION" | "APPLICABLE";
+  reason_code: "PUBLICATION_INVALIDATED" | "ACTION_NOT_PERMITTED" | "ELIGIBILITY_BLOCKED" | "NO_ENTRY_PLAN" | "STOP_BREACHED" | "PRICE_BASIS_CHANGED" | "PLAN_EXPIRED" | "COVERAGE_UNKNOWN" | "QUOTE_UNUSABLE" | "PATH_INCOMPLETE" | "TERMS_UNKNOWN" | "TARGET_REACHED" | "BELOW_ENTRY_ZONE" | "ABOVE_ENTRY_ZONE" | "COMPLETED_BREAKOUT_REQUIRED" | "ENTRY_SESSION_PENDING" | "ENTRY_TERMS_MET";
+  controlling_blocker?: string | null;
+  assessed_at?: string;
+  source_observed_at?: string | null;
+};
+
 export type StockDecisionSupportDto = {
+  entry_applicability?: EntryApplicabilityDto | null;
   stock_id: string;
   symbol: string;
   exchange: ExchangeCode;

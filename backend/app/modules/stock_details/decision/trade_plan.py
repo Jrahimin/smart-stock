@@ -173,7 +173,7 @@ def compute_liquidity(snapshot: TechnicalSnapshot) -> LiquidityAnalysisResult:
     ratio = None
     consistency = 50
     if snapshot.average_volume and snapshot.average_volume > 0:
-        ratio = snapshot.volume / snapshot.average_volume
+        ratio = snapshot.volume_facts.ratio
         if ratio >= VOLUME_EXPANSION_RATIO:
             consistency = 85
         elif ratio >= VOLUME_CONSISTENCY_MIN_RATIO:

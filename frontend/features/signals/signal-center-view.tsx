@@ -1,5 +1,6 @@
 "use client";
 
+import { EntryApplicabilityLabel } from "@/components/market/entry-applicability-label";
 import { evidenceLabel, controllingReasonLabel } from "@/lib/market/decision-presentation";
 import Link from "next/link";
 import { useMemo, useState } from "react";
@@ -141,6 +142,9 @@ export function SignalCenterView({ locale = DEFAULT_LOCALE }: SignalCenterViewPr
                     <SignalBadge signal={decision.recommendation} />
                   </div>
                   <p>{displayReason}</p>
+                  {decision.recommendation === "POTENTIAL_BUY" ? <EntryApplicabilityLabel assessment={decision.entryApplicability} locale={locale} /> : null}
+                  {decision.measuredSupport ? <small>{locale === "bn" ? "সমর্থন: " : "Support: "}{decision.measuredSupport}</small> : null}
+                  {decision.opposingConstraint ? <p><small>{locale === "bn" ? "সতর্কতা: " : "Counterargument: "}{decision.opposingConstraint}</small></p> : null}
                   {stock.traderDecision?.non_holder_action === "AVOID" ? <small>{locale === "bn" ? "নতুন long entry এড়িয়ে চলুন" : "Avoid a new long entry"}</small> : null}
                   <div className="signal-visual-row">
                     <div className="signal-confidence-meter">{evidenceLabel(decision.evidenceStatus, locale)}</div>

@@ -443,3 +443,39 @@ After completing tasks:
 - [ ] Authorized deployment and current-data/browser acceptance; prospective capture starts only after migration.
 - [x] Local Phase 2A replay correctness and frozen baseline; Phase 2B predeclared shadow research and separate gates (`trading_intelligence_phase2.md`).
 - [ ] Phase 2 independent review, verified real-data coverage, prospective shadow and separately authorized promotion.
+
+
+## Trading decision consistency — November 11, 2026
+
+- [x] Run 1 Release A: read-time entry applicability, retained breach evidence,
+  shared account marks, dated workspace plan status and capture inventory.
+- [x] Run 1 Release B: serialized publication/winner caching, coverage fallback,
+  explicit v3 policy with compatible v2 replay, unified volume facts, risk and
+  breadth provenance.
+- [x] Six v2 captures: 2,556 matching-version member restorations, zero parity failures.
+- [x] Run 1 independent review, consolidated repairs and isolated journey acceptance.
+- [x] Run 2 local capture-driven replay, exact archived repeat, reconstructed DSE
+  diagnostic and immutable paired forward receipts. See
+  `trading_decision_consistency_report_2026_11_11.md` for measured denominators.
+- [ ] Run 2 independent review and fresh isolated acceptance (current checkpoint).
+- [x] Run 2 consolidated review repair 1: persistent execution uncertainty,
+  accepted portfolio fill counts, version/withdrawal isolation, once-only mature
+  endpoint assessment, source knowledge and actual-calendar coverage; regenerated
+  retrospective artifacts preserve pre-repair evidence. Independent closure pending.
+- [x] Run 2 final bounded repair 2: latest cohort admission, shared execution
+  certainty, unknown safeguard evidence and authoritative publisher exclusions;
+  current-source verification is recorded in external `run2-repair2.md`.
+- [x] Combined review repair 1: optional transaction isolation, finalized breakout
+  evidence, warm receipt retries, dated breadth, missing history, dependent exit
+  uncertainty, scoped factor provenance, configured openings and bounded outcome
+  heads/maturation. Final independent acceptance remains pending.
+- [x] Final bounded combined repair 2: delayed-exit receipt dates include their
+  actual outcome facts, remain bounded by evaluation time, and preserve legacy
+  history plus mature reuse. Final independent closure remains pending.
+- [x] Approved extension 1: never-held rejected exits do not contaminate later
+  acceptance; the cumulative portfolio carrier, including an empty selection,
+  covers all incorporated facts and contributing source revisions. Persisted
+  legacy/head/reuse regressions added; extended final independent closure pending.
+- [ ] First live timely dual-arm receipt and subsequent mature forward outcomes;
+  historical and QA engineering evidence remain ineligible for promotion.
+- [ ] Production version activation and first eligible publication receipt.

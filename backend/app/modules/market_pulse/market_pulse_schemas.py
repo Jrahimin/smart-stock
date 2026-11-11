@@ -18,7 +18,12 @@ from app.core.enums import (
 )
 
 
+from app.modules.stock_details.decision.entry_applicability import EntryApplicabilityRead
+from app.modules.market_data.breadth import BreadthRead
+
+
 class PulseScoreBreakdownRead(BaseModel):
+    risk_penalty_semantics: str = "ATTENTION_SCORE_POINTS"
     trend: int
     momentum: int
     volume: int
@@ -31,6 +36,8 @@ class PulseScoreBreakdownRead(BaseModel):
 
 
 class FocusStockRead(BaseModel):
+    entry_applicability: EntryApplicabilityRead | None = None
+    entry_risk_label: str | None = None
     entry_readiness: str = "NOT_READY"
     controlling_reason_code: str | None = None
     controlling_reason: str | None = None
@@ -178,6 +185,8 @@ class OpportunityScoreRead(BaseModel):
 
 
 class PulseCoverageRead(BaseModel):
+    market_status: str | None = None
+    breadth: BreadthRead | None = None
     score_version: str = PULSE_SCORE_VERSION
     decision_taxonomy_version: str = DECISION_TAXONOMY_VERSION
     decision_session_date: date | None = None
@@ -261,6 +270,7 @@ class MarketSummaryRead(BaseModel):
 
 
 class MarketBriefingRead(BaseModel):
+    breadth: BreadthRead | None = None
     decision_generation_id: str | None = None
     decision_status: str = "CURRENT"
     decision_session_date: date | None = None

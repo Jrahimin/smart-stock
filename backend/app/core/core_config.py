@@ -48,6 +48,7 @@ class Settings(BaseSettings):
     portfolio_summary_email_scheduler_enabled: bool = True
     system_job_queue_poll_seconds: int = Field(default=10, ge=1, le=300)
     market_open_time: str = "10:00"
+    market_session_open_overrides: dict[str, str] = Field(default_factory=dict)
     market_close_time: str = "15:00"
     market_snapshot_interval_minutes: int = Field(default=15, ge=1, le=120)
     daily_market_sync_time: str = "15:15"

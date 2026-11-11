@@ -294,8 +294,9 @@ def _to_focus_stock_read(row: PulsePresentationRow, rank: int) -> FocusStockRead
         controlling_reason=row.decision.primary_reason,
         decision_session_date=row.decision.canonical.as_of_date if row.decision.canonical else None,
         watch_level=row.snapshot.resistance,
-        actionable_trigger=row.decision.display_action == DecisionDisplayAction.POTENTIAL_BUY
-        and bool(row.decision.entry_condition),
+        actionable_trigger=bool(row.decision.entry_applicability and row.decision.entry_applicability.status == "APPLICABLE"),
+        entry_applicability=row.decision.entry_applicability,
+        entry_risk_label=row.decision.trading_risk.label if row.decision.trading_risk else row.decision.risk_label,
         rank=rank,
         stock_id=getattr(row.stock, "id"),
         symbol=getattr(row.stock, "symbol"),
@@ -611,7 +612,7 @@ class MarketPulseService:
                     generation,
                     exchange=exchange,
                 ):
-                    return self._stamp_pulse(cached_pulse, snapshot)
+                    return await self._stamp_pulse(cached_pulse, snapshot)
 
             payload = await self._compute_market_pulse(
                 exchange=exchange,
@@ -621,7 +622,7 @@ class MarketPulseService:
             )
             if not await self.universe_service.is_generation_current(generation, exchange=exchange):
                 continue
-            stamped = self._stamp_pulse(payload, snapshot)
+            stamped = await self._stamp_pulse(payload, snapshot)
             if uses_shared_pulse_cache(previous, display_name):
                 await self._cache_set(
                     cache_key,
@@ -653,7 +654,7 @@ class MarketPulseService:
                     generation,
                     exchange=exchange,
                 ):
-                    return self._stamp_summary(cached_summary, snapshot)
+                    return await self._stamp_summary(cached_summary, snapshot)
 
             pulse = await self._compute_market_pulse(
                 exchange=exchange,
@@ -663,7 +664,7 @@ class MarketPulseService:
             )
             if not await self.universe_service.is_generation_current(generation, exchange=exchange):
                 continue
-            stamped_pulse = self._stamp_pulse(pulse, snapshot)
+            stamped_pulse = await self._stamp_pulse(pulse, snapshot)
             summary = MarketPulseSummaryRead(
                 hero=stamped_pulse.hero,
                 since_last_visit=stamped_pulse.since_last_visit,
@@ -713,11 +714,11 @@ class MarketPulseService:
             }
         )
 
-    @staticmethod
-    def _stamp_pulse(
-        pulse: MarketPulseRead,
+    async def _stamp_pulse(
+        self, pulse: MarketPulseRead,
         snapshot: CanonicalUniverseSnapshot,
     ) -> MarketPulseRead:
+        pulse = await self._refresh_current_fields(pulse, snapshot)
         generation = snapshot.generation
         coverage = pulse.coverage.model_copy(
             update={
@@ -741,11 +742,11 @@ class MarketPulseService:
             }
         )
 
-    @staticmethod
-    def _stamp_summary(
-        summary: MarketPulseSummaryRead,
+    async def _stamp_summary(
+        self, summary: MarketPulseSummaryRead,
         snapshot: CanonicalUniverseSnapshot,
     ) -> MarketPulseSummaryRead:
+        summary = await self._refresh_current_fields(summary, snapshot)
         generation = snapshot.generation
         coverage = summary.coverage.model_copy(
             update={
@@ -768,6 +769,36 @@ class MarketPulseService:
                 "data_state": generation.data_state,
             }
         )
+
+    async def _refresh_current_fields(self, payload, snapshot):
+        from app.modules.market_data.breadth import breadth_facts
+        exchange = snapshot.rows[0].stock.exchange if snapshot.rows else ExchangeCode.DSE
+        projected = await self.universe_service.project_current_entries(snapshot, exchange=exchange)
+        by_id = {row.stock.id: row for row in projected.rows}
+        freshness = await self.market_data_service.get_market_freshness(exchange=exchange)
+        def refresh(items):
+            result = []
+            for item in items:
+                row = by_id.get(item.stock_id)
+                applicability = row.entry_applicability if row else None
+                result.append(item.model_copy(update={
+                    "entry_applicability": applicability,
+                    "actionable_trigger": bool(applicability and applicability.status == "APPLICABLE"),
+                    "entry_risk_label": row.decision.trading_risk.label if row and row.decision and row.decision.trading_risk else None,
+                }))
+            return result
+        eligible = [row for row in snapshot.rows if is_eligible_pulse_candidate(row, snapshot.generation.trade_date)]
+        breadth = breadth_facts([row.technical_snapshot.price_change_percent for row in eligible],
+            cohort="CANONICAL_ELIGIBLE_SAME_SESSION", band=0.05, source="canonical_completed_session",
+            as_of_date=snapshot.generation.trade_date)
+        coverage = (payload.coverage or PulseCoverageRead()).model_copy(update={
+            "market_status": freshness.market_status.value, "breadth": breadth,
+        })
+        update = {"focus_stocks": refresh(payload.focus_stocks), "monitor_candidates": refresh(payload.monitor_candidates),
+            "coverage": coverage, "hero": payload.hero.model_copy(update={"session_label": freshness.market_status.value.replace("_", " ")})}
+        if isinstance(payload, MarketPulseRead) and payload.briefing:
+            update["briefing"] = payload.briefing.model_copy(update={"breadth": breadth})
+        return payload.model_copy(update=update)
 
     async def _compute_market_pulse(
         self,

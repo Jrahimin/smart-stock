@@ -31,7 +31,12 @@ class DashboardMoversRead(BaseModel):
     volume_leaders: list[DashboardMoverRead]
 
 
+from app.modules.market_data.breadth import BreadthRead
+
+
 class DashboardOverviewRead(BaseModel):
+    market_status: str | None = None
+    breadth: BreadthRead | None = None
     exchange: ExchangeCode
     session_trade_date: date | None = None
     last_synced_at: datetime | None = None
@@ -54,6 +59,8 @@ class DashboardTopGainerRead(BaseModel):
 
 
 class DashboardSectorsRead(BaseModel):
+    leader_metric: str = "MEAN_SESSION_PRICE_CHANGE_PERCENT"
+    leader_population: str = "ACTIVE_ELIGIBLE_SESSION_MOVERS"
     session_trade_date: date | None = None
     market_sync_id: str | None = None
     sectors: list[DashboardSectorRead] = Field(default_factory=list)
@@ -122,6 +129,8 @@ class DashboardInsightRead(BaseModel):
 
 
 class DashboardMarketSentimentRead(BaseModel):
+    market_status: str | None = None
+    breadth: BreadthRead | None = None
     exchange: ExchangeCode
     session_trade_date: date | None = None
     market_sync_id: str | None = None

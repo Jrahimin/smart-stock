@@ -345,3 +345,17 @@ See also: `backend/docs/signals.md`.
 - Missing ownership/valuation/events → corresponding response fields are `null` or empty arrays; warnings may note sparse context
 - Non-empty but limited/unreliable histories return a readable decision bundle
   with eligibility reasons and a compatibility `WAIT`.
+
+
+### Browser consistency follow-up (2026-11-11)
+
+Trader lists and the plan panel display the backend `entry_applicability.status` and `reason_code` using a shared presentation component. A dated `POTENTIAL_BUY` remains the immutable thesis; a missing assessment displays current entry as unverified. The frontend does not recompute entry permission. Signals also display `measured_support` and `opposing_constraint` from the summary. Newly generated summaries use the weakest measured opportunity factor when no ordered opposing constraint exists, followed by explicit input limitation codes. Existing immutable publications retain their recorded explanation until a new publication; no backfill or decision-rule version change is implied.
+
+Market Pulse uses `entry_risk_label` for trading risk. Its attention score deduction is displayed as points, never converted to a risk tier. Dashboard consumes same-session `breadth` from overview, including the active-valid-price cohort and unknown count; older responses retain the index-summary fallback. Pulse's eligible-cohort breadth remains intentionally different.
+
+Stock checklist volume uses `liquidity.latest_volume_ratio`, independently of the blended opportunity score. Missing ratios produce no positive volume claim. Volume expansion warnings explicitly distinguish expansion from above-average participation and completed-close entry confirmation. Opportunity risk adjustment is explicitly identified as a legacy composite measure, separate from trading risk. These changes affect explanation and presentation, not ranking, thresholds, entry/exit rules or frozen challengers.
+
+
+Verification: 95 affected frontend tests and 38 backend decision tests passed; TypeScript and whitespace checks passed. Browser retest on localhost:3001 (QA API localhost:8001, November 10 isolated database snapshot) confirmed applicability on Signals/Scanner/Dashboard/detail, BPPL HIGH trading risk versus a 6-point attention deduction, Dashboard breadth 290/63/46 plus 27 unknown, and working signal/watchlist filtering. Existing captured explanations remain visible as recorded. Authenticated portfolio/watchlist calculations, fresh intraday applicability transitions and new-session publication/capture were unavailable in this browser dataset. The new counterargument fallback is verified through code tests, not a newly published trading session. No raw browser network-response capture was available; browser findings concern rendered state.
+
+The final contract review makes `EntryApplicabilityRead.reason_code` an explicit 17-value API enum, matching the evaluator's existing outputs and the frontend DTO. This tightens schema validation/documentation without changing precedence, statuses or permission rules. An unknown code fails backend validation; presentation retains its defensive fallback for older/unexpected responses.

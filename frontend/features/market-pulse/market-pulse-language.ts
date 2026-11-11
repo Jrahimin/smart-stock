@@ -155,6 +155,7 @@ export type MarketPulseLanguage = {
     volumeExpansion: string;
     participationScore: string;
     riskLevel: string;
+    tradingRisk: string;
     bandLabels: Record<PulseScoreBandLabel, string>;
   };
   localeSwitcherAria: string;
@@ -322,7 +323,8 @@ const marketPulseLanguage = {
       signalStrength: "Signal Strength",
       volumeExpansion: "Volume Expansion",
       participationScore: "Participation Score",
-      riskLevel: "Risk Level",
+      riskLevel: "Attention score deduction",
+      tradingRisk: "Trading risk",
       bandLabels: {
         strong: "Strong",
         moderate: "Moderate",
@@ -828,7 +830,8 @@ const marketPulseLanguage = {
       signalStrength: "Signal কতটা শক্ত",
       volumeExpansion: "Volume কতটা বেড়েছে",
       participationScore: "অংশগ্রহণের Score",
-      riskLevel: "ঝুঁকির মাত্রা",
+      riskLevel: "Attention score থেকে কমেছে",
+      tradingRisk: "ট্রেডিং ঝুঁকি",
       bandLabels: {
         strong: "শক্ত",
         moderate: "মাঝারি",

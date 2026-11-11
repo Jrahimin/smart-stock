@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from pydantic import BaseModel, Field
 
 from app.core.enums import MarketDataState
@@ -61,6 +63,12 @@ class DividendIntelligenceRead(BaseModel):
 
 
 class DisplayMetricsRead(BaseModel):
+    previous_close: float | None = None
+    source: str | None = None
+    data_quality: str | None = None
+    ingested_at: datetime | None = None
+    source_observed_at: datetime | None = None
+    max_age_seconds: int = 1800
     price_change: float | None = None
     price_change_percent: float | None = None
     observation_session_date: str | None = None

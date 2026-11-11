@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
@@ -264,7 +264,8 @@ def test_monitoring_detects_seeded_stale_and_cross_surface_mismatch() -> None:
 
 
 def test_selected_canonical_golden_regression() -> None:
-    bundle = compute_trader_decision(_strategy_input())
+    # Preserve the historical v2 golden byte identity through explicit old-version replay.
+    bundle = compute_trader_decision(replace(_strategy_input(), strategy_version="trading-intelligence-v2"))
     assert bundle is not None
     result = bundle.canonical_result
     actual = {

@@ -1,3 +1,4 @@
+import { EntryApplicabilityLabel } from "@/components/market/entry-applicability-label";
 import { formatNumber } from "@/lib/formatters/financial-formatters";
 import type { StockDecisionViewModel } from "@/features/stock-workspace/view-models/stock-decision-view-model";
 import type { StockWorkspaceLanguage } from "@/features/stock-workspace/stock-workspace-language";
@@ -37,6 +38,12 @@ export function TradePlanPanel({ decision, copy }: TradePlanPanelProps) {
         <strong className={plan.riskReward !== null && plan.riskReward >= 1 ? "trade-plan-rr-good" : "trade-plan-rr-weak"}>
           R/R {plan.riskReward !== null ? plan.riskReward.toFixed(2) : "N/A"}
         </strong>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        {copy.planAsOf} {plan.asOfDate ?? "—"}
+      </p>
+      <div role="status" className="my-2 text-sm">
+        <EntryApplicabilityLabel assessment={plan.entryApplicability} copy={copy} />
       </div>
       <div className="trade-plan-timeline">
         <div className="trade-plan-row">

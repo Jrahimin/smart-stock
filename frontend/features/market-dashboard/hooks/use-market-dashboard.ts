@@ -161,6 +161,7 @@ export function useMarketDashboard(options?: {
         overviewQuery.data?.dsex_index ?? null,
         freshness ?? null,
         {
+          breadth: overviewQuery.data?.breadth,
           listedStockCount: overviewQuery.data?.listed_stock_count,
           movers: mappedMovers,
           heatmapTiles: mappedHeatmap,

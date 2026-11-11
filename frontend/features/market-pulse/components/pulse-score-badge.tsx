@@ -60,16 +60,6 @@ function participationLabel(
   return labels.low;
 }
 
-function riskLabel(penalty: number, labels: MarketPulseLanguage["score"]["bandLabels"]) {
-  if (penalty >= 12) {
-    return labels.high;
-  }
-  if (penalty >= 6) {
-    return labels.moderate;
-  }
-  return labels.low;
-}
-
 function ScoreRing({ score, breakdown, compact }: PulseScoreBadgeProps) {
   return (
     <div className={`pulse-score-badge pulse-score-badge-${bandTone(breakdown.band)}${compact ? " pulse-score-badge-compact" : ""}`}>
@@ -117,7 +107,7 @@ export function PulseScoreHeaderCluster({ score, breakdown, copy }: PulseScoreHe
             </div>
             <div>
               <dt>{copy.riskLevel}</dt>
-              <dd>{riskLabel(breakdown.riskPenalty, copy.bandLabels)}</dd>
+              <dd>−{breakdown.riskPenalty}</dd>
             </div>
           </dl>
         </div>

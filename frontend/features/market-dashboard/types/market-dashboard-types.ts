@@ -53,6 +53,7 @@ export type MarketMetricModel = {
 };
 
 export type BreadthModel = {
+  provenance?: import("@/lib/api/backend-api-types").BackendBreadthDto;
   advancing: number;
   declining: number;
   unchanged: number;
@@ -86,6 +87,7 @@ export type SignalFeedItemModel = {
   reasonCode?: string | null;
   reasonParams?: ResolvedTraderDecisionReason["params"];
   entryCondition?: string | null;
+  entryApplicability?: import("@/lib/api/stock-decision-support-types").EntryApplicabilityDto | null;
   technicalContext: SignalTechnicalContext;
   risk: string;
   priority: "high" | "medium" | "low";

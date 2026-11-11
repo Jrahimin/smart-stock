@@ -13,7 +13,8 @@ from app.modules.backtesting.backtesting_walk_forward import build_walk_forward_
 
 
 def run_dataset(dataset, config: BacktestConfig, *, sensitivities=True) -> BacktestReport:
-    observations, outcomes = replay_canonical_engine(dataset, config)
+    replay_audit = {}
+    observations, outcomes = replay_canonical_engine(dataset, config, audit=replay_audit)
     # Reserve enough future sessions for the longest configured label and conditional expiry.
     mature_dates = tuple(
         sorted(
@@ -28,6 +29,7 @@ def run_dataset(dataset, config: BacktestConfig, *, sensitivities=True) -> Backt
     folds, frozen = build_walk_forward_splits(mature_dates, config)
     partitions, audit, markouts = evaluate_replay(dataset, config, observations, folds, frozen)
     audit["dataset"] = dataset_archive(dataset)
+    audit["input_provenance"] = replay_audit
     descriptive = partitions["all_descriptive"]
     baseline = descriptive["strategies"]["corrected_engine"]
     sensitivity = []
@@ -117,7 +119,7 @@ def run_dataset(dataset, config: BacktestConfig, *, sensitivities=True) -> Backt
         len(outcomes),
         folds,
         frozen,
-        reconcile_coverage(dataset, config, observations),
+        reconcile_coverage(dataset, config, observations, audit["input_provenance"]),
         descriptive["decision_metrics"],
         descriptive["strategies"],
         {horizon: result["stratified"] for horizon, result in baseline["by_horizon"].items()},
@@ -139,5 +141,5 @@ class BacktestingService:
     def __init__(self, repository: BacktestingRepository) -> None:
         self.repository = repository
 
-    async def run(self, config: BacktestConfig) -> BacktestReport:
-        return run_dataset(await self.repository.load_dataset(config), config)
+    async def run(self, config: BacktestConfig, *, sensitivities=True) -> BacktestReport:
+        return run_dataset(await self.repository.load_dataset(config), config, sensitivities=sensitivities)

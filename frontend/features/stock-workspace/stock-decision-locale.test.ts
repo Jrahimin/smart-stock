@@ -1,4 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { TradePlanPanel } from "@/features/stock-workspace/components/trade-plan-panel";
+import { getStockWorkspaceLanguage } from "@/features/stock-workspace/stock-workspace-language";
 
 import type { StockDecisionSupportDto } from "@/lib/api/stock-decision-support-types";
 import { buildStockDecisionViewModel } from "@/features/stock-workspace/view-models/stock-decision-view-model";
@@ -130,6 +134,7 @@ describe("stock decision localization", () => {
   it("localizes entry condition prose in bn", () => {
     const model = buildStockDecisionViewModel(
       buildDecisionFixture({
+        entry_applicability: { status: "APPLICABLE", reason_code: "ENTRY_TERMS_MET" },
         decision: {
           recommendation: "BUY",
           confidence: 83,
@@ -155,5 +160,46 @@ describe("stock decision localization", () => {
     );
 
     expect(localized).toBe("126.50-এর উপরে দিন শেষ হলে এবং কেনার চাপ ভালো থাকলে entry ভাবতে পারেন।");
+  });
+});
+
+
+describe("dated plan current-entry projection", () => {
+  it("shows the dated plan for old responses and suppresses unverified entry guidance", () => {
+    const old = buildDecisionFixture();
+    old.trade_plan.status = "VALID_ENTRY_PLAN";
+    old.decision.display_action = "POTENTIAL_BUY";
+    old.decision.entry_condition = "Enter only after confirmation.";
+    const model = buildStockDecisionViewModel(old, "en");
+    expect(model.entryCondition).toBeNull();
+    const rendered = renderToStaticMarkup(createElement(TradePlanPanel, { decision: model, copy: getStockWorkspaceLanguage("en").panels }));
+    expect(rendered).toContain("Current entry not verified");
+    expect(rendered).toContain("2026-07-10");
+  });
+  it("changes panel guidance after a recorded breach without replacing the dated action", () => {
+    const old = buildDecisionFixture({ entry_applicability: { status: "INVALIDATED", reason_code: "STOP_BREACHED" } });
+    old.trade_plan.status = "VALID_ENTRY_PLAN";
+    old.decision.display_action = "POTENTIAL_BUY";
+    old.decision.entry_condition = "Enter only after confirmation.";
+    const model = buildStockDecisionViewModel(old, "en");
+    expect(model.entryCondition).toBeNull();
+    expect(model.recommendation).toBe("POTENTIAL BUY");
+    const rendered = renderToStaticMarkup(createElement(TradePlanPanel, { decision: model, copy: getStockWorkspaceLanguage("en").panels }));
+    expect(rendered).toContain("Plan invalidated");
+    expect(rendered).toContain("price recovery does not restore");
+    const bn = renderToStaticMarkup(createElement(TradePlanPanel, { decision: buildStockDecisionViewModel(old, "bn"), copy: getStockWorkspaceLanguage("bn").panels }));
+    expect(bn).toContain("পরিকল্পনা বাতিল");
+  });
+});
+
+
+describe("volume fact presentation", () => {
+  it("does not infer above-average volume from a blended opportunity score", () => {
+    const fixture = buildDecisionFixture();
+    fixture.opportunity.components.find(c => c.key === "volume")!.score = 75;
+    fixture.liquidity.latest_volume_ratio = 0.9;
+    expect(buildStockDecisionViewModel(fixture, "en").decisionSignals.some(s => s.key === "volume_above_average")).toBe(false);
+    fixture.liquidity.latest_volume_ratio = null;
+    expect(buildStockDecisionViewModel(fixture, "en").decisionSignals.some(s => s.key === "volume_above_average" || s.key === "weak_volume_confirmation")).toBe(false);
   });
 });

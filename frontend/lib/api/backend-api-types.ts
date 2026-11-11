@@ -115,6 +115,9 @@ export type BackendLatestMarketPriceDto = {
 };
 
 export type BackendTraderDecisionSummaryDto = {
+  entry_applicability?: import("./stock-decision-support-types").EntryApplicabilityDto | null;
+  measured_support?: string | null;
+  opposing_constraint?: string | null;
   recommendation: TraderRecommendation;
   internal_action?: TraderRecommendation | null;
   display_action?: DecisionDisplayAction;
@@ -318,6 +321,7 @@ export type BackendScannerResultDto = {
 export type BackendShortlistDto = { version: string; entry_rank: number; holder_exit_rank: number; risk_rank: number; volume_rank: number };
 
 export type BackendScoredUniverseRowDto = {
+  entry_applicability?: import("./stock-decision-support-types").EntryApplicabilityDto | null;
   display_quote?: { current_price: number | null; price_change?: number | null; price_change_percent?: number | null; as_of_trade_date?: string | null; observation_session_date?: string | null; observation_status: string } | null;
   shortlist?: BackendShortlistDto | null;
   previous_finalized_decision?: BackendCanonicalDecisionResultDto | null;
@@ -421,7 +425,13 @@ export type BackendDashboardMoversDto = {
   volume_leaders: BackendDashboardMoverDto[];
 };
 
+export type BackendBreadthDto = {
+  cohort: string; source: string; as_of_date: string | null; neutral_band_percent: number;
+  advancing: number; declining: number; unchanged: number; known_count: number; unknown_count: number; cohort_count: number; denominator: number;
+};
+
 export type BackendDashboardOverviewDto = {
+  breadth?: BackendBreadthDto | null;
   exchange: ExchangeCode;
   session_trade_date: string | null;
   last_synced_at: string | null;
@@ -815,6 +825,7 @@ export type BackendPulseScoreBreakdownDto = {
 };
 
 export type BackendFocusStockDto = {
+  entry_risk_label?: string | null;
   entry_readiness?: string;
   controlling_reason_code?: string | null;
   controlling_reason?: string | null;

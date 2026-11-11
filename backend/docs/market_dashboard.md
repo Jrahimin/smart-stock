@@ -79,3 +79,23 @@ Manual refresh clears all IndexedDB + invalidates TanStack market query roots. S
 ## DSEX data source
 
 Overview uses local `daily_market_summaries` for 1M returns always. 6M/1Y use local data when ≥126/252 trading days exist; otherwise a cached AmarStock fallback (`dsex:amarstock_metrics:{exchange}`). AmarStock HTTP is **not** called on every dashboard read.
+
+
+### Current market status and breadth provenance
+
+Overview and sentiment add `market_status`, refreshed from freshness even on a
+cache hit, and `breadth`. The latter identifies the active valid-OHLC snapshot
+cohort, zero-width neutral band, `daily_prices` source and session date. Counts
+separate known and unknown changes; unchanged means a known zero change. The
+percentage denominator is `known_count`, while `cohort_count` includes unknowns.
+Pulse uses a separately labelled eligible cohort and ±0.05% band, so unlike
+populations must not be presented as equivalent counts. Equal inputs/bands use
+one shared breadth calculation. Sectors expose `leader_metric` (mean session
+price change), `leader_population` and the existing session as-of date.
+# Dated breadth inputs
+
+The active valid-OHLC cohort retains stale latest rows in its denominator, but a
+price change is known for breadth only when that row's trade date equals the
+analysis session. Older-session changes count as unknown. Overview and sentiment
+breadth counts use the same dated input; exchange-index breadth keeps its own
+separately dated source instead of replacing this cohort's counts.

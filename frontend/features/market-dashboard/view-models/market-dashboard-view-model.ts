@@ -475,6 +475,7 @@ export function buildMarketDashboardModel(
   dsexSnapshot: BackendDsexIndexSnapshotDto | null = null,
   freshness: BackendMarketFreshnessDto | null = null,
   options?: {
+    breadth?: import("@/lib/api/backend-api-types").BackendBreadthDto | null;
     listedStockCount?: number;
     movers?: MarketDashboardModel["movers"];
     heatmapTiles?: HeatmapTileModel[];
@@ -491,7 +492,10 @@ export function buildMarketDashboardModel(
   const latestSummary = getLatestSummary(summaries);
   const listedStockCount = options?.listedStockCount ?? 0;
   const priceBackedCount = options?.priceBackedCount ?? 0;
-  const breadth = dsexSnapshot
+  const suppliedBreadth = options?.breadth;
+  const breadth = suppliedBreadth && suppliedBreadth.as_of_date === (dsexSnapshot?.trade_date ?? latestSummary?.trade_date)
+    ? { advancing: suppliedBreadth.advancing, declining: suppliedBreadth.declining, unchanged: suppliedBreadth.unchanged, total: suppliedBreadth.denominator, provenance: suppliedBreadth }
+    : dsexSnapshot
     ? toBreadthFromSnapshot(dsexSnapshot)
     : toBreadthModel(latestSummary, listedStockCount);
   const fallbackBreadth = { advancing: breadth.advancing, declining: breadth.declining, unchanged: breadth.unchanged, total: breadth.total };

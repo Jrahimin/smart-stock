@@ -231,7 +231,9 @@ def test_features_only_use_as_of_prices_and_trade_counts_and_action_clean_window
         )
         for i in range(30)
     )
-    history = replace(history, prices=prices)
+    history = replace(history, prices=prices, event_coverage_verified=True)
+    for price in prices:
+        price.turnover_provenance = "REPORTED"
     dataset = replace(
         dataset, histories=(history,), session_dates=tuple(row.trade_date for row in prices)
     )

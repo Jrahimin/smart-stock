@@ -70,9 +70,7 @@ def _capacity_score(
 
 
 def _volume_ratio(snapshot: TechnicalSnapshot) -> float | None:
-    if snapshot.average_volume is None or snapshot.average_volume <= 0:
-        return None
-    return snapshot.volume / snapshot.average_volume
+    return snapshot.volume_facts.ratio
 
 
 def _is_price_volume_breakout(snapshot: TechnicalSnapshot) -> bool:

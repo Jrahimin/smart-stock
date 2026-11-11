@@ -53,6 +53,10 @@ export type StockWorkspaceLanguage = {
   };
   panels: {
     tradePlan: string;
+    planAsOf: string;
+    entryStatus: Record<string, string>;
+    entryReason: Record<string, string>;
+    currentEntryUnverified: string;
     watchOnly: string;
     entryZone: string;
     stopLoss: string;
@@ -267,6 +271,16 @@ const stockWorkspaceLanguage = {
     },
     panels: {
       tradePlan: "Trade Plan",
+      planAsOf: "Plan as of",
+      currentEntryUnverified: "Current entry not verified",
+      entryStatus: { NOT_APPLICABLE: "No fresh entry", INVALIDATED: "Plan invalidated", EXPIRED: "Plan expired", UNVERIFIED: "Entry unverified", OUTSIDE_ZONE: "Outside entry terms", AWAITING_CONFIRMATION: "Awaiting confirmation", APPLICABLE: "Entry terms met" },
+      entryReason: {
+        ACTION_NOT_PERMITTED: "The dated action does not permit a fresh entry.", ELIGIBILITY_BLOCKED: "Published eligibility blocks entry.", NO_ENTRY_PLAN: "No permitted entry plan.",
+        PUBLICATION_INVALIDATED: "This publication was withdrawn.", STOP_BREACHED: "A verified low breached the published stop; a price recovery does not restore this plan.", PRICE_BASIS_CHANGED: "A corporate action changed the plan's price units.",
+        PLAN_EXPIRED: "The final permitted exchange session has ended.", COVERAGE_UNKNOWN: "Publication membership or captured inputs are unverified.", QUOTE_UNUSABLE: "A fresh comparable traded quote with source timing is unavailable.", PATH_INCOMPLETE: "Intervening price history cannot verify this plan.", TERMS_UNKNOWN: "Essential entry terms are missing.",
+        TARGET_REACHED: "Price has reached the fixed target.", BELOW_ENTRY_ZONE: "Current price is below the entry zone.", ABOVE_ENTRY_ZONE: "Current price is above the entry zone.",
+        COMPLETED_BREAKOUT_REQUIRED: "A completed close and volume confirmation are required.", ENTRY_SESSION_PENDING: "Wait for the next permitted entry session.", ENTRY_TERMS_MET: "Current evidence meets the published fresh-entry terms.",
+      },
       watchOnly: "Watch only",
       entryZone: "Entry Zone",
       stopLoss: "Stop Loss",
@@ -612,6 +626,16 @@ const stockWorkspaceLanguage = {
 
     panels: {
       tradePlan: "Trade Plan",
+      planAsOf: "পরিকল্পনার তারিখ",
+      currentEntryUnverified: "বর্তমান এন্ট্রি যাচাই করা হয়নি",
+      entryStatus: { NOT_APPLICABLE: "নতুন এন্ট্রি প্রযোজ্য নয়", INVALIDATED: "পরিকল্পনা বাতিল", EXPIRED: "পরিকল্পনার মেয়াদ শেষ", UNVERIFIED: "এন্ট্রি যাচাই হয়নি", OUTSIDE_ZONE: "এন্ট্রির শর্তের বাইরে", AWAITING_CONFIRMATION: "নিশ্চিতকরণের অপেক্ষায়", APPLICABLE: "এন্ট্রির শর্ত পূরণ হয়েছে" },
+      entryReason: {
+        ACTION_NOT_PERMITTED: "প্রকাশিত সিদ্ধান্ত নতুন এন্ট্রির অনুমতি দেয় না।", ELIGIBILITY_BLOCKED: "প্রকাশিত যোগ্যতা এন্ট্রি আটকে দিয়েছে।", NO_ENTRY_PLAN: "অনুমোদিত এন্ট্রি পরিকল্পনা নেই।",
+        PUBLICATION_INVALIDATED: "এই প্রকাশনা প্রত্যাহার করা হয়েছে।", STOP_BREACHED: "যাচাইকৃত সর্বনিম্ন দর প্রকাশিত স্টপ ছুঁয়েছে; দর ফিরে এলেও পরিকল্পনা বহাল হয় না।", PRICE_BASIS_CHANGED: "কর্পোরেট অ্যাকশনে পরিকল্পনার দরের ভিত্তি বদলেছে।",
+        PLAN_EXPIRED: "অনুমোদিত শেষ লেনদেন সেশন শেষ হয়েছে।", COVERAGE_UNKNOWN: "প্রকাশনার সদস্য বা সংরক্ষিত ইনপুট যাচাই হয়নি।", QUOTE_UNUSABLE: "উৎসের সময়সহ সাম্প্রতিক তুলনাযোগ্য লেনদেনের দর নেই।", PATH_INCOMPLETE: "মধ্যবর্তী দরের ইতিহাস দিয়ে পরিকল্পনা যাচাই করা যাচ্ছে না।", TERMS_UNKNOWN: "এন্ট্রির প্রয়োজনীয় শর্ত অনুপস্থিত।",
+        TARGET_REACHED: "দর নির্ধারিত লক্ষ্যে পৌঁছেছে।", BELOW_ENTRY_ZONE: "বর্তমান দর এন্ট্রি সীমার নিচে।", ABOVE_ENTRY_ZONE: "বর্তমান দর এন্ট্রি সীমার উপরে।",
+        COMPLETED_BREAKOUT_REQUIRED: "সম্পূর্ণ সেশনের সমাপনী দর ও ভলিউমের নিশ্চিতকরণ প্রয়োজন।", ENTRY_SESSION_PENDING: "পরবর্তী অনুমোদিত এন্ট্রি সেশনের অপেক্ষা করুন।", ENTRY_TERMS_MET: "বর্তমান তথ্য নতুন এন্ট্রির প্রকাশিত শর্ত পূরণ করে।",
+      },
       watchOnly: "শুধু নজরে রাখুন",
       entryZone: "Entry Zone",
       stopLoss: "Stop Loss",

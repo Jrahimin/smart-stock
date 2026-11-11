@@ -66,7 +66,7 @@ const stockDecisionLanguage = {
       momentum_healthy: "Momentum healthy",
       momentum_fading: "Momentum fading",
       volume_above_average: "Volume above average",
-      weak_volume_confirmation: "Weak volume confirmation",
+      weak_volume_confirmation: "Volume below average",
     },
     entryConditions: {
       breakout_continuation:
@@ -109,8 +109,8 @@ const stockDecisionLanguage = {
         message: "Latest volume is well below the recent average.",
       },
       volume_not_confirming: {
-        title: "Volume not confirming",
-        message: "Opportunity is present but volume has not expanded enough to confirm.",
+        title: "Volume expansion not confirmed",
+        message: "Volume may exceed its average without reaching the expansion threshold; this is separate from completed-close entry confirmation.",
       },
       overextended: {
         title: "Overextended price",
@@ -197,7 +197,7 @@ const stockDecisionLanguage = {
       momentum_healthy: "Momentum ভালো",
       momentum_fading: "Momentum দুর্বল হচ্ছে",
       volume_above_average: "Volume গড়ের চেয়ে বেশি",
-      weak_volume_confirmation: "Volume এখনো নিশ্চিত করছে না",
+      weak_volume_confirmation: "Volume গড়ের নিচে",
     },
     entryConditions: {
       breakout_continuation:
@@ -248,8 +248,8 @@ const stockDecisionLanguage = {
         message: "সর্বশেষ Volume সাম্প্রতিক গড়ের চেয়ে অনেক কম।",
       },
       volume_not_confirming: {
-        title: "Volume এখনো সঙ্গ দিচ্ছে না",
-        message: "সুযোগ আছে, কিন্তু Volume এখনো যথেষ্ট বাড়েনি।",
+        title: "Volume expansion নিশ্চিত হয়নি",
+        message: "Volume গড়ের বেশি হলেও expansion threshold নাও ছুঁতে পারে; এটি completed-close entry confirmation থেকে আলাদা।",
       },
       overextended: {
         title: "দাম বেশি বেড়ে গেছে",
@@ -450,7 +450,7 @@ export function localizeSmartWarning(
   warning: { code: string; title: string; message: string; severity: string },
   locale: AppLocale,
 ): { title: string; message: string; severity: string; code: string } {
-  if (locale === "en") {
+  if (locale === "en" && warning.code !== "volume_not_confirming") {
     return warning as { title: string; message: string; severity: string; code: string };
   }
 
@@ -480,7 +480,7 @@ export function applyStockDecisionLocalization(
 
   const localizeComponent = (component: { key: string; label: string; score: number; explanation: string }) => ({
     ...component,
-    label: language.scoreLabels[component.key] ?? component.label,
+    label: component.key === "risk_adjustment" ? "পুরোনো composite risk অনুযায়ী সমন্বয়" : language.scoreLabels[component.key] ?? component.label,
   });
 
   const localizedWarnings = model.warnings.map((warning) => localizeSmartWarning(warning, locale));

@@ -80,3 +80,14 @@ User-facing **Action** badges use the shared trader decision engine (`BUY`, `HOL
 ## Scope boundary
 
 The current-position module deliberately does not introduce snapshots, performance history, notification jobs, multiple portfolios, or accounting features.
+
+
+### One account valuation mark
+
+Watchlist gains and Portfolio position value, unrealized gain, weights, totals
+and dependent suggestions use the same resolved display quote (including its
+matching previous close/change/date/source/quality), rather than the finalized
+analysis close. Positive dated fallback marks can value holdings independently
+of fresh-entry permission. Missing values retain incomplete-total indicators;
+stale marks retain their existing last-known status and daily-change suppression.
+Quantity and cost basis are unchanged.

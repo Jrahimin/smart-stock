@@ -332,6 +332,7 @@ async def test_universe_and_details_quote_projection_ignores_prior_decision_age(
     stocks = SimpleNamespace(count_stocks=AsyncMock(return_value=1))
     universe = MarketUniverseService(repository, stocks, _MemoryRedis(), Settings())
     universe.get_canonical_universe = AsyncMock(return_value=fixture)
+    universe.resolve_generation_context = AsyncMock(return_value=fixture.generation)
     universe.resolve_quote_context = AsyncMock(return_value=quote_context)
     universe.is_generation_current = AsyncMock(return_value=True)
     details_repository = _DetailsRepository(stock, decision_rows + observations)
@@ -347,6 +348,12 @@ async def test_universe_and_details_quote_projection_ignores_prior_decision_age(
     expected_status = "NO_TRADE" if observed else "UNAVAILABLE"
     quote = rows.rows[0].display_quote
     assert quote.model_dump() == {
+        "previous_close": None,
+        "source": valid.source,
+        "data_quality": "OK",
+        "ingested_at": valid.updated_at,
+        "source_observed_at": None,
+        "max_age_seconds": 1800,
         "current_price": 110.0,
         "price_change": None,
         "price_change_percent": 10.0,
@@ -392,7 +399,7 @@ async def test_cold_failed_rebuild_prior_and_invalidated_publication(monkeypatch
         invalidated_at=None,
         result_payload=payload.model_dump(mode="json"),
     )
-    repo = SimpleNamespace(latest_publication=AsyncMock(return_value=None))
+    repo = SimpleNamespace(latest_publication=AsyncMock(return_value=None), get_publication=AsyncMock(return_value=publication))
     service = MarketUniverseService(object(), object(), _MemoryRedis(), Settings(), repo)
     service.resolve_generation_context = AsyncMock(return_value=replace(old, sync_id="new"))
     rebuild = AsyncMock()
@@ -405,8 +412,8 @@ async def test_cold_failed_rebuild_prior_and_invalidated_publication(monkeypatch
     assert result.updating and result.generation.sync_id == old.sync_id
     assert result.payload.decision_session_date == old.trade_date
     publication.invalidated_at = datetime.now(UTC)
-    with pytest.raises(UniverseCacheUnavailableError, match="invalidated"):
-        await service.get_canonical_universe(exchange=ExchangeCode.DSE, allow_rebuild=False)
+    withdrawn = await service.get_canonical_universe(exchange=ExchangeCode.DSE, allow_rebuild=False)
+    assert withdrawn.withdrawn and withdrawn.generation.sync_id == old.sync_id
     rebuild.assert_not_called()
 
 

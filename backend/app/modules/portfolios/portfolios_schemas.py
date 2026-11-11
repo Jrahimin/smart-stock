@@ -28,6 +28,8 @@ class PortfolioEventRead(BaseModel):
 
 
 class PortfolioWorkspaceMetaRead(BaseModel):
+    quote_generation_id: str | None = None
+    decision_generation_id: str | None = None
     exchange: ExchangeCode
     market_sync_id: str | None = None
     decision_session_date: date | None = None

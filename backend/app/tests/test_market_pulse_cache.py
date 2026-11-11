@@ -120,9 +120,11 @@ class FakePulseRedis:
 def _service_with_redis(store: dict[str, dict]) -> MarketPulseService:
     redis = FakePulseRedis(store=store)
     market_data_service = MagicMock()
+    market_data_service.get_market_freshness = AsyncMock(return_value=SimpleNamespace(market_status=__import__("app.core.enums", fromlist=["MarketSessionStatus"]).MarketSessionStatus.OPEN))
     universe_service = MagicMock()
     universe_service.get_canonical_universe = AsyncMock(return_value=_snapshot())
     universe_service.is_generation_current = AsyncMock(return_value=True)
+    universe_service.project_current_entries = AsyncMock(side_effect=lambda snapshot, **kwargs: snapshot)
     return MarketPulseService(
         market_data_service=market_data_service,
         universe_service=universe_service,

@@ -253,7 +253,11 @@ def canonical_decision_to_read(result: Any) -> CanonicalDecisionResultRead:
     )
 
 
+from app.modules.stock_details.decision.entry_applicability import EntryApplicabilityRead
+
+
 class TraderDecisionRead(BaseModel):
+    entry_applicability: EntryApplicabilityRead | None = None
     recommendation: TraderRecommendation
     internal_action: TraderRecommendation | None = None
     display_action: DecisionDisplayAction = DecisionDisplayAction.WAIT
@@ -279,6 +283,9 @@ class TraderDecisionRead(BaseModel):
 
 
 class TraderDecisionSummaryRead(BaseModel):
+    entry_applicability: EntryApplicabilityRead | None = None
+    measured_support: str | None = None
+    opposing_constraint: str | None = None
     recommendation: TraderRecommendation
     internal_action: TraderRecommendation | None = None
     display_action: DecisionDisplayAction = DecisionDisplayAction.WAIT
@@ -287,6 +294,7 @@ class TraderDecisionSummaryRead(BaseModel):
     reason: str
     opportunity_score: int
     risk_label: RiskLevelLabel
+    legacy_composite_risk_label: RiskLevelLabel | None = None
     confidence_semantics: str = "HEURISTIC_EVIDENCE"
     evidence_status: str = "UNAVAILABLE"
     evidence_strength: int | None = None
@@ -527,6 +535,9 @@ class EventTimelineItemRead(BaseModel):
 
 
 class StockDecisionSupportRead(BaseModel):
+    quote_generation_id: str | None = None
+    decision_generation_id: str | None = None
+    entry_applicability: EntryApplicabilityRead | None = None
     stock_id: UUID
     symbol: str
     exchange: ExchangeCode

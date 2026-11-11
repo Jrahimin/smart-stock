@@ -74,7 +74,7 @@ def build_decision_input_lineage(strategy_input: StrategyInput) -> DecisionInput
     input_hash = stable_audit_hash(
         {
             "input_schema_version": TRADING_INPUT_SCHEMA_VERSION,
-            "strategy_version": TRADING_STRATEGY_VERSION,
+            "strategy_version": strategy_input.strategy_version,
             "threshold_version": TRADING_THRESHOLD_VERSION,
             # The public v2 taxonomy is output metadata, not a decision input.
             # Retain the internal legacy taxonomy identity so an output-only
