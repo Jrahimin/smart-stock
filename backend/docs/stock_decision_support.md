@@ -359,3 +359,53 @@ Stock checklist volume uses `liquidity.latest_volume_ratio`, independently of th
 Verification: 95 affected frontend tests and 38 backend decision tests passed; TypeScript and whitespace checks passed. Browser retest on localhost:3001 (QA API localhost:8001, November 10 isolated database snapshot) confirmed applicability on Signals/Scanner/Dashboard/detail, BPPL HIGH trading risk versus a 6-point attention deduction, Dashboard breadth 290/63/46 plus 27 unknown, and working signal/watchlist filtering. Existing captured explanations remain visible as recorded. Authenticated portfolio/watchlist calculations, fresh intraday applicability transitions and new-session publication/capture were unavailable in this browser dataset. The new counterargument fallback is verified through code tests, not a newly published trading session. No raw browser network-response capture was available; browser findings concern rendered state.
 
 The final contract review makes `EntryApplicabilityRead.reason_code` an explicit 17-value API enum, matching the evaluator's existing outputs and the frontend DTO. This tightens schema validation/documentation without changing precedence, statuses or permission rules. An unknown code fails backend validation; presentation retains its defensive fallback for older/unexpected responses.
+
+
+## Closed-session current-entry assessment
+
+Current applicability remains separate from the immutable dated decision.
+The shared evaluator returns `AWAITING_CONFIRMATION` with `MARKET_CLOSED` before
+opening, after closing settlement, and on scheduled weekends. Between configured
+close and `daily_market_sync_time` it returns `SESSION_SETTLING`. With defaults,
+entry permission ends at 15:00 Dhaka and settlement ends at 15:15. If daily sync
+is at or before close there is no settlement buffer. Withdrawal, known stop or
+price-basis invalidation and elapsed-session expiry keep their existing priority.
+A paused assessment defers the current quote/history checks and certifies no
+entry eligibility or historical continuity. It retains the last quote date.
+
+Optional `entry_applicability.recheck_at` supplies the scheduled buffer-end or
+next opening instant. It is a refresh deadline using the existing weekday and
+per-date opening override settings. It is not proof of a future exchange session
+or a newly added holiday calendar. Freshness and entry evaluation use half-open
+trading hours `[open, close)` and the same effective opening override. Snapshot
+collection may still include the closing instant.
+
+At opening, the normal identity, coverage, quote-quality, maximum age, price
+zone, path continuity and confirmation checks apply. Source observation must
+be at or after that session's effective open. A prior-session or pre-open quote
+cannot authorize entry, even after a successful fetch. There is no forced delay
+after opening when valid new evidence is already available.
+
+The client renders supplied pause reasons with compact English/Bangla disclosures
+and last quote date. It uses the existing current-entry deadline/coordinator to
+expire paused assessments at `recheck_at`, including unchanged generation IDs.
+An OPEN freshness state also rejects a cached pause. IndexedDB schema 6 retires
+older stored assessments. Older backends retain existing behavior. Older clients
+that do not recognize the additive reason codes fall back to unverified entry.
+The canonical strategy and frozen historical experiment identities are unchanged.
+
+
+Verification on November 12 used the isolated QA clone. The final backend suite
+passed 990 tests with 13 unconfigured Tax Planner persistence skips. All 478
+affected frontend tests, TypeScript and whitespace checks passed. Clock-controlled
+projection of actual FARCHEM backup rows produced QUOTE_UNUSABLE before close,
+SESSION_SETTLING at close, MARKET_CLOSED after the configured buffer and before
+opening, then QUOTE_UNUSABLE at opening with the old untimed quote. This is a
+current-policy clock simulation using the available publication, not historical
+point-in-time trading evidence. Fresh-observation permission was verified with
+controlled inputs, including just-before and exact earlier/default/later opens.
+Cross-endpoint regressions cover universe, signals, stock support and cached Pulse.
+Chrome Signals showed the paused entry and last quote date correctly in English
+and Bangla. Settlement and reopening were verified through controlled clocks and
+cache-deadline tests, rather than waiting for live exchange transitions.
+Independent closure found no remaining material issue in the reviewed scope.

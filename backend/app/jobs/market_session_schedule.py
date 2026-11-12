@@ -22,6 +22,10 @@ def parse_hh_mm(value: str) -> time:
     return time(hour=hour, minute=minute, tzinfo=DHAKA_TZ)
 
 
+def session_open_time(day: date, settings: Settings) -> time:
+    return parse_hh_mm(settings.market_session_open_overrides.get(day.isoformat(), settings.market_open_time))
+
+
 def is_trading_weekday(weekday: int) -> bool:
     return weekday not in WEEKEND_WEEKDAYS
 
@@ -41,7 +45,7 @@ def is_within_snapshot_window(now: datetime, settings: Settings) -> bool:
         now = now.astimezone(DHAKA_TZ)
     if not is_trading_weekday(now.weekday()):
         return False
-    open_min = _minutes_since_midnight(parse_hh_mm(settings.market_open_time))
+    open_min = _minutes_since_midnight(session_open_time(now.date(), settings))
     close_min = _minutes_since_midnight(parse_hh_mm(settings.market_close_time))
     current = _minutes_since_midnight(now)
     return open_min <= current <= close_min
@@ -64,22 +68,29 @@ def current_cache_ttl_seconds(settings: Settings, *, now: datetime | None = None
 
 
 def resolve_market_status(now: datetime, settings: Settings) -> MarketSessionStatus:
-    if now.tzinfo is None:
-        now = now.replace(tzinfo=DHAKA_TZ)
-    else:
-        now = now.astimezone(DHAKA_TZ)
+    now = now.replace(tzinfo=DHAKA_TZ) if now.tzinfo is None else now.astimezone(DHAKA_TZ)
     if not is_trading_weekday(now.weekday()):
         return MarketSessionStatus.HOLIDAY
-
-    open_min = _minutes_since_midnight(parse_hh_mm(settings.market_open_time))
-    close_min = _minutes_since_midnight(parse_hh_mm(settings.market_close_time))
-    current = _minutes_since_midnight(now)
-
-    if current < open_min:
+    opening = _combine_date_time(now.date(), session_open_time(now.date(), settings))
+    closing = _combine_date_time(now.date(), parse_hh_mm(settings.market_close_time))
+    if now < opening:
         return MarketSessionStatus.PRE_OPEN
-    if current <= close_min:
+    if now < closing:
         return MarketSessionStatus.OPEN
     return MarketSessionStatus.POST_CLOSE
+
+
+def entry_session_pause(now: datetime, settings: Settings) -> tuple[str | None, datetime | None]:
+    """Read-side entry schedule; the daily sync time bounds closing settlement."""
+    moment = now.replace(tzinfo=DHAKA_TZ) if now.tzinfo is None else now.astimezone(DHAKA_TZ)
+    opening = _combine_date_time(moment.date(), session_open_time(moment.date(), settings))
+    closing = _combine_date_time(moment.date(), parse_hh_mm(settings.market_close_time))
+    if is_trading_weekday(moment.weekday()) and opening <= moment < closing:
+        return None, None
+    settlement = _combine_date_time(moment.date(), parse_hh_mm(settings.daily_market_sync_time))
+    if is_trading_weekday(moment.weekday()) and closing <= moment < settlement:
+        return "SESSION_SETTLING", settlement
+    return "MARKET_CLOSED", next_snapshot_sync_at(max(moment, closing + timedelta(microseconds=1)) if moment >= closing else moment, settings)
 
 
 def _align_to_interval(moment: datetime, interval_minutes: int) -> datetime:
@@ -101,11 +112,11 @@ def next_snapshot_sync_at(now: datetime, settings: Settings) -> datetime | None:
         now = now.astimezone(DHAKA_TZ)
 
     interval = settings.market_snapshot_interval_minutes
-    open_time = parse_hh_mm(settings.market_open_time)
     close_time = parse_hh_mm(settings.market_close_time)
 
     day = now.date()
     for _ in range(14):
+        open_time = session_open_time(day, settings)
         if is_trading_weekday(day.weekday()):
             window_start = _combine_date_time(day, open_time)
             window_end = _combine_date_time(day, close_time)
@@ -117,7 +128,7 @@ def next_snapshot_sync_at(now: datetime, settings: Settings) -> datetime | None:
                     return candidate
                 return None
         day += timedelta(days=1)
-        now = _combine_date_time(day, open_time) - timedelta(seconds=1)
+        now = _combine_date_time(day, session_open_time(day, settings)) - timedelta(seconds=1)
     return None
 
 

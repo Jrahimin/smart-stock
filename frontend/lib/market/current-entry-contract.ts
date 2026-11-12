@@ -8,7 +8,7 @@ const record = (value: unknown): RecordValue => value && typeof value === "objec
 const timestamp = (value: unknown) => typeof value === "string" && /T.*(?:Z|[+-]\d\d:\d\d)$/.test(value) ? Date.parse(value) : NaN;
 const dhakaDate = (time: number) => new Date(time + 6 * 60 * 60 * 1000).toISOString().slice(0, 10);
 const states = new Set(["NOT_APPLICABLE", "INVALIDATED", "EXPIRED", "UNVERIFIED", "OUTSIDE_ZONE", "AWAITING_CONFIRMATION", "APPLICABLE"]);
-const reasons = new Set(["PUBLICATION_INVALIDATED", "ACTION_NOT_PERMITTED", "ELIGIBILITY_BLOCKED", "NO_ENTRY_PLAN", "STOP_BREACHED", "PRICE_BASIS_CHANGED", "PLAN_EXPIRED", "COVERAGE_UNKNOWN", "QUOTE_UNUSABLE", "PATH_INCOMPLETE", "TERMS_UNKNOWN", "TARGET_REACHED", "BELOW_ENTRY_ZONE", "ABOVE_ENTRY_ZONE", "COMPLETED_BREAKOUT_REQUIRED", "ENTRY_SESSION_PENDING", "ENTRY_TERMS_MET"]);
+const reasons = new Set(["PUBLICATION_INVALIDATED", "ACTION_NOT_PERMITTED", "ELIGIBILITY_BLOCKED", "NO_ENTRY_PLAN", "STOP_BREACHED", "PRICE_BASIS_CHANGED", "PLAN_EXPIRED", "COVERAGE_UNKNOWN", "QUOTE_UNUSABLE", "PATH_INCOMPLETE", "TERMS_UNKNOWN", "TARGET_REACHED", "BELOW_ENTRY_ZONE", "ABOVE_ENTRY_ZONE", "COMPLETED_BREAKOUT_REQUIRED", "ENTRY_SESSION_PENDING", "ENTRY_TERMS_MET", "MARKET_CLOSED", "SESSION_SETTLING"]);
 
 type EntryRecord = { owner: RecordValue; stamp: RecordValue; lineage: RecordValue[]; stock: RecordValue; quote: RecordValue; assessment: RecordValue };
 function entries(data: unknown): EntryRecord[] {
@@ -74,19 +74,33 @@ function positiveDeadline(entry: EntryRecord, freshness?: BackendMarketFreshness
     typeof age !== "number" || !Number.isFinite(age) || age <= 0 ||
     !["PROVISIONAL", "FINALIZED"].includes(String(quote.observation_status)) || quote.data_quality === "SUSPICIOUS" ||
     typeof quote.current_price !== "number" || !Number.isFinite(quote.current_price) || quote.current_price <= 0 || freshness.market_status !== "OPEN") return null;
+  const opening = /^\d{2}:\d{2}(?::\d{2})?$/.test(freshness.market_open_time) ? Date.parse(`${session}T${freshness.market_open_time}+06:00`) : NaN;
+  if (!Number.isFinite(opening) || source < opening) return null;
   const close = /^\d{2}:\d{2}(?::\d{2})?$/.test(freshness.market_close_time) ? Date.parse(`${session}T${freshness.market_close_time}+06:00`) : NaN;
   const deadline = Math.min(source + age * 1000, close);
   return Number.isFinite(deadline) && assessed < deadline ? deadline : null;
 }
 
+function scheduledPause(entry: EntryRecord): boolean {
+  return entry.assessment.status === "AWAITING_CONFIRMATION" &&
+    ["MARKET_CLOSED", "SESSION_SETTLING"].includes(String(entry.assessment.reason_code));
+}
+
+function entryDeadline(entry: EntryRecord, freshness?: BackendMarketFreshnessDto | null): number | null {
+  if (!scheduledPause(entry)) return positiveDeadline(entry, freshness);
+  const deadline = timestamp(entry.assessment.recheck_at);
+  const assessed = timestamp(entry.assessment.assessed_at);
+  return aligned(entry, freshness) && Number.isFinite(deadline) && assessed < deadline ? deadline : null;
+}
+
 export function earliestCurrentEntryDeadline(data: unknown, freshness?: BackendMarketFreshnessDto | null, now = Date.now()): number | null {
-  const deadlines = entries(data).map((entry) => positiveDeadline(entry, freshness)).filter((value): value is number => value !== null && value > now);
+  const deadlines = entries(data).map((entry) => entryDeadline(entry, freshness)).filter((value): value is number => value !== null && value > now);
   return deadlines.length ? Math.min(...deadlines) : null;
 }
 
 export function expiredCurrentEntryKeys(data: unknown, freshness?: BackendMarketFreshnessDto | null, now = Date.now()): string[] {
   return entries(data).flatMap((entry) => {
-    const deadline = positiveDeadline(entry, freshness);
+    const deadline = entryDeadline(entry, freshness);
     return deadline !== null && deadline <= now ? [`${entry.stock.id}:${entry.quote.source_observed_at}:${deadline}`] : [];
   });
 }
@@ -97,7 +111,7 @@ export function currentEntryEvidenceTime(data: unknown): number {
 
 /** IDB never renews source age with cache insertion time. Missing freshness cannot certify permission. */
 export function hasUnusablePositiveEntry(data: unknown, freshness?: BackendMarketFreshnessDto | null, now = Date.now()): boolean {
-  return entries(data).some((entry) => entry.assessment.status === "APPLICABLE" && !usable(entry, freshness, now));
+  return entries(data).some((entry) => (entry.assessment.status === "APPLICABLE" || scheduledPause(entry)) && !usable(entry, freshness, now));
 }
 
 function datedWithdrawal(entry: EntryRecord, freshness: BackendMarketFreshnessDto | null | undefined, now: number): boolean {
@@ -118,6 +132,10 @@ function usable(entry: EntryRecord, freshness: BackendMarketFreshnessDto | null 
   if (!instrumentMatches(entry, expected)) return false;
   if (datedWithdrawal(entry, freshness, now)) return true;
   if (!aligned(entry, freshness)) return false;
+  if (scheduledPause(entry)) {
+    const deadline = entryDeadline(entry, freshness);
+    return deadline !== null && timestamp(entry.assessment.assessed_at) <= now && now < deadline && freshness?.market_status !== "OPEN";
+  }
   if (entry.assessment.status !== "APPLICABLE") return true;
   const deadline = positiveDeadline(entry, freshness);
   return deadline !== null && timestamp(entry.assessment.assessed_at) <= now && now < deadline;

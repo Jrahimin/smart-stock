@@ -21,12 +21,13 @@ from app.tests.test_market_pulse_cache import _pulse
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("hour,minute,pause", [(5,0,None),(9,0,"SESSION_SETTLING"),(9,15,"MARKET_CLOSED"),(3,59,"MARKET_CLOSED")])
 @pytest.mark.parametrize("price,low,expected", [(100, 99, "ENTRY_TERMS_MET"),
     (105, 99, "ABOVE_ENTRY_ZONE"), (96, 96, "STOP_BREACHED"), (100, 95, "STOP_BREACHED")])
-async def test_universe_signals_support_and_cached_pulse_share_current_codes(monkeypatch, price, low, expected):
+async def test_universe_signals_support_and_cached_pulse_share_current_codes(monkeypatch, price, low, expected, hour, minute, pause):
     stock, prices, original, snapshot = _canonical_fixture()
     day = snapshot.generation.trade_date + timedelta(days=1)
-    now = datetime.combine(day, datetime.min.time(), tzinfo=UTC).replace(hour=5)
+    now = datetime.combine(day, datetime.min.time(), tzinfo=UTC).replace(hour=hour, minute=minute)
     published = now-timedelta(days=1)
     class Clock(datetime):
         @classmethod
@@ -82,6 +83,8 @@ async def test_universe_signals_support_and_cached_pulse_share_current_codes(mon
         universe_service=universe, redis=object(), settings=Settings())
     cached = _pulse("Cached briefing").model_copy(update={"focus_stocks": [focus]})
     pulse = await pulse_service._refresh_current_fields(cached, snapshot)
+    if pause and expected != "STOP_BREACHED":
+        expected = pause
     codes = [response.rows[0].entry_applicability.reason_code, signal.decision.entry_applicability.reason_code,
         support.entry_applicability.reason_code, pulse.focus_stocks[0].entry_applicability.reason_code]
     assert codes == [expected]*4

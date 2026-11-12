@@ -26,6 +26,7 @@ from app.jobs.market_session_schedule import (
     next_snapshot_sync_at,
     resolve_cache_ttl_seconds,
     resolve_market_status,
+    session_open_time,
 )
 from app.models import DailyMarketSummary, DailyPrice, Stock
 from app.modules.market_data.dsex_metrics import build_dsex_performance_snapshot
@@ -904,7 +905,7 @@ class MarketDataService:
             market_sync_interval_seconds=settings.market_sync_interval_seconds,
             dashboard_cache_ttl_seconds=resolve_cache_ttl_seconds(status, settings),
             expected_delay_minutes=interval,
-            market_open_time=settings.market_open_time,
+            market_open_time=session_open_time(now.date(), settings).strftime("%H:%M"),
             market_close_time=settings.market_close_time,
             market_status=status,
             freshness_label=build_freshness_label(settings, status),

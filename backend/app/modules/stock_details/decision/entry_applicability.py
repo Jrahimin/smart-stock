@@ -31,6 +31,8 @@ EntryApplicabilityReasonCode = Literal[
     "COMPLETED_BREAKOUT_REQUIRED",
     "ENTRY_SESSION_PENDING",
     "ENTRY_TERMS_MET",
+    "MARKET_CLOSED",
+    "SESSION_SETTLING",
 ]
 
 
@@ -44,6 +46,7 @@ class EntryApplicabilityRead(BaseModel):
     quote_session_date: date | None = None
     source_observed_at: datetime | None = None
     publication_observed_at: datetime | None = None
+    recheck_at: datetime | None = None
 
 
 @dataclass(frozen=True)
@@ -72,6 +75,9 @@ def evaluate_entry_applicability(
     now: datetime, market_open: bool, coverage_verified: bool,
     path: EntryPathFacts = EntryPathFacts(), withdrawn: bool = False,
     publication_observed_at: datetime | None = None,
+    session_pause_reason: Literal["MARKET_CLOSED", "SESSION_SETTLING"] | None = None,
+    recheck_at: datetime | None = None,
+    session_open_at: datetime | None = None,
 ) -> EntryApplicabilityRead:
     """Stable precedence: withdrawal; permission; invalidation; expiry; evidence; zone; timing."""
     def result(status, code):
@@ -83,6 +89,7 @@ def evaluate_entry_applicability(
             quote_session_date=date.fromisoformat(quote.as_of_trade_date) if quote and quote.as_of_trade_date else None,
             source_observed_at=getattr(quote, "source_observed_at", None),
             publication_observed_at=publication_observed_at,
+            recheck_at=recheck_at if code in {"MARKET_CLOSED", "SESSION_SETTLING"} else None,
         )
 
     if withdrawn:
@@ -106,6 +113,8 @@ def evaluate_entry_applicability(
         len(sessions) == expiry and sessions[-1] in (path.ended_sessions if path.ended_sessions is not None else path.completed_sessions)
     )):
         return result("EXPIRED", "PLAN_EXPIRED")
+    if not market_open:
+        return result("AWAITING_CONFIRMATION", session_pause_reason or "MARKET_CLOSED")
     if not coverage_verified:
         return result("UNVERIFIED", "COVERAGE_UNKNOWN")
     price = quote.current_price if quote else None
@@ -113,6 +122,7 @@ def evaluate_entry_applicability(
     if (price is None or not isfinite(price) or price <= 0 or quote.observation_status not in {"FINALIZED", "PROVISIONAL"}
         or getattr(quote, "data_quality", None) == "SUSPICIOUS"
         or observed_at is None or observed_at > now
+        or session_open_at is not None and observed_at < session_open_at
         or (now - observed_at).total_seconds() > getattr(quote, "max_age_seconds", 1800)
         or quote.as_of_trade_date != now.date().isoformat()):
         return result("UNVERIFIED", "QUOTE_UNUSABLE")

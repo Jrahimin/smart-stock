@@ -835,9 +835,9 @@ class MarketUniverseService:
         from app.modules.stock_details.decision.entry_applicability import (
             build_entry_path_facts, evaluate_entry_applicability,
         )
-        from app.core.enums import MarketSessionStatus
+        from app.jobs.market_session_schedule import entry_session_pause, session_open_time
         now = datetime.now(ZoneInfo("Asia/Dhaka"))
-        status = resolve_market_status(now, self.settings)
+        pause_reason, recheck_at = entry_session_pause(now, self.settings)
         context = await self.resolve_quote_context(exchange=exchange)
         selected = [row for row in snapshot.rows if stock_ids is None or row.stock.id in stock_ids]
         ids = {row.stock.id for row in selected}
@@ -871,7 +871,7 @@ class MarketUniverseService:
         from datetime import time
         close = time.fromisoformat(self.settings.market_close_time)
         ended = frozenset(day for day in sessions if day < now.date() or (
-            day == now.date() and now.time().replace(tzinfo=None) > close
+            day == now.date() and now.time().replace(tzinfo=None) >= close
         ))
         completed = ended & finalized
         prices, revisions, journal_start = await self.market_repository.list_entry_path_observations(
@@ -896,7 +896,9 @@ class MarketUniverseService:
             )
             applicability = evaluate_entry_applicability(
                 decision=row.decision, plan=plan, eligibility=row.eligibility, quote=quotes.get(row.stock.id),
-                reference_date=reference, now=now, market_open=status == MarketSessionStatus.OPEN,
+                reference_date=reference, now=now, market_open=pause_reason is None,
+                session_pause_reason=pause_reason, recheck_at=recheck_at,
+                session_open_at=datetime.combine(now.date(), session_open_time(now.date(), self.settings)),
                 coverage_verified=coverage, path=path,
                 withdrawn=bool(publication and publication.invalidated_at),
                 publication_observed_at=publication.observed_at if publication else None,

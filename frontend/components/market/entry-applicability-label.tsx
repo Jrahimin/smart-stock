@@ -8,6 +8,15 @@ export function EntryApplicabilityLabel({ assessment, locale = "en", copy: suppl
   const copy = suppliedCopy ?? getStockWorkspaceLanguage(locale).panels;
   if (assessment?.status === "NOT_APPLICABLE") return null;
   const bn = locale === "bn";
+  if (assessment && ["MARKET_CLOSED", "SESSION_SETTLING"].includes(assessment.reason_code)) {
+    const settling = assessment.reason_code === "SESSION_SETTLING";
+    const label = settling ? (bn ? "সমাপনী তথ্য হালনাগাদ হচ্ছে" : "Closing data settling")
+      : (bn ? "বাজার বন্ধ · খুললে আবার যাচাই হবে" : "Market closed · recheck at opening");
+    return <details className="entry-applicability entry-check-detail"><summary aria-live={announce ? "polite" : undefined}>{label} <span aria-hidden="true">ⓘ</span></summary>
+      <p>{copy.entryReason[assessment.reason_code]}</p>
+      {assessment.quote_session_date ? <small>{bn ? "শেষ নথিভুক্ত দাম" : "Last recorded quote"} · {shortTradeDate(assessment.quote_session_date, locale)}</small> : null}
+    </details>;
+  }
   if (!assessment || assessment.status === "UNVERIFIED") {
     const quoteDate = assessment?.quote_session_date ? shortTradeDate(assessment.quote_session_date, locale) : null;
     const quoteUnusable = assessment?.reason_code === "QUOTE_UNUSABLE";

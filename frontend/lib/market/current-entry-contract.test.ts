@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { earliestCurrentEntryDeadline, fenceCurrentEntryPayload, hasUnusablePositiveEntry } from "./current-entry-contract";
+import { earliestCurrentEntryDeadline, expiredCurrentEntryKeys, fenceCurrentEntryPayload, hasUnusablePositiveEntry } from "./current-entry-contract";
 import { evaluateMarketIndexedDbEntry, MARKET_INDEXEDDB_SCHEMA_VERSION } from "./market-indexeddb-cache";
 import { resetMarketFreshnessGenerationForTests, setCurrentMarketFreshness } from "./market-freshness-registry";
 import { ENTRY_NOW, entryFreshness, entryUniverse, entryWorkspace } from "@/test-fixtures/current-entry-fixtures";
@@ -150,4 +150,27 @@ describe("Pulse current-entry ownership", () => {
     pulse.quote_generation_id = undefined;
     expect(fenceCurrentEntryPayload(pulse, fresh, ENTRY_NOW).monitor_candidates[0].entry_applicability).toBeNull();
   });
+});
+
+
+it.each(["MARKET_CLOSED", "SESSION_SETTLING"])("expires scheduled %s assessments without a generation change", reason => {
+  const data = entryWorkspace();
+  const deadline = ENTRY_NOW + 120_000;
+  Object.assign(data.decision_support.entry_applicability, { status: "AWAITING_CONFIRMATION", reason_code: reason,
+    recheck_at: new Date(deadline).toISOString() });
+  const closed = entryFreshness({ market_status: "POST_CLOSE" });
+  expect(fenceCurrentEntryPayload(data, closed, ENTRY_NOW).decision_support.entry_applicability?.reason_code).toBe(reason);
+  expect(earliestCurrentEntryDeadline(data, closed, ENTRY_NOW)).toBe(deadline);
+  expect(expiredCurrentEntryKeys(data, closed, deadline)).toHaveLength(1);
+  expect(fenceCurrentEntryPayload(data, closed, deadline).decision_support.entry_applicability).toBeNull();
+  expect(hasUnusablePositiveEntry(data, closed, deadline)).toBe(true);
+  expect(fenceCurrentEntryPayload(data, entryFreshness(), ENTRY_NOW).decision_support.entry_applicability).toBeNull();
+});
+
+
+it("requires an observation from the opened session, including an override", () => {
+  const data = entryWorkspace("2026-11-11T05:00:00Z", 1800);
+  const time = Date.parse("2026-11-11T05:00:00Z");
+  expect(fenceCurrentEntryPayload(data, entryFreshness({market_open_time:"11:00"}), time).decision_support.entry_applicability?.status).toBe("APPLICABLE");
+  expect(fenceCurrentEntryPayload(data, entryFreshness({market_open_time:"11:01"}), time).decision_support.entry_applicability).toBeNull();
 });

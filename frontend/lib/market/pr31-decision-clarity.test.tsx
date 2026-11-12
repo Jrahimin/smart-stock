@@ -67,3 +67,13 @@ it("joins explicit section identities but preserves independently dated timeline
   expect(dashboardSectionMatchesOverview({ market_sync_id: "gB" }, { market_sync_id: "gB" })).toBe(true);
   expect(dashboardSectionMatchesOverview({ market_sync_id: "gA" }, {})).toBe(true);
 });
+
+
+it.each(["en", "bn"] as const)("renders scheduled entry pauses without implying approval (%s)", locale => {
+  const { container, rerender } = render(<EntryApplicabilityLabel locale={locale} assessment={{ status:"AWAITING_CONFIRMATION", reason_code:"MARKET_CLOSED", quote_session_date:"2026-11-10" }} />);
+  expect(container.textContent).toContain(locale === "en" ? "Market closed" : "বাজার বন্ধ");
+  expect(container.textContent).toContain(locale === "en" ? "Last recorded quote" : "শেষ নথিভুক্ত দাম");
+  expect(container.querySelector("details")?.open).toBe(false);
+  rerender(<EntryApplicabilityLabel locale={locale} assessment={{ status:"AWAITING_CONFIRMATION", reason_code:"SESSION_SETTLING" }} />);
+  expect(container.textContent).toContain(locale === "en" ? "Closing data settling" : "সমাপনী তথ্য হালনাগাদ হচ্ছে");
+});
