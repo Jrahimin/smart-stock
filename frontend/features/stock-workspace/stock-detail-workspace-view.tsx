@@ -1,5 +1,7 @@
 "use client";
 
+import { useUserWatchlist } from "@/features/watchlist/hooks/use-user-watchlist";
+import { withStockHolderInstruction } from "@/features/stock-workspace/view-models/stock-decision-view-model";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { ExchangeCode } from "@/lib/api/backend-api-types";
@@ -39,7 +41,6 @@ import {
 } from "@/features/stock-workspace/stock-workspace-language";
 import { buildCompanySnapshotStrip } from "@/features/stock-workspace/view-models/company-snapshot-view-model";
 import { buildSectorIntelligenceViewModel } from "@/features/stock-workspace/view-models/sector-context-view-model";
-import { buildStockSemanticSummary } from "@/features/stock-workspace/view-models/stock-semantic-summary-view-model";
 import { frontendConfig } from "@/lib/frontend-config";
 import type { AppLocale } from "@/lib/locale/app-locale";
 import { DEFAULT_LOCALE } from "@/lib/locale/app-locale";
@@ -86,7 +87,7 @@ export function StockDetailWorkspaceView({
 
   const {
     model,
-    decisionModel,
+    decisionModel: publicDecisionModel,
     fundamentalsModel,
     decisionRaw,
     displayMetrics,
@@ -104,6 +105,9 @@ export function StockDetailWorkspaceView({
     locale,
   });
   const intelligence = model.intelligence;
+  const saved = useUserWatchlist();
+  const isHolding = saved.membershipReady && Boolean(intelligence && saved.holdingStockIds.has(intelligence.stock.id));
+  const decisionModel = withStockHolderInstruction(publicDecisionModel, decisionRaw, isHolding);
   const chartSupport = decisionModel.available ? decisionModel.support : intelligence?.support;
   const chartResistance = decisionModel.available ? decisionModel.resistance : intelligence?.resistance;
 
@@ -200,7 +204,6 @@ export function StockDetailWorkspaceView({
     const sectorPeers = relatedStocks.groups.find((group) => group.id === "sector-peers");
     return localizeRelatedStocksCta(model.header.sector, Boolean(sectorPeers?.items.length), locale);
   }, [locale, model.header.sector, relatedStocks.groups]);
-  const semanticSummary = useMemo(() => buildStockSemanticSummary(model, decisionModel), [decisionModel, model]);
 
   if (isLoading) {
     return (
@@ -220,7 +223,7 @@ export function StockDetailWorkspaceView({
 
   return (
     <div className="stock-workspace-view stock-workspace-view-v2 trader-workspace-fade-in" data-testid="stock-workspace-loaded">
-      {workspace ? <StockDurableSummary locale={locale} workspace={workspace} /> : null}
+      {workspace ? <StockDurableSummary isHolding={isHolding} locale={locale} workspace={workspace} /> : null}
       {isError ? <div className="data-warning">{language.states.workspaceError(symbol)}</div> : null}
       {isDecisionError ? <div className="data-warning">{language.states.decisionError}</div> : null}
       <div className="trader-workspace-topbar stock-workspace-topbar">
@@ -239,7 +242,6 @@ export function StockDetailWorkspaceView({
       <StockSectionNav activeSection={activeSection} copy={language.nav} onNavigate={handleNavigate} sections={visibleSections} />
       <CompanySnapshotStrip ariaLabel={language.companySnapshot.ariaLabel} cells={companySnapshotCells} />
 
-      <p className="sr-only">{semanticSummary}</p>
 
       <div className="trader-workspace-layout">
         <aside className="trader-decision-rail">

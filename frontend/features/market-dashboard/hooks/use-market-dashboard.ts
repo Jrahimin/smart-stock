@@ -146,8 +146,15 @@ export function useMarketDashboard(options?: {
     [heatmapQuery.data],
   );
   const mappedSentiment = useMemo(
-    () => (sentimentQuery.data ? mapDashboardSentimentDto(sentimentQuery.data) : undefined),
-    [sentimentQuery.data],
+    () => {
+      if (!sentimentQuery.data) return undefined;
+      const mapped = mapDashboardSentimentDto(sentimentQuery.data);
+      const overviewId = overviewQuery.data?.market_sync_id;
+      // A current HTTP body can land under an older query key. Join delivered
+      // section identities before any sentiment-derived field reaches the model.
+      return overviewId && mapped.marketSyncId && overviewId !== mapped.marketSyncId ? undefined : mapped;
+    },
+    [sentimentQuery.data, overviewQuery.data?.market_sync_id],
   );
   const mappedLeadersContext = useMemo(
     () => (sectorsQuery.data ? mapDashboardSectorsToLeadersContext(sectorsQuery.data) : undefined),

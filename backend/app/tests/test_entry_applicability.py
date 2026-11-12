@@ -71,6 +71,22 @@ def test_ingestion_or_stale_no_trade_quote_cannot_renew_entry(changes):
     assert assess(quote=quote.model_copy(update=changes)).reason_code == "QUOTE_UNUSABLE"
 
 
+def test_actual_batch_receipt_explains_unknown_timing_without_permitting_entry():
+    quote = DisplayQuoteRead(current_price=100, as_of_trade_date=DAY.isoformat(),
+        observation_status="PROVISIONAL", source_observed_at=None, batch_fetched_at=NOW)
+    result = assess(quote=quote)
+    assert result.status == "UNVERIFIED"
+    assert result.reason_code == "QUOTE_UNUSABLE"
+    assert result.quote_timing_status == "FETCH_ONLY"
+    assert result.batch_fetched_at == NOW
+    assert assess(quote=quote.model_copy(update={"source_observed_at": NOW + timedelta(minutes=1)})).status == "UNVERIFIED"
+
+
+def test_old_quote_payload_omits_additive_receipt_field():
+    quote = DisplayQuoteRead(current_price=100)
+    assert "batch_fetched_at" not in quote.model_dump(mode="json")
+
+
 def test_missing_path_terms_targetless_and_completed_confirmation():
     assert assess(path=EntryPathFacts(sessions=(DAY,))).reason_code == "PATH_INCOMPLETE"
     assert assess(plan=terms(expiry_sessions=None)).reason_code == "TERMS_UNKNOWN"
@@ -129,3 +145,41 @@ def test_applicability_reason_codes_are_a_fixed_api_contract():
     assert {"STOP_BREACHED", "QUOTE_UNUSABLE", "ENTRY_TERMS_MET", "PATH_INCOMPLETE"} <= set(codes)
     with pytest.raises(ValueError):
         EntryApplicabilityRead(status="UNVERIFIED", reason_code="UNKNOWN_NEW_REASON", assessed_at=datetime.now(UTC))
+
+
+@pytest.mark.parametrize("quality,volume", [("SUSPICIOUS", 1000), ("OK", 0)])
+def test_unreliable_or_untraded_low_does_not_invalidate(quality, volume):
+    publication = datetime(2026, 11, 10, 10, tzinfo=UTC)
+    row = SimpleNamespace(trade_date=DAY, open_price=100, high_price=102, low_price=90,
+        close_price=100, volume=volume, data_quality_flag=quality)
+    path = build_entry_path_facts(prices=[row], revisions=[], sessions=[DAY], completed_sessions=[],
+        reference_date=REFERENCE, published_at=publication, journal_started_at=publication-timedelta(days=1), plan=terms())
+    assert not path.reliable_lows
+    assert assess(path=path).reason_code != "STOP_BREACHED"
+
+
+def test_observed_breach_precedes_partial_continuity_and_excludes_post_basis_raw_low():
+    from app.modules.stock_details.decision.entry_applicability import PriceBasisEvent
+    publication = datetime(2026, 11, 10, 10, tzinfo=UTC)
+    row = SimpleNamespace(trade_date=DAY, open_price=100, high_price=102, low_price=90,
+        close_price=100, volume=1000, data_quality_flag="OK")
+    before_change = build_entry_path_facts(prices=[row], revisions=[], sessions=[DAY], completed_sessions=[],
+        reference_date=REFERENCE, published_at=publication, journal_started_at=None, plan=terms())
+    assert before_change.complete is False
+    assert assess(path=before_change).reason_code == "STOP_BREACHED"
+    after_change = build_entry_path_facts(prices=[row], revisions=[], sessions=[DAY], completed_sessions=[],
+        reference_date=REFERENCE, published_at=publication, journal_started_at=publication-timedelta(days=1), plan=terms(),
+        basis_events=[PriceBasisEvent(DAY, "SPLIT")])
+    assert not after_change.reliable_lows
+    assert assess(path=after_change).reason_code == "PRICE_BASIS_CHANGED"
+
+
+def test_provisional_close_cannot_confirm_breakout_but_completed_close_can():
+    publication = datetime(2026, 11, 10, 10, tzinfo=UTC)
+    row = SimpleNamespace(trade_date=DAY, open_price=100, high_price=102, low_price=99,
+        close_price=101, volume=1000, data_quality_flag="OK")
+    arguments = dict(prices=[row], revisions=[], sessions=[DAY], reference_date=REFERENCE,
+        published_at=publication, journal_started_at=publication-timedelta(days=1),
+        plan=terms(entry_timing="BREAKOUT", trigger_price=100), average_volume=900)
+    assert build_entry_path_facts(**arguments, completed_sessions=[]).confirmed_on is None
+    assert build_entry_path_facts(**arguments, completed_sessions=[DAY]).confirmed_on == DAY

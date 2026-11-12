@@ -31,7 +31,7 @@ const copy = {
     postClose: "Post-close snapshot", closed: "Market closed", syncing: "Updating snapshot", synced: "Synced",
     snapshotTime: "Snapshot time (Dhaka)", syncTime: "Last sync time (Dhaka)",
     breadth: "Market breadth", up: "Up", flat: "Flat", down: "Down", turnover: "Turnover", volume: "Volume",
-    shares: "shares", versusAverage: "recent avg", noAverage: "Recent average unavailable", sectorLeader: "Sector leader",
+    shares: "shares", versusAverage: "recent avg", priorAverage: (sessions: number) => `prior ${sessions}-session avg`, noAverage: "Recent average unavailable", sectorLeader: "Sector leader",
     sectorLeaderBasis: "Equal-weight average of eligible stocks",
     vsPrevious: "vs. prior session", indexDetails: "Index details", dayOpen: "Open", dayHigh: "High", dayLow: "Low",
     returns: ["1 month", "6 months", "1 year"], range: "52-week range", pulse: "Open Market Pulse",
@@ -72,7 +72,7 @@ const copy = {
     postClose: "লেনদেন শেষে", closed: "বাজার বন্ধ", syncing: "তথ্য হালনাগাদ হচ্ছে", synced: "হালনাগাদ",
     snapshotTime: "বাজারচিত্রের সময় (ঢাকা)", syncTime: "শেষ হালনাগাদের সময় (ঢাকা)",
     breadth: "শেয়ারের ওঠানামা", up: "বেড়েছে", flat: "অপরিবর্তিত", down: "কমেছে", turnover: "লেনদেনের মূল্য", volume: "কেনাবেচার পরিমাণ",
-    shares: "শেয়ার", versusAverage: "সাম্প্রতিক এভারেজ", noAverage: "সাম্প্রতিক এভারেজের তথ্য নেই", sectorLeader: "শীর্ষ খাত",
+    shares: "শেয়ার", versusAverage: "সাম্প্রতিক এভারেজ", priorAverage: (sessions: number) => `আগের ${sessions} সেশনের গড়`, noAverage: "সাম্প্রতিক এভারেজের তথ্য নেই", sectorLeader: "শীর্ষ খাত",
     sectorLeaderBasis: "যোগ্য শেয়ারগুলোর সমান ওজনে এভারেজ",
     vsPrevious: "আগের কার্যদিবসের তুলনায়", indexDetails: "সূচকের বিস্তারিত", dayOpen: "শুরুর মান", dayHigh: "সর্বোচ্চ", dayLow: "সর্বনিম্ন",
     returns: ["১ মাস", "৬ মাস", "১ বছর"], range: "৫২ সপ্তাহের সীমা", pulse: "মার্কেট পালস দেখুন",
@@ -122,33 +122,14 @@ export function breadthContrast({ breadth, pulse }: MarketDashboardModel, locale
   return null;
 }
 
-export function marketHeadline({ breadth, pulse }: MarketDashboardModel, locale: AppLocale): string {
-  const bn = locale === "bn";
-  const ratio = Number.parseFloat(pulse.volumeContext.ratioVsAvg);
-  const below = pulse.volumeLabel !== "N/A" && ratio < 1;
-  const majorityUp = breadth.total > 0 && breadth.advancing > breadth.total / 2;
-  const majorityDown = breadth.total > 0 && breadth.declining > breadth.total / 2;
-
-  if (majorityUp && below) return bn
-    ? "বেশির ভাগ শেয়ারের দাম বেড়েছে, তবে কেনাবেচার পরিমাণ এভারেজের চেয়ে কম ছিল।"
-    : "Most stocks rose, but trading volume stayed below average";
-  if (majorityUp && pulse.volumeLabel !== "N/A" && ratio > 1) return bn
-    ? "বেশির ভাগ শেয়ারের দাম বেড়েছে, কেনাবেচাও ছিল এভারেজের চেয়ে বেশি।"
-    : "Most stocks rose on above-average volume";
-  if (majorityUp) return bn ? "বেশির ভাগ শেয়ারের দাম বেড়েছে" : "Most stocks rose";
-  if (majorityDown) return bn ? "বেশির ভাগ শেয়ারের দাম কমেছে" : "Most stocks fell";
-  if (breadth.total > 0) {
-    if (breadth.advancing > breadth.declining) return bn ? "দাম কমার চেয়ে বেড়েছে বেশি শেয়ারের" : "More stocks rose than fell";
-    if (breadth.declining > breadth.advancing) return bn ? "দাম বাড়ার চেয়ে কমেছে বেশি শেয়ারের" : "More stocks fell than rose";
-    if (breadth.advancing === 0) return bn ? "শেয়ারের দামে পরিবর্তন হয়নি" : "Stock prices held steady";
-    return bn ? "সমান সংখ্যক শেয়ারের দাম বেড়েছে ও কমেছে" : "Gains and losses were evenly split";
-  }
-  if (pulse.indexAvailable) {
-    if (pulse.indexTone === "positive") return bn ? "DSEX সূচক বেড়েছে" : "DSEX moved higher";
-    if (pulse.indexTone === "negative") return bn ? "DSEX সূচক কমেছে" : "DSEX moved lower";
-    return bn ? "DSEX-এর সর্বশেষ বাজারচিত্র" : "The latest DSEX snapshot";
-  }
-  return getTerminalCopy(locale).noSnapshot;
+export function marketHeadline(model: MarketDashboardModel, locale: AppLocale): string {
+  const code = model.insights.find((item) => item.interpretation)?.interpretation?.code;
+  const labels: Record<string, [string, string]> = {
+    ALIGNED_UP: ["More stocks rose", "বেশি শেয়ারের দাম বেড়েছে"], ALIGNED_DOWN: ["More stocks fell", "বেশি শেয়ারের দাম কমেছে"],
+    DIVERGENT: ["A divided session", "সেশনে ভিন্ন চিত্র"], MIXED: ["A mixed session", "সেশনে মিশ্র চিত্র"],
+    INDEX_ONLY: ["The latest index move", "সূচকের সর্বশেষ পরিবর্তন"], BREADTH_ONLY: ["The latest market breadth", "শেয়ারের সর্বশেষ বিস্তার"],
+  };
+  return labels[code ?? ""]?.[locale === "bn" ? 1 : 0] ?? (locale === "bn" ? "সেশনের বাজারচিত্র" : "The session at a glance");
 }
 
 const sectorsBn: Record<string, string> = {

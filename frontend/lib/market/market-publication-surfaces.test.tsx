@@ -71,7 +71,7 @@ it.each([
   const portfolio = { meta: decision, watchlist_to_review: [{
     stock_id: stock.id, symbol: stock.symbol, name: stock.name, exchange: stock.exchange,
     action: "WAIT", reason_code: "IMPORTANT_EVENT", display_quote: display,
-    current_price: "100", price_change_percent: "1",
+    current_price: "110", price_change_percent: "1",
   }] } as unknown as BackendPortfolioWorkspaceDto;
   state.universe = [mapUniverseRowToListRow(row)];
   state.decisionPublication = decision;

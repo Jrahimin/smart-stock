@@ -9,7 +9,7 @@ import {
 describe("signals language", () => {
   it("returns bn hero copy", () => {
     const language = getSignalsLanguage("bn");
-    expect(language.hero.title).toBe("বিশ্লেষণ সহ ট্রেডের সিদ্ধান্ত");
+    expect(language.hero.title).toBe("শেয়ারের সংকেত");
     expect(language.filters.allActions).toBe("সব action");
   });
 

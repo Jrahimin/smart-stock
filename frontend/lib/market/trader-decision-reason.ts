@@ -77,7 +77,6 @@ export type SignalReasonCopy = {
 type ReasonPattern = {
   key: Exclude<TraderDecisionReasonKey, "unknown">;
   test: RegExp;
-  params?: (match: RegExpMatchArray) => TraderDecisionReasonParams;
 };
 
 const REASON_PATTERNS: ReasonPattern[] = [
@@ -113,7 +112,6 @@ const REASON_PATTERNS: ReasonPattern[] = [
     key: "fresh_entry_risk_block",
     test:
       /^Trading risk is ([A-Z]+) or tradability is inadequate; wait rather than forcing a fresh entry\.?$/i,
-    params: (match) => ({ riskLabel: match[1] }),
   },
   {
     key: "entry_plan_not_valid",
@@ -140,7 +138,6 @@ const REASON_PATTERNS: ReasonPattern[] = [
   {
     key: "risk_wait_confirmation",
     test: /^Risk level is (.+); wait for cleaner confirmation rather than forcing a trade\.?$/i,
-    params: (match) => ({ riskLabel: match[1] }),
   },
   {
     key: "momentum_extended_wait_entry",
@@ -184,10 +181,6 @@ const REASON_PATTERNS: ReasonPattern[] = [
   {
     key: "reward_risk_below_minimum",
     test: /^Reward\/risk ([\d.]+) is below the ([\d.]+) minimum; hold rather than buy at this price\.?$/i,
-    params: (match) => ({
-      riskReward: Number.parseFloat(match[1] ?? ""),
-      minRiskReward: Number.parseFloat(match[2] ?? ""),
-    }),
   },
   {
     key: "lower_structure_hold",
@@ -216,7 +209,6 @@ const REASON_PATTERNS: ReasonPattern[] = [
   {
     key: "confidence_capped_bearish_regime",
     test: /^Confidence capped at (\d+) in a bearish market regime\.?$/i,
-    params: (match) => ({ confidenceCap: Number.parseInt(match[1] ?? "", 10) }),
   },
   {
     key: "decision_engine_unavailable",
@@ -225,6 +217,8 @@ const REASON_PATTERNS: ReasonPattern[] = [
 ];
 
 const PRIMARY_REASON_CODE_MAP: Record<string, TraderDecisionReasonKey> = {
+  reward_risk_below_minimum: "reward_risk_below_minimum",
+  confidence_capped_bearish_regime: "confidence_capped_bearish_regime",
   data_not_eligible: "data_not_eligible",
   support_break: "support_break",
   bearish_directional_evidence: "bearish_directional_evidence",
@@ -270,39 +264,6 @@ function resolveReasonKeyFromPrimaryReasonCode(code: string): TraderDecisionReas
   return null;
 }
 
-function extractParamsForReasonKey(
-  key: TraderDecisionReasonKey,
-  rawReason: string,
-): TraderDecisionReasonParams | undefined {
-  if (key === "fresh_entry_risk_block" || key === "risk_wait_confirmation") {
-    const riskLabel =
-      rawReason.match(/Trading risk is ([A-Z]+)/i)?.[1] ??
-      rawReason.match(/Risk level is ([A-Z]+)/i)?.[1];
-    return riskLabel ? { riskLabel } : undefined;
-  }
-
-  if (key === "reward_risk_below_minimum") {
-    const match = rawReason.match(
-      /Reward\/risk ([\d.]+) is below the ([\d.]+) minimum/i,
-    );
-    if (match) {
-      return {
-        riskReward: Number.parseFloat(match[1] ?? ""),
-        minRiskReward: Number.parseFloat(match[2] ?? ""),
-      };
-    }
-  }
-
-  if (key === "confidence_capped_bearish_regime") {
-    const match = rawReason.match(/Confidence capped at (\d+)/i);
-    if (match) {
-      return { confidenceCap: Number.parseInt(match[1] ?? "", 10) };
-    }
-  }
-
-  return undefined;
-}
-
 function matchReasonPattern(rawReason: string): ResolvedTraderDecisionReason | null {
   const candidates = [rawReason, rawReason.endsWith(".") ? rawReason.slice(0, -1) : `${rawReason}.`];
 
@@ -312,7 +273,6 @@ function matchReasonPattern(rawReason: string): ResolvedTraderDecisionReason | n
       if (match) {
         return {
           key: pattern.key,
-          params: pattern.params?.(match),
           rawReason,
         };
       }
@@ -325,6 +285,7 @@ function matchReasonPattern(rawReason: string): ResolvedTraderDecisionReason | n
 export function resolveTraderDecisionReason(
   reason: string,
   reasonCode?: string | null,
+  typedParams?: TraderDecisionReasonParams,
 ): ResolvedTraderDecisionReason {
   const rawReason = normalizeReasonText(reason);
   const codeKey = reasonCode ? resolveReasonKeyFromPrimaryReasonCode(reasonCode) : null;
@@ -332,14 +293,14 @@ export function resolveTraderDecisionReason(
   if (codeKey) {
     return {
       key: codeKey,
-      params: extractParamsForReasonKey(codeKey, rawReason),
+      params: typedParams,
       rawReason,
     };
   }
 
   const matched = matchReasonPattern(rawReason);
   if (matched) {
-    return matched;
+    return { ...matched, params: typedParams };
   }
 
   return { key: "unknown", rawReason };
@@ -352,8 +313,8 @@ export function buildSignalTechnicalContext(stock: StockIntelligenceModel): Sign
     context.rsi = stock.rsi;
   }
 
-  if (stock.averageVolume && stock.averageVolume > 0) {
-    context.volumeRatio = stock.volume / stock.averageVolume;
+  if (stock.latestVolumeRatio != null) {
+    context.volumeRatio = stock.latestVolumeRatio;
   }
 
   context.trend = stock.trend.replace("_", " ").toLowerCase();

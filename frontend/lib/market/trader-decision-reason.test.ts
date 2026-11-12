@@ -84,7 +84,8 @@ describe("resolveDecisionReasonSummary", () => {
 
   it("localizes parameterized reasons in bangla", () => {
     const resolved = resolveTraderDecisionReason(
-      "Risk level is LOW; wait for cleaner confirmation rather than forcing a trade.",
+      "Risk level is HIGH; wait for cleaner confirmation rather than forcing a trade.",
+      undefined, { riskLabel: "LOW" },
     );
     const summary = resolveDecisionReasonSummary(
       resolved,

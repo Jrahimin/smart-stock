@@ -62,7 +62,7 @@ export function DecisionScoresPanel({ decision, copy }: DecisionScoresPanelProps
         />
         <CircularProgressRing
           icon="⚠"
-          label={copy.risk}
+          label={decision.riskBasisLabel}
           onClick={() => setOpenModal("risk")}
           score={decision.riskScore}
           title={riskTooltip}
@@ -79,7 +79,7 @@ export function DecisionScoresPanel({ decision, copy }: DecisionScoresPanelProps
         components={decision.riskComponents}
         isOpen={openModal === "risk"}
         onClose={() => setOpenModal(null)}
-        title={copy.riskBreakdown}
+        title={decision.riskBasisLabel}
       />
     </>
   );

@@ -3,8 +3,8 @@ import type { ExchangeCode } from "@/lib/api/backend-api-types";
 import type { StockDecisionSupportDto, StockWorkspaceDto } from "@/lib/api/stock-decision-support-types";
 import { encodeStockSymbolSegment } from "@/lib/seo/stock-page-seo";
 
-export function getStockWorkspace(exchange: ExchangeCode, symbol: string) {
-  return backendApiGetMarket<StockWorkspaceDto>(`/stock-details/${exchange}/${encodeStockSymbolSegment(symbol)}/workspace`);
+export function getStockWorkspace(exchange: ExchangeCode, symbol: string, generation?: string | null, fresh = false) {
+  return backendApiGetMarket<StockWorkspaceDto>(`/stock-details/${exchange}/${encodeStockSymbolSegment(symbol)}/workspace`, undefined, fresh ? { cache: "no-store" } : undefined, generation ?? undefined);
 }
 
 export function getStockDecisionSupport(exchange: ExchangeCode, symbol: string) {

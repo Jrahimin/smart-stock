@@ -7096,8 +7096,20 @@ button {
 .trader-decision-metrics {
   display: grid;
   gap: 8px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
+
+.trader-decision-metrics > div:first-child { grid-column: 1 / -1; }
+.trader-decision-subtle, .decision-source-detail, .entry-applicability { overflow-wrap: anywhere; line-height: 1.65; }
+.trader-decision-subtle { color: var(--muted); font-size: 0.78rem; margin: 0; }
+.entry-applicability { border: 1px solid var(--border); border-left: 3px solid var(--warning); border-radius: 10px; background: var(--subtle); padding: 12px; font-size: 0.82rem; }
+.entry-applicability p { margin: 6px 0 0; }
+.entry-applicability small { display: block; margin-top: 8px; color: var(--muted); font-size: 0.7rem; }
+.entry-applicability-applicable { border-left-color: var(--positive); }
+.entry-applicability-invalidated { border-left-color: var(--negative); }
+.decision-source-detail { border-top: 1px solid var(--border); padding-top: 10px; color: var(--muted); font-size: 0.75rem; }
+.decision-source-detail summary { cursor: pointer; }
+.decision-source-detail summary:focus-visible { outline: 2px solid var(--foreground); outline-offset: 4px; border-radius: 4px; }
 
 .trader-decision-metrics span {
   color: var(--muted);
@@ -7356,8 +7368,15 @@ button {
   align-items: center;
   display: grid;
   gap: 10px;
-  grid-template-columns: 92px 1fr auto;
+  grid-template-columns: minmax(90px, 0.7fr) minmax(80px, 2fr) minmax(105px, 0.8fr);
 }
+
+.trade-plan-row > strong { text-align: right; font-variant-numeric: tabular-nums; font-size: 0.82rem; }
+.trade-plan-date, .trade-plan-management { font-size: 0.75rem; color: var(--muted); line-height: 1.6; margin: 0 0 14px; }
+.trade-plan-management { margin: 14px 0 0; }
+.trade-plan-rr { font-size: 0.75rem; font-variant-numeric: tabular-nums; }
+.trade-plan-tick { position: absolute; top: -3px; width: 2px; height: 14px; background: var(--foreground); transform: translateX(-50%); }
+.trade-plan-target-band { background: var(--positive); }
 
 .trade-plan-row span {
   color: var(--muted);
@@ -31773,7 +31792,7 @@ button {
 }
 @media (max-width: 640px) {
   .portfolio-pulse-secondary {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .portfolio-header-v2 h1 {
     font-size: 24px;
@@ -32303,3 +32322,76 @@ button {
 @media (prefers-reduced-motion: reduce) {
   .terminal-sidebar-desktop { transition: none; }
 }
+
+/* Keep action provenance legible in the compact header tile. */
+.stock-workspace-header .stock-header-metric-action small {
+  overflow: visible;
+  white-space: normal;
+  text-overflow: clip;
+  line-height: 1.45;
+}
+
+.signal-controlling-reason, .signal-measured-support, .pulse-breadth-coverage { line-height: 1.65; overflow-wrap: anywhere; }
+.signal-measured-support { display: block; font-size: 0.78rem; color: var(--muted); }
+.pulse-focus-conviction .entry-applicability { margin-top: 10px; font-weight: 400; }
+.pulse-breadth-coverage { color: var(--muted); font-size: 0.74rem; margin: 8px 0; }
+
+.pulse-focus-score-row { display: flex; justify-content: flex-end; margin-top: 8px; }
+.pulse-score-insight-panel[hidden] { display: none !important; }
+.pulse-score-insight[data-open="true"] .pulse-score-insight-panel { visibility: visible; opacity: 1; transform: none; pointer-events: auto; }
+.pulse-score-insight-trigger:focus-visible, .pulse-focus-detail-link:focus-visible { outline: 2px solid var(--foreground); outline-offset: 4px; border-radius: 4px; }
+.pulse-focus-detail-link { white-space: nowrap; font-size: 0.78rem; color: var(--primary); }
+
+/* Account observations and audience-specific guidance share both layouts. */
+.portfolio-account-decision { gap: 5px; max-width: 290px; min-width: 190px; }
+.portfolio-account-decision small, .portfolio-account-decision p { font-size: 11px; font-weight: 450; line-height: 1.5; margin: 0; overflow-wrap: anywhere; white-space: normal; }
+.portfolio-account-decision .portfolio-audience { font-size: 10px; }
+.portfolio-account-decision .portfolio-status { white-space: normal; }
+.portfolio-account-decision .action-reduce, .portfolio-account-decision .action-review { background: color-mix(in srgb, var(--warning) 12%, var(--panel)); color: var(--warning); }
+.portfolio-mark-detail { color: var(--muted); font-size: 10px; line-height: 1.45; max-width: 180px; }
+.portfolio-mark-detail summary, .portfolio-comparison summary { cursor: pointer; }
+.portfolio-mark-detail div { display: grid; gap: 4px; padding-top: 6px; }
+.portfolio-mark-detail small, .portfolio-comparison small { line-height: 1.5; overflow-wrap: anywhere; white-space: normal; }
+.portfolio-comparison { color: var(--muted); font-size: 10px; line-height: 1.5; }
+.portfolio-detail-link { color: var(--accent); font-size: 11px; width: fit-content; }
+.portfolio-detail-link:focus-visible, .portfolio-mark-detail summary:focus-visible, .portfolio-comparison summary:focus-visible { border-radius: 3px; outline: 2px solid var(--accent); outline-offset: 3px; }
+.portfolio-partial-note { color: var(--muted); font-size: 11px; line-height: 1.5; margin: 5px 0; }
+.portfolio-mobile-card .portfolio-account-decision { border-bottom: 1px solid var(--border); margin: 12px 0; max-width: none; padding-bottom: 12px; }
+.portfolio-mobile-card .portfolio-mark-detail { max-width: 100%; }
+.portfolio-value-pl-row { flex-wrap: wrap; }
+.portfolio-guidance-cell .portfolio-account-decision { min-width: 220px; }
+@media (max-width: 767px) {
+  .portfolio-mobile-card .portfolio-account-decision { min-width: 0; }
+  .portfolio-mobile-card-metrics .portfolio-mobile-metric { min-width: 0; }
+}
+
+.holder-addition-context { border-top: 1px solid var(--border); display: grid; gap: 8px; margin-top: 12px; padding-top: 12px; }
+.holder-addition-context > strong { color: var(--muted); font-size: 12px; }
+
+.stock-header-metric .decision-publication-compact { display: flex; flex-wrap: wrap; gap: 2px 5px; line-height: 1.45; }
+.decision-publication-compact > [aria-hidden="true"] { white-space: nowrap; }
+
+/* Account summary: concise values and visible partial coverage; methods on demand. */
+.portfolio-summary-grid-v3 { align-items:stretch; grid-template-columns:minmax(0,1.45fr) minmax(250px,1.05fr) minmax(225px,.85fr); }
+.portfolio-summary-grid-v3 > .portfolio-panel { padding:18px; min-height:0; }
+.portfolio-summary-grid-v3 .portfolio-section-heading { margin-bottom:12px; }
+.portfolio-pulse-hero { gap:16px; }
+.portfolio-pulse-secondary .portfolio-pulse-stat > span { font-size:11px; line-height:1.4; }
+.portfolio-pulse-meta { margin-top:12px; gap:5px; }
+.portfolio-coverage-inline { color:var(--muted); font-size:11px; line-height:1.5; margin:0; }
+.portfolio-coverage-inline button { border:0; background:none; color:var(--accent); cursor:pointer; font:inherit; margin-left:5px; padding:0; }
+.portfolio-partial-flag { color:var(--warning); font-size:11px; font-weight:600; }
+.portfolio-email-summary { justify-content:flex-start; gap:12px; }
+.portfolio-email-summary .portfolio-section-heading { margin:0; }
+.portfolio-email-summary .portfolio-email-toggle { margin:0; }
+.portfolio-icon-rail .sw-info-trigger { display:grid; place-items:center; padding:0; }
+.quote-observation-times { display:grid; gap:4px; line-height:1.5; }
+.quote-timing-disclosure { font-size:10px; max-width:220px; color:var(--muted); }
+.quote-timing-disclosure summary { cursor:pointer; }
+@media(max-width:1100px) { .portfolio-summary-grid-v3 { grid-template-columns:repeat(2,minmax(0,1fr)); } .portfolio-summary-grid-v3 .portfolio-email-summary { grid-column:1/-1; } }
+@media(max-width:640px) { .portfolio-summary-grid-v3 { grid-template-columns:minmax(0,1fr); } .portfolio-summary-grid-v3 .portfolio-email-summary { grid-column:auto; } }
+
+.portfolio-summary-grid-v3 .portfolio-email-summary { align-content:start; justify-content:start; }
+.portfolio-email-timing { color:var(--muted); font-size:11px; line-height:1.5; }
+.portfolio-summary-grid-v3 .portfolio-pulse-value { font-size:clamp(1.7rem,2.4vw,2.25rem); }
+:root:not([data-theme="light"]) .portfolio-summary-grid-v3 .sw-info-trigger { color:var(--primary); }

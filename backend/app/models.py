@@ -358,6 +358,8 @@ class DailyPrice(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ForeignKey("stocks.id", ondelete="CASCADE"),
         nullable=False,
     )
+    source_observed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    batch_fetched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     trade_date: Mapped[date] = mapped_column(Date, nullable=False)
     open_price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
     high_price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)

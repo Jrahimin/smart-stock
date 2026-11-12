@@ -1,9 +1,10 @@
 import type { StockDecisionViewModel } from "@/features/stock-workspace/view-models/stock-decision-view-model";
 import type { StockWorkspaceModel } from "@/features/stock-workspace/view-models/stock-workspace-view-model";
+import { getStockWorkspaceLanguage } from "@/features/stock-workspace/stock-workspace-language";
 import { formatMarketCapBdt } from "@/lib/formatters/financial-formatters";
 
 function resolveAction(decision: StockDecisionViewModel) {
-  if (decision.available && decision.recommendation !== "—") {
+  if (decision.available && decision.displayAction) {
     return decision.recommendation;
   }
 
@@ -47,15 +48,11 @@ export function buildStockSemanticSummary(model: StockWorkspaceModel, decision: 
     parts.push(`${marketCapPhrase}.`);
   }
 
-  if (action) {
-    if (confidence !== null && confidence > 0) {
-      parts.push(
-        `Decision support currently shows ${action} with ${decision.confidenceLabel} (not investment advice).`,
-      );
-    } else {
-      parts.push(`Decision support currently shows ${action} (not investment advice).`);
-    }
-  }
+  const panels = getStockWorkspaceLanguage(decision.locale ?? "en").panels;
+  parts.push(`${decision.datedActionLabel ?? "Dated decision"}: ${action ?? (decision.locale === "bn" ? "সিদ্ধান্ত অনুপলব্ধ" : "Decision unavailable")}.`);
+  const assessment = decision.tradePlanVisual.entryApplicability;
+  parts.push(assessment ? `${panels.entryStatus[assessment.status]}. ${panels.entryReason[assessment.reason_code]}` : panels.currentEntryUnverified);
+  if (confidence !== null && action) parts.push(decision.confidenceLabel);
 
   if (decision.available && decision.freshness.label) {
     parts.push(`Decision data: ${decision.freshness.label} (${decision.freshness.helper}).`);

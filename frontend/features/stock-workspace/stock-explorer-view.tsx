@@ -133,7 +133,7 @@ export function StockExplorerView({ locale = DEFAULT_LOCALE }: StockExplorerView
       columnHelper.display({
         id: "watchlist",
         header: "",
-        cell: (info) => <WatchlistStarToggle stockId={info.row.original.stock.id} />,
+        cell: (info) => <WatchlistStarToggle locale={locale} stockId={info.row.original.stock.id} />,
       }),
       columnHelper.accessor((row) => row.stock.symbol, {
         id: "symbol",
@@ -142,7 +142,7 @@ export function StockExplorerView({ locale = DEFAULT_LOCALE }: StockExplorerView
           <Link href={buildStockDetailPath(info.row.original.stock.exchange, info.row.original.stock.symbol)}>
             <strong>
               <span
-                className={`signal-dot signal-dot-${decisionByStockId.get(info.row.original.stock.id)?.recommendation.toLowerCase() ?? "hold"}`}
+                className={`signal-dot signal-dot-${decisionByStockId.get(info.row.original.stock.id)?.recommendation?.toLowerCase() ?? "unavailable"}`}
               />
               {info.getValue()}
               <span

@@ -1,3 +1,5 @@
+import { compatibleDisplayAction } from "@/lib/market/decision-action-compatibility";
+import { breadthCoverageLabel } from "@/lib/market/breadth-presentation";
 import { controllingReasonLabel, readinessLabel } from "@/lib/market/decision-presentation";
 import type { BackendMarketPulseDto, BackendFocusStockDto, BackendMarketMoverDto, BackendMarketBriefingDto } from "@/lib/api/backend-api-types";
 import { getMarketSession } from "@/lib/market/market-session-engine";
@@ -42,10 +44,15 @@ function mapPriceTone(value: string): "positive" | "negative" | "neutral" {
 }
 
 function mapFocusStock(stock: BackendFocusStockDto): FocusStockModel {
+  const pair = stock.public_comparison;
+  const verifiedTransition = pair?.status === "CHANGED" && pair.current_action === stock.recommendation && stock.recommendation === "POTENTIAL_BUY" &&
+    (stock.focus_label !== "Signal Upgrade" || ["WAIT", "HOLD"].includes(pair.previous_action ?? ""));
+  const legacyTransition = ["Signal Upgrade", "New BUY Setup"].includes(stock.focus_label) && !verifiedTransition;
   return {
+    entryApplicability: stock.entry_applicability,
     entryRiskLabel: stock.entry_risk_label,
     rank: stock.rank,
-    recommendation: stock.recommendation,
+    recommendation: compatibleDisplayAction({ display_action: stock.recommendation, decision_taxonomy_version: stock.decision_taxonomy_version ?? undefined }) ?? undefined,
     readiness: stock.entry_readiness,
     controllingReasonCode: stock.controlling_reason_code,
     controllingReason: stock.controlling_reason,
@@ -68,9 +75,11 @@ function mapFocusStock(stock: BackendFocusStockDto): FocusStockModel {
       contributors: stock.score_breakdown.contributors,
       band: stock.score_breakdown.band,
     },
-    focusLabel: stock.focus_label,
+    focusLabel: legacyTransition ? stock.recommendation === "POTENTIAL_BUY" ? "Potential Buy Setup" : "Watch Closely" : stock.focus_label,
     labelTone: mapTone(stock.label_tone),
-    whyHere: stock.why_here,
+    // Legacy transition badges own their first why-here slot (build_why_here).
+    // Drop that slot with an unverified badge; never parse a sentence to infer history.
+    whyHere: legacyTransition ? stock.why_here.slice(1) : stock.why_here,
     trigger: stock.trigger,
     actionSummary: stock.action_summary,
     latestPrice: stock.latest_price,
@@ -172,6 +181,7 @@ function buildBriefingChips(dto: BackendMarketPulseDto): PulseBriefingChipModel[
 
 function mapBriefing(briefing: BackendMarketBriefingDto): MarketBriefingModel {
   return {
+    breadth: briefing.breadth,
     story: {
       headline: briefing.story.headline,
       explanation: briefing.story.explanation,
@@ -211,19 +221,8 @@ function mapBriefing(briefing: BackendMarketBriefingDto): MarketBriefingModel {
       score: briefing.opportunity_score.score,
       label: briefing.opportunity_score.label,
       history: briefing.opportunity_score.history,
-      previousSession:
-        briefing.opportunity_score.previous_session ??
-        (briefing.opportunity_score.history.length >= 2
-          ? briefing.opportunity_score.history[briefing.opportunity_score.history.length - 2]
-          : null),
-      weeklyAverage:
-        briefing.opportunity_score.weekly_average ??
-        (briefing.opportunity_score.history.length > 0
-          ? Math.round(
-              briefing.opportunity_score.history.reduce((sum, value) => sum + value, 0) /
-                briefing.opportunity_score.history.length,
-            )
-          : null),
+      previousSession: briefing.opportunity_score.previous_session ?? null,
+      weeklyAverage: briefing.opportunity_score.weekly_average ?? null,
       trendLabel: briefing.opportunity_score.trend_label ?? null,
     },
     playbook: {
@@ -368,6 +367,7 @@ export function applyMarketPulseLocalization(model: MarketPulseModel, locale: Ap
             : briefing.leadership.narrative,
           cards: briefing.leadership.cards.map((card) => ({
             ...card,
+            title: ({ sector: "দামে এগিয়ে থাকা খাত", stock: "দামের পরিবর্তনে এগিয়ে", accumulation: "আপেক্ষিক লেনদেনে এগিয়ে" } as Record<string, string>)[card.kind] ?? card.title,
             subtitle: language.leadership.cardSubtitle(mapLeadershipCardKind(card.kind), card.subtitle),
           })),
         },
@@ -507,7 +507,9 @@ function resolveMarketMovers(dto: BackendMarketPulseDto, focusStocks: FocusStock
 }
 
 export function buildMarketPulseViewModel(dto: BackendMarketPulseDto, locale: AppLocale = "en"): MarketPulseModel {
-  const session = getMarketSession();
+  const status = dto.coverage?.market_status;
+  const statusLabel = locale === "bn" && status ? ({ OPEN: "লেনদেন চলছে", PRE_OPEN: "লেনদেন শুরুর আগে", POST_CLOSE: "লেনদেন শেষে", HOLIDAY: "বাজার বন্ধ" } as const)[status] : status;
+  const decisionDate = dto.coverage?.decision_session_date ?? dto.coverage?.session_trade_date;
   const focusStocks = dto.focus_stocks.map(mapFocusStock);
   const monitorCandidates = dto.monitor_candidates.map(mapFocusStock);
 
@@ -542,11 +544,37 @@ export function buildMarketPulseViewModel(dto: BackendMarketPulseDto, locale: Ap
     emptyState: dto.empty_state as MarketPulseModel["emptyState"],
     emptyMessage: dto.empty_message,
     dataQualityNote: dto.data_quality_note,
-    sessionDisablesRefresh: session.disablesFreshDataActions,
-    sessionDescription: session.description,
+    sessionDisablesRefresh: false,
+    sessionDescription: status ?? (locale === "bn" ? "সেশনের অবস্থা নেই" : "Session state unavailable"),
   };
 
-  return applyMarketPulseLocalization(model, locale);
+  const localized = applyMarketPulseLocalization(model, locale);
+  const focus = (stock: FocusStockModel): FocusStockModel => ({ ...stock, locale,
+    controllingReason: controllingReasonLabel(stock.controllingReasonCode, "", locale),
+    decisionContext: `${locale === "bn" ? "নতুন অবস্থান বিবেচনায় · সিদ্ধান্ত" : "Prospective entry · Decision"} ${stock.decisionDate ?? "—"}`,
+  });
+  const facts = dto.briefing?.breadth ?? dto.coverage?.breadth;
+  const changed = dto.focus_stocks.filter((stock) => stock.public_comparison?.status === "CHANGED" && stock.public_comparison.current_action === stock.recommendation && stock.recommendation === "POTENTIAL_BUY");
+  const upgraded = changed.filter((stock) => ["WAIT", "HOLD"].includes(stock.public_comparison?.previous_action ?? ""));
+  return { ...localized,
+    hero: { ...localized.hero, sessionLabel: `${statusLabel ?? dto.hero.session_label ?? "—"} · ${locale === "bn" ? "বিশ্লেষণ" : "Analysis"} ${decisionDate ?? "—"}` },
+    focusStocks: localized.focusStocks.map(focus), monitorCandidates: localized.monitorCandidates.map(focus),
+    briefing: localized.briefing ? { ...localized.briefing,
+      leadership: { ...localized.briefing.leadership, decisionDate, freshBuySignals: changed.map((stock) => stock.symbol), freshNewCount: changed.length - upgraded.length, freshUpgradedCount: upgraded.length },
+      breadth: facts, breadthNote: breadthCoverageLabel(facts, locale),
+      sectorBasis: locale === "bn" ? `যোগ্য একই সেশনের শেয়ারের গড় দামের পরিবর্তন · ${facts?.as_of_date ?? decisionDate ?? "—"}` : `Mean price change of eligible same-session stocks · ${facts?.as_of_date ?? decisionDate ?? "—"}`,
+      ...(facts?.known_count === 0 ? { story: { ...localized.briefing.story,
+        headline: locale === "bn" ? "বাজারের বিস্তারের তথ্য নেই" : "Breadth unavailable",
+        explanation: locale === "bn" ? "যোগ্য শেয়ারের দামের পরিবর্তন জানা নেই।" : "Price changes are unknown for this eligible cohort.",
+        metrics: [], tone: "info" as const }, state: { ...localized.briefing.state,
+          dimensions: [],
+          overallLabel: locale === "bn" ? "তথ্য অসম্পূর্ণ" : "Coverage incomplete", overallTone: "info" as const },
+        moneyFlow: { inflows: [], outflows: [] },
+        leadership: { ...localized.briefing.leadership, cards: localized.briefing.leadership.cards.filter((card) => !["sector", "stock"].includes(card.kind)), narrative: "", freshBuySignals: [], freshNewCount: 0, freshUpgradedCount: 0 },
+        summary: { ...localized.briefing.summary, text: locale === "bn" ? "বাজারের বিস্তারের তথ্য অসম্পূর্ণ।" : "Market breadth coverage is incomplete.", highlights: [], tradingEnvironment: null, tone: "info" as const },
+      } : {}),
+    } : null,
+  };
 }
 
 export function buildMarketPulseSnapshotFromDto(dto: BackendMarketPulseDto) {

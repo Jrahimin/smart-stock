@@ -77,8 +77,9 @@ export type HeatmapTileModel = {
 };
 
 export type SignalFeedItemModel = {
+  decisionSummary?: import("@/lib/api/backend-api-types").BackendTraderDecisionSummaryDto | null;
   symbol: string;
-  signal: DecisionDisplayAction;
+  signal: DecisionDisplayAction | null;
   confidence: string;
   confidenceValue: number;
   reason: string;
@@ -176,6 +177,7 @@ export type MarketPulseModel = {
 };
 
 export type MarketDashboardModel = {
+  isIntraday: boolean;
   exchange: ExchangeCode;
   marketMood: MarketMood;
   latestTradeDate: string;

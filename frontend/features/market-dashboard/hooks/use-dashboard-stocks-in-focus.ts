@@ -1,7 +1,9 @@
 "use client";
 
 import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMarketDataFreshness } from "@/hooks/market/use-market-data-freshness";
+import { useCurrentEntryBoundary } from "@/hooks/market/use-current-entry-boundary";
 
 import { mapUniverseRowsToSignalFeed } from "@/features/market-dashboard/view-models/dashboard-sections-mapper";
 import { listUniverseRows } from "@/lib/api/market-universe-api";
@@ -37,27 +39,30 @@ export function useDashboardStocksInFocus({
   refetchIntervalMs = false,
   enabled = true,
 }: UseDashboardSectionOptions) {
+  const client = useQueryClient();
+  const freshness = useMarketDataFreshness(exchange);
   const universeQuery = useQuery({
     queryKey: ["market-universe-rows", exchange, UNIVERSE_ROWS_QUERY_KEY_LIMIT, generation],
-    queryFn: () => listUniverseRows(exchange, generation),
+    queryFn: ({ queryKey }) => listUniverseRows(exchange, generation, client.getQueryData(queryKey) !== undefined),
     staleTime: staleTimeMs,
     refetchInterval: refetchIntervalMs,
     enabled,
     retry: shouldRetryUniverseCache,
     retryDelay: () => UNIVERSE_CACHE_WARM_RETRY_DELAY_MS,
   });
+  const boundedData = useCurrentEntryBoundary(universeQuery.data, freshness.isError ? undefined : freshness.data, ["market-universe-rows", exchange, UNIVERSE_ROWS_QUERY_KEY_LIMIT, generation]);
 
   const data = useMemo((): DashboardStocksInFocusQueryData | undefined => {
-    if (!universeQuery.data?.rows) {
+    if (!boundedData?.rows) {
       return undefined;
     }
 
     return {
-      signals: mapUniverseRowsToSignalFeed(universeQuery.data.rows),
-      evaluatedCount: universeQuery.data.rows.filter((row) => row.decision !== null).length,
-      decisionPublication: universeQuery.data.meta,
+      signals: mapUniverseRowsToSignalFeed(boundedData.rows),
+      evaluatedCount: boundedData.rows.filter((row) => row.decision !== null).length,
+      decisionPublication: boundedData.meta,
     };
-  }, [universeQuery.data]);
+  }, [boundedData]);
 
   return {
     ...universeQuery,

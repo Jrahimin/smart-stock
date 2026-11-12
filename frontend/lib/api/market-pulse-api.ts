@@ -10,6 +10,7 @@ export type GetMarketPulseParams = {
   exchange?: ExchangeCode;
   previousSnapshot?: BackendMarketPulsePreviousSnapshotDto | null;
   displayName?: string | null;
+  fresh?: boolean;
 };
 
 export type BackendMarketPulseSummaryDto = Pick<
@@ -22,6 +23,7 @@ export type BackendMarketPulseSummaryDto = Pick<
   | "empty_state"
   | "empty_message"
   | "data_quality_note"
+  | "coverage"
 > & {
   last_synced_at: string | null;
   decision_generation_id?: string | null;
@@ -52,7 +54,7 @@ export function getMarketPulseSummary(params: GetMarketPulseParams = {}) {
     exchange: params.exchange ?? "DSE",
     previous_snapshot: previousSnapshot,
     display_name: params.displayName ?? undefined,
-  });
+  }, params.fresh ? { cache: "no-store" } : undefined);
 }
 
 export function getMarketPulseBriefing(params: { exchange?: ExchangeCode; displayName?: string | null } = {}) {

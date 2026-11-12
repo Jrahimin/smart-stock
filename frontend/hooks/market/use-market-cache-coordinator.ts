@@ -1,6 +1,7 @@
 "use client";
 
 import { freshnessGenerationToken } from "@/lib/market/market-generation";
+import { setCurrentMarketFreshness } from "@/lib/market/market-freshness-registry";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef } from "react";
 
@@ -21,6 +22,8 @@ export function useMarketCacheSyncCoordinator(exchange: ExchangeCode = "DSE") {
   const previousToken = useRef<string | null>(null);
   const { data } = useMarketDataFreshness(exchange);
   const current = freshnessGenerationToken(data);
+
+  useEffect(() => { setCurrentMarketFreshness(data); }, [data]);
 
   useEffect(() => {
     registerMarketCacheQueryClient(queryClient);

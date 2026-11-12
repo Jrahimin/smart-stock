@@ -1,5 +1,9 @@
 "use client";
 
+import { riskValueLabel } from "@/lib/market/decision-presentation";
+import { EntryApplicabilityLabel } from "@/components/market/entry-applicability-label";
+import { SignalBadge } from "@/components/ui/signal-badge";
+import type { DecisionDisplayAction } from "@/lib/api/backend-api-types";
 import Link from "next/link";
 import { Check, Eye } from "lucide-react";
 
@@ -15,7 +19,7 @@ type FocusStockCardProps = {
 
 export function FocusStockCard({ stock, copy, scoreCopy }: FocusStockCardProps) {
   return (
-    <Link className="pulse-focus-card" href={stock.href}>
+    <article className="pulse-focus-card">
       <div className="pulse-focus-card-header">
         <div className="pulse-focus-card-head">
           <span className="pulse-focus-rank">{stock.rank}</span>
@@ -24,45 +28,33 @@ export function FocusStockCard({ stock, copy, scoreCopy }: FocusStockCardProps) 
             <span title={stock.name}>{stock.name}</span>
           </div>
         </div>
-        <PulseScoreHeaderCluster breakdown={stock.scoreBreakdown} copy={scoreCopy} score={stock.pulseScore} />
       </div>
 
+      <div className="pulse-focus-conviction">
+        <SignalBadge signal={["POTENTIAL_BUY", "WAIT", "HOLD", "SELL"].includes(stock.recommendation ?? "") ? stock.recommendation as DecisionDisplayAction : null} locale={stock.locale ?? "en"} />
+        <small>{stock.decisionContext}</small>
+        <EntryApplicabilityLabel assessment={stock.entryApplicability} locale={stock.locale ?? "en"} policyReason={stock.controllingReason} />
+        {stock.controllingReason && stock.entryApplicability?.reason_code !== "ACTION_NOT_PERMITTED" ? <small>{stock.controllingReason}</small> : null}
+      </div>
+      <div className="pulse-focus-score-row"><PulseScoreHeaderCluster breakdown={stock.scoreBreakdown} copy={scoreCopy} score={stock.pulseScore} /></div>
       <span className={`pulse-focus-label-badge pulse-focus-label-badge-${stock.labelTone}`}>{stock.focusLabel}</span>
-
       <div className="pulse-focus-why-block">
         <span className="pulse-focus-why-label">{copy.whySelected}</span>
-        <ul className="pulse-focus-reasons">
-          {stock.whyHere.map((reason) => (
-            <li key={reason}>
-              <Check aria-hidden="true" size={12} />
-              {reason}
-            </li>
-          ))}
-        </ul>
+        <ul className="pulse-focus-reasons">{stock.whyHere.map((reason) => <li key={reason}><Check aria-hidden="true" size={12} />{reason}</li>)}</ul>
       </div>
-
-      <p className="pulse-focus-conviction">
-        <span className="pulse-focus-conviction-label">{copy.conviction}</span>
-        <strong>{stock.actionSummary}</strong>
-        <small>{stock.decisionContext}</small>
-        <small>{scoreCopy.tradingRisk}: {stock.entryRiskLabel ?? "—"}</small>
-        {stock.controllingReason ? <small>{stock.controllingReason}</small> : null}
-      </p>
-
-      <div className="pulse-focus-trigger-block">
-        <span>{copy.nextTrigger}</span>
-        <strong>{stock.trigger}</strong>
-        {stock.watchLevel != null ? <small>{copy.watchLevel}: {stock.watchLevel.toFixed(2)}</small> : null}
-      </div>
+      <small>{scoreCopy.tradingRisk}: {riskValueLabel(stock.entryRiskLabel, stock.locale ?? "en")}</small>
+      {stock.watchLevel != null ? <small>{copy.watchLevel}: {stock.watchLevel.toFixed(2)}</small> : null}
 
       <div className="pulse-focus-card-footer">
         <div className="pulse-focus-quote-values">
+          <small>{stock.locale === "bn" ? "সেশনের সমাপনী দর" : "Session close"} · {stock.decisionDate ?? "—"}</small>
           <span className="pulse-focus-price">{stock.latestPrice}</span>
           <span className={`pulse-focus-change pulse-focus-change-${stock.priceTone}`}>{stock.priceChangePercent}</span>
         </div>
         <MiniSparkline points={stock.sparklinePoints} tone={stock.priceTone} />
+        <Link className="pulse-focus-detail-link" href={stock.href}>{stock.locale === "bn" ? "বিস্তারিত" : "Detail"} →</Link>
       </div>
-    </Link>
+    </article>
   );
 }
 

@@ -48,6 +48,7 @@ from app.modules.portfolios.portfolios_schemas import (
     PortfolioEventRead,
     PortfolioExposureRead,
     PortfolioHoldingRead,
+    PortfolioHolderActionGroupRead,
     PortfolioPositionReferenceRead,
     PortfolioPulseRead,
     PortfolioShapeRead,
@@ -141,6 +142,8 @@ def _what_next_code(
         return PortfolioWhatNextCode.DO_NOT_AVERAGE_DOWN_FOR_COST_ONLY
     if _is_near_resistance(current_price, resistance):
         return PortfolioWhatNextCode.WATCH_RESISTANCE
+    if holder_action == HolderAction.REVIEW:
+        return PortfolioWhatNextCode.REVIEW_HOLDER_GUIDANCE
     if current_price > buy_price and trend == TrendDirection.UPTREND:
         return PortfolioWhatNextCode.PROFITABLE_TREND_INTACT
     return PortfolioWhatNextCode.NO_ACTION_NEEDED
@@ -275,6 +278,7 @@ class PortfoliosService:
                         data_state=market.data_state,
                         is_provisional=market.is_provisional,
                         relevant_event=stock_events[0] if stock_events else None,
+                        decision_date=market.decision_session_date,
                     ),
                 )
             )
@@ -391,16 +395,15 @@ class PortfoliosService:
             }
         )
         suggestions = self._build_watchlist_suggestions(positioned)
-        for suggestion in suggestions:
-            universe_row = universe_by_stock.get(suggestion.stock_id)
-            if universe_row is not None:
-                suggestion.display_quote = universe_row.display_quote
+        holdings_by_stock = {holding.stock_id: holding for holding in holdings}
+        attention = self._build_attention(holdings, current_complete=current_complete)
         return PortfolioWorkspaceRead(
             meta=meta,
             pulse=pulse,
-            attention=self._build_attention(holdings, current_complete=current_complete),
+            attention=[item for item in attention if item.code != PortfolioAttentionCode.HOLDER_REVIEW],
+            holder_review_attention=next((item for item in attention if item.code == PortfolioAttentionCode.HOLDER_REVIEW), None),
             holdings=holdings,
-            watchlist_items=[position for _, position in positioned],
+            watchlist_items=[holdings_by_stock.get(position.stock_id, position) for _, position in positioned],
             shape=self._build_shape(holdings),
             watchlist_to_review=suggestions,
         )
@@ -415,6 +418,7 @@ class PortfoliosService:
         data_state: MarketDataState,
         is_provisional: bool,
         relevant_event: PortfolioEventRecord | None,
+        decision_date: date | None = None,
     ) -> PortfolioHoldingRead:
         technical = universe_row.technical_snapshot if universe_row is not None else None
         decision = universe_row.decision if universe_row is not None else None
@@ -451,7 +455,8 @@ class PortfoliosService:
         else:
             price_status = PortfolioPriceStatus.FINALIZED
 
-        holder_action = decision.holder_action if decision is not None else None
+        canonical = decision.canonical if decision is not None else None
+        holder_action = (decision.holder_action or (canonical.holder_action if canonical else None)) if decision is not None else None
         if item.entry.is_holding and holder_action is not None:
             action = resolve_holder_display_action(holder_action)
         elif decision is not None:
@@ -520,6 +525,12 @@ class PortfoliosService:
             price_change_percent=_percent(change_percent),
             price_status=price_status,
             latest_trade_date=latest_trade_date,
+            display_quote=mark,
+            decision_session_date=(canonical.as_of_date if canonical else decision_date) if decision else None,
+            decision_taxonomy_version=decision.decision_taxonomy_version if decision else None,
+            primary_reason_code=(decision.primary_reason_code or (canonical.primary_reason_code if canonical else None)) if decision else None,
+            public_comparison=getattr(universe_row, "public_comparison", None),
+            holder_comparison=getattr(universe_row, "holder_comparison", None),
             invested_amount=_money(invested),
             current_value=_money(current_value),
             unrealized_gain_amount=_money(unrealized),
@@ -550,6 +561,8 @@ class PortfoliosService:
     ) -> list[PortfolioAttentionRead]:
         grouped: dict[PortfolioAttentionCode, list[PortfolioHoldingRead]] = defaultdict(list)
         for holding in holdings:
+            if holding.what_next_code == PortfolioWhatNextCode.REVIEW_HOLDER_GUIDANCE:
+                grouped[PortfolioAttentionCode.HOLDER_REVIEW].append(holding)
             if holding.what_next_code == PortfolioWhatNextCode.REVIEW_SUPPORT_BREAK:
                 grouped[PortfolioAttentionCode.SUPPORT_BREAK].append(holding)
             if holding.what_next_code == PortfolioWhatNextCode.REVIEW_SELL_OR_REDUCE:
@@ -581,6 +594,7 @@ class PortfoliosService:
             if concentrated:
                 grouped[PortfolioAttentionCode.HIGH_CONCENTRATION] = concentrated
         severity = {
+            PortfolioAttentionCode.HOLDER_REVIEW: PortfolioAttentionSeverity.MEDIUM,
             PortfolioAttentionCode.SUPPORT_BREAK: PortfolioAttentionSeverity.HIGH,
             PortfolioAttentionCode.SELL_OR_REDUCE: PortfolioAttentionSeverity.HIGH,
             PortfolioAttentionCode.PRICE_QUALITY: PortfolioAttentionSeverity.MEDIUM,
@@ -672,6 +686,14 @@ class PortfoliosService:
                 action_values.items(), key=lambda item: item[0].value
             )
         ]
+        holder_values: dict[HolderAction | None, tuple[int, Decimal]] = {}
+        for holding in holdings:
+            action = holding.holder_action if holding.decision_taxonomy_version in {None, "v1", "v2"} else None
+            count, value = holder_values.get(action, (0, Decimal("0")))
+            holder_values[action] = (count + 1, value + (holding.current_value or Decimal("0")))
+        holder_action_groups = [PortfolioHolderActionGroupRead(holder_action=action, count=count,
+            current_value=_money(value) or Decimal("0")) for action, (count, value) in
+            sorted(holder_values.items(), key=lambda pair: pair[0].value if pair[0] else "")]
         valued = [
             holding
             for holding in holdings
@@ -711,6 +733,7 @@ class PortfoliosService:
             position_exposure=position_exposure,
             sector_exposure=sector_exposure,
             action_groups=action_groups,
+            holder_action_groups=holder_action_groups,
             largest_holding=self._position_reference(
                 largest,
                 amount=largest.current_value if largest else None,
@@ -784,6 +807,8 @@ class PortfoliosService:
                     score,
                     PortfolioWatchlistSuggestionRead(
                         stock_id=position.stock_id,
+                        display_quote=position.display_quote,
+                        price_status=position.price_status,
                         symbol=position.symbol,
                         name=position.name,
                         exchange=position.exchange,

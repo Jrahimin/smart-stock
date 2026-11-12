@@ -1,3 +1,4 @@
+import { isDatedPlanGuidance, controllingReasonLabel, selectedDecisionExplanation } from "@/lib/market/decision-presentation";
 import { EntryApplicabilityLabel } from "@/components/market/entry-applicability-label";
 import Link from "next/link";
 import { memo } from "react";
@@ -67,14 +68,16 @@ export const SmartSignalFeed = memo(function SmartSignalFeed({
         const sharedWait = shared?.rows.includes(signal);
         const entry = signal.signal === "POTENTIAL_BUY" && signal.entryCondition
           ? localizeEntryCondition(signal.entryCondition, locale, dashboardEntryConditions[locale]) : null;
-        const condition = sharedWait ? evidence || copy.evidenceUnavailable : entry || signal.reason;
+        const selected = selectedDecisionExplanation(signal.decisionSummary, locale);
+        const policy = controllingReasonLabel(signal.reasonCode, "", locale);
+        const condition = signal.decisionSummary ? policy || selected.limitation : sharedWait ? evidence || copy.evidenceUnavailable : entry ? `${locale === "bn" ? "প্রকাশিত শর্ত" : "Dated condition"}: ${entry}` : signal.reason;
         return <tr id={index === 0 ? "sw-signal-example" : undefined} key={signal.symbol + "-" + signal.signal} role="row">
           <th scope="row" role="rowheader"><Link href={signal.href} prefetch={false}>{signal.symbol}</Link></th>
-          <td role="cell"><span className={"sw-action sw-action-" + signal.signal}>{copy.actions[signal.signal]}</span></td>
+          <td role="cell"><span className={"sw-action sw-action-" + signal.signal}>{signal.signal ? copy.actions[signal.signal] : copy.missing}</span></td>
           <td role="cell" aria-describedby={sharedWait ? "sw-signal-context" : undefined}>
-            {condition?.trim() || copy.conditionUnavailable}
-            {signal.signal === "POTENTIAL_BUY" ? <EntryApplicabilityLabel assessment={signal.entryApplicability} locale={locale} /> : null}
-            {entry && evidence ? <small className="sw-signal-evidence">{evidence}</small> : null}
+            <EntryApplicabilityLabel assessment={signal.entryApplicability} locale={locale} policyReason={policy} />
+            {signal.entryApplicability?.reason_code === "ACTION_NOT_PERMITTED" && policy || isDatedPlanGuidance(signal.reasonCode) ? null : condition?.trim() || copy.conditionUnavailable}
+            {signal.decisionSummary && selected.support ? <small className="sw-signal-evidence">{selected.support}</small> : entry && evidence ? <small className="sw-signal-evidence">{evidence}</small> : null}
           </td>
           <td role="cell">{copy.risks[risk] ?? copy.missing}</td>
         </tr>;

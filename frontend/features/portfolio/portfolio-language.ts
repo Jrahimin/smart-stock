@@ -1,3 +1,4 @@
+import { holderActionLabels } from "@/lib/market/signal-action-labels";
 import type {
   PortfolioAttentionCode,
   PortfolioPriceStatus,
@@ -24,6 +25,9 @@ type PortfolioLanguage = {
   watchlistEmpty: string;
   knownValue: string;
   knownInvestment: string;
+  valueCoverage: string;
+  partialAccount: string;
+  valueMethod: string;
   unrealized: string;
   dailyMovement: string;
   holdingCount: string;
@@ -131,10 +135,29 @@ type PortfolioLanguage = {
   savingHolding: string;
   needsSetup: string;
   signalUnavailable: string;
+  holderInstruction: string;
+  datedAction: string;
+  sourceDetails: string;
+  markDate: string;
+  sourceTime: string;
+  previousClose: string;
+  sinceCost: string;
+  pendingValues: string;
+  editFailed: string;
+  partialPL: string;
+  partialDaily: string;
+  partialInvestment: string;
+  comparisonChanged: string;
+  comparisonUnchanged: string;
+  comparisonUnavailable: string;
+  actionLabels: Record<string, string>;
   partialExposure: string;
   concentration: string;
   insights: string;
   highestRisk: string;
+  lowestDailyContribution: string;
+  dailyContributionBasis: string;
+  percentagePoints: string;
   emailSummary: string;
   emailSummaryDetail: string;
   emailSummaryEnabled: string;
@@ -167,10 +190,13 @@ const en: PortfolioLanguage = {
   shape: "Portfolio Shape",
   watchlist: "Watchlist to Review",
   watchlistEmpty: "No watchlist idea has a meaningful current reason to surface.",
-  knownValue: "Known current value",
+  knownValue: "Marked value",
+  valueCoverage: "Value coverage",
+  partialAccount: "Partial account data",
+  valueMethod: "Value uses supplied quantities and dated marks. P/L includes only known cost; daily movement includes comparable previous prices.",
   knownInvestment: "Known investment",
-  unrealized: "Known unrealized P/L",
-  dailyMovement: "Estimated daily movement",
+  unrealized: "Since-cost P/L",
+  dailyMovement: "Daily movement",
   holdingCount: "Holdings",
   estimated: "Estimated",
   coverage: (known, total) => `${known} of ${total} holdings included in known value.`,
@@ -275,11 +301,30 @@ const en: PortfolioLanguage = {
   previewNoDailyFromStale: "Daily movement is not calculated from stale prices.",
   savingHolding: "Saving…",
   needsSetup: "Needs setup",
-  signalUnavailable: "Signal unavailable",
+  signalUnavailable: "Decision unavailable",
+  holderInstruction: "For this holding",
+  datedAction: "Dated action",
+  sourceDetails: "Price observation",
+  markDate: "Price date",
+  sourceTime: "Source observed",
+  previousClose: "Previous close",
+  sinceCost: "Since cost",
+  pendingValues: "Saving · Showing last confirmed account values",
+  editFailed: "Could not save. Account values remain unchanged. Try again.",
+  partialPL: "P/L includes only positions with known cost and usable marks.",
+  partialDaily: "Daily movement includes only positions with comparable price changes.",
+  partialInvestment: "Investment includes only positions with known quantity and cost.",
+  comparisonChanged: "Changed since previous session",
+  comparisonUnchanged: "Unchanged since previous session",
+  comparisonUnavailable: "Previous-session comparison unavailable",
+  actionLabels: { ...holderActionLabels.en, WAIT: "Wait", POTENTIAL_BUY: "Potential buy" },
   partialExposure: "Exposure reflects only holdings with known current value.",
   concentration: "Concentration",
   insights: "Portfolio insights",
   highestRisk: "Highest risk today",
+  lowestDailyContribution: "Lowest daily contribution",
+  dailyContributionBasis: "Of portfolio daily return · comparable holdings",
+  percentagePoints: "pp",
   emailSummary: "Daily summary email",
   emailSummaryDetail: "Get one concise email after the market close with your portfolio summary, P/L, and attention items.",
   emailSummaryEnabled: "Summary emails on",
@@ -290,6 +335,7 @@ const en: PortfolioLanguage = {
   groupWatching: (count) => `Watching · ${count}`,
   filterAttention: "Attention filter",
   guidance: {
+    REVIEW_HOLDER_GUIDANCE: "Review the published holder guidance and its constraints.",
     DATA_INCOMPLETE: "Complete quantity, average price, or market data.",
     PRICE_STALE_OR_SUSPENDED: "Price quality needs review before acting.",
     REVIEW_SUPPORT_BREAK: "Review the support break and reassess risk.",
@@ -301,6 +347,7 @@ const en: PortfolioLanguage = {
     NO_ACTION_NEEDED: "No action needed today.",
   },
   attentionLabels: {
+    HOLDER_REVIEW: "Review holder guidance",
     SUPPORT_BREAK: "Support break",
     SELL_OR_REDUCE: "SELL or REDUCE signal",
     PRICE_QUALITY: "Stale, suspended, or uncertain price",
@@ -357,10 +404,13 @@ const bn: PortfolioLanguage = {
   watchlist: "ওয়াচলিস্টে দেখার মতো",
   watchlistEmpty: "ওয়াচলিস্টে এখন আলাদা করে সামনে আনার মতো কোনো নতুন কারণ নেই।",
 
-  knownValue: "হিসাব করা বর্তমান ভ্যালু",
+  knownValue: "বর্তমান ভ্যালু",
+  valueCoverage: "হিসাবের পরিধি",
+  partialAccount: "হিসাবের কিছু তথ্য অসম্পূর্ণ",
+  valueMethod: "দেওয়া পরিমাণ ও তারিখযুক্ত দাম দিয়ে ভ্যালু হয়। ক্রয়মূল্য জানা থাকলে লাভ/ক্ষতি এবং আগের তুলনাযোগ্য দাম থাকলে দৈনিক পরিবর্তন হিসাব হয়।",
   knownInvestment: "হিসাব করা বিনিয়োগ",
   unrealized: "বর্তমান লাভ/ক্ষতি",
-  dailyMovement: "আজকের আনুমানিক পরিবর্তন",
+  dailyMovement: "দৈনিক পরিবর্তন",
   holdingCount: "হোল্ডিংস",
   estimated: "আনুমানিক",
 
@@ -494,7 +544,23 @@ const bn: PortfolioLanguage = {
   savingHolding: "সেভ হচ্ছে…",
 
   needsSetup: "তথ্য বাকি",
-  signalUnavailable: "Signal পাওয়া যায়নি",
+  signalUnavailable: "সিদ্ধান্ত পাওয়া যায়নি",
+  holderInstruction: "এই হোল্ডিংয়ের জন্য",
+  datedAction: "প্রকাশিত অ্যাকশন",
+  sourceDetails: "দামের পর্যবেক্ষণ",
+  markDate: "দামের তারিখ",
+  sourceTime: "উৎসে পর্যবেক্ষণ",
+  previousClose: "আগের সমাপনী দাম",
+  sinceCost: "ক্রয়মূল্যের তুলনায়",
+  pendingValues: "সেভ হচ্ছে · সর্বশেষ নিশ্চিত হিসাব দেখানো হচ্ছে",
+  editFailed: "সেভ হয়নি। আগের হিসাব অপরিবর্তিত আছে। আবার চেষ্টা করুন।",
+  partialPL: "ক্রয়মূল্য ও ব্যবহারযোগ্য দাম জানা পজিশনগুলোর লাভ/ক্ষতি দেখানো হচ্ছে।",
+  partialDaily: "তুলনাযোগ্য দামের পরিবর্তন জানা পজিশনগুলো দৈনিক হিসাবে আছে।",
+  partialInvestment: "পরিমাণ ও ক্রয়মূল্য জানা পজিশনগুলোর বিনিয়োগ দেখানো হচ্ছে।",
+  comparisonChanged: "আগের সেশনের তুলনায় বদলেছে",
+  comparisonUnchanged: "আগের সেশনের তুলনায় অপরিবর্তিত",
+  comparisonUnavailable: "আগের সেশনের তুলনা পাওয়া যায়নি",
+  actionLabels: { ...holderActionLabels.bn, WAIT: "অপেক্ষা করুন", POTENTIAL_BUY: "সম্ভাব্য ক্রয়" },
 
   partialExposure:
     "যেসব holding-এর current value হিসাব করা গেছে, শুধু সেগুলো দিয়েই এই চিত্র দেখানো হচ্ছে।",
@@ -502,6 +568,9 @@ const bn: PortfolioLanguage = {
   concentration: "এক জায়গায় বেশি ওজন",
   insights: "পোর্টফোলিও ইনসাইট",
   highestRisk: "আজ সবচেয়ে বেশি ঝুঁকিতে",
+  lowestDailyContribution: "দৈনিক রিটার্নে সর্বনিম্ন অবদান",
+  dailyContributionBasis: "পোর্টফোলিওর দৈনিক রিটার্নে · তুলনাযোগ্য হোল্ডিংস",
+  percentagePoints: "শতাংশ পয়েন্ট",
 
   emailSummary: "Daily portfolio email",
   emailSummaryDetail:
@@ -520,6 +589,7 @@ const bn: PortfolioLanguage = {
   filterAttention: "যেগুলো দেখা দরকার",
 
   guidance: {
+    REVIEW_HOLDER_GUIDANCE: "প্রকাশিত হোল্ডার নির্দেশনা ও সীমাবদ্ধতা পর্যালোচনা করুন।",
     DATA_INCOMPLETE:
       "কিছু তথ্য এখনও বাকি। Quantity, average price বা market data পূরণ করুন।",
 
@@ -549,6 +619,7 @@ const bn: PortfolioLanguage = {
   },
 
   attentionLabels: {
+    HOLDER_REVIEW: "হোল্ডার নির্দেশনা পর্যালোচনা করুন",
     SUPPORT_BREAK: "গুরুত্বপূর্ণ support ভেঙেছে",
     SELL_OR_REDUCE: "SELL বা REDUCE signal",
     PRICE_QUALITY: "দামের তথ্য পুরোপুরি পরিষ্কার নয়",
@@ -573,11 +644,11 @@ const bn: PortfolioLanguage = {
   },
 
   priceStatus: {
-    FINALIZED: "Finalized price",
-    PROVISIONAL: "Live provisional price",
+    FINALIZED: "চূড়ান্ত দাম",
+    PROVISIONAL: "সাময়িক দাম",
     NON_TRADED: "আজ লেনদেন হয়নি",
     STALE_LAST_KNOWN: "সর্বশেষ পাওয়া পুরোনো দাম",
-    SUSPENDED: "Trading suspended",
+    SUSPENDED: "লেনদেন স্থগিত",
     SUSPICIOUS: "দামটি যাচাই করা দরকার",
     UNAVAILABLE: "দাম পাওয়া যায়নি",
   },

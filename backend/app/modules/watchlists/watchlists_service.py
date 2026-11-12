@@ -264,6 +264,7 @@ class WatchlistsService:
                     watching_days=watching_days,
                     watching_label=_build_watching_label(watching_days),
                     current_price=current_price,
+                    display_quote=mark,
                     trader_decision=trader_decision,
                     technical_snapshot=technical_snapshot,
                     decision_source=(

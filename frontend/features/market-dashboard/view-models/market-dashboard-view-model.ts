@@ -16,7 +16,7 @@ import {
   type LeadersPulseContext,
 } from "@/lib/market/market-pulse-metrics";
 import { buildMarketIndexContext } from "@/lib/market/market-index-context";
-import { getMarketSession } from "@/lib/market/market-session-engine";
+import { getMarketSession, isCurrentIntradaySession } from "@/lib/market/market-session-engine";
 import {
   buildLocalizedSignalReason,
   buildLocalizedSignalSupportingContext,
@@ -277,12 +277,13 @@ function applyDashboardLocalization(
     language.insights,
     language.narratives,
     {
+      locale,
       marketMood: model.marketMood,
       signalCount: model.signals.length,
       turnover: buildTurnoverInsightContext(
         pulse,
         resolveTurnoverLiquidityInsightKey(context.turnoverRatio),
-        model.session.state === "OPEN",
+        model.isIntraday,
       ),
     },
   );
@@ -501,7 +502,9 @@ export function buildMarketDashboardModel(
   const fallbackBreadth = { advancing: breadth.advancing, declining: breadth.declining, unchanged: breadth.unchanged, total: breadth.total };
   const marketMood = options?.marketMood ?? deriveMarketCondition([], fallbackBreadth);
   const dataQuality: DataQualityFlag | "UNKNOWN" = latestSummary?.data_quality_flag ?? "UNKNOWN";
+  const now = new Date();
   const session = getMarketSession({
+    now,
     latestTradeDate: latestSummary?.trade_date ?? freshness?.trade_date,
     dataQualityFlag: latestSummary?.data_quality_flag,
     freshness,
@@ -517,8 +520,26 @@ export function buildMarketDashboardModel(
     sessionTradeDate,
     leadersContext: options?.leadersContext,
   });
+  // Independent section requests can straddle publications. Only this hero's
+  // dated interpretation may supply its direction, index move or participation.
+  const insights = (options?.insights ?? []).filter((item) => !item.interpretation || Boolean(sessionTradeDate && item.interpretation.as_of_date === sessionTradeDate));
+  const interpretation = insights.find((item) => item.interpretation)?.interpretation;
+  if (interpretation) {
+    if (interpretation.index_change_percent === null) {
+      pulse.indexChangePercent = null;
+      pulse.indexChangeLabel = "—";
+      pulse.indexTone = "neutral";
+    }
+    const ratio = toNumber(interpretation.volume_vs_average);
+    pulse.volumeContext = {
+      ...pulse.volumeContext,
+      ratioVsAvg: ratio === null ? "N/A" : `${ratio.toFixed(2)}x`,
+      priorAverageSessions: interpretation.volume_average_sessions,
+    };
+  }
 
   const baseModel: MarketDashboardModel = {
+    isIntraday: isCurrentIntradaySession(session.state, pulse.latestTradeDate, now),
     exchange: latestSummary?.exchange ?? "DSE",
     marketMood,
     latestTradeDate: latestSummary?.trade_date ?? "Awaiting market summary",
@@ -564,7 +585,7 @@ export function buildMarketDashboardModel(
     heatmapTiles: options?.heatmapTiles ?? [],
     signals: options?.signals ?? [],
     timeline: options?.timeline ?? [],
-    insights: options?.insights ?? [],
+    insights,
     movers: options?.movers ?? buildDashboardMovers([], sessionTradeDate),
   };
 

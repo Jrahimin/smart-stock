@@ -24,6 +24,7 @@ export type TurnoverPulseContext = {
 };
 
 export type VolumePulseContext = {
+  priorAverageSessions?: number;
   insight: string;
   insightTone: PulseTone;
   primaryValue: string;

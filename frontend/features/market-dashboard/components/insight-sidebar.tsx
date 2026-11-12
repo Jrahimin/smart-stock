@@ -32,7 +32,7 @@ export const InsightSidebar = memo(function InsightSidebar({ insights, copy, mod
     ? premium.breadth(model.breadth.advancing, model.breadth.declining, formatPercent(model.pulse.indexChangePercent), premium.volumeAverage(volume)) : null;
   return (
     <section className="sw-insights" aria-labelledby="sw-insights-title" aria-busy={loading}>
-      <h2 className="sw-section-title" id="sw-insights-title">Insights</h2>
+      <h2 className="sw-section-title" id="sw-insights-title">{copy.insightsTitle}</h2>
       {error ? <p className="sw-state sw-warning" role="status">{copy.insightsError}</p> : null}
       {loading ? <p className="sw-state" role="status">{copy.loading}</p> : !insights.length && !error ? <p className="sw-state">{copy.insightsEmpty}</p> : null}
       <div className="sw-insight-grid">{!loading && insights.map((insight) => (
@@ -44,7 +44,8 @@ export const InsightSidebar = memo(function InsightSidebar({ insights, copy, mod
           {insight.id === "market-mood" ? <>
             <div className="sw-sector-sculpture" aria-hidden="true"><i /><i /><i /><i /></div>
             <h3>{insight.title}</h3>
-            <p>{relationship ?? insight.description}</p>
+            <p>{insight.interpretation ? insight.description : relationship ?? insight.description}</p>
+            {insight.interpretation && <small>{insight.interpretation.as_of_date ?? "—"} · {insight.interpretation.breadth.known_count}/{insight.interpretation.breadth.cohort_count} {locale === "bn" ? "পরিমাপ করা" : "measured"} · {insight.interpretation.breadth.unknown_count} {locale === "bn" ? "অজানা" : "unknown"}</small>}
 
           </> : <>
             <h3 className="sw-activity-headline">{percent ? locale === "bn" ? <>এভারেজের {percent} <span>লেনদেন</span></> : <>{percent}<span>{premium.ratio}</span></> : premium.unavailable}</h3>

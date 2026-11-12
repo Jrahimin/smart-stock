@@ -1,6 +1,8 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAccountMutation } from "@/features/watchlist/hooks/use-account-mutation";
+import { assertBackendAuthSession, getBackendAuthSessionVersion, isBackendAuthSessionCurrent } from "@/lib/api/backend-api-client";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef } from "react";
 
 import { useAuth } from "@/features/auth/context/auth-context";
@@ -14,44 +16,36 @@ import type { AppLocale } from "@/lib/locale/app-locale";
 export function usePortfolioEmailPreference(locale: AppLocale) {
   const { isAuthenticated, user } = useAuth();
   const queryClient = useQueryClient();
-  const queryKey = ["portfolio", "email-preference", user?.id ?? "anonymous"] as const;
-  const syncedLocaleRef = useRef<AppLocale | null>(null);
+  const userId = user?.id ?? "anonymous";
+  const sessionVersion = getBackendAuthSessionVersion();
+  const queryKey = ["portfolio", "email-preference", userId] as const;
+  const syncedLocaleRef = useRef<string | null>(null);
 
   const query = useQuery({
     queryKey,
-    queryFn: getPortfolioEmailPreference,
+    queryFn: () => { assertBackendAuthSession(sessionVersion); return getPortfolioEmailPreference(); },
     enabled: isAuthenticated,
     staleTime: 60_000,
   });
 
-  const mutation = useMutation({
-    mutationFn: savePortfolioEmailPreference,
-    onMutate: async (payload) => {
-      await queryClient.cancelQueries({ queryKey });
-      const previous = queryClient.getQueryData<PortfolioEmailPreferenceDto>(queryKey);
-      queryClient.setQueryData<PortfolioEmailPreferenceDto>(queryKey, payload);
-      return { previous };
-    },
-    onError: (_error, _payload, context) => {
-      if (context?.previous) {
-        queryClient.setQueryData(queryKey, context.previous);
-      }
-    },
-    onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey, refetchType: "inactive" });
-    },
+  const mutation = useAccountMutation("email-preference", (payload: PortfolioEmailPreferenceDto) => savePortfolioEmailPreference(payload), {
+    onSettled: (_data, _error, _input, account) => queryClient.invalidateQueries({
+      queryKey: ["portfolio", "email-preference", account.userId],
+      refetchType: isBackendAuthSessionCurrent(account.sessionVersion) ? "active" : "none",
+    }),
   });
 
   useEffect(() => {
     if (!isAuthenticated || !query.isSuccess || !query.data) return;
+    const syncKey = `${userId}:${sessionVersion}:${locale}`;
     if (query.data.locale === locale) {
-      syncedLocaleRef.current = locale;
+      syncedLocaleRef.current = syncKey;
       return;
     }
-    if (syncedLocaleRef.current === locale) return;
-    syncedLocaleRef.current = locale;
+    if (syncedLocaleRef.current === syncKey) return;
+    syncedLocaleRef.current = syncKey;
     mutation.mutate({ enabled: query.data.enabled, locale });
-  }, [isAuthenticated, locale, mutation, query.data, query.isSuccess]);
+  }, [isAuthenticated, locale, mutation, query.data, query.isSuccess, sessionVersion, userId]);
 
   const toggle = useCallback((next: boolean) => {
     mutation.mutate({ enabled: next, locale });

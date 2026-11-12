@@ -21,7 +21,7 @@ describe("scanner language", () => {
     expect(breakout.title).toContain("Break Event");
     expect(getScannerCategoryDescription(breakout, false)).toContain("Resistance");
     expect(getScannerCategoryDescription(breakout, true)).toContain("Resistance");
-    expect(language.categories.oversold_rebound.title).toContain("Weak-RSI");
+    expect(language.categories.oversold_rebound.title).toBe("Support rebound");
   });
 
   it("keeps en copy unchanged", () => {

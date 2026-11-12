@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -128,7 +129,17 @@ class DashboardInsightRead(BaseModel):
     source: str
 
 
+class MarketInterpretationRead(BaseModel):
+    code: Literal["ALIGNED_UP", "ALIGNED_DOWN", "DIVERGENT", "MIXED", "INDEX_ONLY", "BREADTH_ONLY", "UNAVAILABLE"]
+    as_of_date: date | None = None
+    index_change_percent: Decimal | None = None
+    breadth: BreadthRead
+    volume_vs_average: Decimal | None = None
+    volume_average_sessions: int = 0
+
+
 class DashboardMarketSentimentRead(BaseModel):
+    interpretation: MarketInterpretationRead | None = None
     market_status: str | None = None
     breadth: BreadthRead | None = None
     exchange: ExchangeCode

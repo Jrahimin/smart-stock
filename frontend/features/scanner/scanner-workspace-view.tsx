@@ -1,5 +1,6 @@
 "use client";
 
+import { controllingReasonLabel, selectedDecisionExplanation } from "@/lib/market/decision-presentation";
 import { EntryApplicabilityLabel } from "@/components/market/entry-applicability-label";
 import Link from "next/link";
 import { useMemo, useState } from "react";
@@ -29,7 +30,7 @@ import { buildStockDetailPath } from "@/lib/seo/stock-page-seo";
 
 type ScannerCategoryView = {
   id: ScannerCategoryId;
-  items: StockIntelligenceModel[];
+  items: ReturnType<typeof buildScannerCategoryItems>;
 };
 
 type ScannerWorkspaceViewProps = {
@@ -156,13 +157,15 @@ export function ScannerWorkspaceView({ locale = DEFAULT_LOCALE }: ScannerWorkspa
                   {category.items.length ? (
                     category.items.map((stock) => {
                       const decision = resolveTraderDecision(stock);
+                      const selected = selectedDecisionExplanation(stock.traderDecision, locale);
+                      const policy = controllingReasonLabel(decision.reasonCode, "", locale);
 
                       return (
                         <Link className="scanner-result-card" href={buildStockDetailPath(stock.stock.exchange, stock.stock.symbol)} key={stock.stock.id}>
                           <div className="scanner-card-topline">
                             <strong>{stock.stock.symbol}</strong>
                             <div className="scanner-card-actions">
-                              <WatchlistStarToggle stockId={stock.stock.id} stopPropagation />
+                              <WatchlistStarToggle locale={locale} stockId={stock.stock.id} stopPropagation />
                               <SignalBadge locale={locale} signal={decision.recommendation} />
                             </div>
                           </div>
@@ -170,24 +173,10 @@ export function ScannerWorkspaceView({ locale = DEFAULT_LOCALE }: ScannerWorkspa
                             {formatNumber(stock.latestPrice)} / {formatPercent(stock.priceChangePercent)}
                           </span>
                           <QuotePublicationLabel locale={locale} quote={stock.displayQuote} />
-                          {decision.recommendation === "POTENTIAL_BUY" && decision.entryCondition ? (
-                            <small className="scanner-entry-condition">
-                              {localizeEntryCondition(decision.entryCondition, locale)}
-                            </small>
-                          ) : null}
-                          {decision.recommendation === "POTENTIAL_BUY" ? <EntryApplicabilityLabel assessment={decision.entryApplicability} locale={locale} /> : null}
-                          <div className="mini-momentum-bar" aria-label={language.states.momentumAria}>
-                            <span style={{ width: `${Math.min(100, Math.abs(stock.priceChangePercent ?? 0) * 12)}%` }} />
-                          </div>
-                          <small className="scanner-context-row">
-                            <span>
-                              {language.metrics.rsi} {formatNumber(stock.rsi)}
-                            </span>
-                            <span>
-                              {language.metrics.vol} {formatCompactNumber(stock.volume)}
-                            </span>
-                            <span className={`trend-icon trend-icon-${stock.trend.toLowerCase()}`} aria-label={stock.trend} title={stock.trend} />
-                          </small>
+                          <small>{locale === "bn" ? "নতুন অবস্থান বিবেচনায় · সিদ্ধান্ত" : "Prospective entry · Decision"} · {stock.decisionDate ?? "—"}</small>
+                          <EntryApplicabilityLabel assessment={decision.entryApplicability} locale={locale} policyReason={policy} />
+                          {(policy || selected.limitation) && decision.entryApplicability?.reason_code !== "ACTION_NOT_PERMITTED" ? <p className="scanner-entry-condition">{policy || selected.limitation}</p> : null}
+                          <small>{scannerMatchReason(stock.scannerMatch.reason_code, locale)}</small>
                         </Link>
                       );
                     })
@@ -205,4 +194,17 @@ export function ScannerWorkspaceView({ locale = DEFAULT_LOCALE }: ScannerWorkspa
       ) : null}
     </section>
   );
+}
+
+
+export function scannerMatchReason(code: string, locale: AppLocale): string {
+  const reasons: Record<string, [string, string]> = {
+    price_volume_break_event: ["Discovery: price crossed prior resistance with expanded relative volume.", "খোঁজের কারণ: relative volume বেড়ে দাম আগের resistance পেরিয়েছে।"],
+    support_reclaim_event: ["Discovery: support rebound; price reclaimed the support band.", "খোঁজের কারণ: support rebound; দাম support সীমা পুনরুদ্ধার করেছে।"],
+    uptrend_positive_5d_return: ["Discovery: uptrend with a positive five-session return.", "খোঁজের কারণ: ঊর্ধ্বমুখী প্রবণতায় পাঁচ সেশনের পরিবর্তন ইতিবাচক।"],
+    support_break_event: ["Discovery: price crossed below prior support.", "খোঁজের কারণ: দাম আগের support-এর নিচে নেমেছে।"],
+    elevated_trading_risk: ["Discovery: elevated trading risk.", "খোঁজের কারণ: ট্রেডিং ঝুঁকি বেশি।"],
+    low_volatility_compression: ["Discovery: measured low-volatility compression.", "খোঁজের কারণ: পরিমাপ করা কম অস্থিরতার সীমায় দাম আছে।"],
+  };
+  return reasons[code]?.[locale === "bn" ? 1 : 0] ?? (locale === "bn" ? "এই বাছাইয়ের প্রকাশিত শর্ত মিলে গেছে।" : "Matches this scan's published condition.");
 }

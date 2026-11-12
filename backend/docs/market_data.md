@@ -242,3 +242,13 @@ Key settings in `backend/app/core/core_config.py`:
 * Stock master: `backend/docs/stocks.md`
 * Fundamentals / per-symbol history: `backend/docs/stock_details.md`
 * API shapes: `backend/docs/api_collection.md`
+
+## Quote timing provenance (Order 4 extension)
+
+`daily_prices.source_observed_at` and `batch_fetched_at` are nullable, timezone-aware clocks added by migration `c7p8q9r0s1t2`. The migration does not backfill either field. Source observation is an adapter-supplied quote clock; batch retrieval is captured by the HTTP client after the response body is received, before decoding. Database `updated_at`, generation publication time, HTTP `Date`, resource `Last-Modified` and `Age` do not become source observation time.
+
+The current AmarStock bulk adapter supplies the genuine batch receipt. Its supported arrays contain no verified per-quote/session snapshot observation clock, so it leaves source observation null. The legacy LatestPrice `CreatedOn` parser is not evidence for the bulk feed: the current columnar mapping does not deliver that field. Display projections retain the distinction; retrieval alone never makes a fresh entry applicable. Restored and historical rows remain unknown.
+
+The primary adapter rejects future HTTP Date/Last-Modified instants and either header's date earlier than the requested session (calendar comparison in Asia/Dhaka), before writes or generation publication. This also rejects a cached Date-only previous-day response when Last-Modified is absent. A later response/modification is allowed for after-midnight recovery while retaining the requested historical trade date and unknown source clock. Missing headers remain unknown; this guard does not establish the age of an undated body or promote resource modification into quote timing.
+
+Changed-only upserts preserve a known source clock on identical unknown replays, reject out-of-order supplied observation/receipt metadata, and can advance observation metadata without changing canonical input fields, `updated_at` or the canonical calculation hash. Existing accepted snapshot ingestion still publishes its LIVE quote generation even when canonical changed count is zero; finalized decisions are not rewritten. Forward captures label database-write, source and batch clocks separately; the legacy `source_observations.observed_at` alias remains database-write time and is not point-in-time availability evidence.

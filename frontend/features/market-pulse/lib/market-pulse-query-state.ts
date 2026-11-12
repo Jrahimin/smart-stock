@@ -67,6 +67,7 @@ export function resolveMarketPulseSummary(
     anonymousSummary,
     personalizedSummary,
     resolvedSummary,
+    summaryOwner: personalizedValid ? "personalized" as const : anonymousValid ? "anonymous" as const : null,
   };
 }
 

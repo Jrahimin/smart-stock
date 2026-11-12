@@ -169,8 +169,9 @@ def build_quote_projection(prices, *, finality="FINALIZED", session_date=None) -
         "source": latest.source if latest else None,
         "data_quality": latest.data_quality_flag.value if latest else None,
         "ingested_at": latest.updated_at if latest else None,
-        # DailyPrice has no upstream observation timestamp. Ingestion cannot prove freshness.
+        # Provider observation and actual batch receipt have distinct meanings.
         "source_observed_at": getattr(latest, "source_observed_at", None) if latest else None,
+        "batch_fetched_at": getattr(latest, "batch_fetched_at", None) if latest else None,
         "current_price": float(latest.close_price) if latest else None,
         "price_change_percent": float(latest.price_change_percent)
         if latest and latest.price_change_percent is not None
@@ -206,6 +207,8 @@ def resolve_account_mark(*, row=None, fallback_price=None):
             observation_status="NO_TRADE" if fallback_price.volume == 0 else "FINALIZED",
             source=getattr(fallback_price, "source", None), data_quality=fallback_price.data_quality_flag,
             ingested_at=getattr(fallback_price, "updated_at", None),
+            source_observed_at=getattr(fallback_price, "source_observed_at", None),
+            batch_fetched_at=getattr(fallback_price, "batch_fetched_at", None),
         )
     if display is None and row is not None and row.technical_snapshot is not None:
         # Compatibility for old cached rows: the dated session is an explicitly dated mark.

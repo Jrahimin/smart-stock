@@ -50,6 +50,13 @@ function isLikelyStale(latestTradeDate: string | null | undefined, now: Date) {
   return ageMs > 1000 * 60 * 60 * 24 * 5;
 }
 
+/** Partial-session copy describes today's dated facts, not just the current exchange status. */
+export function isCurrentIntradaySession(state: MarketSessionState, tradeDate: string | null | undefined, now = new Date()): boolean {
+  if (state !== "OPEN" || !tradeDate) return false;
+  const dayStart = new Date(`${tradeDate}T00:00:00+06:00`).getTime();
+  return Number.isFinite(dayStart) && now.getTime() >= dayStart && now.getTime() < dayStart + 24 * 60 * 60 * 1000;
+}
+
 function sessionFromFreshness(freshness: BackendMarketFreshnessDto): MarketSessionModel {
   const status = freshness.market_status;
   const pollingMs = freshness.snapshot_interval_minutes * 60 * 1000;

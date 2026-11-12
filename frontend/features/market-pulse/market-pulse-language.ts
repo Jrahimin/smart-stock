@@ -99,8 +99,8 @@ export type MarketPulseLanguage = {
     title: string;
     subtitle: string;
     freshSignals: string;
-    newToday: (count: number) => string;
-    upgradedToday: (count: number) => string;
+    newToday: (count: number, sessionDate?: string | null) => string;
+    upgradedToday: (count: number, sessionDate?: string | null) => string;
     narrative: (sector: string) => string;
     cardSubtitle: (
       kind: MarketPulseLeadershipCardKind | null,
@@ -190,8 +190,8 @@ const marketPulseLanguage = {
         `${count} instruments flagged for data quality review.`,
     },
     sinceLastVisit: {
-      ariaLabel: "Since your last visit",
-      label: "Since your last visit",
+      ariaLabel: "Since this browser’s last visit",
+      label: "Since this browser’s last visit",
       changes: "Changes",
       newFocus: "New focus",
       alerts: "Alerts",
@@ -254,10 +254,10 @@ const marketPulseLanguage = {
     },
     leadership: {
       title: "Market Leadership",
-      subtitle: "Who's leading the market today.",
+      subtitle: "Leaders in the analyzed session.",
       freshSignals: "Fresh Signals (Buy)",
-      newToday: (count) => `New Today: ${count}`,
-      upgradedToday: (count) => `Upgraded Today: ${count}`,
+      newToday: (count, date) => `New for ${date ?? "the decision session"}: ${count}`,
+      upgradedToday: (count, date) => `Upgraded for ${date ?? "the decision session"}: ${count}`,
       narrative: (sector) =>
         `Leadership remains concentrated in ${sector}.`,
       cardSubtitle: (_, rawSubtitle) => rawSubtitle,
@@ -321,8 +321,8 @@ const marketPulseLanguage = {
       whyScoreAria: (score) => `Why score is ${score}`,
       whyScoreTitle: (score) => `Why score is ${score}`,
       signalStrength: "Signal Strength",
-      volumeExpansion: "Volume Expansion",
-      participationScore: "Participation Score",
+      volumeExpansion: "Volume contribution points",
+      participationScore: "Trend + momentum points",
       riskLevel: "Attention score deduction",
       tradingRisk: "Trading risk",
       bandLabels: {
@@ -370,7 +370,7 @@ const marketPulseLanguage = {
 
     sinceLastVisit: {
       ariaLabel: "শেষবার দেখার পর",
-      label: "শেষবার দেখার পর",
+      label: "এই ব্রাউজারে শেষবার দেখার পর",
       changes: "পরিবর্তন",
       newFocus: "নতুন নজরে",
       alerts: "Alert",
@@ -487,14 +487,13 @@ const marketPulseLanguage = {
     },
 
     leadership: {
-      title: "আজ কারা এগিয়ে",
+      title: "বিশ্লেষণের সেশনে এগিয়ে",
       subtitle: "বাজারের নেতৃত্বে থাকা শেয়ার ও সেক্টর।",
       freshSignals: "নতুন Potential Buy Setup",
-      newToday: (count) => `আজ নতুন: ${count}`,
-      upgradedToday: (count) =>
-        `আজ উন্নতি হয়েছে: ${count}`,
+      newToday: (count, date) => `${date ?? "সিদ্ধান্তের সেশন"}-এর জন্য নতুন: ${count}`,
+      upgradedToday: (count, date) => `${date ?? "সিদ্ধান্তের সেশন"}-এর জন্য উন্নীত: ${count}`,
       narrative: (sector) =>
-        `আজ ${sector} সেক্টর বেশি এগিয়ে।`,
+        `${sector} সেক্টর এগিয়ে আছে।`,
       cardSubtitle: (kind, rawSubtitle) => {
         if (kind === "sector") {
           const count =
@@ -627,7 +626,7 @@ const marketPulseLanguage = {
         if (
           /decision upgraded to POTENTIAL_BUY/i.test(reason)
         ) {
-          return "Decision আজ Potential Buy হয়েছে";
+          return "প্রকাশিত তুলনাযোগ্য সিদ্ধান্ত Potential Buy-তে উন্নীত হয়েছে";
         }
 
         if (/momentum improving/i.test(reason)) {
@@ -828,8 +827,8 @@ const marketPulseLanguage = {
       whyScoreTitle: (score) =>
         `Score ${score} কেন`,
       signalStrength: "Signal কতটা শক্ত",
-      volumeExpansion: "Volume কতটা বেড়েছে",
-      participationScore: "অংশগ্রহণের Score",
+      volumeExpansion: "Volume-এর অবদান পয়েন্ট",
+      participationScore: "Trend + momentum পয়েন্ট",
       riskLevel: "Attention score থেকে কমেছে",
       tradingRisk: "ট্রেডিং ঝুঁকি",
       bandLabels: {

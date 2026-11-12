@@ -3,9 +3,10 @@ import type {
   TraderRecommendation,
 } from "@/lib/api/backend-api-types";
 import type { StockIntelligenceModel } from "@/lib/market/market-intelligence-types";
+import { compatibleDisplayAction } from "@/lib/market/decision-action-compatibility";
 
 export type ResolvedTraderDecision = {
-  recommendation: DecisionDisplayAction;
+  recommendation: DecisionDisplayAction | null;
   confidence: number;
   evidenceStatus: string;
   reason: string;
@@ -44,10 +45,7 @@ export function resolveWatchlistAction(
 ): DecisionDisplayAction | null {
   const decision = intelligence?.traderDecision;
   if (decision && !isHolding) {
-    return (
-      decision.display_action ??
-      (decision.recommendation === "SELL" ? "SELL" : "WAIT")
-    );
+    return compatibleDisplayAction(decision);
   }
   const contextualAction = decision?.holder_action ?? backendContextualAction;
 
@@ -66,41 +64,18 @@ export function resolveWatchlistAction(
 
   // A quote/technical row without a canonical decision is an updating state,
   // not evidence for a real WAIT action.
-  return decision ? "WAIT" : null;
+  return null;
 }
 
 export function getPreviousSessionRecommendation(stock: StockIntelligenceModel): DecisionDisplayAction | null {
-  const previousFinalized = stock.previousFinalizedDecision;
-  if (previousFinalized && previousFinalized.as_of_date === stock.traderDecision?.canonical?.previous_session_date) {
-    return previousFinalized.display_action ?? null;
-  }
-  const persisted = stock.persistedSignal;
-  const canonical = stock.traderDecision?.canonical;
-  if (
-    !persisted ||
-    !canonical ||
-    !canonical.previous_session_date ||
-    persisted.strategyVersion !== canonical.strategy_version ||
-    persisted.thresholdVersion !== canonical.threshold_version ||
-    persisted.actionTaxonomy !== canonical.action_taxonomy ||
-    canonical.decision_taxonomy_version !== "v2" ||
-    persisted.signalAsOf !== canonical.previous_session_date ||
-    !persisted.canonicalRecommendation
-  ) {
-    return null;
-  }
-  return resolveVersionedInternalAction(
-    persisted.canonicalRecommendation,
-    persisted.actionTaxonomy,
-    canonical.decision_taxonomy_version,
-  );
+  return stock.publicComparison && stock.publicComparison.status !== "UNCOMPARABLE" && stock.publicComparison.current_action === compatibleDisplayAction(stock.traderDecision) ? stock.publicComparison.previous_action ?? null : null;
 }
 
 export function isTraderDecisionChangedThisSession(stock: StockIntelligenceModel): boolean {
   const current = resolveTraderDecision(stock).recommendation;
   const previous = getPreviousSessionRecommendation(stock);
 
-  if (!previous || !stock.latestTradeDate) {
+  if (!previous || !current || !stock.latestTradeDate) {
     return false;
   }
 
@@ -110,14 +85,12 @@ export function isTraderDecisionChangedThisSession(stock: StockIntelligenceModel
 export function resolveTraderDecision(stock: StockIntelligenceModel): ResolvedTraderDecision {
   if (stock.traderDecision) {
     return {
-      recommendation:
-        stock.traderDecision.display_action ??
-        (stock.traderDecision.recommendation === "SELL" ? "SELL" : "WAIT"),
+      recommendation: compatibleDisplayAction(stock.traderDecision),
       confidence: stock.traderDecision.confidence,
       evidenceStatus: stock.traderDecision.evidence_status ?? "UNAVAILABLE",
       reason: stock.traderDecision.reason,
       reasonCode: stock.traderDecision.primary_reason_code ?? null,
-      riskLabel: stock.traderDecision.trading_risk?.label ?? stock.traderDecision.risk_label,
+      riskLabel: stock.traderDecision.trading_risk?.label ?? stock.traderDecision.risk_label ?? "UNKNOWN",
       opportunityScore: stock.traderDecision.opportunity_score,
       entryTiming: stock.traderDecision.entry_timing ?? null,
       entryCondition: stock.traderDecision.entry_condition ?? null,
@@ -129,12 +102,12 @@ export function resolveTraderDecision(stock: StockIntelligenceModel): ResolvedTr
   }
 
   return {
-    recommendation: "WAIT",
+    recommendation: null,
     confidence: 0,
     evidenceStatus: "UNAVAILABLE",
     reason: "Decision unavailable; awaiting a validated finalized result.",
     reasonCode: null,
-    riskLabel: stock.signal.risk,
+    riskLabel: "UNKNOWN",
     opportunityScore: null,
     entryTiming: null,
     entryCondition: null,
@@ -186,8 +159,8 @@ export function buildDecisionSupportingContext(stock: StockIntelligenceModel): s
   if (stock.rsi !== null) {
     context.push(`RSI ${stock.rsi.toFixed(1)}`);
   }
-  if (stock.averageVolume && stock.averageVolume > 0) {
-    context.push(`Volume ${(stock.volume / stock.averageVolume).toFixed(1)}x avg`);
+  if (stock.latestVolumeRatio != null) {
+    context.push(`Volume ${stock.latestVolumeRatio.toFixed(1)}x avg`);
   }
   context.push(`Trend ${stock.trend.replace("_", " ").toLowerCase()}`);
   const decision = resolveTraderDecision(stock);
@@ -197,7 +170,7 @@ export function buildDecisionSupportingContext(stock: StockIntelligenceModel): s
   return context;
 }
 
-export function isActionableDecision(recommendation: DecisionDisplayAction): boolean {
+export function isActionableDecision(recommendation: DecisionDisplayAction | null): boolean {
   return recommendation === "POTENTIAL_BUY" || recommendation === "SELL";
 }
 

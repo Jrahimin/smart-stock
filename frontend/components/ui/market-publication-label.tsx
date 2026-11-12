@@ -8,14 +8,17 @@ export type DecisionPublication = {
 };
 
 export type QuotePublication = {
+  source_observed_at?: string | null;
+  batch_fetched_at?: string | null;
   as_of_trade_date?: string | null;
   observation_session_date?: string | null;
   observation_status?: string | null;
 };
 
-export function DecisionPublicationLabel({ decision, locale }: {
+export function DecisionPublicationLabel({ decision, locale, compact = false }: {
   decision?: DecisionPublication | null;
   locale: AppLocale;
+  compact?: boolean;
 }) {
   if (!decision?.decision_status && !decision?.decision_session_date) return null;
   const bn = locale === "bn";
@@ -24,6 +27,15 @@ export function DecisionPublicationLabel({ decision, locale }: {
     : decision.decision_status === "UNAVAILABLE"
       ? (bn ? "সিদ্ধান্ত পাওয়া যায়নি" : "Decision unavailable")
       : (bn ? "চূড়ান্ত সিদ্ধান্ত" : "Finalized decision");
+  if (compact) {
+    const brief = decision.decision_status === "UPDATING" ? (bn ? "আপডেট হচ্ছে" : "Updating")
+      : decision.decision_status === "UNAVAILABLE" ? (bn ? "অনুপলব্ধ" : "Unavailable") : (bn ? "চূড়ান্ত" : "Finalized");
+    return <small className="decision-publication-compact" data-decision-status={decision.decision_status}>
+      <span className="sr-only">{label}{decision.decision_session_date ? ` · ${decision.decision_session_date}` : ""}</span>
+      <span aria-hidden="true">{brief}</span>
+      {decision.decision_session_date && <time aria-hidden="true" dateTime={decision.decision_session_date}>{decision.decision_session_date}</time>}
+    </small>;
+  }
   return <small data-decision-status={decision.decision_status}>
     {label}{decision.decision_session_date ? ` · ${decision.decision_session_date}` : ""}
   </small>;

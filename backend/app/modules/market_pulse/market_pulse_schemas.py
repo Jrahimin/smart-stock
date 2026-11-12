@@ -20,6 +20,8 @@ from app.core.enums import (
 
 from app.modules.stock_details.decision.entry_applicability import EntryApplicabilityRead
 from app.modules.market_data.breadth import BreadthRead
+from app.modules.market_universe.market_universe_schemas import DisplayQuoteRead
+from app.modules.stock_details.decision.comparison import PublicDecisionComparisonRead
 
 
 class PulseScoreBreakdownRead(BaseModel):
@@ -36,6 +38,9 @@ class PulseScoreBreakdownRead(BaseModel):
 
 
 class FocusStockRead(BaseModel):
+    display_quote: DisplayQuoteRead | None = None
+    decision_taxonomy_version: str | None = None
+    public_comparison: PublicDecisionComparisonRead | None = None
     entry_applicability: EntryApplicabilityRead | None = None
     entry_risk_label: str | None = None
     entry_readiness: str = "NOT_READY"
@@ -185,6 +190,7 @@ class OpportunityScoreRead(BaseModel):
 
 
 class PulseCoverageRead(BaseModel):
+    quote_generation_id: str | None = None
     market_status: str | None = None
     breadth: BreadthRead | None = None
     score_version: str = PULSE_SCORE_VERSION
@@ -296,6 +302,7 @@ class MarketPulsePreviousSnapshot(BaseModel):
 
 
 class MarketPulseRead(BaseModel):
+    quote_generation_id: str | None = None
     hero: MarketPulseHeroRead
     since_last_visit: SinceLastVisitRead
     briefing: MarketBriefingRead | None
@@ -317,6 +324,7 @@ class MarketPulseRead(BaseModel):
 
 
 class MarketPulseSummaryRead(BaseModel):
+    quote_generation_id: str | None = None
     hero: MarketPulseHeroRead
     since_last_visit: SinceLastVisitRead
     focus_stocks: list[FocusStockRead]

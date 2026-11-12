@@ -57,11 +57,11 @@ function buildSignalsLanguage(locale: AppLocale): SignalsLanguage {
     return {
       hero: {
         eyebrow: "Signal Center",
-        title: "Explanation-first trader decisions",
+        title: "Signals",
         loadingSubtitle:
-          "Loading decision-ready names from the shared deterministic engine",
+          "Loading stock decisions",
         readySubtitle: (count) =>
-          `${count} decision-ready names from the shared deterministic engine`,
+          `${count} evaluated names matching your filters`,
         filterContextName: "signal center",
       },
       filters: {
@@ -74,12 +74,12 @@ function buildSignalsLanguage(locale: AppLocale): SignalsLanguage {
         highestConviction: "Highest conviction",
         newest: "Newest/as-of",
         riskAdjusted: "Risk-adjusted",
-        volumeConfirmed: "Volume-confirmed",
+        volumeConfirmed: "Volume participation rank",
       },
       states: {
         loadError: "Could not load signal data.",
         loading: "Loading trader decisions...",
-        emptyTitle: "No decision-ready names match these filters",
+        emptyTitle: "No names match these filters",
         emptyDescription:
           "Adjust action, risk, or symbol filters after the universe finishes loading.",
         awaitingPriceData: "Awaiting price data",
@@ -115,11 +115,11 @@ function buildSignalsLanguage(locale: AppLocale): SignalsLanguage {
   return {
     hero: {
       eyebrow: "Signal Center",
-      title: "বিশ্লেষণ সহ ট্রেডের সিদ্ধান্ত",
+      title: "শেয়ারের সংকেত",
       loadingSubtitle:
-        "বাজারের তথ্য দেখে সিদ্ধান্ত নেওয়ার মতো শেয়ার খোঁজা হচ্ছে",
+        "শেয়ারের প্রকাশিত সিদ্ধান্ত আনা হচ্ছে",
       readySubtitle: (count) =>
-        `সিদ্ধান্ত নেওয়ার মতো ${count}টি শেয়ার পাওয়া গেছে`,
+        `আপনার ফিল্টারে ${count}টি শেয়ারের মূল্যায়ন মিলে`,
       filterContextName: "signal center",
     },
 
@@ -133,7 +133,7 @@ function buildSignalsLanguage(locale: AppLocale): SignalsLanguage {
       highestConviction: "সবচেয়ে শক্ত Signal",
       newest: "সর্বশেষ",
       riskAdjusted: "Risk বিবেচনায়",
-      volumeConfirmed: "Volume-এর সাপোর্ট আছে",
+      volumeConfirmed: "লেনদেনে অংশগ্রহণের ক্রম",
     },
 
     states: {

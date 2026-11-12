@@ -40,10 +40,11 @@ def derive_market_mood_from_snapshot(
     advancing: int,
     declining: int,
 ) -> str:
-    if not rows:
+    if not rows or not any(row.technical.ohlcv_row_count > 1 for row in rows):
+        # The lightweight HTTP snapshot is one bar; it cannot establish history-dependent mood.
         return "Unknown"
 
-    average_move = _average([row.technical.price_change_percent or 0 for row in rows]) or 0
+    average_move = _average([row.technical.price_change_percent for row in rows if row.technical.price_change_percent is not None]) or 0
     average_volatility = _average([row.technical.volatility or 0 for row in rows]) or 0
     volume_expansion = sum(
         1
@@ -484,3 +485,32 @@ def build_market_insights(
         )
 
     return insights
+
+
+def measured_market_interpretation(*, breadth, index, summaries, session_date):
+    """Describe same-session signs and measured participation, without a mood/history claim."""
+    from app.modules.market_dashboard.market_dashboard_schemas import MarketInterpretationRead
+    move = index.index_change_percent if index and index.index_close is not None and index.index_close > 0 and index.trade_date == session_date else None
+    known = breadth.known_count > 0
+    net = breadth.advancing - breadth.declining
+    if move is None:
+        code = "BREADTH_ONLY" if known else "UNAVAILABLE"
+    elif not known:
+        code = "INDEX_ONLY"
+    elif move > 0 and net > 0:
+        code = "ALIGNED_UP"
+    elif move < 0 and net < 0:
+        code = "ALIGNED_DOWN"
+    elif move * net < 0:
+        code = "DIVERGENT"
+    else:
+        code = "MIXED"
+    previous = {row.trade_date: row.total_volume for row in summaries
+        if index and session_date and row.trade_date < session_date and row.index_name == index.index_name
+        and row.total_volume is not None and row.total_volume >= 0 and row.data_quality_flag != DataQualityFlag.SUSPICIOUS}
+    values = [Decimal(str(previous[day])) for day in sorted(previous, reverse=True)[:30]]
+    average = sum(values) / len(values) if values else None
+    current = index.total_volume if index and index.trade_date == session_date else None
+    ratio = Decimal(str(current)) / average if current is not None and current >= 0 and average is not None and average > 0 else None
+    return MarketInterpretationRead(code=code, as_of_date=session_date, index_change_percent=move,
+        breadth=breadth, volume_vs_average=ratio, volume_average_sessions=len(values))

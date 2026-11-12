@@ -17,6 +17,8 @@ from app.modules.stocks.stocks_schemas import StockRead
 
 
 class DailyPriceBase(BaseModel):
+    source_observed_at: datetime | None = None
+    batch_fetched_at: datetime | None = None
     stock_id: UUID
     trade_date: date
     open_price: Decimal = Field(ge=0)
@@ -36,6 +38,13 @@ class DailyPriceBase(BaseModel):
     turnover_provenance: TurnoverProvenance = TurnoverProvenance.UNKNOWN
     source: str = Field(min_length=1, max_length=80)
     data_quality_flag: DataQualityFlag = DataQualityFlag.OK
+
+    @field_validator("source_observed_at", "batch_fetched_at")
+    @classmethod
+    def require_aware_time(cls, value):
+        if value is not None and (value.tzinfo is None or value.utcoffset() is None):
+            raise ValueError("observation timestamps must include a timezone")
+        return value
 
     @field_validator("source", mode="before")
     @classmethod

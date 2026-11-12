@@ -505,13 +505,20 @@ class MarketDataRepository(BaseRepository[DailyPrice]):
             column.name
             for column in DailyPrice.__table__.columns
             if column.name in values
-            and column.name not in {"id", "stock_id", "trade_date", "created_at", "updated_at"}
+            and column.name not in {"id", "stock_id", "trade_date", "created_at", "updated_at", "source_observed_at", "batch_fetched_at"}
         ]
         update_values = {
             column: getattr(statement.excluded, column)
             for column in mutable_columns
         }
+        for field in ("source_observed_at", "batch_fetched_at"):
+            if field in values:
+                update_values[field] = values[field]
         update_values["updated_at"] = func.now()
+        ordered = and_(true(), *[
+            or_(getattr(DailyPrice, field).is_(None), getattr(DailyPrice, field) <= values[field])
+            for field in ("source_observed_at", "batch_fetched_at") if values.get(field) is not None
+        ])
         changed = or_(
             *(
                 getattr(DailyPrice, column).is_distinct_from(
@@ -528,10 +535,22 @@ class MarketDataRepository(BaseRepository[DailyPrice]):
                     (DailyPrice.source == "AMARSTOCK_API")
                     & (statement.excluded.source != "AMARSTOCK_API")
                 )
-                & changed
+                & changed & ordered
             ),
         ).returning(DailyPrice)
-        return await self.session.scalar(statement)
+        changed_row = await self.session.scalar(statement)
+        if changed_row is None:
+            # Identical quotes can acquire an actual receipt without changing canonical
+            # inputs, updated_at, publication identity, or engine recompute counts.
+            observation_values = {field: func.greatest(getattr(DailyPrice, field), values[field])
+                for field in ("source_observed_at", "batch_fetched_at") if values.get(field) is not None}
+            if observation_values:
+                await self.session.execute(update(DailyPrice).where(
+                    DailyPrice.stock_id == values["stock_id"], DailyPrice.trade_date == values["trade_date"],
+                    *[getattr(DailyPrice, column).is_not_distinct_from(values[column]) for column in mutable_columns],
+                    ordered,
+                ).values(**observation_values, updated_at=DailyPrice.updated_at).execution_options(synchronize_session=False))
+        return changed_row
 
     async def insert_daily_price_if_absent(self, values: dict[str, object]) -> DailyPrice | None:
         statement = insert(DailyPrice).values(**values)

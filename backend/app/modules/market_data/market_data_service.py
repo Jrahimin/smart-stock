@@ -793,6 +793,8 @@ class MarketDataService:
                 else TurnoverProvenance.ESTIMATED
             ),
             source=price.source,
+            source_observed_at=price.source_observed_at,
+            batch_fetched_at=price.batch_fetched_at,
             data_quality_flag=price.data_quality_flag,
         )
 

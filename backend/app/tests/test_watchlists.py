@@ -385,3 +385,25 @@ def test_watchlist_service_has_no_parallel_decision_computation() -> None:
     assert "compute_trader_decision" not in source
     assert "build_technical_snapshot" not in source
     assert "list_price_windows_for_stocks" not in source
+
+
+def test_watchlist_money_and_mark_share_the_same_observation():
+    from app.modules.market_universe.market_universe_schemas import DisplayQuoteRead
+    user_id = uuid4()
+    service, stock_id, _ = _service(user_id)
+    row = _canonical_universe_row(stock_id)
+    row.display_quote = DisplayQuoteRead(current_price=103, previous_close=101, price_change=2,
+        price_change_percent=2 / 101 * 100, as_of_trade_date="2026-07-20",
+        observation_session_date="2026-07-20", observation_status="FINALIZED", source="fixture")
+    class Universe:
+        async def get_scored_universe(self, **kwargs): return [row]
+    service.universe_service = Universe()
+    async def run():
+        await service.add_item(UserWatchlistCreate(stock_id=stock_id))
+        await service.update_item(stock_id, UserWatchlistUpdate(is_holding=True, buy_price=Decimal("100"), quantity=Decimal("10")))
+        item = (await service.list_items(holding_only=False, limit=10, offset=0))[0]
+        assert item.current_price == Decimal("103")
+        assert item.unrealized_gain_percent == Decimal("3.00")
+        assert item.display_quote.price_change_percent == 2 / 101 * 100
+        assert item.display_quote.as_of_trade_date == "2026-07-20"
+    asyncio.run(run())

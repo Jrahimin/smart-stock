@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Self
 
@@ -21,7 +21,16 @@ class IngestedDailyPrice(BaseModel):
     trade_count: int | None = None
     turnover: Decimal | None = None
     source: str
+    source_observed_at: datetime | None = None
+    batch_fetched_at: datetime | None = None
     data_quality_flag: DataQualityFlag = DataQualityFlag.OK
+
+    @field_validator("source_observed_at", "batch_fetched_at")
+    @classmethod
+    def require_aware_time(cls, value):
+        if value is not None and (value.tzinfo is None or value.utcoffset() is None):
+            raise ValueError("observation timestamps must include a timezone")
+        return value
 
     @field_validator("symbol", "source", mode="before")
     @classmethod

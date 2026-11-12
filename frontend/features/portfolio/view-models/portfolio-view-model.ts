@@ -1,5 +1,7 @@
+import { holderReasonLabel } from "@/lib/market/decision-presentation";
 import type {
   BackendPortfolioHoldingDto,
+  BackendDisplayQuoteDto,
   PortfolioAttentionCode,
   PortfolioPriceStatus,
 } from "@/lib/api/backend-api-types";
@@ -10,14 +12,13 @@ export type PortfolioHoldingFilter = "ALL" | "HOLDINGS" | "WATCHLIST" | "REVIEW"
 
 export function isPortfolioHoldingIncomplete(item: BackendPortfolioHoldingDto) {
   if (!item.is_holding) return false;
-  return item.what_next_code === "DATA_INCOMPLETE"
-    || item.quantity == null
+  return item.quantity == null
     || item.average_buy_price == null;
 }
 
 export function isPortfolioReviewRow(item: BackendPortfolioHoldingDto) {
-  if (item.is_holding) return item.requires_attention;
-  return item.action !== "WAIT" || item.risk === "HIGH" || item.risk === "SPECULATIVE" || item.scanner_conditions.length > 0 || item.relevant_event != null;
+  if (item.is_holding) return item.requires_attention || item.holder_action === "REVIEW";
+  return (item.action != null && item.action !== "WAIT") || item.risk === "HIGH" || item.risk === "SPECULATIVE" || item.scanner_conditions.length > 0 || item.relevant_event != null;
 }
 
 export function sortPortfolioGroupRows(items: BackendPortfolioHoldingDto[]) {
@@ -82,13 +83,20 @@ type GuidanceCopy = {
 export function getPortfolioWhatNextCopy(
   item: BackendPortfolioHoldingDto,
   copy: GuidanceCopy,
+  locale: AppLocale = "en",
 ) {
   if (!item.is_holding) {
+    if (item.action == null) return copy.signalUnavailable;
     if (item.action === "WAIT") return copy.watching;
     return copy.reasonLabels[item.scanner_conditions[0] ?? ""] ?? copy.guidance[item.what_next_code];
   }
   if (item.quantity == null) return copy.addQuantity;
   if (item.average_buy_price == null) return copy.addAveragePrice;
+  if (item.current_price == null) return copy.guidance.PRICE_STALE_OR_SUSPENDED;
+  if (item.holder_action == null) return copy.signalUnavailable;
+  if (item.what_next_code === "REVIEW_HOLDER_GUIDANCE" || item.holder_action === "REVIEW" && ["NO_ACTION_NEEDED", "PROFITABLE_TREND_INTACT"].includes(item.what_next_code)) {
+    return holderReasonLabel(item.primary_reason_code, copy.guidance.REVIEW_HOLDER_GUIDANCE, locale);
+  }
   return copy.guidance[item.what_next_code];
 }
 
@@ -116,11 +124,11 @@ export function parseDecimal(value: string | number | null | undefined) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-export function formatPortfolioMoney(value: string | number | null, locale: AppLocale) {
+export function formatPortfolioMoney(value: string | number | null, locale: AppLocale, maximumFractionDigits = 2) {
   const parsed = parseDecimal(value);
   if (parsed == null) return "—";
   const formatted = new Intl.NumberFormat(locale === "bn" ? "en-BD" : "en-BD", {
-    maximumFractionDigits: 2,
+    maximumFractionDigits,
   }).format(Math.abs(parsed));
   return parsed < 0 ? `-৳${formatted}` : `৳${formatted}`;
 }
@@ -160,7 +168,7 @@ export function formatPortfolioPercent(value: string | number | null) {
   return `${parsed.toFixed(2)}%`;
 }
 
-export function financialTone(value: string | number | null) {
+export function financialTone(value: string | number | null): "neutral" | "positive" | "negative" {
   const parsed = parseDecimal(value);
   if (parsed == null || parsed === 0) return "neutral";
   return parsed > 0 ? "positive" : "negative";
@@ -182,13 +190,13 @@ export function filterPortfolioHoldings(
     if (query && !`${holding.symbol} ${holding.name}`.toLowerCase().includes(query)) return false;
     if (options.filter === "HOLDINGS" && !holding.is_holding) return false;
     if (options.filter === "WATCHLIST" && holding.is_holding) return false;
-    if (options.filter === "REVIEW" && !isPortfolioReviewRow(holding)) return false;
+    if (options.filter === "REVIEW" && !options.selectedStockIds && !isPortfolioReviewRow(holding)) return false;
     if (options.filter === "STABLE" && isPortfolioReviewRow(holding)) return false;
     if (
       options.filter === "INCOMPLETE" &&
-      (!holding.is_holding || holding.what_next_code !== "DATA_INCOMPLETE")
+      !isPortfolioHoldingIncomplete(holding)
     ) return false;
-    if (options.action !== "ALL" && holding.action !== options.action) return false;
+    if (options.action !== "ALL" && portfolioRowAction(holding) !== options.action) return false;
     if (options.trend !== "ALL" && holding.trend !== options.trend) return false;
     return true;
   }).sort((left, right) => {
@@ -196,4 +204,30 @@ export function filterPortfolioHoldings(
     if (group) return group;
     return left.symbol.localeCompare(right.symbol);
   });
+}
+
+/** Preserve the precise audience instruction; REDUCE and REVIEW are never public SELL/WAIT. */
+export function portfolioRowAction(item: BackendPortfolioHoldingDto) {
+  if (item.decision_taxonomy_version && !["v1", "v2"].includes(item.decision_taxonomy_version)) return null;
+  const action = item.is_holding ? item.holder_action : item.action;
+  const allowed = item.is_holding ? ["HOLD", "REVIEW", "REDUCE", "SELL"] : ["POTENTIAL_BUY", "WAIT", "HOLD", "SELL"];
+  return action && allowed.includes(action) ? action : null;
+}
+
+export function portfolioRowComparison(item: BackendPortfolioHoldingDto) {
+  const pair = item.is_holding ? item.holder_comparison : item.public_comparison;
+  const action = portfolioRowAction(item);
+  if (!pair || pair.status === "UNCOMPARABLE" || !pair.previous_session_date || !action || pair.current_action !== action || !pair.previous_action) return null;
+  const actions = item.is_holding ? ["HOLD", "REVIEW", "REDUCE", "SELL"] : ["POTENTIAL_BUY", "WAIT", "HOLD", "SELL"];
+  if (!actions.includes(pair.previous_action) || pair.status !== (pair.previous_action === action ? "UNCHANGED" : "CHANGED")) return null;
+  return pair;
+}
+
+/** Attach a quote's dates/change only to the account price it actually marks. */
+export function accountQuoteForPrice(item: { current_price: string | number | null; display_quote?: BackendDisplayQuoteDto | null }) {
+  const quote = item.display_quote;
+  const price = parseDecimal(item.current_price);
+  if (!quote || quote.current_price == null || !Number.isFinite(quote.current_price) || quote.current_price <= 0 || !quote.as_of_trade_date) return null;
+  // Account prices are projected at four decimal places by the server.
+  return price === Number(quote.current_price.toFixed(4)) ? quote : null;
 }

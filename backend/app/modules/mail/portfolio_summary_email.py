@@ -37,8 +37,9 @@ def build_portfolio_summary_email(
     copy = get_portfolio_summary_email_language(locale)
     subject = copy["subject"].format(date=date_label)
 
+    attention_items = [*workspace.attention, *([workspace.holder_review_attention] if workspace.holder_review_attention else [])]
     attention_lines = []
-    for item in workspace.attention[:3]:
+    for item in attention_items[:3]:
         title = attention_label(locale, item.code)
         symbols = ", ".join(item.symbols[:4])
         if item.count > 4:
@@ -84,7 +85,7 @@ def build_portfolio_summary_email(
         f"{' +' + str(item.count - 4) if item.count > 4 else ''}"
         f" <span style='color:#a16207;font-size:12px;'>"
         f"{escape(severity_label(locale, item.severity))}</span></li>"
-        for item in workspace.attention[:3]
+        for item in attention_items[:3]
     ) or f"<li>{escape(copy['no_attention'])}</li>"
 
     body_html = f"""<!DOCTYPE html>

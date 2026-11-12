@@ -149,15 +149,15 @@ function persistedSignal(overrides: Partial<BackendTradingSignalDto> = {}): Back
 }
 
 describe("canonical decision and persisted signal versioning", () => {
-  it("accepts only the matching immediately prior strategy snapshot for NEW", () => {
-    const model = buildStockIntelligenceFromUniverseRow(
-      universeRow("BUY"),
-      persistedSignal(),
-    );
-
+  it("uses only the server-verified public comparison and omits claims on older responses", () => {
+    const model = buildStockIntelligenceFromUniverseRow(universeRow(), persistedSignal());
+    expect(getPreviousSessionRecommendation(model)).toBeNull();
+    expect(isTraderDecisionChangedThisSession(model)).toBe(false);
+    model.publicComparison = { status: "CHANGED", previous_action: "SELL", current_action: "POTENTIAL_BUY", previous_session_date: "2026-07-13" };
     expect(getPreviousSessionRecommendation(model)).toBe("SELL");
     expect(isTraderDecisionChangedThisSession(model)).toBe(true);
-    expect(resolveTraderDecision(model).recommendation).toBe("POTENTIAL_BUY");
+    model.publicComparison = { status: "UNCOMPARABLE" };
+    expect(getPreviousSessionRecommendation(model)).toBeNull();
   });
 
   it("ignores mismatched and legacy persisted signals", () => {
@@ -182,11 +182,11 @@ describe("canonical decision and persisted signal versioning", () => {
     expect(resolveTraderDecision(legacy).recommendation).toBe("POTENTIAL_BUY");
   });
 
-  it("fails closed to WAIT and uses holder context without client formulas", () => {
+  it("keeps missing decisions unavailable and uses holder context without client formulas", () => {
     const unavailable = buildStockIntelligenceFromUniverseRow(universeRow());
     unavailable.traderDecision = null;
     unavailable.signal = { ...unavailable.signal, signal: "BUY", confidence: 99 };
-    expect(resolveTraderDecision(unavailable).recommendation).toBe("WAIT");
+    expect(resolveTraderDecision(unavailable).recommendation).toBeNull();
     expect(resolveWatchlistAction(unavailable, false)).toBeNull();
 
     const bearish = buildStockIntelligenceFromUniverseRow(universeRow("SELL"));

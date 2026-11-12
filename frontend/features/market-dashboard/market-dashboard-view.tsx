@@ -34,7 +34,7 @@ export function MarketDashboardView({ initialCore = null, locale = DEFAULT_LOCAL
       {isError ? <p className="sw-state sw-warning" role="status">{copy.serviceError}</p> : null}
       <InsightSidebar copy={copy} insights={model.insights.filter((insight) => insight.id === "market-mood" || insight.id === "turnover-context")}
         model={model} locale={locale}
-        loading={coreLoading || sectionLoading.insights} error={insightsError} intraday={model.session.state === "OPEN"} />
+        loading={coreLoading || sectionLoading.insights} error={insightsError} intraday={model.isIntraday} />
       <div className="sw-market-grid">
         <InstitutionalHeatmap copy={copy} tiles={model.heatmapTiles} locale={locale} loading={coreLoading || sectionLoading.heatmap} />
         <TerminalMovers copy={copy} movers={model.movers} loading={coreLoading || sectionLoading.movers} />

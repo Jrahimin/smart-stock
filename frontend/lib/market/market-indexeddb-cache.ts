@@ -1,11 +1,13 @@
 import { isMarketApiCacheUrl } from "@/lib/market/market-cache-url-registry";
+import { hasUnusablePositiveEntry } from "@/lib/market/current-entry-contract";
+import { getCurrentMarketFreshness } from "@/lib/market/market-freshness-registry";
 import {
   hasMarketGenerationField,
   responseMatchesMarketFreshness,
 } from "@/lib/market/market-generation";
 
 /** Bump when market IndexedDB payload shape or validation rules change. */
-export const MARKET_INDEXEDDB_SCHEMA_VERSION = 4;
+export const MARKET_INDEXEDDB_SCHEMA_VERSION = 5;
 
 export type MarketIndexedDbCacheScope = "default" | "market" | "off";
 
@@ -59,6 +61,15 @@ export function evaluateMarketIndexedDbEntry(
   }
 
   const isMarketEntry = isMarketIndexedDbPayload(payload, options);
+
+  if (isMarketEntry && options.cacheKey?.split("?")[0].endsWith("/dashboard/market-sentiment") &&
+      (!payload.data || typeof payload.data !== "object" || !("interpretation" in payload.data) || !payload.data.interpretation)) {
+    return { status: "miss", reason: "schema" };
+  }
+
+  if (isMarketEntry && hasUnusablePositiveEntry(payload.data, getCurrentMarketFreshness(), now)) {
+    return { status: "miss", reason: "expired" };
+  }
 
   if (isMarketEntry && payload.marketSchemaVersion !== MARKET_INDEXEDDB_SCHEMA_VERSION) {
     return { status: "miss", reason: "schema" };

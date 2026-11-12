@@ -99,3 +99,23 @@ price change is known for breadth only when that row's trade date equals the
 analysis session. Older-session changes count as unknown. Overview and sentiment
 breadth counts use the same dated input; exchange-index breadth keeps its own
 separately dated source instead of replacing this cohort's counts.
+
+### Snapshot interpretation (Order 4, increment 2)
+
+Dashboard's one-bar HTTP snapshot cannot establish history-dependent accumulation, recovery or volatility mood; those claims are suppressed without fetching full histories. Dated index movement and observed breadth remain available. Breadth displays its known/cohort and unknown counts, zero neutral band and observation date. Pulse has a different eligible same-session cohort and ±0.05% band, so differing counts can be valid. Missing sector changes do not become zero-valued leaders. The scored-universe Smart Signals feed retains server shortlist order and shares current-entry bounds with the other universe consumers.
+
+### Measured session interpretation
+
+Sentiment adds `interpretation`: a shared backend code (`ALIGNED_UP`, `ALIGNED_DOWN`, `DIVERGENT`, `MIXED`, `INDEX_ONLY`, `BREADTH_ONLY`, `UNAVAILABLE`), session date, nullable recorded index change, the complete breadth facts, nullable volume/prior-average ratio and the actual average sample count (up to 30 prior sessions). Agreement is based only on signs of the stored same-session DSEX move and known advances minus declines. Unknown index change stays null, including when the overview's display DTO would substitute zero. Prior volume comparisons exclude other indices and suspicious summaries; zero current volume differs from an unavailable comparison.
+
+This lightweight section uses the existing persisted summary/snapshot batch; it does not request full stock histories, horizon metrics or a provider fallback. The existing interpretation card renders localized facts and coverage, with no accumulation/recovery claim. An old cached sentiment projection missing interpretation is recomputed within the same generation; only matching old sentiment IndexedDB entries are rejected. Other cached sections retain their existing policy.
+
+For that same session the central Dashboard model also uses the delivered interpretation volume ratio and actual prior-session sample count in the hero, keeping its full volume amount. A delivered unavailable comparison stays unavailable; an older API without typed interpretation retains its legacy hero comparison and no interpretation card. The two visible participation readings therefore share one supplied baseline.
+
+Same-session typed-null index movement suppresses the hero's legacy zero substitution while preserving the known index level. A measured zero remains visible. The central model omits a differently dated typed interpretation before headline/card composition in either date ordering, so another session's direction cannot label the displayed breadth/date. Older APIs retain their existing level/movement behavior.
+
+The sentiment mapper retains its delivered `market_sync_id`; the Dashboard hook compares the delivered overview and sentiment IDs before passing any sentiment-derived fields into the central model. When both IDs exist and disagree, that section is withheld from headline/card and index/volume overlays even on the same calendar date. Either arrival order is safe, and matching delivered IDs restore the reading. A missing legacy section ID retains the existing date compatibility check. This join guard does not change query scheduling, API admission, cache policy or backend calculations.
+
+Partial/intraday wording uses one model Boolean shared by localized turnover descriptions and the Insights view. It requires an OPEN exchange state and the displayed facts date to be today's Dhaka calendar date. Historical facts remain recorded-session context even while Market now is OPEN; current exchange state and polling are unchanged. This presentation check does not establish verified source observation timing or fresh-entry applicability.
+
+The Dashboard hero uses a short headline selected from that backend code and compact coverage/method disclosures. Its original illustrated Market Pulse and Wealth Workspace navigation cards, artwork, supporting text and responsive section layout are retained. Current status, date, index and core metrics remain visible. Shared modal disclosures return focus to their launcher on dismissal. Repeated generic dated-plan requirements are omitted from compact discovery previews; immediate entry status, its controlling reason, stock-specific limitations/support and the full Detail plan remain available.

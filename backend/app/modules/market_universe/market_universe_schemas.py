@@ -13,6 +13,7 @@ from app.core.constants.trading_constants import (
     TRADING_THRESHOLD_VERSION,
 )
 from app.core.enums import DataQualityFlag, ExchangeCode, MarketDataState, ScannerConditionId
+from app.modules.stock_details.decision.comparison import HolderDecisionComparisonRead, PublicDecisionComparisonRead
 from app.modules.stock_details.stock_details_schemas import (
     CanonicalDecisionResultRead,
     DataReliabilityRead,
@@ -78,6 +79,7 @@ class DisplayQuoteRead(BaseModel):
     data_quality: str | None = None
     ingested_at: datetime | None = None
     source_observed_at: datetime | None = None
+    batch_fetched_at: datetime | None = Field(default=None, exclude_if=lambda value: value is None)
     max_age_seconds: int = 1800
     current_price: float | None
     price_change: float | None = None
@@ -99,6 +101,9 @@ class ScoredUniverseRow(BaseModel):
     """Lightweight exchange-wide row — safe for universe:scored Redis cache."""
 
     entry_applicability: EntryApplicabilityRead | None = None
+    holder_comparison: "HolderDecisionComparisonRead | None" = Field(default=None, exclude_if=lambda value: value is None)
+    public_comparison: "PublicDecisionComparisonRead | None" = Field(default=None, exclude_if=lambda value: value is None)
+    previous_publication_generation_id: str | None = Field(default=None, exclude_if=lambda value: value is None)
     display_quote: DisplayQuoteRead | None = None
     shortlist: ShortlistRead | None = None
     previous_finalized_decision: CanonicalDecisionResultRead | None = None

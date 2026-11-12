@@ -64,9 +64,7 @@ function buildFreshnessTooltip(
   return parts.length > 0 ? parts.join(" · ") : undefined;
 }
 
-function isManualRefreshDisabled(marketStatus: string | undefined) {
-  return marketStatus === "PRE_OPEN" || marketStatus === "HOLIDAY";
-}
+
 
 type FreshnessChipProps = {
   className?: string;
@@ -164,7 +162,7 @@ export function MarketDataFreshnessBar({
     .join(" ");
   const relativeLabel =
     hasMounted && data?.last_synced_at ? formatRelativeLastUpdated(data.last_synced_at) : null;
-  const refreshDisabled = isManualRefreshDisabled(data?.market_status);
+  const refreshDisabled = false; // Refresh only rereads client caches; exchange hours do not prohibit recovery.
 
   const handleRefresh = () => {
     setIsRefreshing(true);

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type { ExchangeCode } from "@/lib/api/backend-api-types";
 import type { SectorContextDto } from "@/lib/api/stock-details-api";
@@ -15,7 +15,8 @@ import {
   type StockWorkspaceModel,
 } from "@/features/stock-workspace/view-models/stock-workspace-view-model";
 import { useMarketDataFreshness } from "@/hooks/market/use-market-data-freshness";
-import { getMarketStaleTimeMs } from "@/lib/market/market-cache-policy";
+import { useCurrentEntryBoundary } from "@/hooks/market/use-current-entry-boundary";
+import { getMarketStaleTimeMs, getMarketRefetchIntervalMs } from "@/lib/market/market-cache-policy";
 import { STOCK_DETAIL_STALE_TIME_MS } from "@/lib/seo/stock-detail-cache";
 import { freshnessGenerationToken, responseMatchesMarketFreshness } from "@/lib/market/market-generation";
 import type { AppLocale } from "@/lib/locale/app-locale";
@@ -38,6 +39,7 @@ export function useStockWorkspace({
   initialWorkspace = null,
   locale = DEFAULT_LOCALE,
 }: UseStockWorkspaceOptions) {
+  const queryClient = useQueryClient();
   const freshnessQuery = useMarketDataFreshness(exchange);
   const staleTimeMs = freshnessQuery.data
     ? getMarketStaleTimeMs(freshnessQuery.data)
@@ -49,12 +51,14 @@ export function useStockWorkspace({
 
   const workspaceQuery = useQuery({
     queryKey: ["stock-workspace", exchange, symbol, generation ?? "unknown"],
-    queryFn: () => getStockWorkspace(exchange, symbol),
+    queryFn: ({ queryKey }) => getStockWorkspace(exchange, symbol, generation, queryClient.getQueryData(queryKey) !== undefined),
     initialData: alignedInitialWorkspace ?? undefined,
     initialDataUpdatedAt: alignedInitialWorkspace ? 0 : undefined,
     staleTime: staleTimeMs,
+    refetchInterval: getMarketRefetchIntervalMs(freshnessQuery.data),
     retry: false,
   });
+  const workspace = useCurrentEntryBoundary(workspaceQuery.data, freshnessQuery.isError ? undefined : freshnessQuery.data, ["stock-workspace", exchange, symbol, generation ?? "unknown"], { symbol, exchange });
 
   const loadState: StockWorkspaceLoadState = useMemo(() => {
     if (workspaceQuery.isLoading && !workspaceQuery.data) {
@@ -69,7 +73,7 @@ export function useStockWorkspace({
     return "loaded";
   }, [workspaceQuery.data, workspaceQuery.isError, workspaceQuery.isLoading]);
 
-  const displayMetrics = workspaceQuery.data?.display_metrics ?? null;
+  const displayMetrics = workspace?.display_metrics ?? null;
 
   const model: StockWorkspaceModel = useMemo(() => {
     if (loadState === "loading") {
@@ -89,14 +93,14 @@ export function useStockWorkspace({
     }
 
     return buildStockWorkspaceModel(workspaceQuery.data.stock, workspaceQuery.data.prices ?? [], {
-      decisionSupport: workspaceQuery.data.decision_support,
-      displayMetrics: workspaceQuery.data.display_metrics,
+      decisionSupport: workspace?.decision_support,
+      displayMetrics: workspace?.display_metrics,
     });
-  }, [exchange, loadState, symbol, workspaceQuery.data]);
+  }, [exchange, loadState, symbol, workspaceQuery.data, workspace]);
 
   const decisionModel = useMemo(
-    () => buildStockDecisionViewModel(workspaceQuery.data?.decision_support, locale),
-    [locale, workspaceQuery.data?.decision_support],
+    () => buildStockDecisionViewModel(workspace?.decision_support, locale, displayMetrics),
+    [locale, workspace?.decision_support, displayMetrics],
   );
 
   const fundamentalsModel = useMemo(
@@ -121,9 +125,9 @@ export function useStockWorkspace({
     model,
     decisionModel,
     fundamentalsModel,
-    decisionRaw: workspaceQuery.data?.decision_support ?? null,
+    decisionRaw: workspace?.decision_support ?? null,
     displayMetrics,
-    workspace: workspaceQuery.data ?? null,
+    workspace: workspace ?? null,
     loadState,
     isLoading: loadState === "loading",
     isDecisionLoading: loadState === "loading",

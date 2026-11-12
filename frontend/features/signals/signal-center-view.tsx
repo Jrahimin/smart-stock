@@ -1,7 +1,7 @@
 "use client";
 
 import { EntryApplicabilityLabel } from "@/components/market/entry-applicability-label";
-import { evidenceLabel, controllingReasonLabel } from "@/lib/market/decision-presentation";
+import { isDatedPlanGuidance, evidenceLabel, controllingReasonLabel, selectedDecisionExplanation, riskValueLabel } from "@/lib/market/decision-presentation";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
@@ -78,7 +78,7 @@ export function SignalCenterView({ locale = DEFAULT_LOCALE }: SignalCenterViewPr
         subtitle={
           isLoading
             ? language.hero.loadingSubtitle
-            : language.hero.readySubtitle(signalRows.length)
+            : `${language.hero.readySubtitle(signalRows.length)} · ${decisionDate ?? "—"}`
         }
         title={language.hero.title}
       >
@@ -115,21 +115,12 @@ export function SignalCenterView({ locale = DEFAULT_LOCALE }: SignalCenterViewPr
           {signalRows.length ? (
             signalRows.map((stock) => {
               const decision = resolveTraderDecision(stock);
-              const technicalContext = buildSignalTechnicalContext(stock);
-              const supportingContext = buildLocalizedSignalSupportingContext(technicalContext, language.signalReasons);
-              const localizedReason = buildLocalizedSignalReason(
-                technicalContext,
-                resolveTraderDecisionReason(decision.reason, decision.reasonCode),
-                language.signalReasons,
-              );
-              const displayReason =
-                decision.recommendation === "POTENTIAL_BUY" && decision.entryCondition
-                  ? localizeEntryCondition(decision.entryCondition, locale) ?? decision.entryCondition
-                  : controllingReasonLabel(decision.reasonCode, localizedReason, locale);
+              const selected = selectedDecisionExplanation(stock.traderDecision, locale);
+              const policy = controllingReasonLabel(decision.reasonCode, "", locale);
 
               return (
                 <Link
-                  className={`signal-center-item signal-center-item-${decision.recommendation.toLowerCase()} priority-${stock.traderDecision?.opportunity_quality === "STRONG" ? "high" : "low"}`}
+                  className={`signal-center-item signal-center-item-${(decision.recommendation?.toLowerCase() ?? "unavailable")} priority-${stock.traderDecision?.opportunity_quality === "STRONG" ? "high" : "low"}`}
                   href={buildStockDetailPath(stock.stock.exchange, stock.stock.symbol)}
                   key={stock.stock.id}
                 >
@@ -139,29 +130,17 @@ export function SignalCenterView({ locale = DEFAULT_LOCALE }: SignalCenterViewPr
                       <br />
                       <span>{stock.stock.name}</span>
                     </div>
-                    <SignalBadge signal={decision.recommendation} />
+                    <SignalBadge signal={decision.recommendation} locale={locale} />
                   </div>
-                  <p>{displayReason}</p>
-                  {decision.recommendation === "POTENTIAL_BUY" ? <EntryApplicabilityLabel assessment={decision.entryApplicability} locale={locale} /> : null}
-                  {decision.measuredSupport ? <small>{locale === "bn" ? "সমর্থন: " : "Support: "}{decision.measuredSupport}</small> : null}
-                  {decision.opposingConstraint ? <p><small>{locale === "bn" ? "সতর্কতা: " : "Counterargument: "}{decision.opposingConstraint}</small></p> : null}
-                  {stock.traderDecision?.non_holder_action === "AVOID" ? <small>{locale === "bn" ? "নতুন long entry এড়িয়ে চলুন" : "Avoid a new long entry"}</small> : null}
-                  <div className="signal-visual-row">
-                    <div className="signal-confidence-meter">{evidenceLabel(decision.evidenceStatus, locale)}</div>
-                    <span className={`risk-pill risk-pill-${decision.riskLabel.toLowerCase()}`}>
-                      {language.row.risk(decision.riskLabel)}
-                    </span>
-                    <span className={`momentum-marker momentum-marker-${decision.recommendation.toLowerCase()}`}>
-                      {language.row.momentum(decision.recommendation)}
-                    </span>
-                  </div>
+                  <small>{locale === "bn" ? "নতুন অবস্থান বিবেচনায় · সিদ্ধান্ত" : "Prospective entry · Decision"} {stock.decisionDate ?? "—"}</small>
+                  <EntryApplicabilityLabel assessment={decision.entryApplicability} locale={locale} policyReason={policy} />
+                  {policy && !isDatedPlanGuidance(decision.reasonCode) && decision.entryApplicability?.reason_code !== "ACTION_NOT_PERMITTED" ? <p className="signal-controlling-reason">{policy}</p> : null}
+                  {selected.limitation && selected.limitation !== policy ? <p className="signal-controlling-reason">{selected.limitation}</p> : null}
+                  {selected.support ? <small className="signal-measured-support">{selected.support}</small> : null}
                   <div className="signal-evidence-row">
                     <span>{evidenceLabel(decision.evidenceStatus, locale)}</span>
-                    <span>{language.row.riskShort(decision.riskLabel)}</span>
-                    <span>{language.states.decisionEngine}</span>
-                    <span>{stock.latestTradeDate ?? language.states.awaitingPriceData}</span>
+                    <span>{stock.traderDecision?.trading_risk ? locale === "bn" ? "এন্ট্রির ঝুঁকি" : "Entry risk" : locale === "bn" ? "প্রকাশিত ঝুঁকি" : "Published risk"}: {riskValueLabel(decision.riskLabel, locale)}</span>
                   </div>
-                  <small>{supportingContext.join(" / ") || language.states.awaitingContext}</small>
                 </Link>
               );
             })
@@ -182,7 +161,7 @@ function compareSignalRows(a: StockIntelligenceModel, b: StockIntelligenceModel,
     return (a.shortlist?.holder_exit_rank ?? 9999) - (b.shortlist?.holder_exit_rank ?? 9999);
   }
   if (sortMode === "NEWEST") {
-    return (b.latestTradeDate ?? "").localeCompare(a.latestTradeDate ?? "");
+    return (b.decisionDate ?? "").localeCompare(a.decisionDate ?? "");
   }
 
   if (sortMode === "RISK_ADJUSTED") {

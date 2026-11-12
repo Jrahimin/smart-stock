@@ -3,10 +3,10 @@ import type { DerivedSignalModel, RiskLevel, StockIntelligenceModel, TrendDirect
 import { normalizeTrendDirection } from "@/lib/market/trend-display";
 
 function mapRiskLabel(value: string | undefined): RiskLevel {
-  if (value === "LOW" || value === "MEDIUM" || value === "HIGH") {
+  if (value === "LOW" || value === "MEDIUM" || value === "HIGH" || value === "SPECULATIVE") {
     return value;
   }
-  return "MEDIUM";
+  return "UNKNOWN";
 }
 
 function mapRecommendationToSignal(recommendation: string | undefined): SignalType {
@@ -23,7 +23,7 @@ function mapTrend(value: string): TrendDirection {
   return normalizeTrendDirection(value);
 }
 
-export function mapUniverseRowToListRow(row: BackendScoredUniverseRowDto): StockIntelligenceModel {
+export function mapUniverseRowToListRow(row: BackendScoredUniverseRowDto, publicationDate?: string | null): StockIntelligenceModel {
   const snapshot = row.technical_snapshot;
   const session = row.session;
   const stock = row.stock;
@@ -48,6 +48,9 @@ export function mapUniverseRowToListRow(row: BackendScoredUniverseRowDto): Stock
   };
 
   return {
+    decisionDate: decision ? decision.canonical?.as_of_date ?? publicationDate ?? null : null,
+    latestVolumeRatio: row.analysis?.liquidity?.latest_volume_ratio ?? null,
+    publicComparison: row.public_comparison,
     shortlist: row.shortlist,
     displayQuote: row.display_quote,
     previousFinalizedDecision: row.previous_finalized_decision,

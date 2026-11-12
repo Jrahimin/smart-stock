@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from math import isfinite
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Literal
 
 
@@ -38,6 +38,8 @@ class EntryApplicabilityRead(BaseModel):
     status: Literal["NOT_APPLICABLE", "INVALIDATED", "EXPIRED", "UNVERIFIED", "OUTSIDE_ZONE", "AWAITING_CONFIRMATION", "APPLICABLE"]
     reason_code: EntryApplicabilityReasonCode
     controlling_blocker: str | None = None
+    quote_timing_status: Literal["FETCH_ONLY", "UNKNOWN"] | None = Field(default=None, exclude_if=lambda value: value is None)
+    batch_fetched_at: datetime | None = Field(default=None, exclude_if=lambda value: value is None)
     assessed_at: datetime
     quote_session_date: date | None = None
     source_observed_at: datetime | None = None
@@ -75,6 +77,8 @@ def evaluate_entry_applicability(
     def result(status, code):
         return EntryApplicabilityRead(
             status=status, reason_code=code, assessed_at=now,
+            quote_timing_status=(("FETCH_ONLY" if getattr(quote, "batch_fetched_at", None) else "UNKNOWN") if code == "QUOTE_UNUSABLE" and not getattr(quote, "source_observed_at", None) else None),
+            batch_fetched_at=getattr(quote, "batch_fetched_at", None),
             controlling_blocker=(decision.blocker_codes[0] if decision and decision.blocker_codes else None),
             quote_session_date=date.fromisoformat(quote.as_of_trade_date) if quote and quote.as_of_trade_date else None,
             source_observed_at=getattr(quote, "source_observed_at", None),

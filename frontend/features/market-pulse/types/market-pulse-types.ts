@@ -17,6 +17,8 @@ export type PulseScoreBreakdownModel = {
 };
 
 export type FocusStockModel = {
+  locale?: import("@/lib/locale/app-locale").AppLocale;
+  entryApplicability?: import("@/lib/api/stock-decision-support-types").EntryApplicabilityDto | null;
   entryRiskLabel?: string | null;
   recommendation?: string;
   readiness?: string;
@@ -213,6 +215,7 @@ export type MarketSummaryHighlightModel = {
 };
 
 export type MarketLeadershipModel = {
+  decisionDate?: string | null;
   cards: LeadershipCardModel[];
   freshBuySignals: string[];
   narrative: string;
@@ -239,6 +242,9 @@ export type MarketSummaryModel = {
 };
 
 export type MarketBriefingModel = {
+  breadth?: import("@/lib/api/backend-api-types").BackendBreadthDto | null;
+  breadthNote?: string | null;
+  sectorBasis?: string;
   story: MarketStoryModel;
   state: MarketStateModel;
   moneyFlow: MoneyFlowModel;

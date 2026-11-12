@@ -1,3 +1,4 @@
+import { buildStockDecisionViewModel, withStockHolderInstruction } from "@/features/stock-workspace/view-models/stock-decision-view-model";
 import { evidenceLabel } from "@/lib/market/decision-presentation";
 import { DecisionPublicationLabel, QuotePublicationLabel } from "@/components/ui/market-publication-label";
 import { formatNumber, formatPercent, formatMarketCapBdt } from "@/lib/formatters/financial-formatters";
@@ -5,20 +6,25 @@ import type { StockWorkspaceDto } from "@/lib/api/stock-decision-support-types";
 import { getStockWorkspaceLanguage } from "@/features/stock-workspace/stock-workspace-language";
 import type { AppLocale } from "@/lib/locale/app-locale";
 import { DEFAULT_LOCALE } from "@/lib/locale/app-locale";
+import { compatibleDisplayAction } from "@/lib/market/decision-action-compatibility";
+import { EntryApplicabilityLabel } from "@/components/market/entry-applicability-label";
 
 type StockDurableSummaryProps = {
   workspace: StockWorkspaceDto;
   locale?: AppLocale;
+  isHolding?: boolean;
 };
 
 /**
  * Server-presentable durable facts for the stock details page.
  * Renders without client JS. Interactive workspace hydrates around this.
  */
-export function StockDurableSummary({ workspace, locale = DEFAULT_LOCALE }: StockDurableSummaryProps) {
+export function StockDurableSummary({ workspace, locale = DEFAULT_LOCALE, isHolding = false }: StockDurableSummaryProps) {
   const copy = getStockWorkspaceLanguage(locale);
   const stock = workspace.stock;
   const decision = workspace.decision_support;
+  const action = compatibleDisplayAction(decision.decision);
+  const holder = isHolding ? withStockHolderInstruction(buildStockDecisionViewModel(decision, locale, workspace.display_metrics), decision, true).holderInstruction : undefined;
   const display = workspace.display_metrics;
   const freshness = decision.data_freshness;
   const latestPrice = display?.current_price ?? null;
@@ -52,6 +58,16 @@ export function StockDurableSummary({ workspace, locale = DEFAULT_LOCALE }: Stoc
       </div>
 
       <dl className="stock-durable-summary-metrics">
+        {holder && <div><dt>{locale === "bn" ? "আপনার হোল্ডিংয়ের জন্য" : "For your holding"}</dt><dd>{holder.label} · {holder.reason}</dd></div>}
+        <div>
+          <dt>{copy.durableSummary.decisionSupport} · {holder ? (locale === "bn" ? "সাধারণ অ্যাকশন · আরও যোগ করার ক্ষেত্রে" : "Public action · Adding to this position") : (locale === "bn" ? "নতুন অবস্থান বিবেচনায়" : "For a prospective entry")}</dt>
+          <dd>
+            {action?.replace("_", " ") ?? (locale === "bn" ? "সিদ্ধান্ত অনুপলব্ধ" : "Decision unavailable")}
+            <DecisionPublicationLabel decision={decision} locale={locale} />
+            <EntryApplicabilityLabel assessment={decision.entry_applicability} locale={locale} announce={false} />
+            <span className="stock-durable-summary-confidence">{evidenceLabel(decision.decision.evidence_status, locale)}</span>
+          </dd>
+        </div>
         <div>
           <dt>{copy.header.last}</dt>
           <dd>{formatNumber(latestPrice)} <QuotePublicationLabel locale={locale} quote={display} /></dd>
@@ -63,18 +79,6 @@ export function StockDurableSummary({ workspace, locale = DEFAULT_LOCALE }: Stoc
         <div>
           <dt>{copy.header.marketCap}</dt>
           <dd>{formatMarketCapBdt(marketCap)}</dd>
-        </div>
-        <div>
-          <dt>{copy.durableSummary.decisionSupport}</dt>
-          <dd>
-            {(decision.decision.display_action ??
-              (decision.decision.recommendation === "SELL" ? "SELL" : "WAIT")
-            ).replace("_", " ")}
-            <span className="stock-durable-summary-confidence">
-              {" "}
-              · {evidenceLabel(decision.decision.evidence_status, locale)}
-            </span>
-          </dd>
         </div>
         <div>
           <dt>{copy.decision.risk}</dt>

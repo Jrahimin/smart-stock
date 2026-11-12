@@ -30,7 +30,7 @@ export function buildScannerCategoryItems(
   universe: StockIntelligenceModel[],
   categoryId: ScannerCategoryId,
   limit = 6,
-): StockIntelligenceModel[] {
+): Array<StockIntelligenceModel & { scannerMatch: BackendScannerConditionMatchDto }> {
   const conditionId = CATEGORY_CONDITIONS[categoryId];
   return universe
     .flatMap((stock) => {
@@ -41,7 +41,7 @@ export function buildScannerCategoryItems(
     })
     .sort(compareScannerStocks)
     .slice(0, limit)
-    .map(({ stock }) => stock);
+    .map(({ stock, match }) => ({ ...stock, scannerMatch: match }));
 }
 
 export function hasScannerCondition(

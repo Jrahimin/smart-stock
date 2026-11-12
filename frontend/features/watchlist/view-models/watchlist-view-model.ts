@@ -20,6 +20,7 @@ import {
 /**
  * Watchlist rows derive action, RSI, and trend from the shared scored-universe
  * intelligence map (same source as explorer, scanner, and signal center).
+ * Money always retains the account mark used by the server for since-cost gain.
  */
 
 export function buildWatchlistRowViewModel(
@@ -32,7 +33,7 @@ export function buildWatchlistRowViewModel(
     item.is_holding,
     item.contextual_action,
   );
-  const previousActionLabel = intelligence ? getPreviousSessionRecommendation(intelligence) : null;
+  const previousActionLabel = !item.is_holding && intelligence ? getPreviousSessionRecommendation(intelligence) : null;
   const trendDirection = intelligence?.trend ?? "UNKNOWN";
   const buyPriceLabel =
     item.buy_price !== null && item.buy_price !== undefined ? formatNumber(Number(item.buy_price)) : null;
@@ -43,8 +44,8 @@ export function buildWatchlistRowViewModel(
     decision,
     companyName: intelligence?.stock.name ?? item.stock_symbol,
     buyPriceLabel,
-    latestPriceLabel: formatNumber(intelligence?.displayQuote ? intelligence.latestPrice : intelligence?.latestPrice ?? item.current_price),
-    changePercentLabel: formatPercent(intelligence?.priceChangePercent),
+    latestPriceLabel: formatNumber(item.current_price == null ? null : Number(item.current_price)),
+    changePercentLabel: formatPercent(item.display_quote?.price_change_percent),
     rsiLabel: formatNumber(intelligence?.rsi),
     trendLabel: intelligence ? formatTrendLabel(trendDirection) : "Unknown",
     trendTone: intelligence ? getTrendTone(trendDirection) : "neutral",
@@ -58,7 +59,7 @@ export function buildWatchlistRowViewModel(
       item.unrealized_gain_percent !== null && item.unrealized_gain_percent !== undefined
         ? formatPercent(Number(item.unrealized_gain_percent))
         : null,
-    isNewSignal: intelligence ? isTraderDecisionChangedThisSession(intelligence) : false,
+    isNewSignal: !item.is_holding && intelligence ? isTraderDecisionChangedThisSession(intelligence) : false,
   };
 }
 

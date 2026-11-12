@@ -52,7 +52,7 @@ const scannerLanguage = {
       eyebrow: "Market Scanner",
       title: "Daily opportunity detection",
       subtitle:
-        "Rule-based scans from latest OHLCV with shared trader decision badges",
+        "Explore stocks by measured price, volume and risk conditions",
       filterContextName: "scanner",
     },
     filters: {
@@ -85,7 +85,7 @@ const scannerLanguage = {
           "Current-session close crossed canonical resistance with expanded relative volume.",
       },
       support_rebound: {
-        title: "Support Reclaim",
+        title: "Support rebound",
         descriptionDefault:
           "Reclaimed canonical support from below, remains in the support band, and has weak RSI.",
       },
@@ -105,7 +105,7 @@ const scannerLanguage = {
           "Crossed below canonical support from the prior close; risk alone does not qualify.",
       },
       oversold_rebound: {
-        title: "Weak-RSI Support Reclaim",
+        title: "Support rebound",
         descriptionDefault:
           "Weak RSI plus a current-session reclaim of canonical support from below.",
       },
@@ -155,7 +155,7 @@ const scannerLanguage = {
       },
 
       support_rebound: {
-        title: "Support Reclaim",
+        title: "Support rebound",
         descriptionDefault:
           "নিচ থেকে canonical Support ফিরে পেয়েছে, support band-এর মধ্যে আছে এবং RSI দুর্বল।",
       },
@@ -179,7 +179,7 @@ const scannerLanguage = {
       },
 
       oversold_rebound: {
-        title: "Weak-RSI Support Reclaim",
+        title: "Support rebound",
         descriptionDefault:
           "RSI দুর্বল এবং বর্তমান session-এ নিচ থেকে canonical Support ফিরে পেয়েছে।",
       },

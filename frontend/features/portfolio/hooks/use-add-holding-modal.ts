@@ -1,6 +1,8 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/features/auth/context/auth-context";
+import { useAccountMutation } from "@/features/watchlist/hooks/use-account-mutation";
+import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
@@ -25,6 +27,7 @@ import { listDailyPrices } from "@/lib/api/market-data-api";
 import {
   addWatchlistItem,
   updateWatchlistItem,
+  type UpdateWatchlistItemPayload,
 } from "@/lib/api/watchlist-api";
 
 const HIGHLIGHT_MS = 2800;
@@ -47,7 +50,8 @@ export function useAddHoldingModal({
   dataState,
   exchange = "DSE",
 }: UseAddHoldingModalOptions) {
-  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const userId = user?.id ?? "anonymous";
   const [isOpen, setIsOpen] = useState(false);
   const [mode, setMode] = useState<AddHoldingMode>("create");
   const [selectedStock, setSelectedStock] = useState<AddHoldingSelectedStock | null>(null);
@@ -189,45 +193,25 @@ export function useAddHoldingModal({
     [averageBuyPrice, quantity, selectedStockWithQuote?.stockId],
   );
 
-  const saveMutation = useMutation({
-    mutationFn: async () => {
-      if (!selectedStockWithQuote || !isAddHoldingFormValid(validation)) {
-        throw new Error("Invalid holding form");
-      }
-      const quantityNumber = parsePositiveInteger(quantity);
-      const buyPriceNumber = parsePositiveDecimal(averageBuyPrice);
-      if (quantityNumber == null || buyPriceNumber == null) {
-        throw new Error("Invalid holding numbers");
-      }
-
-      if (!existingState.isWatched) {
-        await addWatchlistItem(selectedStockWithQuote.stockId);
-      }
-
-      return updateWatchlistItem(selectedStockWithQuote.stockId, {
-        is_holding: true,
-        quantity: quantityNumber,
-        buy_price: buyPriceNumber,
-        note: normalizeNote(note),
-      });
-    },
-    onSuccess: () => {
-      const stockId = selectedStockWithQuote?.stockId ?? null;
-      void queryClient.invalidateQueries({ queryKey: ["watchlist"] });
-      void queryClient.invalidateQueries({
-        queryKey: ["portfolio"],
-        refetchType: "active",
-      });
+  const saveMutation = useAccountMutation("add-holding", async (input: { stockId: string; needsAdd: boolean; payload: UpdateWatchlistItemPayload }, checkSession) => {
+    if (input.needsAdd) await addWatchlistItem(input.stockId);
+    checkSession();
+    return updateWatchlistItem(input.stockId, input.payload);
+  }, {
+    onSuccess: (_data, input, account) => {
+      if (account.userId !== userId) return;
       close();
-      if (stockId) setHighlightedStockId(stockId);
+      setHighlightedStockId(input.stockId);
     },
   });
 
   const submit = useCallback(() => {
     setShowValidation(true);
     if (!isAddHoldingFormValid(validation)) return;
-    saveMutation.mutate();
-  }, [saveMutation, validation]);
+    if (!selectedStockWithQuote || quantityValue == null || averageBuyPriceValue == null) return;
+    saveMutation.mutate({ stockId: selectedStockWithQuote.stockId, needsAdd: !existingState.isWatched,
+      payload: { is_holding: true, quantity: quantityValue, buy_price: averageBuyPriceValue, note: normalizeNote(note) } });
+  }, [saveMutation, validation, selectedStockWithQuote, quantityValue, averageBuyPriceValue, existingState.isWatched, note]);
 
   return {
     isOpen,

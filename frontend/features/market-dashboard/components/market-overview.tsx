@@ -1,3 +1,4 @@
+import { breadthCoverageLabel, compactBreadthCoverage } from "@/lib/market/breadth-presentation";
 import { DashboardInfoPanel } from "./dashboard-info-panel";
 import Link from "next/link";
 import { getPremiumCopy } from "../premium-copy";
@@ -57,7 +58,7 @@ export function MarketOverview({ model, copy, locale, freshness, loading, leader
   const sessionSummary = breadth.total > 0 ? locale === "bn"
     ? `সর্বশেষ পাওয়া কার্যদিবসে ${count.format(breadth.advancing)}টি শেয়ার বেড়েছে, ${count.format(breadth.declining)}টি কমেছে।`
     : `In the latest recorded session, ${count.format(breadth.advancing)} stocks rose and ${count.format(breadth.declining)} fell.` : null;
-  const context = partial?.description ?? [sessionSummary, breadthContrast(model, locale)].filter(Boolean).join(" ");
+  const context = partial?.description ?? breadthContrast(model, locale);
   const pulseDescription = locale === "bn"
     ? stale ? "ওই কার্যদিবসের খাতের অগ্রগতি দেখুন।" : "খাতের অগ্রগতি ও বাজারের চিত্র দেখুন।"
     : stale ? "Leaders from the recorded session." : "Sector leaders and session context.";
@@ -110,7 +111,7 @@ export function MarketOverview({ model, copy, locale, freshness, loading, leader
       </div>
     </div>
     <dl className="sw-metrics">
-      <Metric label={copy.breadth} guide="market-breadth" note={breadth.provenance ? (locale === "bn" ? `সক্রিয় ও বৈধ দামের শেয়ার · ${breadth.provenance.as_of_date} · অজানা ${breadth.provenance.unknown_count}` : `Active stocks with valid prices · ${breadth.provenance.as_of_date} · ${breadth.provenance.unknown_count} unknown`) : undefined}>
+      <Metric label={copy.breadth} guide="market-breadth" note={<DashboardInfoPanel label={compactBreadthCoverage(breadth.provenance, locale)} title={copy.breadth} locale={locale}><p>{breadthCoverageLabel(breadth.provenance, locale)}</p></DashboardInfoPanel>}>
         {breadth.total > 0 ? <>
           <div className="sw-breadth-labels">{breadthParts.map(([label, count, tone]) => <span className={`sw-${tone}`} key={tone}><b>{count}</b> {label}</span>)}</div>
           <div className="sw-breadth-bar" aria-hidden="true">{breadthParts.map(([, count, tone]) => <span key={tone} className={`sw-${tone}`} style={{ flexGrow: count }} />)}</div>
@@ -119,10 +120,10 @@ export function MarketOverview({ model, copy, locale, freshness, loading, leader
       <Metric label={copy.turnover} note={turnover.vsYesterday !== "N/A" ? `${turnover.vsYesterday} ${copy.vsPrevious}` : null}>
         <strong>{loading ? "…" : turnover.primaryValue === "N/A" ? copy.missing : turnover.primaryValue}</strong>
       </Metric>
-      <Metric label={copy.volume} note={!loading && volume.primaryValue !== "N/A" ? volume.ratioVsAvg === "N/A" ? copy.noAverage : `${volume.ratioVsAvg.replace("x", "×")} ${copy.versusAverage}` : null}>
+      <Metric label={copy.volume} note={!loading && volume.primaryValue !== "N/A" ? volume.ratioVsAvg === "N/A" ? copy.noAverage : `${volume.ratioVsAvg.replace("x", "×")} ${volume.priorAverageSessions === undefined ? copy.versusAverage : copy.priorAverage(volume.priorAverageSessions)}` : null}>
         <strong>{loading ? "…" : volume.primaryValue === "N/A" ? copy.missing : volume.primaryValue.replace(/shares/i, copy.shares)}</strong>
       </Metric>
-      <Metric label={copy.sectorLeader} note={leader ? copy.sectorLeaderBasis : null}>
+      <Metric label={copy.sectorLeader} note={leader ? <DashboardInfoPanel label={copy.sectorLeaderBasis} title={copy.sectorLeader} locale={locale}><p>{copy.sectorLeaderBasis} · {locale === "bn" ? "যোগ্য সেশনের শেয়ার" : "Eligible session stocks"} · {pulse.latestTradeDate ?? "—"}</p></DashboardInfoPanel> : null}>
         {leader ? <strong>{sectorName(leader.name, locale)} <b className={`sw-${leader.changePercent > 0 ? "positive" : leader.changePercent < 0 ? "negative" : "neutral"}`}>{formatPercent(leader.changePercent)}</b></strong>
           : <strong>{loading || leadersLoading ? "…" : copy.missing}</strong>}
       </Metric>
@@ -144,7 +145,6 @@ export function MarketOverview({ model, copy, locale, freshness, loading, leader
         </div>
         <Image className="sw-wealth-card-art" alt="" sizes="(max-width: 640px) 76px, 120px" height={320} width={480} src="/dashboard/wealth-workspace-trio-v2.webp" />
       </Link>
-
     </div>
   </section>;
 }

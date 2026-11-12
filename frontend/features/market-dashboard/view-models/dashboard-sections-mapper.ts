@@ -66,7 +66,7 @@ export function mapUniverseRowsToSignalFeed(
   limit = DASHBOARD_SIGNAL_FEED_LIMIT,
 ): SignalFeedItemModel[] {
   return rows
-    .map(mapUniverseRowToListRow)
+    .map((row) => mapUniverseRowToListRow(row))
     .filter((stock) => {
       const decision = resolveTraderDecision(stock);
       return decision.source === "decision-engine";
@@ -83,6 +83,7 @@ export function mapUniverseRowsToSignalFeed(
 
       return {
         symbol: stock.stock.symbol,
+        decisionSummary: stock.traderDecision,
         signal: decision.recommendation,
         confidence: decision.evidenceStatus ?? "UNAVAILABLE",
         confidenceValue: decision.confidence,
@@ -221,6 +222,7 @@ export function mapDashboardHeatmapDto(dto: BackendDashboardHeatmapDto): Heatmap
 }
 
 export function mapDashboardSentimentDto(dto: BackendDashboardMarketSentimentDto): {
+  marketSyncId: string | null;
   marketMood: MarketMood;
   insights: InsightBlockModel[];
   signalCount: number;
@@ -228,8 +230,10 @@ export function mapDashboardSentimentDto(dto: BackendDashboardMarketSentimentDto
   turnoverLabel: string;
 } {
   return {
-    marketMood: dto.market_mood as MarketMood,
-    insights: dto.insights.map((insight) => ({
+    marketSyncId: dto.market_sync_id ?? null,
+    marketMood: "Unknown",
+    insights: [...(dto.interpretation ? [{ id: "market-mood", title: "Session interpretation", description: "", tone: dto.interpretation.code === "ALIGNED_UP" ? "positive" : dto.interpretation.code === "ALIGNED_DOWN" ? "negative" : "neutral", category: "momentum", source: "DETERMINISTIC", interpretation: dto.interpretation }] : []), ...dto.insights.filter((insight) => insight.id !== "market-mood")].map((insight) => ({
+      interpretation: "interpretation" in insight ? insight.interpretation : undefined,
       id: insight.id,
       title: insight.title,
       description: insight.description,
@@ -244,18 +248,19 @@ export function mapDashboardSentimentDto(dto: BackendDashboardMarketSentimentDto
 }
 
 export function mapDashboardSectorsToLeadersContext(dto: BackendDashboardSectorsDto): LeadersPulseContext {
-  const primary = dto.sectors[0]
+  const sectors = dto.sectors.filter((sector) => toNumber(sector.change_percent) !== null);
+  const primary = sectors[0]
     ? {
-        name: dto.sectors[0].name,
-        changePercent: toNumber(dto.sectors[0].change_percent) ?? 0,
-        label: `${dto.sectors[0].name} ${formatPercent(toNumber(dto.sectors[0].change_percent))}`,
+        name: sectors[0].name,
+        changePercent: toNumber(sectors[0].change_percent) ?? 0,
+        label: `${sectors[0].name} ${formatPercent(toNumber(sectors[0].change_percent))}`,
       }
     : null;
-  const runnerUp = dto.sectors[1]
+  const runnerUp = sectors[1]
     ? {
-        name: dto.sectors[1].name,
-        changePercent: toNumber(dto.sectors[1].change_percent) ?? 0,
-        label: `${dto.sectors[1].name} ${formatPercent(toNumber(dto.sectors[1].change_percent))}`,
+        name: sectors[1].name,
+        changePercent: toNumber(sectors[1].change_percent) ?? 0,
+        label: `${sectors[1].name} ${formatPercent(toNumber(sectors[1].change_percent))}`,
       }
     : null;
 
@@ -278,7 +283,7 @@ export function mapDashboardSectorsToLeadersContext(dto: BackendDashboardSectors
       performanceTone: runnerUp.changePercent > 0 ? "positive" : runnerUp.changePercent < 0 ? "negative" : "neutral",
     });
   }
-  if (dto.top_gainer) {
+  if (dto.top_gainer && toNumber(dto.top_gainer.change_percent) !== null) {
     const change = toNumber(dto.top_gainer.change_percent) ?? 0;
     rows.push({
       kind: "top_stock",

@@ -12,7 +12,7 @@ from app.core.constants.trading_constants import (
     DASHBOARD_MARKET_MOVERS_LIMIT,
 )
 from app.core.core_config import Settings, get_settings
-from app.core.enums import ExchangeCode, TrendDirection
+from app.core.enums import DataQualityFlag, ExchangeCode, TrendDirection
 from app.jobs.market_session_schedule import current_cache_ttl_seconds
 from app.core.perf_timing import PerfReport, async_perf_stage
 from app.core.redis_client import OptionalRedisClient, get_redis_client
@@ -29,6 +29,7 @@ from app.modules.market_dashboard.market_dashboard_compute import (
     build_sector_snapshots_from_snapshot,
     derive_market_breadth_from_snapshot,
     derive_market_mood_from_snapshot,
+    measured_market_interpretation,
 )
 from app.modules.market_dashboard.market_snapshot import (
     dated_breadth_changes,
@@ -187,6 +188,10 @@ class MarketDashboardService:
             freshness = await self.market_data_service.get_market_freshness(exchange=exchange)
             cache_key = dashboard_cache_key(section, exchange, freshness.market_sync_id)
             cached = await self._cache_get(cache_key)
+            # This section gained measured interpretation without changing the
+            # quote generation. Upgrade just this old cached projection on read.
+            if section == "market-sentiment" and cached is not None and not cached.get("interpretation"):
+                cached = None
             if cached is not None:
                 data = model.model_validate(cached)
                 after = await self.market_data_service.get_market_freshness(exchange=exchange)
@@ -467,13 +472,12 @@ class MarketDashboardService:
         snapshot = await self._load_snapshot(exchange, perf, freshness)
         latest_summary = _latest_summary(snapshot.summaries)
 
-        async with async_perf_stage(perf, "metrics.dsex"):
-            dsex_index = await self.market_data_service.get_dsex_index_snapshot(
-                exchange=exchange,
-                summaries=snapshot.summaries,
-                report=perf,
-                end_date=freshness.trade_date,
-            )
+        # Use recorded session facts directly. The overview's display DTO can
+        # substitute zero for an unknown index change and load horizon metrics;
+        # neither is evidence for this lightweight interpretation.
+        dsex_index = next((row for row in snapshot.summaries
+            if row.index_name == "DSEX" and row.trade_date == snapshot.session_trade_date
+            and row.data_quality_flag != DataQualityFlag.SUSPICIOUS), None)
 
         advancing, declining, unchanged, _ = derive_market_breadth_from_snapshot(snapshot.rows, snapshot.session_trade_date)
 
@@ -484,7 +488,7 @@ class MarketDashboardService:
                 declining=declining,
             )
 
-            turnover_value = dsex_index.total_turnover
+            turnover_value = dsex_index.total_turnover if dsex_index is not None else None
             if turnover_value is None and latest_summary is not None:
                 turnover_value = latest_summary.total_turnover
             if turnover_value is None:
@@ -511,7 +515,9 @@ class MarketDashboardService:
             self._last_compute_ms = perf.total_ms
 
         from app.modules.market_data.breadth import breadth_facts
+        facts = breadth_facts(dated_breadth_changes(snapshot.rows, snapshot.session_trade_date), cohort="ACTIVE_VALID_OHLC", as_of_date=snapshot.session_trade_date)
         return DashboardMarketSentimentRead(
+            interpretation=measured_market_interpretation(breadth=facts, index=dsex_index, summaries=snapshot.summaries, session_date=snapshot.session_trade_date),
             market_status=freshness.market_status.value,
             breadth=breadth_facts(dated_breadth_changes(snapshot.rows, snapshot.session_trade_date), cohort="ACTIVE_VALID_OHLC", as_of_date=snapshot.session_trade_date),
             exchange=exchange,

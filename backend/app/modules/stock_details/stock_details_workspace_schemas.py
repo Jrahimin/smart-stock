@@ -68,6 +68,7 @@ class DisplayMetricsRead(BaseModel):
     data_quality: str | None = None
     ingested_at: datetime | None = None
     source_observed_at: datetime | None = None
+    batch_fetched_at: datetime | None = Field(default=None, exclude_if=lambda value: value is None)
     max_age_seconds: int = 1800
     price_change: float | None = None
     price_change_percent: float | None = None

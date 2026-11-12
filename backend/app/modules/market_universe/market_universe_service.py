@@ -586,7 +586,8 @@ class MarketUniverseService:
                             if str(row.stock.id) in prior_rows
                             and prior_rows[str(row.stock.id)].decision
                             else None
-                        )
+                        ),
+                        "previous_publication_generation_id": prior.market_sync_id if prior else None
                     }
                 )
                 for row in rows
@@ -857,7 +858,12 @@ class MarketUniverseService:
                 coverage = verify_capture_coverage(facts, [str(row.stock.id) for row in snapshot.rows])["verified"]
         candidates = {row.stock.id for row in selected if row.decision and row.decision.display_action == "POTENTIAL_BUY"}
         reference = snapshot.generation.trade_date
-        sessions = await self.market_repository.list_recent_exchange_session_dates(exchange=exchange, limit=5000, end_date=now.date()) if candidates else []
+        sessions = await self.market_repository.list_recent_exchange_session_dates(exchange=exchange, limit=5000, end_date=now.date()) if selected else []
+        previous_session = max((day for day in sessions if day < reference), default=None)
+        prior = await repository.latest_publication(exchange=exchange, before_date=reference, metadata_only=True) if repository and hasattr(repository, "latest_publication") else None
+        previous_valid = bool(prior and publication and not prior.invalidated_at and prior.session_date == previous_session
+            and prior.observed_at <= publication.observed_at)
+        from app.modules.stock_details.decision.comparison import compare_holder_decisions, compare_public_decisions
         observed_reader = getattr(self.market_repository, "list_observed_exchange_session_dates", None)
         observed = await observed_reader(exchange=exchange, start_date=reference, end_date=now.date()) if candidates and observed_reader else []
         finalized = frozenset(sessions)
@@ -896,8 +902,25 @@ class MarketUniverseService:
                 publication_observed_at=publication.observed_at if publication else None,
             )
             decision = row.decision.model_copy(update={"entry_applicability": applicability}) if row.decision else None
+            if decision and row.analysis and decision.measured_support_component is None:
+                from app.modules.stock_details.decision.summary import selected_explanation_fields
+                decision = decision.model_copy(update=selected_explanation_fields(decision, row.analysis.opportunity))
             projected[row.stock.id] = row.model_copy(update={
                 "display_quote": quotes.get(row.stock.id), "entry_applicability": applicability, "decision": decision,
+                "holder_comparison": compare_holder_decisions(
+                    row.decision.canonical if row.decision else None,
+                    row.previous_finalized_decision,
+                    previous_session=previous_session,
+                    current_valid=bool(publication and publication.generation_id == snapshot.generation.sync_id and not publication.invalidated_at),
+                    previous_valid=previous_valid and row.previous_publication_generation_id == prior.generation_id,
+                ),
+                "public_comparison": compare_public_decisions(
+                    row.decision.canonical if row.decision else None,
+                    row.previous_finalized_decision,
+                    previous_session=previous_session,
+                    current_valid=bool(publication and publication.generation_id == snapshot.generation.sync_id and not publication.invalidated_at),
+                    previous_valid=previous_valid and row.previous_publication_generation_id == prior.generation_id,
+                ),
             })
         after = await self.resolve_quote_context(exchange=exchange)
         if (context.sync_id if context else None) != (after.sync_id if after else None):

@@ -7,6 +7,12 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   clearStoredAuthTokens,
   getStoredRefreshToken,
+  getBackendAuthSessionVersion,
+  assertBackendAuthSession,
+  isBackendAuthSessionCurrent,
+  rotateBackendAccessToken,
+  synchronizeBackendAuthSession,
+  AUTH_SESSION_STORAGE_KEY,
   setBackendAccessToken,
   setBackendAuthFailureHandler,
   setStoredRefreshToken,
@@ -57,12 +63,20 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
     setUser(null);
   }, []);
 
-  const applyTokenPair = useCallback(async (tokenPair: TokenPair) => {
-    setBackendAccessToken(tokenPair.access_token);
+  const applyTokenPair = useCallback(async (tokenPair: TokenPair, continuingVersion?: number) => {
+    if (continuingVersion !== undefined) rotateBackendAccessToken(tokenPair.access_token, continuingVersion);
+    else { setUser(null); setBackendAccessToken(tokenPair.access_token); }
     setStoredRefreshToken(tokenPair.refresh_token);
-    const currentUser = await getCurrentUser();
-    setUser(currentUser);
-  }, []);
+    const version = getBackendAuthSessionVersion();
+    try {
+      const currentUser = await getCurrentUser();
+      assertBackendAuthSession(version);
+      setUser(currentUser);
+    } catch (error) {
+      if (isBackendAuthSessionCurrent(version) && getStoredRefreshToken() === tokenPair.refresh_token) clearSession();
+      throw error;
+    }
+  }, [clearSession]);
 
   const refreshCurrentSession = useCallback(async () => {
     const refreshToken = getStoredRefreshToken();
@@ -71,8 +85,11 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
       return;
     }
 
+    const version = getBackendAuthSessionVersion();
     const tokenPair = await refreshSession(refreshToken);
-    await applyTokenPair(tokenPair);
+    assertBackendAuthSession(version);
+    if (getStoredRefreshToken() !== refreshToken) return;
+    await applyTokenPair(tokenPair, version);
   }, [applyTokenPair, clearSession]);
 
   useEffect(() => {
@@ -85,20 +102,31 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
   }, [clearSession, pathname, router]);
 
   useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if ((event.key === AUTH_SESSION_STORAGE_KEY || event.key === null) && synchronizeBackendAuthSession()) setUser(null);
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+
+  useEffect(() => {
     let isMounted = true;
 
     async function bootstrapSession() {
+      const version = getBackendAuthSessionVersion();
+      const refreshToken = getStoredRefreshToken();
       try {
-        const refreshToken = getStoredRefreshToken();
         if (!refreshToken) {
           clearSession();
           return;
         }
 
         const tokenPair = await refreshSession(refreshToken);
-        await applyTokenPair(tokenPair);
+        assertBackendAuthSession(version);
+        if (getStoredRefreshToken() !== refreshToken) return;
+        await applyTokenPair(tokenPair, version);
       } catch {
-        clearSession();
+        if (isBackendAuthSessionCurrent(version) && getStoredRefreshToken() === refreshToken) clearSession();
       } finally {
         if (isMounted) {
           setIsLoading(false);

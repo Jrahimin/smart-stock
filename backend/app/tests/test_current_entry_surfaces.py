@@ -53,8 +53,11 @@ async def test_universe_signals_support_and_cached_pulse_share_current_codes(mon
         list_entry_path_observations=AsyncMock(return_value=([bar], [], published-timedelta(days=1))),
         list_entry_basis_events=AsyncMock(return_value={}),
     )
-    durable = SimpleNamespace(latest_publication=AsyncMock(return_value=SimpleNamespace(
-        generation_id=snapshot.generation.sync_id, observed_at=published, invalidated_at=None)),
+    publication = SimpleNamespace(generation_id=snapshot.generation.sync_id,
+        session_date=snapshot.generation.trade_date, observed_at=published, invalidated_at=None)
+    async def latest_publication(*, before_date=None, **kwargs):
+        return None if before_date is not None else publication
+    durable = SimpleNamespace(latest_publication=AsyncMock(side_effect=latest_publication),
         publication_coverage=AsyncMock(return_value={"universe_membership": [str(stock.id)], "input_keys": [str(stock.id)], "excluded_members": [], "membership_provenance": {"status": "OBSERVED_INDEPENDENT_LISTED_SET", "observed_at": published.isoformat(), "listed_count": 1, "market_coverage_verified": True}}))
     universe = MarketUniverseService(market, SimpleNamespace(count_stocks=AsyncMock(return_value=1)), object(), Settings(), durable)
     universe.get_canonical_universe = AsyncMock(return_value=snapshot)

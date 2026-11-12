@@ -22,7 +22,7 @@ export type RelatedStockCard = {
   href: string;
   price: string;
   changePercent: string;
-  recommendation: DecisionDisplayAction;
+  recommendation: DecisionDisplayAction | null;
   reasons: string[];
 };
 

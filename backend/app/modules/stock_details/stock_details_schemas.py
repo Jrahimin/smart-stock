@@ -258,6 +258,11 @@ from app.modules.stock_details.decision.entry_applicability import EntryApplicab
 
 class TraderDecisionRead(BaseModel):
     entry_applicability: EntryApplicabilityRead | None = None
+    measured_support: str | None = None
+    opposing_constraint: str | None = None
+    measured_support_component: ScoreComponentRead | None = Field(default=None, exclude_if=lambda value: value is None)
+    opposing_constraint_code: str | None = Field(default=None, exclude_if=lambda value: value is None)
+    opposing_component: ScoreComponentRead | None = Field(default=None, exclude_if=lambda value: value is None)
     recommendation: TraderRecommendation
     internal_action: TraderRecommendation | None = None
     display_action: DecisionDisplayAction = DecisionDisplayAction.WAIT
@@ -286,6 +291,11 @@ class TraderDecisionSummaryRead(BaseModel):
     entry_applicability: EntryApplicabilityRead | None = None
     measured_support: str | None = None
     opposing_constraint: str | None = None
+    # Preserve durable payload hashes when an older publication did not carry
+    # these additive presentation fields. Never rewrite its stored bytes.
+    measured_support_component: ScoreComponentRead | None = Field(default=None, exclude_if=lambda value: value is None)
+    opposing_constraint_code: str | None = Field(default=None, exclude_if=lambda value: value is None)
+    opposing_component: ScoreComponentRead | None = Field(default=None, exclude_if=lambda value: value is None)
     recommendation: TraderRecommendation
     internal_action: TraderRecommendation | None = None
     display_action: DecisionDisplayAction = DecisionDisplayAction.WAIT

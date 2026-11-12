@@ -249,3 +249,11 @@ Optional forward-receipt failure cannot replace or expire the serialized durable
 winner used for cache publication. Background warm-cache retries may repair only
 a missing compatible receipt using the exact winner and real retry time;
 canonical decisions are not recomputed and public reads remain read-only.
+
+### Public canonical comparisons (Order 4, increment 2)
+
+`ScoredUniverseRow.public_comparison` is a read-time projection with `CHANGED`, `UNCHANGED` or `UNCOMPARABLE`, plus the actual prior/current public actions and verified preceding session date for comparable pairs. The shared helper lives in `stock_details/decision/comparison.py`; it never compares public action with holder guidance. Identity, exact preceding finalized exchange session, compatible strategy/threshold/action taxonomy and both valid publication heads are required. Missing lineage means uncomparable, including older payloads.
+
+New publications capture optional `previous_publication_generation_id` beside the existing prior canonical result. Current reads verify that exact prior head with a narrow metadata-only lookup; a later revision, withdrawal or session gap suppresses comparison. Missing optional comparison/lineage fields are excluded when serializing old stored rows, preserving durable payload hashes. Read-time support/opposition component projection reuses the existing summary's selection over the immutable analysis; it does not rerank names or rewrite publications.
+
+Read-time rows additionally expose `holder_comparison`, comparing the actual prior/current holder instructions through the same verified calendar, publication validity, instrument and version gate as `public_comparison`. It is excluded when absent during durable payload serialization so older publication hashes remain unchanged.

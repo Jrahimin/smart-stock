@@ -1,4 +1,8 @@
-"""Lossless canonical inputs. Observed-at is capture time, never a backdated PIT claim."""
+"""Lossless canonical inputs with separately labelled write, source and receipt clocks.
+
+The legacy source_observations.observed_at alias is database write time, never
+provider observation or evidence that a historical input was available then.
+"""
 
 from datetime import date, datetime
 from decimal import Decimal
@@ -31,7 +35,9 @@ def capture_strategy_input(value: StrategyInput) -> dict:
             "finality": value.finality,
             "prices": [daily_price_audit_payload(row) for row in value.prices],
             "source_observations": [
-                {"session": row.trade_date, "source": row.source, "observed_at": row.updated_at}
+                {"session": row.trade_date, "source": row.source, "observed_at": row.updated_at,
+                 "database_updated_at": row.updated_at, "source_observed_at": getattr(row, "source_observed_at", None),
+                 "batch_fetched_at": getattr(row, "batch_fetched_at", None)}
                 for row in value.prices
             ],
             "known_corporate_action_dates": value.known_corporate_action_dates,

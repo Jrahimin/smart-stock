@@ -263,6 +263,11 @@ class StockDetailsDecisionService:
             is_live_session=is_live_session,
             decision=TraderDecisionRead(
                 entry_applicability=row.entry_applicability,
+                measured_support=decision.measured_support,
+                opposing_constraint=decision.opposing_constraint,
+                measured_support_component=decision.measured_support_component,
+                opposing_constraint_code=decision.opposing_constraint_code,
+                opposing_component=decision.opposing_component,
                 recommendation=decision.recommendation,
                 internal_action=decision.internal_action,
                 display_action=decision.display_action,

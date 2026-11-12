@@ -107,3 +107,5 @@
 @media (prefers-reduced-motion: reduce) {
   .hero :global(.sw-pulse-entry:is(:hover, :focus-visible)), .hero :global(.sw-wealth-card:is(:hover, :focus-visible)) { transform: none; }
 }
+
+.hero :global(.sw-metrics .sw-info-trigger) { padding:0; min-height:24px; font-size:inherit; }

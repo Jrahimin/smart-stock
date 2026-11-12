@@ -13,6 +13,7 @@ export type InsightCategory =
   | "quality";
 
 export type InsightBlockModel = {
+  interpretation?: import("@/lib/api/backend-api-types").BackendMarketInterpretationDto | null;
   id: string;
   title: string;
   description: string;

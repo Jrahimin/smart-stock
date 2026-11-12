@@ -16,7 +16,7 @@ function directGenerationStamp(data: unknown): MarketGenerationStamp | null {
   if (typeof data !== "object" || data === null) {
     return null;
   }
-  if (!(MARKET_GENERATION_FIELD in data) && !("last_synced_at" in data)) {
+  if (!(MARKET_GENERATION_FIELD in data) && !("last_synced_at" in data) && !("decision_generation_id" in data)) {
     return null;
   }
   return data as MarketGenerationStamp;
@@ -48,7 +48,7 @@ export function readMarketGenerationValue(data: unknown): string | null | undefi
 
   // New API responses use an immutable publication id.  Keep timestamp fallback
   // while older backend nodes are draining during a rolling deployment.
-  const value = stamp.market_sync_id ?? stamp.last_synced_at;
+  const value = stamp.market_sync_id ?? stamp.last_synced_at ?? stamp.decision_generation_id;
   if (value === null || value === undefined) {
     return null;
   }
