@@ -17,6 +17,11 @@ it("revises only persisted full Pulse and briefing keys, retaining HTTP identity
   }
 });
 
+it("uses a new persisted key for ten dashboard movers while preserving the request URL", () => {
+  const url = `${frontendConfig.apiBaseUrl}/dashboard/movers?exchange=DSE`;
+  expect(marketPresentationCacheKey(url)).toBe(`${url}#movers-top10-v1`);
+});
+
 it("misses the old same-generation verdict once, then reuses the new IndexedDB record without another HTTP call", async () => {
   const url = `${frontendConfig.apiBaseUrl}/market/pulse/briefing?exchange=DSE`;
   const records = new Map<string, unknown>([[url, { cacheKey: url, expiresAt: Date.now() + 60000, scope: "market", marketSchemaVersion: MARKET_INDEXEDDB_SCHEMA_VERSION, data: { market_sync_id: "gA", marker: "old-float-verdict" } }]]);

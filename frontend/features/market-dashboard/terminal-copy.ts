@@ -100,7 +100,7 @@ const copy = {
     timelineError: "বাজারের সতর্কবার্তা আসেনি। রিফ্রেশ করে আবার চেষ্টা করুন।",
     timelineCached: "আগের সতর্কবার্তা দেখানো হচ্ছে। সর্বশেষ অনুরোধটি ব্যর্থ হয়েছে।",
     snapshotUpdate: "বাজারের তথ্য থেকে তৈরি হালনাগাদ", moverEvent: "কার্যদিবসের শীর্ষ পরিবর্তন", marketAlert: "তথ্য থেকে তৈরি সতর্কবার্তা", sourceLink: "তথ্যের উৎস",
-    insightsTitle: "বাজারের ব্যাখ্যা", marketInterpretation: "বাজার কী বলছে", tradingActivity: "লেনদেনের মূল্য",
+    insightsTitle: "Insights", marketInterpretation: "বাজার কী বলছে", tradingActivity: "লেনদেনের মূল্য",
     insightsEmpty: "এই বাজারচিত্রের ব্যাখ্যা পাওয়া যায়নি।",
     insightsError: "বাজারের ব্যাখ্যা আসেনি। রিফ্রেশ করে আবার চেষ্টা করুন।",
     intradayInterpretation: "চলতি কার্যদিবসের চিত্র। লেনদেন এখনও চলছে।",

@@ -1,4 +1,3 @@
-import { breadthCoverageLabel, compactBreadthCoverage } from "@/lib/market/breadth-presentation";
 import { DashboardInfoPanel } from "./dashboard-info-panel";
 import Link from "next/link";
 import { getPremiumCopy } from "../premium-copy";
@@ -121,7 +120,7 @@ export function MarketOverview({ model, copy, locale, freshness, loading, leader
       </div>
     </div>
     <dl className="sw-metrics">
-      <Metric label={copy.breadth} guide="market-breadth" note={loading ? null : <DashboardInfoPanel label={compactBreadthCoverage(breadth.provenance, locale)} title={copy.breadth} locale={locale}><p>{breadthCoverageLabel(breadth.provenance, locale)}</p></DashboardInfoPanel>}>
+      <Metric label={copy.breadth} guide="market-breadth">
         {breadth.total > 0 ? <>
           <div className="sw-breadth-labels">{breadthParts.map(([label, count, tone]) => <span className={`sw-${tone}`} key={tone}><b>{count}</b> {label}</span>)}</div>
           <div className="sw-breadth-bar" aria-hidden="true">{breadthParts.map(([, count, tone]) => <span key={tone} className={`sw-${tone}`} style={{ flexGrow: count }} />)}</div>
@@ -135,7 +134,7 @@ export function MarketOverview({ model, copy, locale, freshness, loading, leader
         <strong>{loading ? "…" : volume.primaryValue === "N/A" ? copy.missing : volume.primaryValue.replace(/shares/i, copy.shares)}</strong>
         {activityDateDiffers && <small>{shortTradeDate(pulse.activityTradeDate, locale)}</small>}
       </Metric>
-      <Metric label={copy.sectorLeader} note={leader ? <DashboardInfoPanel label={copy.sectorLeaderBasis} title={copy.sectorLeader} locale={locale}><p>{copy.sectorLeaderBasis} · {locale === "bn" ? "যোগ্য সেশনের শেয়ার" : "Eligible session stocks"} · {pulse.latestTradeDate ?? "—"}</p></DashboardInfoPanel> : null}>
+      <Metric label={copy.sectorLeader}>
         {leader ? <strong>{sectorName(leader.name, locale)} <b className={`sw-${leader.changePercent > 0 ? "positive" : leader.changePercent < 0 ? "negative" : "neutral"}`}>{formatPercent(leader.changePercent)}</b></strong>
           : <strong>{loading || leadersLoading ? "…" : copy.missing}</strong>}
       </Metric>

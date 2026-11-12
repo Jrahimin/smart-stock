@@ -23,13 +23,14 @@ export function TradePlanPanel({ decision, copy }: TradePlanPanelProps) {
     return <i aria-hidden="true" className={`trade-plan-zone ${kind}`} style={{ left: `${position(Math.min(low, high))}%`, width: `${Math.abs(position(high) - position(low))}%` }} />;
   };
   return <section className="trader-workspace-strip trade-plan-strip">
-    <div className="strip-heading"><span>{copy.tradePlan}{plan.status === "WATCH_ONLY" ? ` · ${copy.watchOnly}` : ""}</span>
-      <strong className="trade-plan-rr">{copy.plannedRewardRisk} {plan.riskReward !== null ? `${plan.riskReward.toFixed(2)}×` : "—"}</strong>
+    <div className="trade-plan-heading">
+      <div className="trade-plan-heading-title"><span className="trade-plan-title">{copy.tradePlan}</span>{plan.status === "WATCH_ONLY" ? <span className="trade-plan-status">{copy.watchOnly}</span> : null}</div>
+      <div className="trade-plan-rr"><span>{copy.plannedRewardRisk}</span><strong>{plan.riskReward !== null ? `${plan.riskReward.toFixed(2)}×` : "—"}</strong></div>
     </div>
     <p className="trade-plan-date">{copy.planAsOf} {shortTradeDate(plan.asOfDate, decision.locale)} · {copy.decisionReference} {formatNumber(plan.reference)}</p>
     <div className="trade-plan-timeline">
-      <div className="trade-plan-row"><span>{copy.entryZone}</span><div className="trade-plan-track">{band(plan.entryLow, plan.entryHigh, "entry")}</div><strong>{range(plan.entryLow, plan.entryHigh)}</strong></div>
-      <div className="trade-plan-row"><span>{copy.markedQuote}</span><div className="trade-plan-track">{valid(plan.current) ? <i aria-hidden="true" className="trade-plan-dot trade-plan-dot-current" style={{ left: `${position(plan.current)}%` }} /> : null}</div><strong>{formatNumber(plan.current)}</strong></div>
+      <div className="trade-plan-row trade-plan-entry"><span>{copy.entryZone}</span><div className="trade-plan-track">{band(plan.entryLow, plan.entryHigh, "entry")}</div><strong>{range(plan.entryLow, plan.entryHigh)}</strong></div>
+      <div className="trade-plan-row trade-plan-current"><span>{copy.markedQuote}</span><div className="trade-plan-track">{valid(plan.current) ? <i aria-hidden="true" className="trade-plan-dot trade-plan-dot-current" style={{ left: `${position(plan.current)}%` }} /> : null}</div><strong>{formatNumber(plan.current)}</strong></div>
       <div className="trade-plan-row trade-plan-stop"><span>{copy.stopLoss}</span><div className="trade-plan-track">{valid(plan.stopLoss) ? <i aria-hidden="true" className="trade-plan-marker trade-plan-marker-stop" style={{ left: `${position(plan.stopLoss)}%` }} /> : null}</div><strong>{formatNumber(plan.stopLoss)}</strong></div>
       <div className="trade-plan-row trade-plan-target"><span>{copy.target}</span><div className="trade-plan-track">{band(plan.targetLow, plan.targetHigh, "trade-plan-target-band")}</div><strong>{range(plan.targetLow, plan.targetHigh)}</strong></div>
     </div>

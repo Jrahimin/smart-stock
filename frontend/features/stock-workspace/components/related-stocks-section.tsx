@@ -5,6 +5,7 @@ import Link from "next/link";
 
 import { SignalBadge } from "@/components/ui/signal-badge";
 import type { RelatedStocksCta, RelatedStocksGroup } from "@/features/stock-workspace/view-models/related-stocks-view-model";
+import type { AppLocale } from "@/lib/locale/app-locale";
 import type { StockWorkspaceLanguage } from "@/features/stock-workspace/stock-workspace-language";
 
 type RelatedStocksSectionProps = {
@@ -17,6 +18,7 @@ type RelatedStocksSectionProps = {
   loadEnabled: boolean;
   onRequestLoad: () => void;
   copy: StockWorkspaceLanguage["relatedStocks"];
+  locale: AppLocale;
 };
 
 export function RelatedStocksSection({
@@ -29,6 +31,7 @@ export function RelatedStocksSection({
   loadEnabled,
   onRequestLoad,
   copy,
+  locale,
 }: RelatedStocksSectionProps) {
   useEffect(() => {
     const section = document.getElementById("related");
@@ -92,7 +95,7 @@ export function RelatedStocksSection({
                       <Link className="scanner-result-card related-stock-card" href={item.href} key={item.stockId}>
                         <div className="scanner-card-topline">
                           <strong>{item.symbol}</strong>
-                          <SignalBadge density="compact" signal={item.recommendation} />
+                          <SignalBadge density="compact" locale={item.recommendation ? "en" : locale} signal={item.recommendation} />
                         </div>
                         <div className={`related-stock-quote related-stock-quote-${changeTone}`}>
                           <strong className="related-stock-quote-price">{item.price}</strong>

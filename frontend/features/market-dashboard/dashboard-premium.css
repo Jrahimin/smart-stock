@@ -316,3 +316,9 @@ body:has(.product-guide-root[data-dashboard-tour]) .terminal-sidebar * { transit
  .sw-pulse-entry,.sw-wealth-card { min-height:80px; padding:7px 12px; grid-template-columns:minmax(0,1fr) 96px; }
  .sw-pulse-art,.sw-wealth-card-art { width:96px; height:60px; }
 }
+
+/* Compact movers leave room for ten results beside the sector map. */
+.sw-mover-table :is(th, td) { padding-block: 5px; font-size: .76rem; line-height: 1.35; }
+.sw-section-link { padding: 6px 11px; border: 1px solid var(--sw-rule); border-radius: 8px; background: var(--sw-surface); text-decoration: none; transition: border-color 150ms ease, background 150ms ease; }
+.sw-section-link:hover { border-color: var(--sw-link); background: var(--sw-selected); text-decoration: none; }
+.sw-section-link:focus-visible { outline: 2px solid var(--sw-link); outline-offset: 2px; }

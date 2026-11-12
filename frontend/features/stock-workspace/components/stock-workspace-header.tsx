@@ -71,7 +71,7 @@ export function StockWorkspaceHeader({ model, decision, stockId, copy, locale = 
         </div>
         <div className="stock-header-metric stock-header-metric-action">
           <span>{decision?.holderInstruction ? (locale === "bn" ? "সাধারণ অ্যাকশন" : "Public action") : copy.action}</span>
-          <SignalBadge signal={action} locale={locale} />
+          <SignalBadge signal={action} locale={action ? "en" : locale} />
           <DecisionPublicationLabel compact decision={model.header.decisionPublication} locale={locale} />
         </div>
       </div>

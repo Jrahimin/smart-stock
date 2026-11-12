@@ -571,7 +571,7 @@ Return session-eligible gainers, losers, turnover leaders, and volume leaders fr
 **Notes**
 
 * Eligibility mirrors `market_mover_rules.is_eligible_session_mover`.
-* Default limit per list: 5 (`DASHBOARD_MARKET_MOVERS_LIMIT`).
+* Default limit per list: 10 (`DASHBOARD_MARKET_MOVERS_LIMIT`).
 
 ---
 

@@ -45,7 +45,7 @@ def dashboard_cache_key(
     market_sync_id: str | None = None,
 ) -> str:
     generation_suffix = f":{market_sync_id}" if market_sync_id else ""
-    section_version = {"overview": ":index-v2", "heatmap": ":measured-v3"}.get(section, "")
+    section_version = {"overview": ":index-v2", "heatmap": ":measured-v3", "movers": ":top10-v1"}.get(section, "")
     return f"dashboard:{section}:{exchange.value}:{DECISION_TAXONOMY_VERSION}{section_version}{generation_suffix}"
 
 

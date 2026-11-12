@@ -2,7 +2,7 @@ import type { AppLocale } from "@/lib/locale/app-locale";
 
 export function getPremiumCopy(locale: AppLocale) {
   return locale === "bn" ? {
-    sectorMap: "খাতের মানচিত্র", measured: (n: number, total: number) => `${total}টির মধ্যে ${n}টির পরিবর্তন জানা`,
+    sectorMap: "Sector map", measured: (n: number, total: number) => `${total}টির মধ্যে ${n}টির পরিবর্তন জানা`,
     pulseEyebrow: "বাজারের গভীরে", wealthEyebrow: "আপনার আগামী দিনের পরিকল্পনা",
     wealth: "সম্পদের পরিকল্পনা", wealthDescription: "সঞ্চয় গড়ুন, বিকল্প তুলনা করুন, করের হিসাব জানুন।",
     workspace: "ওয়েলথ ওয়ার্কস্পেস", why: "কেন গুরুত্বপূর্ণ", methodology: "মানচিত্র কীভাবে পড়বেন",

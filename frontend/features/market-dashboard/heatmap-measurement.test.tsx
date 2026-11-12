@@ -23,7 +23,7 @@ describe("measured heatmap contract", () => {
     expect(html).toContain("+3%");
     expect(html).not.toContain("-8.70%");
     expect(html).toContain(locale === "bn" ? "2টির মধ্যে 1টির পরিবর্তন জানা" : "1 of 2 measured");
-    expect(html).toContain(locale === "bn" ? "খাতের মানচিত্র" : "Sector map");
+    expect(html).toContain("Sector map");
     expect(tiles[1].changePercent).toBeNull();
     expect(tiles[1].tradeDate).toBe("2026-11-08");
   });
@@ -40,12 +40,12 @@ describe("measured heatmap contract", () => {
     expect(mapDashboardHeatmapDto({ ...dto, tiles: [{ ...dto.tiles[0], change_percent: 0 }] })[0].changePercent).toBe(0);
   });
 
-  it.each(["en", "bn"] as const)("keeps missing inspector prices distinct from zero turnover (%s)", locale => {
+  it.each(["en", "bn"] as const)("keeps missing data distinct from zero turnover without an inspector (%s)", locale => {
     const missing = mapDashboardHeatmapDto({ ...dto, tiles: [{ ...dto.tiles[0], change_percent: null, latest_price: null, turnover: null }] });
     const copy = getTerminalCopy(locale);
     const html = renderToStaticMarkup(<InstitutionalHeatmap tiles={missing} copy={copy} locale={locale} loading={false} />);
-    expect(html).toContain(`${copy.price} ${copy.missing}`);
-    expect(html).toContain(`${copy.turnover} ${copy.missing}`);
+    expect(html).toContain(copy.missing);
+    expect(html).not.toContain(copy.pickStock);
     expect(html).not.toContain("BDT 0");
     expect(mapDashboardHeatmapDto({ ...dto, tiles: [{ ...dto.tiles[0], turnover: 0 }] })[0].turnover).toBe("0");
   });

@@ -12,6 +12,7 @@ export const MARKET_INDEXEDDB_SCHEMA_VERSION = 7;
 /** Local presentation revision; HTTP identity and other cache populations stay intact. */
 export function marketPresentationCacheKey(url: string): string {
   const path = url.split("?")[0];
+  if (path.endsWith("/dashboard/movers")) return `${url}#movers-top10-v1`;
   if (path.endsWith("/dashboard/heatmap")) return `${url}#heatmap-measured-v3`;
   return path.endsWith("/market/pulse") || path.endsWith("/market/pulse/briefing") ? `${url}#pulse-sector-exact-v5` : url;
 }

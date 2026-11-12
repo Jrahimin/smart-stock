@@ -320,3 +320,13 @@ describe("repair1 publication reading order and measured basis", () => {
     });
   }
 });
+
+
+it("keeps Stock Details decision actions in English with Bangla explanations", () => {
+  const fixture = buildDecisionFixture();
+  const model = buildStockDecisionViewModel(fixture, "bn");
+  expect(model.recommendation).toBe("WAIT");
+  const html = renderToStaticMarkup(createElement(TraderDecisionCard, { decision: model, copy: getStockWorkspaceLanguage("bn").decision }));
+  expect(html).toContain("WAIT");
+  expect(html).toContain("মিশ্র");
+});

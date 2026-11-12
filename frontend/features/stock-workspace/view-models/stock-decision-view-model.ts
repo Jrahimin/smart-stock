@@ -209,7 +209,7 @@ export function buildStockDecisionViewModel(
       audience: locale === "bn" ? "নতুন অবস্থান বিবেচনায়" : "For a prospective entry",
       datedActionLabel: `${locale === "bn" ? "সিদ্ধান্ত" : "Decision"} · ${shortTradeDate(asOfDate, locale)}`,
       sourceDetail: [decision.decision.primary_reason, decision.decision.measured_support, decision.decision.opposing_constraint, decision.trade_plan.trailing_rule].filter((text): text is string => !!text),
-      recommendation: displayAction ? getSignalActionLabel(displayAction, locale) : (locale === "bn" ? "সিদ্ধান্ত অনুপলব্ধ" : "Decision unavailable"),
+      recommendation: displayAction ? getSignalActionLabel(displayAction, "en") : (locale === "bn" ? "সিদ্ধান্ত অনুপলব্ধ" : "Decision unavailable"),
       confidence: decision.decision.confidence,
       confidenceLabel: evidenceLabel(decision.decision.evidence_status, locale),
       controllingReason: [
@@ -331,5 +331,5 @@ export function withStockHolderInstruction(model: StockDecisionViewModel, decisi
   const fallback = (model.locale === "en" ? decision?.decision.primary_reason ?? decision?.canonical_decision?.primary_reason : null)
     ?? (model.locale === "bn" ? "প্রকাশিত নির্দেশনার কারণ উৎসের বিস্তারিত অংশে দেখুন।" : "See the published source detail for the holder instruction's reason.");
   const reason = holderReasonLabel(code, fallback, model.locale);
-  return { ...model, holderInstruction: { action, label: holderActionLabels[model.locale][action], reason } };
+  return { ...model, holderInstruction: { action, label: holderActionLabels.en[action], reason } };
 }

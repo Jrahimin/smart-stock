@@ -32449,3 +32449,56 @@ button {
   .signal-center-view .explorer-hero-discovery { flex-basis:320px; min-width:280px; }
 }
 .sw-index-date { display:block; color:var(--muted); font-size:12px; margin:4px 0 0 16px; }
+
+/* Stock details: one cohesive hero with room for readable market facts. */
+.stock-workspace-topbar { background:var(--panel); border:1px solid var(--border); border-radius:18px; padding:14px; grid-template-columns:minmax(0,1fr) min(350px,32%); }
+.stock-workspace-topbar .stock-workspace-header { background:transparent; border:0; border-radius:0; padding:0; align-self:center; }
+.stock-workspace-topbar .stock-workspace-header > div:first-child { flex:0 1 36%; max-width:36%; }
+.stock-workspace-topbar .stock-header-metrics { flex:1 1 0; grid-template-columns:repeat(4,minmax(0,1fr)); }
+.stock-workspace-topbar .stock-header-metric { overflow:visible; }
+.stock-workspace-topbar .stock-header-metrics strong { white-space:normal; overflow:visible; text-overflow:clip; }
+.stock-workspace-topbar-search { opacity:1; transform:none; }
+@media (max-width:1023px) {
+  .stock-workspace-topbar { grid-template-columns:minmax(0,1fr); }
+  .stock-workspace-topbar .stock-workspace-header { align-items:stretch; }
+  .stock-workspace-topbar .stock-workspace-header > div:first-child { max-width:none; }
+  .stock-workspace-topbar .stock-header-metrics { flex:auto; }
+}
+@media (max-width:767px) {
+  .stock-workspace-topbar .stock-header-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+
+.related-stock-card .scanner-card-topline { flex-wrap:wrap; }
+.related-stock-card .scanner-card-topline strong { min-width:0; overflow-wrap:anywhere; }
+
+.stock-workspace-topbar .stock-header-title-row { flex-wrap:wrap; gap:4px 8px; }
+.stock-workspace-topbar .stock-header-title-row h1 { min-width:0; overflow-wrap:anywhere; }
+
+/* Trade plan: compact levels and a clearly dated, watch-only context. */
+.trade-plan-strip { background:linear-gradient(145deg,color-mix(in srgb,var(--primary) 5%,var(--panel)),var(--panel) 65%); border-color:color-mix(in srgb,var(--primary) 22%,var(--border)); padding:14px; }
+.trade-plan-heading { align-items:center; display:flex; flex-wrap:wrap; gap:8px 16px; justify-content:space-between; }
+.trade-plan-heading-title { align-items:center; display:flex; flex-wrap:wrap; gap:8px; }
+.trade-plan-title { color:var(--foreground); font-size:0.76rem; font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
+.trade-plan-status { background:color-mix(in srgb,var(--warning) 12%,var(--panel)); border:1px solid color-mix(in srgb,var(--warning) 30%,var(--border)); border-radius:999px; color:var(--warning); font-size:.7rem; font-weight:700; padding:3px 9px; }
+.trade-plan-rr { align-items:baseline; display:flex; gap:7px; }
+.trade-plan-rr span { color:var(--muted); font-size:.72rem; }
+.trade-plan-rr strong { color:var(--foreground); font-size:.94rem; }
+.trade-plan-strip .trade-plan-date { margin:7px 0 10px; }
+.trade-plan-timeline { gap:4px; }
+.trade-plan-row { border:1px solid transparent; border-radius:9px; gap:10px; grid-template-columns:minmax(105px,.85fr) minmax(80px,2fr) minmax(105px,.8fr); min-height:33px; padding:5px 9px; }
+.trade-plan-row > span { font-weight:650; line-height:1.3; }
+.trade-plan-row > strong { color:var(--foreground); font-size:.82rem; }
+.trade-plan-entry { background:color-mix(in srgb,var(--primary) 9%,var(--panel)); border-color:color-mix(in srgb,var(--primary) 18%,var(--border)); }
+.trade-plan-entry > span { color:var(--primary); }
+.trade-plan-current { background:color-mix(in srgb,var(--foreground) 3%,var(--panel)); }
+.trade-plan-stop, .trade-plan-target { background:color-mix(in srgb,var(--foreground) 2%,var(--panel)); }
+.trade-plan-track { height:6px; }
+.trade-plan-zone.entry { min-width:3px; }
+@media (max-width:520px) {
+  .trade-plan-row { grid-template-columns:minmax(0,1fr) auto; gap:5px 10px; }
+  .trade-plan-row > span { grid-column:1; grid-row:1; }
+  .trade-plan-row > strong { grid-column:2; grid-row:1; }
+  .trade-plan-row > .trade-plan-track { grid-column:1 / -1; grid-row:2; margin:2px 0 3px; }
+}
+
+.trade-plan-zone.trade-plan-target-band { background:color-mix(in srgb,var(--positive) 45%,transparent); }

@@ -235,7 +235,7 @@ export function StockDetailWorkspaceView({
           </div>
         </div>
         <div className="stock-workspace-topbar-search">
-          <WorkspaceCommandSearch filterContextName="stocks" showQuickActions={false} variant="discovery" />
+          <WorkspaceCommandSearch filterContextName="stocks" locale={locale} showQuickActions={false} variant="discovery" />
         </div>
       </div>
 
@@ -310,6 +310,7 @@ export function StockDetailWorkspaceView({
               isLoading={relatedStocks.isLoading}
               isWarmingUp={relatedStocks.isWarmingUp}
               loadEnabled={relatedLoadEnabled}
+              locale={locale}
               onRequestLoad={requestRelatedLoad}
             />
           </StockResearchSection>
