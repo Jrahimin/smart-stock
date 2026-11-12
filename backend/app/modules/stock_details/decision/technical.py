@@ -3,7 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from functools import cached_property
 from datetime import date
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
+from fractions import Fraction
 from math import isfinite
 from statistics import median
 
@@ -38,6 +39,23 @@ def _to_float(value: Decimal | float | int | None) -> float | None:
     if value is None:
         return None
     return float(value)
+
+
+def _price_fraction(value: Decimal | float | int) -> Fraction:
+    return Fraction(value if isinstance(value, Decimal) else Decimal(str(value)))
+
+
+def _exact_change_ratio(latest: DailyPrice, previous_close) -> Fraction | None:
+    try:
+        if latest.price_change_percent is not None:
+            return _price_fraction(latest.price_change_percent)
+        if previous_close is None or previous_close == 0:
+            return None
+        previous = _price_fraction(previous_close)
+        change = _price_fraction(latest.price_change) if latest.price_change is not None else _price_fraction(latest.close_price) - previous
+        return change / previous * 100
+    except (ValueError, OverflowError, ZeroDivisionError, InvalidOperation):
+        return None
 
 
 def average(values: list[float]) -> float | None:
@@ -459,6 +477,7 @@ class TechnicalSnapshot:
     observed_session_count: int = 0
     missing_session_count: int = 0
     calendar_status: str = "OBSERVED_ROWS_ONLY"
+    price_change_percent_ratio: Fraction | None = None
 
     @cached_property
     def volume_facts(self) -> VolumeFacts:
@@ -524,6 +543,13 @@ def build_technical_snapshot(
     closes = [row[3] for row in analytical_rows]
 
     latest_price = _to_float(latest.close_price)
+    # Exact presentation basis is captured before the compatible float fields.
+    # History follows the same verified analytical basis as `closes` below.
+    exact_previous = latest.previous_close_price
+    if not exact_previous and len(valid_prices) >= 2:
+        prior = valid_prices[-2]
+        exact_previous = prior.adjusted_close_price if use_adjusted_close else prior.close_price
+    exact_percent = _exact_change_ratio(latest, exact_previous)
     previous_close = _to_float(latest.previous_close_price) or (
         closes[-2] if len(closes) >= 2 else None
     )
@@ -635,6 +661,7 @@ def build_technical_snapshot(
     trend = infer_trend(latest_price, sma20, sma50, sma20_slope)
 
     return TechnicalSnapshot(
+        price_change_percent_ratio=exact_percent,
         latest_price=latest_price,
         previous_close=previous_close,
         price_change=price_change,

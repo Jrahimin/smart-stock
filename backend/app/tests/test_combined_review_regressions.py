@@ -174,7 +174,7 @@ async def test_public_entry_projection_keeps_live_only_close_out_of_confirmation
         list_entry_path_observations=AsyncMock(return_value=(prices,[],published-timedelta(days=1))),
         list_entry_basis_events=AsyncMock(return_value={}))
     quote=SimpleNamespace(current_price=100,as_of_trade_date=today.isoformat(),observation_status="PROVISIONAL",data_quality="OK",source_observed_at=now)
-    publication=SimpleNamespace(observed_at=published,invalidated_at=None,generation_id=snapshot.generation.sync_id)
+    publication=SimpleNamespace(observed_at=published,session_date=reference,invalidated_at=None,generation_id=snapshot.generation.sync_id)
     durable=SimpleNamespace(latest_publication=AsyncMock(return_value=publication),publication_coverage=AsyncMock(return_value={
         "universe_membership":[str(stock.id)],"input_keys":[str(stock.id)],"excluded_members":[],
         "membership_provenance":{"status":"OBSERVED_INDEPENDENT_LISTED_SET","observed_at":published.isoformat(),"listed_count":1,"market_coverage_verified":True}}))

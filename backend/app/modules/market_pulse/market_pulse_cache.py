@@ -16,7 +16,7 @@ from app.core.redis_client import OptionalRedisClient
 from app.jobs.market_session_schedule import current_cache_ttl_seconds
 from app.modules.market_pulse.market_pulse_session import is_pulse_degraded_empty_state
 
-PULSE_CACHE_REVISION = "market-generation-v1"
+PULSE_CACHE_REVISION = "market-generation-v5"
 PULSE_EMPTY_CACHE_TTL_SECONDS = 300
 PULSE_CACHE_KEY_NAMES: tuple[str, ...] = ("response", "summary")
 logger = logging.getLogger(__name__)

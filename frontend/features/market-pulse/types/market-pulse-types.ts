@@ -131,6 +131,8 @@ export type MarketStoryMetricModel = {
 };
 
 export type MarketStoryModel = {
+  headlineCode?: import("@/lib/api/backend-api-types").PulseStoryHeadlineCode | null;
+  sectorCount?: number | null;
   headline: string;
   explanation: string;
   tone: "positive" | "negative" | "neutral" | "info" | "warning";

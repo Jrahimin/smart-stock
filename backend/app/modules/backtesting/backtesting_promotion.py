@@ -16,21 +16,28 @@ from app.modules.backtesting.backtesting_models import ExecutionResult
 
 def paired_block_interval(daily_differences, *, block_sessions=20):
     rows = sorted(daily_differences)
-    blocks = [
-        mean(value for _, value in rows[index : index + block_sessions])
-        for index in range(0, len(rows), block_sessions)
-        if len(rows[index : index + block_sessions]) == block_sessions
-    ]
-    if len(blocks) < 3:
-        return {"status": "UNSUPPORTED", "block_count": len(blocks), "lower": None, "upper": None}
+    block_count = len(rows) // block_sessions
+    diagnostics = {"block_count": block_count, "sample_size": len(rows),
+        "method": EXPERIMENT["uncertainty"]["method"], "block_sessions": block_sessions}
+    if block_count < 3:
+        return {"status": "UNSUPPORTED", **diagnostics, "lower": None, "upper": None}
     random = Random(EXPERIMENT["uncertainty"]["seed"])
+    values = [value for _, value in rows]
+    # Circular moving blocks give every date equal inclusion probability.
+    # Trimming each replicate to N also retains the final partial block.
+    def resample_mean():
+        sample = []
+        for _ in range((len(rows) + block_sessions - 1) // block_sessions):
+            start = random.randrange(len(rows))
+            sample.extend(values[(start + offset) % len(rows)] for offset in range(block_sessions))
+        return mean(sample[:len(rows)])
     samples = sorted(
-        mean(random.choices(blocks, k=len(blocks)))
+        resample_mean()
         for _ in range(EXPERIMENT["uncertainty"]["replicates"])
     )
     return {
         "status": "AVAILABLE",
-        "block_count": len(blocks),
+        **diagnostics,
         "lower": samples[int(0.025 * len(samples))],
         "upper": samples[int(0.975 * len(samples))],
         "mean": mean(value for _, value in rows),
@@ -110,6 +117,7 @@ def concentration_and_turnover(selections):
         by_day[item.as_of_date].append(item)
     previous = None
     missing_sectors = any(not item.sector for item in selections)
+    measured_turnover = [item.median_turnover for item in selections if item.median_turnover is not None]
     turnover, concentration = [], []
     for _, rows in sorted(by_day.items()):
         ids = {row.stock_id for row in rows}
@@ -124,9 +132,11 @@ def concentration_and_turnover(selections):
         if concentration and not missing_sectors
         else None,
         "mean_daily_replacement_fraction": mean(turnover) if turnover else None,
-        "median_turnover_bdt": median(item.median_turnover or 0 for item in selections)
-        if selections
+        "median_turnover_bdt": median(measured_turnover)
+        if selections and len(measured_turnover) == len(selections)
         else None,
+        "turnover_measured_count": len(measured_turnover),
+        "turnover_missing_count": len(selections) - len(measured_turnover),
     }
 
 
@@ -230,7 +240,7 @@ def ranking_gate(
         concentration_and_turnover([item for item in challenger_selections if item.as_of_date in mature_days]),
     )
     safeguards = EXPERIMENT["safeguards"]
-    for metric in base_risk:
+    for metric in ("mean_max_sector_weight", "mean_daily_replacement_fraction", "median_turnover_bdt"):
         if base_risk[metric] is None or other_risk[metric] is None:
             reasons.append("LIQUIDITY_CONCENTRATION_TURNOVER_UNVERIFIED")
     if (
@@ -243,10 +253,8 @@ def ranking_gate(
             + safeguards["maximum_sector_concentration_increase"]
         ):
             reasons.append("CONCENTRATION_DETERIORATION")
-        if (
-            other_risk["median_turnover_bdt"]
-            < base_risk["median_turnover_bdt"] * safeguards["minimum_relative_median_turnover"]
-        ):
+    if base_risk["median_turnover_bdt"] is not None and other_risk["median_turnover_bdt"] is not None:
+        if other_risk["median_turnover_bdt"] < base_risk["median_turnover_bdt"] * safeguards["minimum_relative_median_turnover"]:
             reasons.append("LIQUIDITY_DETERIORATION")
     if (
         base_risk["mean_daily_replacement_fraction"] is not None

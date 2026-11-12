@@ -139,6 +139,8 @@ export function StockCandlestickChart({
     const borderColor = styles.getPropertyValue("--border").trim() || "#272c3a";
 
     const chart = createChart(containerRef.current, {
+      handleScroll: { mouseWheel: false },
+      handleScale: { mouseWheel: false, pinch: true },
       height: 420,
       layout: {
         background: { color: panelColor },

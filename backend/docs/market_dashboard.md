@@ -119,3 +119,27 @@ The sentiment mapper retains its delivered `market_sync_id`; the Dashboard hook 
 Partial/intraday wording uses one model Boolean shared by localized turnover descriptions and the Insights view. It requires an OPEN exchange state and the displayed facts date to be today's Dhaka calendar date. Historical facts remain recorded-session context even while Market now is OPEN; current exchange state and polling are unchanged. This presentation check does not establish verified source observation timing or fresh-entry applicability.
 
 The Dashboard hero uses a short headline selected from that backend code and compact coverage/method disclosures. Its original illustrated Market Pulse and Wealth Workspace navigation cards, artwork, supporting text and responsive section layout are retained. Current status, date, index and core metrics remain visible. Shared modal disclosures return focus to their launcher on dismissal. Repeated generic dated-plan requirements are omitted from compact discovery previews; immediate entry status, its controlling reason, stock-specific limitations/support and the full Detail plan remain available.
+
+
+## Measured sector map contract
+
+`GET /dashboard/heatmap` retains each tile's `trade_date` and exposes nullable
+`change_percent`, `latest_price` and `turnover`. Missing price or turnover is
+not formatted as zero. Only measured, non-suspicious returns from `session_trade_date`
+contribute to `sectors`. Each sector supplies `name`, nullable `change_percent`,
+`measured_count`, `total_count` and `weighting` (`TURNOVER`, `EQUAL`, `UNAVAILABLE`).
+Turnover weighting requires positive turnover for every measured constituent.
+Otherwise the aggregate uses equal weights across all measured constituents.
+Stale or unknown returns remain visible as unavailable tiles, with their actual
+price dates available in the stock disclosure. Measured zero remains flat.
+
+The client displays these aggregates and coverage directly. An older backend
+without sector summaries produces an unavailable sector reading. No client
+reconstruction is performed. The section's Redis revision is `measured-v3`, and
+its IndexedDB presentation suffix is `heatmap-measured-v3`.
+
+Entry disclosures use “Entry unverified” in English and “এন্ট্রি যাচাই হয়নি” in
+Bangla. “Quote time unavailable” is appended only when the assessment has no
+source observation time. The dated quote and controlling reason remain in the
+existing disclosure. Portfolio's saved count includes held stocks, while its
+watchlist-only filter selects unheld saved stocks.

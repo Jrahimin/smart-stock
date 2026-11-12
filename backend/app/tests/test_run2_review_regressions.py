@@ -354,3 +354,19 @@ def test_explicit_publisher_exclusions_precede_capture_bytes_and_preserve_denomi
     assert coverage["attempted_instrument_sessions"] == 4 and coverage["excluded_members"] == 3
     assert coverage["exclusion_counts"] == {"NO_CAPTURED_INPUT":1, "NO_PUBLISHED_RESULT":1, "MEMBER_INPUT_UNAVAILABLE":1}
     assert sum(value.get("publisher_declared") is True for value in audit["replay_exclusions"]) == 2
+
+
+@pytest.mark.asyncio
+async def test_partial_outcome_history_does_not_claim_to_supersede_later_head(receipt_session):
+    _, _, days, config, _ = fixture()
+    selection = engineering_selection(receipt_session, days[0], config)[1]
+    await receipt_session.commit()
+    repository = TradingShadowRepository(receipt_session)
+    later = await repository.record_outcome(selection, through_date=days[3], revision="later",
+        payload={"kind":"MODELED_OUTCOMES", "through_date":days[3].isoformat(), "value":3})
+    earlier = await repository.record_outcome(selection, through_date=days[2], revision="earlier",
+        payload={"kind":"MODELED_OUTCOMES", "through_date":days[2].isoformat(), "value":2})
+    assert "supersedes_revision" not in earlier.payload
+    assert (await repository.latest_outcomes([selection.id]))[selection.id].id == later.id
+    stored_payload = await receipt_session.scalar(select(TradingShadowOutcome.payload).where(TradingShadowOutcome.id == earlier.id))
+    assert stored_payload == earlier.payload

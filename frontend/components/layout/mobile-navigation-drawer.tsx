@@ -23,9 +23,11 @@ import {
   adminNavigationItems,
   isNavigationItemActive,
   marketNavigationItems,
+  navigationLabel,
 } from "@/lib/navigation/terminal-navigation-config";
 
 type MobileNavigationDrawerProps = {
+  locale?: string;
   guideActive?: boolean;
   isOpen: boolean;
   menuButtonRef?: RefObject<HTMLButtonElement | null>;
@@ -39,6 +41,7 @@ function renderMarketNavLink(
   item: (typeof marketNavigationItems)[number],
   pathname: string,
   onClose: () => void,
+  locale = "en",
 ) {
   const Icon = item.icon;
   const isActive = isNavigationItemActive(pathname, item.href);
@@ -53,12 +56,13 @@ function renderMarketNavLink(
       onClick={onClose}
     >
       <Icon aria-hidden="true" className={`terminal-nav-icon terminal-nav-icon-${item.tone}`} size={18} />
-      <span>{item.label}</span>
+      <span>{navigationLabel(item.label, locale)}</span>
     </Link>
   );
 }
 
 export function MobileNavigationDrawer({
+  locale = "en",
   guideActive = false,
   isOpen,
   menuButtonRef,
@@ -149,7 +153,7 @@ export function MobileNavigationDrawer({
         <nav aria-label="Primary navigation" className="mobile-nav-drawer-body" data-guide="primary-navigation">
           {canAccessAdmin ? (
             <section className="mobile-nav-drawer-section">
-              <p className="mobile-nav-drawer-section-label terminal-nav-section-label-ops">Operations</p>
+              <p className="mobile-nav-drawer-section-label terminal-nav-section-label-ops">{locale === "bn" ? "পরিচালনা" : "Operations"}</p>
               <div className="terminal-nav-ops-group">
                 <div className="mobile-nav-ops-row">
                   <Link
@@ -159,7 +163,7 @@ export function MobileNavigationDrawer({
                     onClick={onClose}
                   >
                     <ShieldCheck aria-hidden="true" className="terminal-nav-icon terminal-nav-icon-blue" size={18} />
-                    <span>Operations</span>
+                    <span>{locale === "bn" ? "পরিচালনা" : "Operations"}</span>
                   </Link>
                   <button
                     aria-expanded={opsExpanded}
@@ -185,7 +189,7 @@ export function MobileNavigationDrawer({
                           onClick={onClose}
                         >
                           <Icon aria-hidden="true" size={14} />
-                          <span>{item.label}</span>
+                          <span>{navigationLabel(item.label, locale)}</span>
                         </Link>
                       );
                     })}
@@ -197,24 +201,24 @@ export function MobileNavigationDrawer({
           ) : null}
 
           <section className="mobile-nav-drawer-section">
-            <p className="mobile-nav-drawer-section-label terminal-nav-section-label-wealth">Wealth</p>
-            <WealthWorkspaceNavPill collapsed={false} isActive={isWealthActive} onNavigate={onClose} />
+            <p className="mobile-nav-drawer-section-label terminal-nav-section-label-wealth">{locale === "bn" ? "সম্পদ" : "Wealth"}</p>
+            <WealthWorkspaceNavPill locale={locale} collapsed={false} isActive={isWealthActive} onNavigate={onClose} />
           </section>
 
           <section className="mobile-nav-drawer-section">
             <p className="mobile-nav-drawer-section-label terminal-nav-section-label-market">Smart Stock</p>
             {marketNavigationItems
               .filter((item) => !TRADING_WORKSPACE_HREFS.has(item.href))
-              .map((item) => renderMarketNavLink(item, pathname, onClose))}
+              .map((item) => renderMarketNavLink(item, pathname, onClose, locale))}
             <div className="mobile-nav-trading-workspace-guide" data-guide="trading-workspace">
               {marketNavigationItems
                 .filter((item) => TRADING_WORKSPACE_HREFS.has(item.href))
-                .map((item) => renderMarketNavLink(item, pathname, onClose))}
+                .map((item) => renderMarketNavLink(item, pathname, onClose, locale))}
             </div>
           </section>
 
           <section className="mobile-nav-drawer-section">
-            <p className="mobile-nav-drawer-section-label">Account</p>
+            <p className="mobile-nav-drawer-section-label">{locale === "bn" ? "অ্যাকাউন্ট" : "Account"}</p>
             {!storeHydrated || isLoading ? null : isAuthenticated && user ? (
               <>
                 <Link
@@ -253,8 +257,8 @@ export function MobileNavigationDrawer({
           </section>
 
           <section className="mobile-nav-drawer-section">
-            <p className="mobile-nav-drawer-section-label">Settings</p>
-            <SidebarThemeToggle collapsed={false} ready={storeHydrated} />
+            <p className="mobile-nav-drawer-section-label">{locale === "bn" ? "সেটিংস" : "Settings"}</p>
+            <SidebarThemeToggle locale={locale} collapsed={false} ready={storeHydrated} />
           </section>
         </nav>
       </aside>

@@ -66,7 +66,9 @@ export type HeatmapTileModel = {
   label: string;
   sector: string;
   value: string;
-  changePercent: number;
+  changePercent: number | null;
+  tradeDate?: string | null;
+  sectorSummary?: { changePercent: number | null; measuredCount: number; totalCount: number; weighting: "TURNOVER" | "EQUAL" | "UNAVAILABLE" };
   weight: number;
   tone: "positive" | "negative" | "neutral";
   href: string;
@@ -145,6 +147,8 @@ export type IndexPerformanceModel = {
 };
 
 export type MarketPulseModel = {
+  indexTradeDate?: string | null;
+  activityTradeDate?: string | null;
   indexName: string;
   indexAvailable: boolean;
   indexValue: string;
@@ -177,6 +181,8 @@ export type MarketPulseModel = {
 };
 
 export type MarketDashboardModel = {
+  overviewPublication?: Pick<import("@/lib/api/backend-api-types").BackendDashboardOverviewDto, "market_sync_id" | "last_synced_at" | "session_trade_date">;
+  activityIsIntraday?: boolean;
   isIntraday: boolean;
   exchange: ExchangeCode;
   marketMood: MarketMood;

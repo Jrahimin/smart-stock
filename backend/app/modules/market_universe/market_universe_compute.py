@@ -29,6 +29,7 @@ from app.modules.stock_details.stock_details_schemas import (
     DirectionalEvidenceComponentRead,
     DirectionalEvidenceRead,
     EligibilityResultRead,
+    ExactPriceChangeRatioRead,
     LiquidityAnalysisRead,
     OpportunityScoreRead,
     PricePositionRead,
@@ -56,6 +57,7 @@ def group_price_window_rows(
 
 def technical_snapshot_to_read(snapshot: TechnicalSnapshot) -> TechnicalSnapshotRead:
     return TechnicalSnapshotRead(
+        price_change_percent_ratio=ExactPriceChangeRatioRead.from_fraction(snapshot.price_change_percent_ratio),
         latest_price=snapshot.latest_price,
         previous_close=snapshot.previous_close,
         price_change=snapshot.price_change,
@@ -103,6 +105,7 @@ def technical_snapshot_to_read(snapshot: TechnicalSnapshot) -> TechnicalSnapshot
 
 def technical_snapshot_from_read(read: TechnicalSnapshotRead) -> TechnicalSnapshot:
     return TechnicalSnapshot(
+        price_change_percent_ratio=read.price_change_percent_ratio.as_fraction() if read.price_change_percent_ratio is not None else None,
         latest_price=read.latest_price,
         previous_close=read.previous_close,
         price_change=read.price_change,

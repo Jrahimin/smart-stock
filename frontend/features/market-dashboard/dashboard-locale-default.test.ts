@@ -47,6 +47,7 @@ describe("useMarketDashboard locale alignment", () => {
           recommendation: "BUY",
           confidence: 79,
           reason: "Uptrend with favorable opportunity and acceptable reward potential.",
+          primary_reason_code: "buy_uptrend_reward",
           opportunity_score: 78,
           risk_label: "LOW",
         },

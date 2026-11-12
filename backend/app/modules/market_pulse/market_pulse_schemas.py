@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -147,6 +148,8 @@ class MarketStoryMetricRead(BaseModel):
 
 
 class MarketStoryRead(BaseModel):
+    headline_code: Literal["STRENGTH_SECTORS", "STRENGTH_STOCKS", "WEAKNESS_SECTORS", "WEAKNESS_STOCKS", "MIXED_SECTORS", "NO_POSITIVE_SECTOR", "SECTOR_UNAVAILABLE", "BREADTH_UNAVAILABLE"] | None = Field(default=None, exclude_if=lambda value: value is None)
+    sector_count: int | None = Field(default=None, ge=1, exclude_if=lambda value: value is None)
     headline: str
     explanation: str
     tone: str
@@ -190,6 +193,7 @@ class OpportunityScoreRead(BaseModel):
 
 
 class PulseCoverageRead(BaseModel):
+    quote_session_date: date | None = Field(default=None, exclude_if=lambda value: value is None)
     quote_generation_id: str | None = None
     market_status: str | None = None
     breadth: BreadthRead | None = None

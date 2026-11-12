@@ -49,7 +49,8 @@ it.each(cases.flatMap(testCase => ["en", "bn"].map(locale => ({ ...testCase, loc
   state.model = model; state.freshness = freshness;
   const view = document.createElement("div"); view.innerHTML = renderToStaticMarkup(<MarketDashboardView locale={locale} />);
   const copy = getTerminalCopy(locale), premium = getPremiumCopy(locale), insightText = view.querySelector(".sw-insights")!.textContent!;
-  if (status === "OPEN") expect(view.querySelector(".sw-session-state")?.textContent).toContain(copy.open);
+  if (status === "OPEN" && intraday) expect(view.querySelector(".sw-session-state")?.textContent).toContain(copy.open);
+  if (status === "OPEN" && !intraday) expect(view.querySelector(".sw-session-state")?.textContent).toContain(locale === "bn" ? "আগের কার্যদিবসের দাম" : "Earlier session prices");
   if (intraday) {
     expect(insightText).toContain(copy.intradayInterpretation); expect(insightText).toContain(premium.partial); expect(insightText).toContain(premium.partialNote);
   } else {

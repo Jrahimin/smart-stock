@@ -12,6 +12,7 @@ import { InfoPanel } from "@/components/ui/info-panel";
 import { MarketDataFreshnessBar } from "@/components/layout/market-data-freshness-bar";
 import { DecisionPublicationLabel, QuotePublicationLabel } from "@/components/ui/market-publication-label";
 import { DashboardLocaleSwitcher } from "@/features/market-dashboard/components/dashboard-locale-switcher";
+import { sectorName } from "@/features/market-dashboard/terminal-copy";
 import { AccountDecisionCell, AccountMarketCell } from "@/features/portfolio/components/account-row-context";
 import { AddHoldingModal } from "@/features/portfolio/components/add-holding-modal";
 import { PortfolioMutationsProvider, usePortfolioMutations } from "@/features/portfolio/hooks/portfolio-mutations-context";
@@ -180,6 +181,7 @@ function PortfolioPulse({
       <div className="portfolio-pulse-meta">
         {(!pulse.current_value_is_complete || !pulse.unrealized_gain_is_complete || !pulse.daily_change_is_complete) && <strong className="portfolio-partial-flag">{t.partialAccount}</strong>}
         <p className="portfolio-coverage-inline">{t.coverage(pulse.valued_holding_count, pulse.holding_count)} {needsSetup && <button onClick={onCompleteHoldings} type="button">{t.completeHoldings}</button>}</p>
+        {needsSetup && <small className="portfolio-coverage-inline">{t.setupProgress(completedCount, pulse.holding_count)}</small>}
         <InfoPanel label={t.valueCoverage} title={t.valueCoverage} locale={locale}>
           <p>{t.valueMethod}</p><p>{t.knownInvestment}: {formatPortfolioMoney(pulse.known_invested_amount, locale)}</p>
           <p>{t.setupProgress(completedCount, pulse.holding_count)}</p>
@@ -847,7 +849,7 @@ function PortfolioEmailSummary({ locale }: { locale: AppLocale }) {
         <span className="portfolio-email-toggle-track" aria-hidden />
         <span className="portfolio-email-toggle-label">{enabled ? t.emailSummaryEnabled : t.emailSummaryDisabled}</span>
       </label>
-      <small className="portfolio-email-timing">{locale === "bn" ? "চূড়ান্ত সেশন শেষে।" : "After finalized close."}</small>
+      <small className="portfolio-email-timing">{locale === "bn" ? "সেশন শেষে হোল্ডিংয়ের দাম, পরিবর্তন ও পর্যালোচনার বিষয় ইমেইলে পান।" : "After the session closes: holding values, changes and items to review by email."}</small>
       <InfoPanel label={locale === "bn" ? "সময় ও বিষয়বস্তু" : "Timing and contents"} title={t.emailSummary} locale={locale}><p>{t.emailSummaryDetail}</p><p>{t.emailSummaryNote}</p></InfoPanel>
     </section>
   );
@@ -894,7 +896,7 @@ function PortfolioInsights({ data, locale }: { data: BackendPortfolioWorkspaceDt
   const tiles = [
     { icon: <WalletCards size={16} />, label: t.largest, value: data.shape.largest_holding, tone: "neutral" as const },
     { icon: <TrendingUp size={16} />, label: t.strongest, value: data.shape.strongest_position, signed: true, tone: financialTone(data.shape.strongest_position?.percent ?? null) },
-    { icon: <TrendingDown size={16} />, label: t.weakest, value: data.shape.weakest_position, signed: true, tone: financialTone(data.shape.weakest_position?.percent ?? null) },
+    { icon: Number(data.shape.weakest_position?.percent) > 0 ? <TrendingUp size={16} /> : <TrendingDown size={16} />, label: Number(data.shape.weakest_position?.percent) > 0 ? (locale === "bn" ? "সবচেয়ে ছোট লাভ" : "Smallest gain") : t.weakest, value: data.shape.weakest_position, signed: true, tone: financialTone(data.shape.weakest_position?.percent ?? null) },
     { icon: <TrendingDown size={16} />, label: t.lowestDailyContribution, value: dailyFocus, contribution: true, tone: financialTone(dailyFocus?.percent ?? null) },
   ].filter((tile) => tile.value);
 
@@ -968,7 +970,7 @@ function ExposureRing({
         {segments.map((row, index) => (
           <li key={row.label}>
             <i style={{ background: colors[index % colors.length] }} />
-            <span>{row.label}</span>
+            <span>{sectorName(row.label, locale)}</span>
             <strong>{formatPortfolioPercent(row.weight_percent)}</strong>
           </li>
         ))}

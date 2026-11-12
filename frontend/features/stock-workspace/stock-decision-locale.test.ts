@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { shortTradeDate } from "@/lib/formatters/trader-formatters";
 import { StockDurableSummary } from "@/features/stock-workspace/components/stock-durable-summary";
 import { StockWorkspaceHeader } from "@/features/stock-workspace/components/stock-workspace-header";
 import { buildStockWorkspaceModel } from "@/features/stock-workspace/view-models/stock-workspace-view-model";
@@ -106,7 +107,8 @@ describe("stock decision localization", () => {
     const model = buildStockDecisionViewModel(buildDecisionFixture(), "bn");
 
     expect(model.decisionSignals.map((signal) => signal.key)).toEqual(["selected_limitation", "selected_support"]);
-    expect(model.decisionSignals[1].text).toContain("8.4");
+    expect(model.decisionSignals[1].text).toContain("লেনদেনের পরিমাণ");
+    expect(model.decisionSignals[1].text).not.toContain("8.4");
     expect(model.decisionSignals[0].text).toContain("resistance");
     expect(model.warnings[0]?.title).toBe("Resistance-এর কাছে");
     expect(model.warnings[0]?.message).toContain("breakout");
@@ -134,9 +136,9 @@ describe("stock decision localization", () => {
     expect(localized.message).toContain("78.5");
   });
 
-  it("keeps en decision copy unchanged", () => {
+  it("names the measured component without numerical score prose in en", () => {
     const model = buildStockDecisionViewModel(buildDecisionFixture(), "en");
-    expect(model.decisionSignals[1]?.text).toBe("Volume contributes 8.4 setup points.");
+    expect(model.decisionSignals[1]?.text).toBe("Strongest factor: volume.");
     expect(model.warnings[0]?.title).toBe("Near resistance");
   });
 
@@ -182,8 +184,8 @@ describe("dated plan current-entry projection", () => {
     const model = buildStockDecisionViewModel(old, "en");
     expect(model.entryCondition).toBeNull();
     const rendered = renderToStaticMarkup(createElement(TraderDecisionCard, { decision: model, copy: getStockWorkspaceLanguage("en").decision }));
-    expect(rendered).toContain("Current entry unverified");
-    expect(rendered).toContain("2026-07-10");
+    expect(rendered).toContain("Entry unverified");
+    expect(rendered).toContain(shortTradeDate("2026-07-10", "en"));
   });
   it("changes panel guidance after a recorded breach without replacing the dated action", () => {
     const old = buildDecisionFixture({ entry_applicability: { status: "INVALIDATED", reason_code: "STOP_BREACHED" } });
@@ -309,8 +311,8 @@ describe("repair1 publication reading order and measured basis", () => {
       const card = renderToStaticMarkup(createElement(TraderDecisionCard, { decision, copy: language.decision }));
       expect(durable).not.toContain("WAIT"); expect(card).not.toContain("WAIT");
       expect(header).toContain(`data-decision-status="${status}"`);
-      expect(header).toContain("2026-11-10"); expect(header).toContain("2026-11-11");
-      const current = durable.indexOf(language.panels.currentEntryUnverified);
+      expect(header).toContain("2026-11-10"); expect(header).toContain(shortTradeDate("2026-11-11", locale));
+      const current = durable.indexOf(locale === "bn" ? "এন্ট্রি যাচাই হয়নি" : "Entry unverified");
       expect(current).toBeGreaterThan(0);
       expect(current).toBeLessThan(durable.indexOf(decision.confidenceLabel));
       expect(durable).toContain(locale === "bn" ? "সিদ্ধান্ত অনুপলব্ধ" : "Decision unavailable");

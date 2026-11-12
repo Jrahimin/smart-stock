@@ -76,7 +76,7 @@ export const SmartSignalFeed = memo(function SmartSignalFeed({
           <td role="cell"><span className={"sw-action sw-action-" + signal.signal}>{signal.signal ? copy.actions[signal.signal] : copy.missing}</span></td>
           <td role="cell" aria-describedby={sharedWait ? "sw-signal-context" : undefined}>
             <EntryApplicabilityLabel assessment={signal.entryApplicability} locale={locale} policyReason={policy} />
-            {signal.entryApplicability?.reason_code === "ACTION_NOT_PERMITTED" && policy || isDatedPlanGuidance(signal.reasonCode) ? null : condition?.trim() || copy.conditionUnavailable}
+            {sharedWait ? evidence || copy.evidenceUnavailable : isDatedPlanGuidance(signal.reasonCode) ? null : policy || condition?.trim() || copy.conditionUnavailable}
             {signal.decisionSummary && selected.support ? <small className="sw-signal-evidence">{selected.support}</small> : entry && evidence ? <small className="sw-signal-evidence">{evidence}</small> : null}
           </td>
           <td role="cell">{copy.risks[risk] ?? copy.missing}</td>

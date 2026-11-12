@@ -598,28 +598,25 @@ class MarketDataService:
         if index_close is None:
             raise NotFoundError("DSEX index snapshot is not available")
 
-        index_change = latest.index_change if latest.index_change is not None else Decimal("0")
-        index_change_percent = (
-            latest.index_change_percent if latest.index_change_percent is not None else Decimal("0")
-        )
-        day_open = index_close - index_change
-        day_high = max(index_close, day_open)
-        day_low = min(index_close, day_open)
+        index_change = latest.index_change
+        index_change_percent = latest.index_change_percent
+        # These stored summaries contain closes and changes, not observed index OHLC.
+        day_open = day_high = day_low = None
 
         async with async_perf_stage(perf, "metrics.local"):
             performance = await build_dsex_performance_snapshot(
                 summaries,
                 index_close=index_close,
-                day_low=day_low,
-                day_high=day_high,
+                day_low=day_low if day_low is not None else index_close,
+                day_high=day_high if day_high is not None else index_close,
                 exchange=exchange,
                 settings=settings,
             )
 
         range_position_percent = self._compute_range_position_percent(
             index_close,
-            performance.range_52w_low or day_low,
-            performance.range_52w_high or day_high,
+            performance.range_52w_low or index_close,
+            performance.range_52w_high or index_close,
         )
 
         perf.log_summary()
@@ -632,8 +629,8 @@ class MarketDataService:
             day_open=day_open,
             day_high=day_high,
             day_low=day_low,
-            range_52w_low=performance.range_52w_low or day_low,
-            range_52w_high=performance.range_52w_high or day_high,
+            range_52w_low=performance.range_52w_low or index_close,
+            range_52w_high=performance.range_52w_high or index_close,
             range_position_percent=range_position_percent,
             return_1m_percent=performance.return_1m_percent,
             return_6m_percent=performance.return_6m_percent,
@@ -641,9 +638,9 @@ class MarketDataService:
             total_volume=latest.total_volume,
             total_turnover=latest.total_turnover,
             total_trades=latest.total_trades,
-            advancing_issues=latest.advancing_issues or 0,
-            declining_issues=latest.declining_issues or 0,
-            unchanged_issues=latest.unchanged_issues or 0,
+            advancing_issues=latest.advancing_issues,
+            declining_issues=latest.declining_issues,
+            unchanged_issues=latest.unchanged_issues,
             source=latest.source,
         )
 

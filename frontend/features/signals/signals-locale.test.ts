@@ -10,7 +10,7 @@ describe("signals language", () => {
   it("returns bn hero copy", () => {
     const language = getSignalsLanguage("bn");
     expect(language.hero.title).toBe("শেয়ারের সংকেত");
-    expect(language.filters.allActions).toBe("সব action");
+    expect(language.filters.allActions).toBe("সব সিদ্ধান্ত");
   });
 
   it("localizes known decision reasons via shared dashboard dictionary", () => {

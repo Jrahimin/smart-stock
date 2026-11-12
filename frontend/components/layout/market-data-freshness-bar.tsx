@@ -38,7 +38,7 @@ const englishFreshnessLabels: DashboardLanguage["freshness"] = {
   session: (label) => `Session: ${label}`,
   nextUpdate: (label) => `Next update: ${label}`,
   provisional: (sessionDate) =>
-    `Live snapshot is provisional; canonical decisions use ${sessionDate}.`,
+    `Live snapshot is provisional; dated decisions use ${sessionDate}.`,
 };
 
 function buildFreshnessTooltip(

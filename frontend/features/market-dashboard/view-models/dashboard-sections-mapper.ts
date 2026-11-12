@@ -190,7 +190,7 @@ export function mapDashboardSignalsDto(dto: BackendDashboardStocksInFocusDto): S
 }
 
 export function mapDashboardAlertsDto(dto: BackendDashboardMarketAlertsDto): MarketTimelineItemModel[] {
-  return dto.items.map((item) => ({
+  return dto.items.filter(item => !["Market snapshot ready", "Market scan complete", "Generated snapshot update"].includes(item.title)).map((item) => ({
     kind: item.title === "Market snapshot ready" || item.title === "Market scan complete" ? "snapshot"
       : /^Top session mover in the latest snapshot/.test(item.description) ? "mover" : "alert",
     sourceUrl: item.source_url && /^https?:\/\//i.test(item.source_url) ? item.source_url : undefined,
@@ -201,8 +201,10 @@ export function mapDashboardAlertsDto(dto: BackendDashboardMarketAlertsDto): Mar
 }
 
 export function mapDashboardHeatmapDto(dto: BackendDashboardHeatmapDto): HeatmapTileModel[] {
+  const sectors = new Map(dto.sectors?.map((sector) => [sector.name, sector]));
   return dto.tiles.map((tile) => {
-    const changePercent = toNumber(tile.change_percent) ?? 0;
+    const changePercent = tile.trade_date && tile.trade_date === dto.session_trade_date ? toNumber(tile.change_percent) : null;
+    const sector = sectors.get(tile.sector);
     return {
       stockId: tile.stock_id,
       symbol: tile.symbol,
@@ -210,8 +212,11 @@ export function mapDashboardHeatmapDto(dto: BackendDashboardHeatmapDto): Heatmap
       sector: tile.sector,
       value: formatPercent(changePercent),
       changePercent,
+      tradeDate: tile.trade_date,
+      sectorSummary: sector ? { changePercent: toNumber(sector.change_percent), measuredCount: sector.measured_count,
+        totalCount: sector.total_count, weighting: sector.weighting } : undefined,
       weight: toNumber(tile.weight) ?? 1,
-      tone: tile.tone as HeatmapTileModel["tone"],
+      tone: changePercent === null ? "neutral" : tile.tone as HeatmapTileModel["tone"],
       href: `/stocks/DSE/${tile.symbol}`,
       latestPrice: formatNumber(toNumber(tile.latest_price)),
       turnover: formatCompactNumber(toNumber(tile.turnover)),

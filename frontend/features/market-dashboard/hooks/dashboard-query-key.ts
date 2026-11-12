@@ -1,5 +1,10 @@
 import type { ExchangeCode } from "@/lib/api/backend-api-types";
 
+/** Dated events may differ; explicit publication disagreement may not be joined. */
+export function dashboardSectionMatchesOverview(overview: { market_sync_id?: string | null } | undefined, section: { market_sync_id?: string | null } | undefined) {
+  return !overview?.market_sync_id || !section?.market_sync_id || overview.market_sync_id === section.market_sync_id;
+}
+
 export type DashboardSection =
   | "overview"
   | "movers"

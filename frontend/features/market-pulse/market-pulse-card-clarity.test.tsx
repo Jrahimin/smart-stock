@@ -42,7 +42,7 @@ describe("increment2 repair card clarity", () => {
     const stocks = [model.focusStocks[0], model.monitorCandidates[0]];
     const view = render(<>{stocks.map((stock, index) => <FocusStockCard stock={stock} copy={copy.focus} scoreCopy={copy.score} key={index} />)}</>);
     for (const card of view.container.querySelectorAll(".pulse-focus-card")) {
-      expect(card.innerHTML.indexOf("entry-applicability")).toBeLessThan(card.innerHTML.indexOf("pulse-score-header-cluster"));
+      expect(card.innerHTML.indexOf("signal-badge")).toBeLessThan(card.innerHTML.indexOf("pulse-score-header-cluster"));
       const controls = card.querySelectorAll("button, a"); const button = controls[0] as HTMLButtonElement; const link = controls[1] as HTMLAnchorElement;
       expect(button.tagName).toBe("BUTTON"); expect(button.closest("a")).toBeNull();
       expect(link.getAttribute("href")).toBe("/stocks/DSE/TEST");
@@ -56,6 +56,7 @@ describe("increment2 repair card clarity", () => {
       fireEvent.blur(button, { relatedTarget: link }); expect(panel.hidden).toBe(true);
       expect(card.textContent).toContain(locale === "bn" ? "জল্পনামূলক" : "Speculative");
       expect(card.textContent).not.toContain("SPECULATIVE");
+      if (locale === "bn") expect(card.textContent).toContain("কেনার সম্ভাব্য সেটআপ");
     }
   });
   it("renders leadership by kind when only independently measured volume survives", () => {

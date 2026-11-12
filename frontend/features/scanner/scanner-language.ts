@@ -82,12 +82,12 @@ const scannerLanguage = {
         descriptionDefault:
           "Crossed prior resistance from below with expanded relative volume.",
         descriptionAdvanced:
-          "Current-session close crossed canonical resistance with expanded relative volume.",
+          "Current-session close crossed resistance with expanded relative volume.",
       },
       support_rebound: {
         title: "Support rebound",
         descriptionDefault:
-          "Reclaimed canonical support from below, remains in the support band, and has weak RSI.",
+          "Reclaimed support from below, remains in the support band, and has weak RSI.",
       },
       risk_compression: {
         title: "Low-volatility Compression",
@@ -102,12 +102,12 @@ const scannerLanguage = {
       breakdown_risk: {
         title: "Support-break Events",
         descriptionDefault:
-          "Crossed below canonical support from the prior close; risk alone does not qualify.",
+          "Crossed below support from the prior close; risk alone does not qualify.",
       },
       oversold_rebound: {
         title: "Support rebound",
         descriptionDefault:
-          "Weak RSI plus a current-session reclaim of canonical support from below.",
+          "Weak RSI plus a current-session reclaim of support from below.",
       },
     },
     localeSwitcherAria: "Scanner language",
@@ -115,77 +115,77 @@ const scannerLanguage = {
 
   bn: {
     hero: {
-      eyebrow: "Market Scanner",
-      title: "Daily opportunity detection",
+      eyebrow: "বাজার স্ক্যানার",
+      title: "শর্ত মিলিয়ে শেয়ার খুঁজুন",
       subtitle:
-        "সর্বশেষ বাজারের তথ্য দেখে সম্ভাবনাময় শেয়ার ও POTENTIAL BUY/WAIT/SELL সিদ্ধান্ত",
+        "দাম, কেনাবেচা ও ঝুঁকির শর্ত মিলিয়ে শেয়ার দেখুন",
       filterContextName: "scanner",
     },
 
     filters: {
-      watchlistAria: "Watchlist filter",
+      watchlistAria: "নজরে রাখা শেয়ারের ফিল্টার",
       allStocks: "সব শেয়ার",
-      watchlistedOnly: "শুধু Watchlist",
-      notWatchlisted: "Watchlist-এর বাইরে",
-      holdingsOnly: "শুধু Holding",
-      myWatchlist: "আমার Watchlist",
+      watchlistedOnly: "শুধু নজরে রাখা",
+      notWatchlisted: "নজরের তালিকার বাইরে",
+      holdingsOnly: "শুধু হোল্ডিং",
+      myWatchlist: "আমার নজরের তালিকা",
     },
 
     states: {
-      loadError: "Scanner-এর তথ্য আনা যাচ্ছে না।",
+      loadError: "স্ক্যানারের তথ্য আনা যাচ্ছে না।",
       loading: "বাজারে সুযোগ খোঁজা হচ্ছে...",
       emptyTitle: "এই শর্তে এখনো কোনো শেয়ার নেই",
       emptyDescription:
-        "বর্তমান session-এ eligible কোনো শেয়ার এই versioned শর্তে মেলেনি।",
-      sectionEyebrow: "Scanner",
-      momentumAria: "Momentum strength",
+        "এই কার্যদিবসের যোগ্য কোনো শেয়ার নির্ধারিত শর্তে মেলেনি।",
+      sectionEyebrow: "স্ক্যানার",
+      momentumAria: "দামের গতির শক্তি",
     },
     metrics: {
       rsi: "RSI",
-      vol: "Volume",
+      vol: "লেনদেন",
     },
 
     categories: {
       volume_breakouts: {
-        title: "Price-volume Break Event",
+        title: "দাম ও লেনদেনে উত্থান",
         descriptionDefault:
-          "নিচ থেকে আগের Resistance পার করেছে, সঙ্গে relative Volume বেড়েছে।",
+          "দাম আগের প্রতিরোধসীমা পেরিয়েছে, সঙ্গে স্বাভাবিকের তুলনায় লেনদেন বেড়েছে।",
         descriptionAdvanced:
-          "বর্তমান session-এর Close canonical Resistance পার করেছে, সঙ্গে relative Volume বেড়েছে।",
+          "দিনশেষের দাম প্রতিরোধসীমা পেরিয়েছে, সঙ্গে স্বাভাবিকের তুলনায় লেনদেন বেড়েছে।",
       },
 
       support_rebound: {
-        title: "Support rebound",
+        title: "সমর্থনমূল্য থেকে ঘুরে দাঁড়ানো",
         descriptionDefault:
-          "নিচ থেকে canonical Support ফিরে পেয়েছে, support band-এর মধ্যে আছে এবং RSI দুর্বল।",
+          "দাম নিচ থেকে সমর্থনসীমায় ফিরেছে এবং সেই সীমার মধ্যে আছে। RSI এখনও দুর্বল।",
       },
 
       risk_compression: {
-        title: "Low-volatility Compression",
+        title: "দামের ওঠানামা কমেছে",
         descriptionDefault:
-          "Eligible শেয়ার versioned low-volatility compression band-এর মধ্যে আছে।",
+          "যোগ্য শেয়ারের ওঠানামা নির্ধারিত কম অস্থিরতার সীমার মধ্যে আছে।",
       },
 
       momentum_continuation: {
-        title: "Momentum ধরে রেখেছে",
+        title: "ঊর্ধ্বমুখী গতি ধরে রেখেছে",
         descriptionDefault:
-          "দাম ঊর্ধ্বমুখী, কয়েক দিনের Return-ও Positive।",
+          "দাম ঊর্ধ্বমুখী, কয়েক দিনের রিটার্নও ইতিবাচক।",
       },
 
       breakdown_risk: {
-        title: "Support-break Event",
+        title: "সমর্থনমূল্যের নিচে নেমেছে",
         descriptionDefault:
-          "আগের Close থেকে canonical Support-এর নিচে নেমেছে; শুধু risk বেশি হলেই এখানে আসবে না।",
+          "দাম আগের দিনশেষের অবস্থান থেকে সমর্থনমূল্যের নিচে নেমেছে।",
       },
 
       oversold_rebound: {
-        title: "Support rebound",
+        title: "সমর্থনমূল্য থেকে ঘুরে দাঁড়ানো",
         descriptionDefault:
-          "RSI দুর্বল এবং বর্তমান session-এ নিচ থেকে canonical Support ফিরে পেয়েছে।",
+          "RSI দুর্বল, তবে এই কার্যদিবসে দাম নিচ থেকে সমর্থনমূল্যে ফিরেছে।",
       },
     },
 
-    localeSwitcherAria: "Scanner-এর ভাষা",
+    localeSwitcherAria: "স্ক্যানারের ভাষা",
   },
 } as const satisfies Record<AppLocale, ScannerLanguage>;
 

@@ -3,6 +3,7 @@
 import { controllingReasonLabel, selectedDecisionExplanation } from "@/lib/market/decision-presentation";
 import { EntryApplicabilityLabel } from "@/components/market/entry-applicability-label";
 import Link from "next/link";
+import { shortTradeDate } from "@/lib/formatters/trader-formatters";
 import { useMemo, useState } from "react";
 
 import { WorkspacePageHero } from "@/components/layout/workspace-page-hero";
@@ -137,6 +138,7 @@ export function ScannerWorkspaceView({ locale = DEFAULT_LOCALE }: ScannerWorkspa
           </div>
         </div>
       </WorkspacePageHero>
+      <p className="snapshot-price-note">{locale === "bn" ? "দাম স্ন্যাপশট থেকে নেওয়া। সিদ্ধান্তের আগে ব্রোকারের লাইভ দাম মিলিয়ে নিন।" : "Prices are snapshots. Check your broker's live price before acting."}</p>
       {isWarmingUp ? <div className="data-warning">Market view is warming up.</div> : null}
       <DecisionPublicationLabel decision={decisionPublication} locale={locale} />
       {isError ? <div className="data-warning">{language.states.loadError}</div> : null}
@@ -161,7 +163,7 @@ export function ScannerWorkspaceView({ locale = DEFAULT_LOCALE }: ScannerWorkspa
                       const policy = controllingReasonLabel(decision.reasonCode, "", locale);
 
                       return (
-                        <Link className="scanner-result-card" href={buildStockDetailPath(stock.stock.exchange, stock.stock.symbol)} key={stock.stock.id}>
+                        <article className="scanner-result-card" key={stock.stock.id}>
                           <div className="scanner-card-topline">
                             <strong>{stock.stock.symbol}</strong>
                             <div className="scanner-card-actions">
@@ -173,11 +175,12 @@ export function ScannerWorkspaceView({ locale = DEFAULT_LOCALE }: ScannerWorkspa
                             {formatNumber(stock.latestPrice)} / {formatPercent(stock.priceChangePercent)}
                           </span>
                           <QuotePublicationLabel locale={locale} quote={stock.displayQuote} />
-                          <small>{locale === "bn" ? "নতুন অবস্থান বিবেচনায় · সিদ্ধান্ত" : "Prospective entry · Decision"} · {stock.decisionDate ?? "—"}</small>
+                          <small>{locale === "bn" ? "নতুন ক্রেতার জন্য" : "For new buyers"} · {shortTradeDate(stock.decisionDate, locale)}</small>
                           <EntryApplicabilityLabel assessment={decision.entryApplicability} locale={locale} policyReason={policy} />
-                          {(policy || selected.limitation) && decision.entryApplicability?.reason_code !== "ACTION_NOT_PERMITTED" ? <p className="scanner-entry-condition">{policy || selected.limitation}</p> : null}
+                          {(policy || selected.limitation) ? <p className="scanner-entry-condition">{policy || selected.limitation}</p> : null}
                           <small>{scannerMatchReason(stock.scannerMatch.reason_code, locale)}</small>
-                        </Link>
+                          <Link href={buildStockDetailPath(stock.stock.exchange, stock.stock.symbol)}>{locale === "bn" ? "বিস্তারিত দেখুন" : "View details"} →</Link>
+                        </article>
                       );
                     })
                   ) : (
@@ -199,10 +202,10 @@ export function ScannerWorkspaceView({ locale = DEFAULT_LOCALE }: ScannerWorkspa
 
 export function scannerMatchReason(code: string, locale: AppLocale): string {
   const reasons: Record<string, [string, string]> = {
-    price_volume_break_event: ["Discovery: price crossed prior resistance with expanded relative volume.", "খোঁজের কারণ: relative volume বেড়ে দাম আগের resistance পেরিয়েছে।"],
-    support_reclaim_event: ["Discovery: support rebound; price reclaimed the support band.", "খোঁজের কারণ: support rebound; দাম support সীমা পুনরুদ্ধার করেছে।"],
+    price_volume_break_event: ["Discovery: price crossed prior resistance with expanded relative volume.", "খোঁজের কারণ: স্বাভাবিকের তুলনায় লেনদেন বেড়ে দাম আগের প্রতিরোধসীমা পেরিয়েছে।"],
+    support_reclaim_event: ["Discovery: support rebound; price reclaimed the support band.", "খোঁজের কারণ: দাম সমর্থনসীমায় ফিরে এসেছে।"],
     uptrend_positive_5d_return: ["Discovery: uptrend with a positive five-session return.", "খোঁজের কারণ: ঊর্ধ্বমুখী প্রবণতায় পাঁচ সেশনের পরিবর্তন ইতিবাচক।"],
-    support_break_event: ["Discovery: price crossed below prior support.", "খোঁজের কারণ: দাম আগের support-এর নিচে নেমেছে।"],
+    support_break_event: ["Discovery: price crossed below prior support.", "খোঁজের কারণ: দাম আগের সমর্থনসীমার নিচে নেমেছে।"],
     elevated_trading_risk: ["Discovery: elevated trading risk.", "খোঁজের কারণ: ট্রেডিং ঝুঁকি বেশি।"],
     low_volatility_compression: ["Discovery: measured low-volatility compression.", "খোঁজের কারণ: পরিমাপ করা কম অস্থিরতার সীমায় দাম আছে।"],
   };

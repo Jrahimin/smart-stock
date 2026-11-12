@@ -40,6 +40,7 @@ export function WorkspacePageHero({
 }: WorkspacePageHeroProps) {
   const commandSearch = (
     <WorkspaceCommandSearch
+      locale={locale}
       ariaLabel={commandSearchAriaLabel}
       filterContextName={filterContextName}
       onFilterTable={onFilterTable}

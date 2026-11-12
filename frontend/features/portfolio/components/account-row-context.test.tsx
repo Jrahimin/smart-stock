@@ -1,4 +1,5 @@
 /** @vitest-environment jsdom */
+import { shortTradeDate } from "@/lib/formatters/trader-formatters";
 import React from "react";
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, expect, it } from "vitest";
@@ -17,12 +18,12 @@ it.each(["en", "bn"] as const)("keeps precise holder action/reason before compar
   expect(screen.queryByText(t.actionLabels.SELL)).toBeNull();
   expect(container.textContent!.indexOf(t.guidance.REVIEW_SELL_OR_REDUCE)).toBeLessThan(container.textContent!.indexOf(t.comparisonChanged));
   expect(screen.getByRole("link").getAttribute("href")).toContain("TEST");
-  expect(container.textContent).toContain("2026-11-10");
+  expect(container.textContent).toContain(shortTradeDate("2026-11-10", locale));
 });
 it.each(["en", "bn"] as const)("renders one dated mark and day change in %s, omits unattributable legacy change", (locale) => {
   const { rerender, container } = render(<AccountMarketCell item={accountRow()} locale={locale} />);
   expect(container.textContent).toContain("৳103"); expect(container.textContent).toContain("+1.98%");
-  expect(container.textContent).toContain("2026-11-10"); expect(container.textContent).toContain("Dhaka");
+  expect(container.textContent).toContain(shortTradeDate("2026-11-10", locale)); expect(container.textContent).toContain("Dhaka");
   expect(screen.getByText(portfolioLanguage[locale].previousClose + ": ৳101")).toBeTruthy();
   rerender(<AccountMarketCell item={accountRow({ display_quote: null })} locale={locale} />);
   expect(container.textContent).not.toContain("1.98%"); expect(container.textContent).toContain("৳103");
@@ -58,5 +59,5 @@ it("keeps supported legacy mapper price/gain on the account mark and suppresses 
 
 it.each([["FINALIZED", "চূড়ান্ত দাম"], ["PROVISIONAL", "সাময়িক দাম"], ["SUSPENDED", "লেনদেন স্থগিত"]] as const)("Bangla account mark uses the localized %s price state", (status, label) => {
   const { container } = render(<AccountMarketCell item={accountRow({ price_status: status })} locale="bn" />);
-  expect(container.querySelector("summary")?.textContent).toBe(`${label} · 2026-11-10`);
+  expect(container.querySelector("summary")?.textContent).toBe(`${label} · 10 নভেম্বর`);
 });

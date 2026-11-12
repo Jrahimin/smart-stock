@@ -5,11 +5,12 @@ import { Moon, Sun } from "lucide-react";
 import { useWorkspaceStore } from "@/stores/use-workspace-store";
 
 type SidebarThemeToggleProps = {
+  locale?: string;
   collapsed: boolean;
   ready?: boolean;
 };
 
-export function SidebarThemeToggle({ collapsed, ready = true }: SidebarThemeToggleProps) {
+export function SidebarThemeToggle({ collapsed, ready = true, locale = "en" }: SidebarThemeToggleProps) {
   const theme = useWorkspaceStore((state) => state.theme);
   const setTheme = useWorkspaceStore((state) => state.setTheme);
   const isLight = ready && theme === "light";
@@ -34,7 +35,7 @@ export function SidebarThemeToggle({ collapsed, ready = true }: SidebarThemeTogg
 
   return (
     <div className="sidebar-theme-toggle">
-      <span className="sidebar-theme-toggle-label">Appearance</span>
+      <span className="sidebar-theme-toggle-label">{locale === "bn" ? "রং ও চেহারা" : "Appearance"}</span>
       <button
         aria-checked={isLight}
         aria-label={isLight ? "Light mode on. Switch to dark mode" : "Dark mode on. Switch to light mode"}
@@ -49,13 +50,13 @@ export function SidebarThemeToggle({ collapsed, ready = true }: SidebarThemeTogg
             className={`sidebar-theme-switch-segment sidebar-theme-switch-segment-dark ${!isLight ? "sidebar-theme-switch-segment-active" : ""}`}
           >
             <Moon size={14} strokeWidth={2.2} />
-            <span>Dark</span>
+            <span>{locale === "bn" ? "গাঢ়" : "Dark"}</span>
           </span>
           <span
             className={`sidebar-theme-switch-segment sidebar-theme-switch-segment-light ${isLight ? "sidebar-theme-switch-segment-active" : ""}`}
           >
             <Sun size={14} strokeWidth={2.2} />
-            <span>Light</span>
+            <span>{locale === "bn" ? "হালকা" : "Light"}</span>
           </span>
         </span>
       </button>

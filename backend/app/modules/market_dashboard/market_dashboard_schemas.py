@@ -36,6 +36,7 @@ from app.modules.market_data.breadth import BreadthRead
 
 
 class DashboardOverviewRead(BaseModel):
+    index_snapshot_version: int = 2
     market_status: str | None = None
     breadth: BreadthRead | None = None
     exchange: ExchangeCode
@@ -105,19 +106,29 @@ class DashboardHeatmapTileRead(BaseModel):
     stock_id: UUID
     symbol: str
     sector: str
-    change_percent: Decimal
+    trade_date: date | None = None
+    change_percent: Decimal | None
     weight: Decimal
     tone: str
-    latest_price: Decimal
-    turnover: Decimal
+    latest_price: Decimal | None
+    turnover: Decimal | None
     turnover_value: Decimal
     liquidity_score: int
+
+
+class DashboardHeatmapSectorRead(BaseModel):
+    name: str
+    change_percent: Decimal | None
+    measured_count: int
+    total_count: int
+    weighting: Literal["TURNOVER", "EQUAL", "UNAVAILABLE"]
 
 
 class DashboardHeatmapRead(BaseModel):
     session_trade_date: date | None = None
     market_sync_id: str | None = None
     tiles: list[DashboardHeatmapTileRead] = Field(default_factory=list)
+    sectors: list[DashboardHeatmapSectorRead] = Field(default_factory=list)
 
 
 class DashboardInsightRead(BaseModel):

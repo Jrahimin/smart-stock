@@ -46,6 +46,7 @@ function buildRow(symbol: string, rsi: number, opportunity: number): BackendScor
       recommendation: "BUY",
       confidence: 79,
       reason: "Uptrend with favorable opportunity and acceptable reward potential.",
+          primary_reason_code: "buy_uptrend_reward",
       opportunity_score: opportunity,
       risk_label: "LOW",
     },

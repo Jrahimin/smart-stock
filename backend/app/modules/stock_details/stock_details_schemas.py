@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from fractions import Fraction
 from typing import Any, Literal
 from uuid import UUID
 
@@ -325,7 +326,20 @@ class TraderDecisionSummaryRead(BaseModel):
     canonical: CanonicalDecisionResultRead | None = None
 
 
+class ExactPriceChangeRatioRead(BaseModel):
+    numerator: str = Field(pattern=r"^-?\d+$")
+    denominator: str = Field(pattern=r"^[1-9]\d*$")
+
+    @classmethod
+    def from_fraction(cls, value: Fraction | None):
+        return cls(numerator=str(value.numerator), denominator=str(value.denominator)) if value is not None else None
+
+    def as_fraction(self) -> Fraction:
+        return Fraction(int(self.numerator), int(self.denominator))
+
+
 class TechnicalSnapshotRead(BaseModel):
+    price_change_percent_ratio: ExactPriceChangeRatioRead | None = Field(default=None, exclude_if=lambda value: value is None)
     latest_price: float | None = None
     previous_close: float | None = None
     price_change: float | None = None
@@ -711,6 +725,7 @@ class StockDecisionSupportRead(BaseModel):
                 else None
             ),
             technical_snapshot=TechnicalSnapshotRead(
+                price_change_percent_ratio=ExactPriceChangeRatioRead.from_fraction(snapshot.price_change_percent_ratio),
                 latest_price=snapshot.latest_price,
                 previous_close=snapshot.previous_close,
                 price_change=snapshot.price_change,

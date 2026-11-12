@@ -10,16 +10,18 @@ import {
   adminNavigationItems,
   isNavigationItemActive,
   marketNavigationItems,
+  navigationLabel,
 } from "@/lib/navigation/terminal-navigation-config";
 
 type TerminalSidebarNavProps = {
+  locale?: string;
   collapsed: boolean;
   pathname: string;
 };
 
 const TRADING_WORKSPACE_HREFS = new Set(["/stocks", "/scanner", "/signals", "/portfolio"]);
 
-export function TerminalSidebarNav({ collapsed, pathname }: TerminalSidebarNavProps) {
+export function TerminalSidebarNav({ collapsed, pathname, locale = "en" }: TerminalSidebarNavProps) {
   const { user, isLoading } = useAuth();
   const [mounted, setMounted] = useState(false);
   const isWealthActive = isNavigationItemActive(pathname, "/wealth");
@@ -42,7 +44,7 @@ export function TerminalSidebarNav({ collapsed, pathname }: TerminalSidebarNavPr
     <nav aria-label="Primary navigation" data-guide="primary-navigation">
       {canAccessAdmin ? (
         <>
-          {!collapsed ? <p className="terminal-nav-section-label terminal-nav-section-label-ops">Operations</p> : null}
+          {!collapsed ? <p className="terminal-nav-section-label terminal-nav-section-label-ops">{locale === "bn" ? "পরিচালনা" : "Operations"}</p> : null}
           {collapsed ? (
             <Link
               aria-current={isAdminSection ? "page" : undefined}
@@ -51,7 +53,7 @@ export function TerminalSidebarNav({ collapsed, pathname }: TerminalSidebarNavPr
               title="Operations"
             >
               <ShieldCheck aria-hidden="true" className="terminal-nav-icon terminal-nav-icon-blue" size={18} />
-              <span>Operations</span>
+              <span>{locale === "bn" ? "পরিচালনা" : "Operations"}</span>
             </Link>
           ) : (
             <div className="terminal-nav-ops-group">
@@ -63,7 +65,7 @@ export function TerminalSidebarNav({ collapsed, pathname }: TerminalSidebarNavPr
                   title="Operations"
                 >
                   <ShieldCheck aria-hidden="true" className="terminal-nav-icon terminal-nav-icon-blue" size={18} />
-                  <span>Operations</span>
+                  <span>{locale === "bn" ? "পরিচালনা" : "Operations"}</span>
                 </Link>
                 <button
                   aria-expanded={opsExpanded}
@@ -88,7 +90,7 @@ export function TerminalSidebarNav({ collapsed, pathname }: TerminalSidebarNavPr
                         key={item.href}
                       >
                         <Icon aria-hidden="true" size={14} />
-                        <span>{item.label}</span>
+                        <span>{navigationLabel(item.label, locale)}</span>
                       </Link>
                     );
                   })}
@@ -100,9 +102,9 @@ export function TerminalSidebarNav({ collapsed, pathname }: TerminalSidebarNavPr
         </>
       ) : null}
 
-      {!collapsed ? <p className="terminal-nav-section-label terminal-nav-section-label-wealth">Wealth</p> : null}
+      {!collapsed ? <p className="terminal-nav-section-label terminal-nav-section-label-wealth">{locale === "bn" ? "সম্পদ" : "Wealth"}</p> : null}
 
-      <WealthWorkspaceNavPill collapsed={collapsed} isActive={isWealthActive} />
+      <WealthWorkspaceNavPill collapsed={collapsed} isActive={isWealthActive} locale={locale} />
 
       <div aria-hidden="true" className="terminal-nav-divider" />
 
@@ -121,10 +123,10 @@ export function TerminalSidebarNav({ collapsed, pathname }: TerminalSidebarNavPr
               data-guide={item.guideId}
               href={item.href}
               key={item.href}
-              title={item.label}
+              title={navigationLabel(item.label, locale)}
             >
               <Icon aria-hidden="true" className={`terminal-nav-icon terminal-nav-icon-${item.tone}`} size={18} />
-              <span>{item.label}</span>
+              <span>{navigationLabel(item.label, locale)}</span>
             </Link>
           );
         })}
@@ -142,10 +144,10 @@ export function TerminalSidebarNav({ collapsed, pathname }: TerminalSidebarNavPr
                 data-guide={item.guideId}
                 href={item.href}
                 key={item.href}
-                title={item.label}
+                title={navigationLabel(item.label, locale)}
               >
                 <Icon aria-hidden="true" className={`terminal-nav-icon terminal-nav-icon-${item.tone}`} size={18} />
-                <span>{item.label}</span>
+                <span>{navigationLabel(item.label, locale)}</span>
               </Link>
             );
           })}

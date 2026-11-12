@@ -55,7 +55,22 @@ def test_participation_uses_only_prior_matching_quality_rows_and_reports_actual_
     current = index(); current.total_volume = 0
     assert interpret([1], current, rows).volume_vs_average == 0
     assert interpret([1], index()).volume_vs_average is None
-    assert interpret([1], None, rows).volume_vs_average is None
+    without_close = interpret([1], None, rows)
+    assert without_close.index_change_percent is None
+    assert without_close.volume_vs_average == Decimal("9.99")
+
+
+@pytest.mark.parametrize("volume", [None, 0, 250])
+def test_current_activity_survives_a_lagging_close_without_reusing_old_index_movement(volume):
+    current = index(trade_date=date(2026, 11, 9), total_volume=999)
+    rows = [SimpleNamespace(trade_date=date(2026, 11, 9), index_name="DSEX", total_volume=100,
+        data_quality_flag=DataQualityFlag.OK, index_close=5000),
+        SimpleNamespace(trade_date=DAY, index_name="DSEX", total_volume=volume,
+        data_quality_flag=DataQualityFlag.OK, index_close=None)]
+    facts = interpret([1, 2, -1], current, rows)
+    assert facts.code == "BREADTH_ONLY" and facts.index_change_percent is None
+    assert facts.volume_vs_average == (None if volume is None else Decimal(volume) / 100)
+    assert facts.volume_average_sessions == 1
 
 
 @pytest.mark.asyncio
@@ -95,3 +110,38 @@ async def test_actual_sentiment_path_uses_stored_missing_index_change_without_di
     assert result.interpretation.index_change_percent is None
     assert result.interpretation.breadth.known_count == 1
     market.get_dsex_index_snapshot.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_heatmap_excludes_stale_and_unknown_changes_and_publishes_sector_coverage():
+    from app.tests.test_market_pulse_briefing_semantics import _rows
+    from dataclasses import replace
+    from app.modules.market_dashboard.market_dashboard_compute import build_heatmap_tiles, build_heatmap_sectors
+    rows = _rows([-10, 3, 0, 0])
+    for row in rows:
+        row.stock.market_cap = None
+    snapshots = [replace(row.snapshot, latest_trade_date=DAY.isoformat()) for row in rows]
+    snapshots[0] = replace(snapshots[0], latest_trade_date="2026-11-08", turnover=900)
+    snapshots[1] = replace(snapshots[1], turnover=100)
+    snapshots[2] = replace(snapshots[2], price_change_percent=None, latest_price=None, turnover=None)
+    snapshots[3] = replace(snapshots[3], data_quality=DataQualityFlag.SUSPICIOUS)
+    repo = SimpleNamespace(list_latest_daily_prices=AsyncMock(return_value=[(row.stock, i) for i,row in enumerate(rows)]))
+    from unittest.mock import patch
+    service = object.__new__(MarketDashboardService)
+    service.market_repository = repo
+    with patch("app.modules.market_dashboard.market_dashboard_service.build_technical_snapshot", side_effect=lambda prices:snapshots[prices[0]]):
+        result = await service.compute_heatmap(ExchangeCode.DSE, freshness=SimpleNamespace(trade_date=DAY))
+    sector = result.sectors[0]
+    assert sector.change_percent == 3 and sector.measured_count == 1 and sector.total_count == 4
+    assert sector.weighting == "TURNOVER"
+    tiles_by_symbol = {tile.symbol: tile for tile in result.tiles}
+    assert [tiles_by_symbol[row.stock.symbol].change_percent for row in rows] == [None, 3, None, None]
+    assert tiles_by_symbol[rows[0].stock.symbol].trade_date == date(2026,11,8)
+    assert tiles_by_symbol[rows[2].stock.symbol].latest_price is None
+    assert tiles_by_symbol[rows[2].stock.symbol].turnover is None
+    flat_tiles = build_heatmap_tiles([(rows[0].stock, replace(snapshots[1], price_change_percent=0))], session_trade_date=DAY)
+    assert build_heatmap_sectors(flat_tiles)[0]["change_percent"] == 0
+    assert build_heatmap_sectors([tile.model_dump() for tile in result.tiles if tile.change_percent is None])[0]["change_percent"] is None
+    mixed = build_heatmap_tiles([(rows[0].stock,snapshots[1]), (rows[1].stock,replace(snapshots[1],price_change_percent=1,turnover=None))],session_trade_date=DAY)
+    assert build_heatmap_sectors(mixed)[0]["change_percent"] == 2
+    assert build_heatmap_sectors(mixed)[0]["weighting"] == "EQUAL"

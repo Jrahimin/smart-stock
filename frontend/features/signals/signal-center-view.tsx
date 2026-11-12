@@ -3,6 +3,8 @@
 import { EntryApplicabilityLabel } from "@/components/market/entry-applicability-label";
 import { isDatedPlanGuidance, evidenceLabel, controllingReasonLabel, selectedDecisionExplanation, riskValueLabel } from "@/lib/market/decision-presentation";
 import Link from "next/link";
+import { shortTradeDate } from "@/lib/formatters/trader-formatters";
+import { getSignalActionLabel } from "@/lib/market/signal-action-labels";
 import { useMemo, useState } from "react";
 
 import { WorkspacePageHero } from "@/components/layout/workspace-page-hero";
@@ -78,17 +80,14 @@ export function SignalCenterView({ locale = DEFAULT_LOCALE }: SignalCenterViewPr
         subtitle={
           isLoading
             ? language.hero.loadingSubtitle
-            : `${language.hero.readySubtitle(signalRows.length)} · ${decisionDate ?? "—"}`
+            : `${language.hero.readySubtitle(signalRows.length)} · ${shortTradeDate(decisionDate, locale)}`
         }
         title={language.hero.title}
       >
         <div className="explorer-controls">
           <select value={filter} onChange={(event) => setFilter(event.target.value)}>
             <option value="ALL">{language.filters.allActions}</option>
-            <option value="POTENTIAL_BUY">POTENTIAL BUY</option>
-            <option value="WAIT">WAIT</option>
-            <option value="HOLD">HOLD</option>
-            <option value="SELL">SELL</option>
+            {(["POTENTIAL_BUY", "WAIT", "HOLD", "SELL"] as const).map(action => <option key={action} value={action}>{getSignalActionLabel(action, locale)}</option>)}
           </select>
           <select value={riskFilter} onChange={(event) => setRiskFilter(event.target.value)}>
             <option value="ALL">{language.filters.allRisk}</option>
@@ -98,14 +97,15 @@ export function SignalCenterView({ locale = DEFAULT_LOCALE }: SignalCenterViewPr
             <option value="SPECULATIVE">{language.filters.speculative}</option>
           </select>
           <select value={sortMode} onChange={(event) => setSortMode(event.target.value)}>
-            <option value="CONVICTION">{locale === "bn" ? "নতুন entry-এর বাছাই" : "Entry shortlist"}</option>
-            <option value="HOLDER_EXIT">{locale === "bn" ? "হোল্ডারের exit অগ্রাধিকার" : "Holder exit priority"}</option>
+            <option value="CONVICTION">{locale === "bn" ? "নতুন এন্ট্রির সেরা বাছাই" : "Entry shortlist"}</option>
+            <option value="HOLDER_EXIT">{locale === "bn" ? "হোল্ডারের বিক্রির অগ্রাধিকার" : "Holder exit priority"}</option>
             <option value="NEWEST">{language.filters.newest}</option>
             <option value="RISK_ADJUSTED">{language.filters.riskAdjusted}</option>
             <option value="VOLUME_CONFIRMED">{language.filters.volumeConfirmed}</option>
           </select>
         </div>
       </WorkspacePageHero>
+      <p className="snapshot-price-note">{locale === "bn" ? "দাম স্ন্যাপশট থেকে নেওয়া। সিদ্ধান্তের আগে ব্রোকারের লাইভ দাম মিলিয়ে নিন।" : "Prices are snapshots. Check your broker's live price before acting."}</p>
       {isUpdating ? <div className="data-warning">{locale === "bn" ? "সিদ্ধান্ত আপডেট হচ্ছে; আগের চূড়ান্ত তথ্য:" : "Updating decisions; previous finalized result:"} {decisionDate}</div> : null}
       {isWarmingUp ? <div className="data-warning">Market view is warming up.</div> : null}
       {isError ? <div className="data-warning">{language.states.loadError}</div> : null}
@@ -119,9 +119,8 @@ export function SignalCenterView({ locale = DEFAULT_LOCALE }: SignalCenterViewPr
               const policy = controllingReasonLabel(decision.reasonCode, "", locale);
 
               return (
-                <Link
+                <article
                   className={`signal-center-item signal-center-item-${(decision.recommendation?.toLowerCase() ?? "unavailable")} priority-${stock.traderDecision?.opportunity_quality === "STRONG" ? "high" : "low"}`}
-                  href={buildStockDetailPath(stock.stock.exchange, stock.stock.symbol)}
                   key={stock.stock.id}
                 >
                   <div className="signal-center-topline">
@@ -132,16 +131,16 @@ export function SignalCenterView({ locale = DEFAULT_LOCALE }: SignalCenterViewPr
                     </div>
                     <SignalBadge signal={decision.recommendation} locale={locale} />
                   </div>
-                  <small>{locale === "bn" ? "নতুন অবস্থান বিবেচনায় · সিদ্ধান্ত" : "Prospective entry · Decision"} {stock.decisionDate ?? "—"}</small>
+                  <small>{locale === "bn" ? "নতুন ক্রেতার জন্য" : "For new buyers"} · {shortTradeDate(stock.decisionDate, locale)}</small>
                   <EntryApplicabilityLabel assessment={decision.entryApplicability} locale={locale} policyReason={policy} />
-                  {policy && !isDatedPlanGuidance(decision.reasonCode) && decision.entryApplicability?.reason_code !== "ACTION_NOT_PERMITTED" ? <p className="signal-controlling-reason">{policy}</p> : null}
+                  {policy && !isDatedPlanGuidance(decision.reasonCode) ? <p className="signal-controlling-reason">{policy}</p> : null}
                   {selected.limitation && selected.limitation !== policy ? <p className="signal-controlling-reason">{selected.limitation}</p> : null}
                   {selected.support ? <small className="signal-measured-support">{selected.support}</small> : null}
                   <div className="signal-evidence-row">
-                    <span>{evidenceLabel(decision.evidenceStatus, locale)}</span>
                     <span>{stock.traderDecision?.trading_risk ? locale === "bn" ? "এন্ট্রির ঝুঁকি" : "Entry risk" : locale === "bn" ? "প্রকাশিত ঝুঁকি" : "Published risk"}: {riskValueLabel(decision.riskLabel, locale)}</span>
                   </div>
-                </Link>
+                  <Link href={buildStockDetailPath(stock.stock.exchange, stock.stock.symbol)}>{locale === "bn" ? "বিস্তারিত দেখুন" : "View details"} →</Link>
+                </article>
               );
             })
           ) : (

@@ -58,6 +58,17 @@ For present-tense permission, align symbol/exchange, current publication status 
 
 ## Release checks and evidence limits
 
+PR31 follow-up presentation: compact UNVERIFIED checks are neutral disclosures;
+NOT_APPLICABLE adds no repeated box, while INVALIDATED and EXPIRED retain warnings.
+Disclosure text follows the controlling reason code; only QUOTE_UNUSABLE uses an
+older quote date ahead of generic timing copy. Signals/Scanner disclosures sit
+outside navigation links. Holder reasons use holder-specific extension/blocker
+copy and a neutral holder fallback. Compact cards name measured components without
+inventing an uptrend or resistance fact from their numerical contribution alone.
+Legacy untyped English reasons no longer determine typed reasons by sentence
+parsing. Missing current-feed observation clocks remain an explicit input limit;
+the unvalidated snapshot-retrieval policy is not enabled.
+
 For **each** increment, run focused API projection, mapper, component, locale and relevant hydration/cache tests plus TypeScript. Exercise its primary journey in English and Bangla on mobile and desktop; cover both light and dark themes. Check long Bangla blockers wrap beside the action, text contrast on positive/warning/neutral backgrounds, keyboard and touch access to reasons, visible focus, screen-reader order and textual equivalents for levels and color. Announce meaningful status changes once; passive polling must not repeatedly interrupt the reader. Use deterministic clocks and authenticated fixtures where needed, and distinguish fixture results from observations on a real trading day. Update only docs for changed fields.
 
 Historical performance is outside all three release gates. The [completed evaluation](trading_decision_consistency_report_2026_11_11.md) measured the restore through 10 November 2026: six reproduced publications, four timely, no mature ten-session outcomes on those captures; separately, 12 fully observed reconstructed paired dates and zero verified fills. It recorded zero confirmed prospective ranking dates. Before proposing trader-facing outcomes, inspect current receipt heads, frozen version, maturity, withdrawals, denominators and execution evidence. Keep reconstructed markouts, prospective modeled fills and user account gains distinct. This review verified code and the dated report; it made no new browser, database or live-session measurement.

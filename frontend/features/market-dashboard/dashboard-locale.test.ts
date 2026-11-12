@@ -182,6 +182,7 @@ describe("dashboard signal localization", () => {
           recommendation: "BUY",
           confidence: 79,
           reason: "Uptrend with favorable opportunity and acceptable reward potential.",
+          primary_reason_code: "buy_uptrend_reward",
           opportunity_score: 78,
           risk_label: "LOW",
         },
@@ -204,7 +205,8 @@ describe("dashboard signal localization", () => {
     });
 
     expect(model.signals[0]?.reason).toContain("দাম ঊর্ধ্বমুখী");
-    expect(model.signals[0]?.reason).toContain("কেনাবেচার পরিমাণ গড়ের 1.5 গুণ");
+    expect(model.signals[0]?.reason).toContain("RSI 65.2");
+    expect(model.signals[0]?.technicalContext.rsi).toBe(65.2);
     expect(model.signals[0]?.reason).not.toContain("acceptable reward potential");
   });
 });

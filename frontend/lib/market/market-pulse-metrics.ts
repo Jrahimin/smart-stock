@@ -24,6 +24,7 @@ export type TurnoverPulseContext = {
 };
 
 export type VolumePulseContext = {
+  ratioValue?: number | null;
   priorAverageSessions?: number;
   insight: string;
   insightTone: PulseTone;
@@ -73,7 +74,7 @@ export type LeadersPulseContext = {
 
 function getIndexSummaries(summaries: BackendDailyMarketSummaryDto[]) {
   return summaries
-    .filter((summary) => summary.index_name !== "SOURCE_VALIDATION" && toNumber(summary.index_close) !== null)
+    .filter((summary) => summary.index_name !== "SOURCE_VALIDATION")
     .sort((left, right) => left.trade_date.localeCompare(right.trade_date));
 }
 
@@ -236,6 +237,7 @@ export function buildVolumePulseContext(
     insightTone: participation.tone,
     primaryValue: volumeLabel,
     typicalVolume: avgVolume === null ? "N/A" : formatCompactNumber(avgVolume),
+    ratioValue: ratioVsAvg,
     ratioVsAvg: ratioVsAvg === null ? "N/A" : `${ratioVsAvg.toFixed(2)}x`,
     participationMeterPercent: ratioToMeterPercent(ratioVsAvg),
     footer: avgVolume === null ? "Exchange volume" : `30-session avg ${formatCompactNumber(avgVolume)} shares`,

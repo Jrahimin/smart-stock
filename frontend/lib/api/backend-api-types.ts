@@ -228,6 +228,7 @@ export type BackendStockTraderDecisionDto = {
 };
 
 export type BackendTechnicalSnapshotDto = {
+  price_change_percent_ratio?: { numerator: string; denominator: string } | null;
   latest_price: number | null;
   previous_close: number | null;
   price_change: number | null;
@@ -368,11 +369,11 @@ export type BackendDsexIndexSnapshotDto = {
   trade_date: string;
   market_status: string;
   index_close: string | number;
-  index_change: string | number;
-  index_change_percent: string | number;
-  day_open: string | number;
-  day_high: string | number;
-  day_low: string | number;
+  index_change: string | number | null;
+  index_change_percent: string | number | null;
+  day_open: string | number | null;
+  day_high: string | number | null;
+  day_low: string | number | null;
   range_52w_low: string | number;
   range_52w_high: string | number;
   range_position_percent: string | number;
@@ -382,9 +383,9 @@ export type BackendDsexIndexSnapshotDto = {
   total_volume: number | null;
   total_turnover: string | number | null;
   total_trades: number | null;
-  advancing_issues: number;
-  declining_issues: number;
-  unchanged_issues: number;
+  advancing_issues: number | null;
+  declining_issues: number | null;
+  unchanged_issues: number | null;
   source: string;
 };
 
@@ -440,6 +441,7 @@ export type BackendBreadthDto = {
 };
 
 export type BackendDashboardOverviewDto = {
+  index_snapshot_version?: number;
   breadth?: BackendBreadthDto | null;
   exchange: ExchangeCode;
   session_trade_date: string | null;
@@ -514,11 +516,12 @@ export type BackendDashboardHeatmapTileDto = {
   stock_id: string;
   symbol: string;
   sector: string;
-  change_percent: string | number;
+  trade_date?: string | null;
+  change_percent: string | number | null;
   weight: string | number;
   tone: string;
-  latest_price: string | number;
-  turnover: string | number;
+  latest_price: string | number | null;
+  turnover: string | number | null;
   turnover_value: string | number;
   liquidity_score: number;
 };
@@ -530,6 +533,15 @@ export type BackendDashboardHeatmapDto = {
   quote_generation_id?: string | null;
   market_sync_id?: string | null;
   tiles: BackendDashboardHeatmapTileDto[];
+  sectors?: BackendDashboardHeatmapSectorDto[];
+};
+
+export type BackendDashboardHeatmapSectorDto = {
+  name: string;
+  change_percent: string | number | null;
+  measured_count: number;
+  total_count: number;
+  weighting: "TURNOVER" | "EQUAL" | "UNAVAILABLE";
 };
 
 export type BackendDashboardInsightDto = {
@@ -963,7 +975,11 @@ export type BackendMarketStoryMetricDto = {
   tone: string;
 };
 
+export type PulseStoryHeadlineCode = "STRENGTH_SECTORS" | "STRENGTH_STOCKS" | "WEAKNESS_SECTORS" | "WEAKNESS_STOCKS" | "MIXED_SECTORS" | "NO_POSITIVE_SECTOR" | "SECTOR_UNAVAILABLE" | "BREADTH_UNAVAILABLE";
+
 export type BackendMarketStoryDto = {
+  headline_code?: PulseStoryHeadlineCode | null;
+  sector_count?: number | null;
   headline: string;
   explanation: string;
   tone: string;
@@ -1007,6 +1023,7 @@ export type BackendOpportunityScoreDto = {
 };
 
 export type BackendPulseCoverageDto = {
+  quote_session_date?: string | null;
   market_status?: MarketSessionStatus | null;
   breadth?: BackendBreadthDto | null;
   quote_generation_id?: string | null;

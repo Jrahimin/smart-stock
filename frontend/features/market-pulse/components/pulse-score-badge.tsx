@@ -88,10 +88,10 @@ export function PulseScoreHeaderCluster({ score, breakdown, copy }: PulseScoreHe
               <dt>{copy.participationScore}</dt>
               <dd>{breakdown.trend + breakdown.momentum}</dd>
             </div>
-            <div>
+            {breakdown.riskPenalty > 0 && <div>
               <dt>{copy.riskLevel}</dt>
               <dd>−{breakdown.riskPenalty}</dd>
-            </div>
+            </div>}
           </dl>
         </div>
       </div>

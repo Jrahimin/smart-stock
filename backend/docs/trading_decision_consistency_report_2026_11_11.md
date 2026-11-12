@@ -382,3 +382,72 @@ Final verification on the existing isolated November 10 QA clone:
 - The first unconfigured backend invocation was stopped without a result; an isolated targeted invocation from the wrong working directory also failed two tests on configuration parsing. The correctly configured full QA runs supersede neither historical errors nor their record: they passed 803 tests before the new contract test and 804 afterward.
 
 The prior browser retest remains the UI evidence for the rendered fixes; this final contract-only repair changes no rendered values. Authenticated portfolio/watchlist arithmetic, fresh intraday applicability transitions, exceptional live timings, and prospective outcome maturity remain unavailable in that browser snapshot. New summary counterargument fallback is covered by tests, not by rewriting an old immutable publication. The historical primary/repeat artifacts cited above were not rerun or relabeled for this schema-only change. No policy promotion or deployment was performed.
+
+
+## Evaluation correction following the November 12 review
+
+The frozen experiment is now `phase2-shadow-factors-v4`. Its uncertainty method
+is a paired circular moving date-block bootstrap using the existing 20-session
+block length, 2,000 replicates and seed 271828. Every replicate has the original
+number of paired dates, including trailing dates. Reports include `sample_size`,
+`block_sessions`, `block_count` (complete-block equivalents) and `method`.
+The minimum remains three complete-block equivalents. This changes the
+experiment identity and requires a new prospective experiment cohort. Previous
+captures remain usable inputs for retrospective diagnosis and parity. Previously
+recorded selections and formal assessments retain their original experiment
+identity and cannot be relabeled as prospective evidence for v4. The historical
+numerical results above describe their original runs and have not been rerun.
+The live strategy version, ranking factors and entry thresholds are unchanged.
+
+Ranking safeguards retain unavailable turnover as null and report measured and
+missing counts. Any missing required turnover prevents the liquidity safeguard
+from passing. Measured zero remains zero.
+
+Modeled outcome corrections append `supersedes_revision` to changed receipts.
+A per-selection row lock serializes adoption, and insertion time uses the actual
+clock after that lock. An exact A→B→A reversion has a new revision pointing to B,
+while A→A reuses the current receipt. Latest reads continue to prefer the greatest evaluated date, so an earlier
+partial evaluation cannot supersede later facts. The existing immutable rows,
+latest/history reads and once-only
+formal assessment policy are retained.
+
+
+Verification of the November 12 correction used the isolated local QA clone.
+The final backend suite passed **963 tests, with 13 skipped** (unconfigured Tax
+Planner persistence). Affected frontend suites passed **359 tests** across 32
+files, and TypeScript and whitespace checks passed. Astra's final closure found
+no remaining material code issue in this scope. Direct local API output retained
+399 measured returns from 426 stocks; 27 missing prices and turnovers were null.
+The attempted Chrome visual retest was stopped by the computer-use tool because
+it could not confidently verify the active browser URL. Current visual browser
+acceptance remains incomplete. Fresh intraday applicability and mature v4
+prospective results remain unavailable in the November 10 backup.
+
+
+## November 12 Chrome retest closure
+
+A fresh tab in the same Chrome profile resolved the stale-tab control failure.
+The local November 10 QA environment was checked in English and Bangla across
+Dashboard, Signals, Scanner, Market Pulse, FARCHEM Stock Details and the
+fixture account's Portfolio/Watchlist views. The heatmap exposed measured sector
+coverage and RNSPIN's unavailable price and turnover. FARCHEM retained the dated
+buy thesis, unverified entry and 1.75 planned reward/risk. Pulse retained its
+219-stock cohort and measured positive sector leader in both languages.
+Portfolio reconciled to BDT2,665 value, BDT96.2 gain and BDT52.5 daily movement.
+Its three saved stocks contain two holdings and one watchlist-only stock.
+Mobile Portfolio and Scanner and a dark Scanner view were also inspected.
+
+The retest corrected the shared hero's missing search locale, localized its
+search placeholders and accessible name, translated Scanner discovery reasons
+and Portfolio group labels, corrected the singular saved-stock count, and
+smoothed the Bangla dated-price sentence. The subsequent 148 affected frontend
+tests passed across 13 files, including the shared search locale regression.
+TypeScript and whitespace checks passed. This UI-only follow-up leaves the
+963-test backend result applicable. QA ended signed out with Bangla, light mode
+and the normal viewport restored. Screenshots are retained outside the repo.
+
+These checks supersede the earlier Chrome access blocker for the available
+local cases. Fresh intraday applicability, a missing-sector Pulse session and
+mature prospective v4 outcomes were unavailable in this backup. Their browser
+transitions remain unverified, with deterministic edge cases covered by tests.
+This retest did not perform a full screen-reader or measured-contrast audit.

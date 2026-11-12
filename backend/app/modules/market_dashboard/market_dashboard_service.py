@@ -24,6 +24,7 @@ from app.modules.market_data.market_mover_rules import is_eligible_session_mover
 from app.modules.market_dashboard.market_dashboard_cache import dashboard_cache_key
 from app.modules.market_dashboard.market_dashboard_compute import (
     build_heatmap_tiles,
+    build_heatmap_sectors,
     build_market_alerts_from_snapshot,
     build_market_insights,
     build_sector_snapshots_from_snapshot,
@@ -448,7 +449,7 @@ class MarketDashboardService:
                     continue
                 heatmap_rows.append((stock, snapshot))
 
-            tiles = build_heatmap_tiles(heatmap_rows)
+            tiles = build_heatmap_tiles(heatmap_rows, session_trade_date=session_trade_date)
 
         if report is None:
             perf.log_summary()
@@ -457,6 +458,7 @@ class MarketDashboardService:
         return DashboardHeatmapRead(
             session_trade_date=session_trade_date,
             tiles=[DashboardHeatmapTileRead.model_validate(tile) for tile in tiles],
+            sectors=build_heatmap_sectors(tiles),
         )
 
     async def compute_market_sentiment(

@@ -1,6 +1,7 @@
 import { holderReasonLabel, evidenceLabel, controllingReasonLabel, selectedDecisionExplanation } from "@/lib/market/decision-presentation";
 import type { DisplayMetricsDto, PatternDetectionDto, StockDecisionSupportDto } from "@/lib/api/stock-decision-support-types";
-import { holderActionLabels } from "@/lib/market/signal-action-labels";
+import { holderActionLabels, getSignalActionLabel } from "@/lib/market/signal-action-labels";
+import { shortTradeDate } from "@/lib/formatters/trader-formatters";
 import type { DecisionDisplayAction, HolderAction } from "@/lib/api/backend-api-types";
 import { compatibleDisplayAction } from "@/lib/market/decision-action-compatibility";
 import { getStockDecisionLanguage } from "@/features/stock-workspace/stock-decision-language";
@@ -206,9 +207,9 @@ export function buildStockDecisionViewModel(
       displayAction,
       locale,
       audience: locale === "bn" ? "নতুন অবস্থান বিবেচনায়" : "For a prospective entry",
-      datedActionLabel: `${locale === "bn" ? "সিদ্ধান্তের তারিখ" : "Decision as of"} ${asOfDate ?? "—"}`,
+      datedActionLabel: `${locale === "bn" ? "সিদ্ধান্ত" : "Decision"} · ${shortTradeDate(asOfDate, locale)}`,
       sourceDetail: [decision.decision.primary_reason, decision.decision.measured_support, decision.decision.opposing_constraint, decision.trade_plan.trailing_rule].filter((text): text is string => !!text),
-      recommendation: displayAction?.replace("_", " ") ?? (locale === "bn" ? "সিদ্ধান্ত অনুপলব্ধ" : "Decision unavailable"),
+      recommendation: displayAction ? getSignalActionLabel(displayAction, locale) : (locale === "bn" ? "সিদ্ধান্ত অনুপলব্ধ" : "Decision unavailable"),
       confidence: decision.decision.confidence,
       confidenceLabel: evidenceLabel(decision.decision.evidence_status, locale),
       controllingReason: [

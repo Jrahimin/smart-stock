@@ -25,7 +25,7 @@ CHALLENGER_INPUT_PROVENANCE = {
 }
 
 EXPERIMENT = {
-    "version": "phase2-shadow-factors-v3",
+    "version": "phase2-shadow-factors-v4",
     "forward_cohort": {"selection_sessions": 120, "primary_horizon": 10, "formal_assessment": "ONCE_AT_PREDECLARED_ENDPOINT", "weekly_reporting": "COVERAGE_AND_MATURITY_ONLY"},
     "ranking_baseline": RANKING_POLICY_VERSION,
     "entry_baseline": "canonical-plan-v1",
@@ -62,7 +62,7 @@ EXPERIMENT = {
         "sufficient_cohort_selections": 30,
     },
     "uncertainty": {
-        "method": "paired nonoverlapping date-block mean bootstrap",
+        "method": "paired circular moving date-block bootstrap",
         "block_sessions": 20,
         "replicates": 2000,
         "seed": 271828,

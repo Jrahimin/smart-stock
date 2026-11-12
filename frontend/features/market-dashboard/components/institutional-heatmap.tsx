@@ -8,6 +8,7 @@ import { sectorName, type TerminalCopy } from "@/features/market-dashboard/termi
 import type { HeatmapTileModel } from "@/features/market-dashboard/types/market-dashboard-types";
 import { formatPercent } from "@/lib/formatters/financial-formatters";
 import type { AppLocale } from "@/lib/locale/app-locale";
+import { shortTradeDate } from "@/lib/formatters/trader-formatters";
 
 export function InstitutionalHeatmap({ tiles, copy, locale, loading }: {
   tiles: HeatmapTileModel[]; copy: TerminalCopy; locale: AppLocale; loading: boolean;
@@ -29,8 +30,7 @@ export function InstitutionalHeatmap({ tiles, copy, locale, loading }: {
     }
     return Array.from(groups, ([sector, sectorTiles]) => ({
       sector,
-      change: computeSectorChangePercent(sectorTiles),
-      hasTurnover: sectorTiles.some((tile) => tile.turnoverValue > 0),
+      summary: sectorTiles[0]?.sectorSummary,
       tiles: sectorTiles.sort((a, b) => mode === "liquidity" ? b.liquidityScore - a.liquidityScore : b.weight - a.weight),
       totalWeight: sectorTiles.reduce((sum, tile) => sum + tile.weight, 0),
       totalLiquidity: sectorTiles.reduce((sum, tile) => sum + tile.liquidityScore, 0),
@@ -41,12 +41,12 @@ export function InstitutionalHeatmap({ tiles, copy, locale, loading }: {
   const picked = tiles.find((tile) => tile.stockId === pickedId);
   const active = tiles.find((tile) => tile.stockId === (hoveredId || focusedId));
   const tileDetails = (tile: HeatmapTileModel) =>
-    `${copy.price} ${tile.latestPrice === "N/A" ? copy.missing : `BDT ${tile.latestPrice}`} · ${copy.turnover} ${tile.turnover === "N/A" ? copy.missing : `BDT ${tile.turnover}`}`;
+    `${copy.price} ${tile.latestPrice === "N/A" ? copy.missing : `BDT ${tile.latestPrice}`} · ${copy.turnover} ${tile.turnover === "N/A" ? copy.missing : `BDT ${tile.turnover}`} · ${tile.tradeDate ? shortTradeDate(tile.tradeDate, locale) : copy.missing}`;
 
   return <section className="sw-map" aria-labelledby={id + "-title"} aria-busy={loading}>
     <div data-guide="sector-map">
       <div className="sw-map-header">
-        <h2 className="sw-section-title" id={id + "-title"}>Sector map</h2>
+        <h2 className="sw-section-title" id={id + "-title"}>{premium.sectorMap}</h2>
         <div className="sw-map-legend">
           <span className="sw-positive"><i aria-hidden="true" />{copy.up}</span>
           <span><i aria-hidden="true" />{copy.flat}</span>
@@ -90,8 +90,8 @@ export function InstitutionalHeatmap({ tiles, copy, locale, loading }: {
         {visibleGroups.map((group, index) => <div className="sw-sector" key={group.sector}>
           <h3 className="sw-sector-heading">
             {sectorName(group.sector, locale)}
-            <span className={"sw-sector-move sw-" + getChangeTone(group.change)}>{formatPercent(group.change)}</span>
-            {!group.hasTurnover ? <small>{copy.mappedEqualWeight}</small> : null}
+            <span className={"sw-sector-move sw-" + getChangeTone(group.summary?.changePercent ?? null)}>{formatPercent(group.summary?.changePercent ?? null)}</span>
+            <small>{group.summary ? premium.measured(group.summary.measuredCount, group.summary.totalCount) : copy.missing}{group.summary?.weighting === "EQUAL" ? ` · ${copy.mappedEqualWeight}` : ""}</small>
           </h3>
           <div className="sw-sector-grid" data-guide={index === 0 && !expanded ? "sector-map-tiles" : undefined}>
             {(expanded ? group.tiles : group.tiles.slice(0, 14)).map((tile) => <Link
@@ -99,7 +99,7 @@ export function InstitutionalHeatmap({ tiles, copy, locale, loading }: {
               href={tile.href}
               key={tile.stockId}
               prefetch={false}
-              aria-label={tile.label + " " + tile.value}
+              aria-label={tile.label + " " + (tile.changePercent === null ? copy.missing : tile.value)}
               aria-describedby={id + "-stock-" + tile.stockId}
               onPointerEnter={(event) => { if (event.pointerType === "mouse") setHoveredId(tile.stockId); }}
               onPointerLeave={() => setHoveredId("")}
@@ -107,7 +107,7 @@ export function InstitutionalHeatmap({ tiles, copy, locale, loading }: {
               onBlur={() => setFocusedId("")}
             >
               <strong>{tile.label}</strong>
-              <span className={"sw-" + tile.tone}>{tile.value}</span>
+              <span className={"sw-" + tile.tone}>{tile.changePercent === null ? copy.missing : tile.value}</span>
               <span className="sr-only" id={id + "-stock-" + tile.stockId}>{tileDetails(tile)}</span>
             </Link>)}
           </div>
@@ -116,29 +116,11 @@ export function InstitutionalHeatmap({ tiles, copy, locale, loading }: {
     </> : <p className="sw-state">{copy.mapEmpty}</p>}
   </section>;
 }
-function computeSectorChangePercent(tiles: HeatmapTileModel[]): number {
-  if (!tiles.length) {
-    return 0;
-  }
-
-  const turnoverBacked = tiles.filter((tile) => tile.turnoverValue > 0);
-  if (!turnoverBacked.length) {
-    return tiles.reduce((sum, tile) => sum + tile.changePercent, 0) / tiles.length;
-  }
-
-  const totalTurnover = turnoverBacked.reduce((sum, tile) => sum + tile.turnoverValue, 0);
-  if (totalTurnover <= 0) {
-    return tiles.reduce((sum, tile) => sum + tile.changePercent, 0) / tiles.length;
-  }
-
-  return turnoverBacked.reduce((sum, tile) => sum + tile.changePercent * tile.turnoverValue, 0) / totalTurnover;
-}
-
-function getChangeTone(changePercent: number): "positive" | "negative" | "neutral" {
-  if (changePercent > 0) {
+function getChangeTone(changePercent: number | null): "positive" | "negative" | "neutral" {
+  if (changePercent !== null && changePercent > 0) {
     return "positive";
   }
-  if (changePercent < 0) {
+  if (changePercent !== null && changePercent < 0) {
     return "negative";
   }
   return "neutral";

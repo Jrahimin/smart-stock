@@ -3,6 +3,7 @@ import { DEFAULT_LOCALE } from "@/lib/locale/app-locale";
 import type {
   MarketAlertType,
   PulseFocusLabel,
+  PulseStoryHeadlineCode,
 } from "@/lib/api/backend-api-types";
 
 export type PulseBriefingChipKey =
@@ -85,8 +86,8 @@ export type MarketPulseLanguage = {
       outflowSector: string | null,
     ) => string[];
     storyHeadline: (
-      tone: MarketPulseBriefingTone,
-      sectorCount: number,
+      code: PulseStoryHeadlineCode,
+      sectorCount: number | null,
     ) => string;
     storyMetricLabel: (label: string) => string;
     stateDimensionLabel: (key: string, label: string) => string;
@@ -127,6 +128,7 @@ export type MarketPulseLanguage = {
     whySelected: string;
     conviction: string;
     nextTrigger: string;
+    label: (label: PulseFocusLabel) => string;
     reason: (
       reason: string,
       focusLabel: PulseFocusLabel,
@@ -211,7 +213,7 @@ const marketPulseLanguage = {
       outflowing: "Lagging",
       opportunityScore: "Current Attention Score",
       lastFiveSessions: "Last five comparable sessions",
-      historyPending: "This score is calculated now. Historical comparison will appear after matching session snapshots are stored.",
+      historyPending: "The trend for this score appears after a few more comparable sessions.",
       yesterday: (value) => `Yesterday: ${value}`,
       fiveDayAvg: (value) => `5-Day Avg: ${value}`,
       trend: (label) => `Trend: ${label}`,
@@ -231,15 +233,16 @@ const marketPulseLanguage = {
             ? `Sector price weakness is led by ${outflowSector}.`
             : "No positive sector side is present in the eligible set.",
       ],
-      storyHeadline: (tone, sectorCount) => {
-        if (tone === "negative") {
-          return `PRICE WEAKNESS BROADENING\nACROSS ${sectorCount} SECTORS`;
-        }
-        if (tone === "positive") {
-          return `PRICE STRENGTH EXPANDING\nACROSS ${sectorCount} SECTORS`;
-        }
-        return "MIXED MARKET WITH SELECTIVE LEADERSHIP";
-      },
+      storyHeadline: (code, count) => ({
+        STRENGTH_SECTORS: count ? `PRICE STRENGTH EXPANDING\nACROSS ${count} ${count === 1 ? "SECTOR" : "SECTORS"}` : "PRICE STRENGTH EXPANDING\nACROSS REVIEWED STOCKS",
+        STRENGTH_STOCKS: "PRICE STRENGTH EXPANDING\nACROSS REVIEWED STOCKS",
+        WEAKNESS_SECTORS: count ? `PRICE WEAKNESS BROADENING\nACROSS ${count} ${count === 1 ? "SECTOR" : "SECTORS"}` : "PRICE WEAKNESS BROADENING\nACROSS REVIEWED STOCKS",
+        WEAKNESS_STOCKS: "PRICE WEAKNESS BROADENING\nACROSS REVIEWED STOCKS",
+        MIXED_SECTORS: "MIXED MARKET WITH SELECTIVE LEADERSHIP",
+        NO_POSITIVE_SECTOR: "No positive sector leader",
+        SECTOR_UNAVAILABLE: "Sector leadership unavailable",
+        BREADTH_UNAVAILABLE: "Market breadth unavailable",
+      })[code],
       storyMetricLabel: (label) => label,
       stateDimensionLabel: (_key, label) => label,
       stateDimensionValue: (value) => value,
@@ -294,6 +297,7 @@ const marketPulseLanguage = {
       whySelected: "Why selected?",
       conviction: "Conviction",
       nextTrigger: "Next Trigger",
+      label: (label) => label,
       reason: (reason) => reason,
       watchLevel: "Watch level (observation)",
       actionSummary: (summary) => summary,
@@ -301,7 +305,7 @@ const marketPulseLanguage = {
     },
     alerts: {
       eyebrow: "Market Alerts",
-      title: "High priority signals for today.",
+      title: "Priority setups from the recorded session.",
       viewAll: "View all alerts →",
       significance: {
         HIGH: "HIGH",
@@ -340,7 +344,7 @@ const marketPulseLanguage = {
   bn: {
     hero: {
       eyebrow: "Market Pulse",
-      contextAriaLabel: "আজকের বাজারের অবস্থা",
+      contextAriaLabel: "এই সেশনের বাজারের অবস্থা",
       subline:
         "বাজারে কী চলছে আর কোথায় সুযোগ—দ্রুত এক নজর।",
     },
@@ -352,7 +356,7 @@ const marketPulseLanguage = {
       personalizationWarning:
         "আপনার ব্যক্তিগত আপডেট পাওয়া যাচ্ছে না। আপাতত সবার জন্য সর্বশেষ Market Pulse দেখানো হচ্ছে।",
       briefingPersonalizationWarning:
-        "আপনার ব্যক্তিগত briefing পাওয়া যাচ্ছে না। আপাতত সর্বশেষ market briefing দেখানো হচ্ছে।",
+        "আপনার ব্যক্তিগত briefing পাওয়া যাচ্ছে না। আপাতত সর্বশেষ বাজারের সারাংশ দেখানো হচ্ছে।",
       backendError:
         "নতুন data আনা যাচ্ছে না। আপাতত সর্বশেষ পাওয়া Market Pulse দেখানো হচ্ছে।",
       loadingBriefing: "Market briefing লোড হচ্ছে",
@@ -381,7 +385,7 @@ const marketPulseLanguage = {
     },
 
     briefing: {
-      overviewAria: "আজকের market briefing",
+      overviewAria: "এই সেশনের বাজারের সারাংশ",
       breadthSnapshot: "বাজারের ভেতরের চিত্র",
       breadthSnapshotAria:
         "বাজারের ভেতরের চিত্র",
@@ -402,25 +406,26 @@ const marketPulseLanguage = {
         outflowSector,
       ) => [
         tone === "positive"
-          ? "Eligible শেয়ারের মধ্যে ওঠা শেয়ার নামা শেয়ারের চেয়ে বেশি।"
+          ? "পর্যালোচিত শেয়ারের মধ্যে ওঠা শেয়ার নামা শেয়ারের চেয়ে বেশি।"
           : tone === "negative"
-            ? "Eligible শেয়ারের মধ্যে নামা শেয়ার ওঠা শেয়ারের চেয়ে বেশি।"
-            : "Eligible শেয়ারের price breadth মিশ্র।",
+            ? "পর্যালোচিত শেয়ারের মধ্যে নামা শেয়ার ওঠা শেয়ারের চেয়ে বেশি।"
+            : "পর্যালোচিত শেয়ারের price breadth মিশ্র।",
         inflowSector
           ? `${inflowSector} sector দামের দিক থেকে এগিয়ে।`
           : outflowSector
             ? `${outflowSector} sector দামের দিক থেকে সবচেয়ে দুর্বল।`
-            : "Eligible set-এ positive sector side নেই।",
+            : "পর্যালোচিত শেয়ারগুলোর কোনো খাত ইতিবাচক নয়।",
       ],
-      storyHeadline: (tone, sectorCount) => {
-        if (tone === "negative") {
-          return `দামের দুর্বলতা ছড়াচ্ছে\n${sectorCount}টি সেক্টরে`;
-        }
-        if (tone === "positive") {
-          return `দামের শক্তি ছড়াচ্ছে\n${sectorCount}টি সেক্টরে`;
-        }
-        return "মিশ্র বাজার, বেছে বেছে price leadership";
-      },
+      storyHeadline: (code, count) => ({
+        STRENGTH_SECTORS: count ? `দামের শক্তি ছড়াচ্ছে\n${count}টি খাতে` : "পর্যালোচিত শেয়ারের দাম বেড়েছে",
+        STRENGTH_STOCKS: "পর্যালোচিত শেয়ারের দাম বেড়েছে",
+        WEAKNESS_SECTORS: count ? `দামের দুর্বলতা ছড়াচ্ছে\n${count}টি খাতে` : "পর্যালোচিত শেয়ারের দাম কমেছে",
+        WEAKNESS_STOCKS: "পর্যালোচিত শেয়ারের দাম কমেছে",
+        MIXED_SECTORS: "মিশ্র বাজার, কিছু খাতে দামের অগ্রগতি",
+        NO_POSITIVE_SECTOR: "কোনো খাতে ইতিবাচক দামের অগ্রগতি নেই",
+        SECTOR_UNAVAILABLE: "খাতের অগ্রগতির তথ্য পাওয়া যায়নি",
+        BREADTH_UNAVAILABLE: "বাজারের বিস্তারের তথ্য নেই",
+      })[code],
       storyMetricLabel: (label) => {
         const metrics: Record<string, string> = {
           Advancing: "উঠছে",
@@ -452,6 +457,8 @@ const marketPulseLanguage = {
           Negative: "Negative",
           Narrow: "Narrow",
           Broad: "Broad",
+          "No positive leader": "ইতিবাচক অগ্রগতি নেই",
+          Unavailable: "তথ্য নেই",
           "Defensive Rotation": "Defensive Rotation",
           "Risk-On Expansion": "Risk-On Expansion",
           "Selective Attention": "Selective Attention",
@@ -489,7 +496,7 @@ const marketPulseLanguage = {
     leadership: {
       title: "বিশ্লেষণের সেশনে এগিয়ে",
       subtitle: "বাজারের নেতৃত্বে থাকা শেয়ার ও সেক্টর।",
-      freshSignals: "নতুন Potential Buy Setup",
+      freshSignals: "কেনার নতুন সেটআপ",
       newToday: (count, date) => `${date ?? "সিদ্ধান্তের সেশন"}-এর জন্য নতুন: ${count}`,
       upgradedToday: (count, date) => `${date ?? "সিদ্ধান্তের সেশন"}-এর জন্য উন্নীত: ${count}`,
       narrative: (sector) =>
@@ -505,7 +512,7 @@ const marketPulseLanguage = {
         }
 
         if (kind === "stock") {
-          return "আজকের price leader";
+          return "এই সেশনে দামে এগিয়ে";
         }
 
         if (kind === "accumulation") {
@@ -517,7 +524,7 @@ const marketPulseLanguage = {
     },
 
     summary: {
-      title: "আজকের বাজারের সারাংশ",
+      title: "এই সেশনের বাজারের সারাংশ",
       tradingEnvironment: "ট্রেডিংয়ের পরিবেশ",
       overall: "সামগ্রিকভাবে",
       readFullAnalysis: "বিস্তারিত দেখুন →",
@@ -536,8 +543,8 @@ const marketPulseLanguage = {
                 : "বেছে attention দেওয়ার মতো";
 
         const leadership = sectors.length
-          ? `আজ ${sectors.join(" ও ")} বেশি এগিয়ে।`
-          : "Eligible set-এ positive sector side নেই।";
+          ? `এই সেশনে ${sectors.join(" ও ")} বেশি এগিয়ে।`
+          : "পর্যালোচিত শেয়ারগুলোর কোনো খাত ইতিবাচক নয়।";
 
         const breadth =
           tone === "positive"
@@ -555,19 +562,19 @@ const marketPulseLanguage = {
         if (
           text === "Eligible attention breadth is broad"
         ) {
-          return "Eligible শেয়ারের বড় অংশ নজর দেওয়ার মতো";
+          return "পর্যালোচিত শেয়ারের বড় অংশ নজর দেওয়ার মতো";
         }
 
         if (
           text === "Eligible attention breadth is selective"
         ) {
-          return "Eligible শেয়ারের মধ্যে বেছে নজর দিতে হবে";
+          return "পর্যালোচিত শেয়ারের মধ্যে বেছে নজর দিতে হবে";
         }
 
         if (
           text === "Eligible attention breadth is limited"
         ) {
-          return "Eligible শেয়ারের মধ্যে attention কম";
+          return "পর্যালোচিত শেয়ারের মধ্যে attention কম";
         }
 
         if (text === "Sector price leadership is broad") {
@@ -591,13 +598,14 @@ const marketPulseLanguage = {
 
     focus: {
       eyebrow: "নজরে থাকা শেয়ার",
-      titleDefault: "আজ যেগুলো দেখা যেতে পারে",
+      titleDefault: "এই সেশনে যেগুলো দেখা যেতে পারে",
       titleMonitorFallback:
         "নজরে আসার কাছাকাছি শেয়ার",
       viewAll: "সব শেয়ার দেখুন →",
       whySelected: "কেন নজরে?",
-      conviction: "Signal Strength",
-      nextTrigger: "পরের Trigger",
+      conviction: "সংকেতের শক্তি",
+      nextTrigger: "পরের শর্ত",
+      label: (label) => ({ "Potential Buy Setup": "কেনার সম্ভাব্য সেটআপ", "New BUY Setup": "কেনার নতুন সেটআপ", "Momentum Building": "দামের গতি বাড়ছে", "Volume Breakout": "কেনাবেচা বেড়েছে", "Watch Closely": "নজরে রাখুন", "Signal Upgrade": "সংকেতের উন্নতি" })[label],
       reason: (reason, focusLabel) => {
         const evidence =
           reason.match(
@@ -610,7 +618,7 @@ const marketPulseLanguage = {
         ) {
           const setupLabel =
             focusLabel === "Potential Buy Setup" ? "Potential Buy" : "BUY";
-          return `${setupLabel} setup-এর heuristic evidence ${evidence}/100`;
+          return `${setupLabel} সেটআপের সংকেতের শক্তি ${evidence}/100`;
         }
 
         const volume =
@@ -656,8 +664,8 @@ const marketPulseLanguage = {
           "Potential entry setup has a defined condition":
             "Entry setup-এর নির্দিষ্ট শর্ত আছে; শর্ত পূরণ হলে বিবেচনা করুন",
 
-          "Investigate for entry today":
-            "Entry নেওয়ার আগে আজ একটু দেখে নিন",
+          "Investigate the dated entry setup":
+            "এন্ট্রির আগে সেশনের শর্ত মিলিয়ে নিন",
 
           "Momentum evidence is improving":
             "Momentum evidence উন্নত হচ্ছে",
@@ -677,8 +685,8 @@ const marketPulseLanguage = {
           "Monitor for confirmation":
             "Confirmation না আসা পর্যন্ত নজরে রাখুন",
 
-          "Watch closely today":
-            "আজ একটু বেশি নজরে রাখুন",
+          "Watch the recorded setup closely":
+            "এই সেশনের সেটআপে নজর রাখুন",
         };
 
         return copy[summary] ?? summary;
@@ -746,7 +754,7 @@ const marketPulseLanguage = {
 
     alerts: {
       eyebrow: "Market Alerts",
-      title: "আজ যেগুলো বেশি গুরুত্বপূর্ণ",
+      title: "এই সেশনে যেগুলো বেশি গুরুত্বপূর্ণ",
       viewAll: "সব alert দেখুন →",
       significance: {
         HIGH: "জরুরি",
@@ -775,7 +783,7 @@ const marketPulseLanguage = {
         }
 
         if (type === "liquidity-surge") {
-          return "Eligible set-এ আজকের turnover সবচেয়ে বেশি।";
+          return "Eligible set-এ এই সেশনের turnover সবচেয়ে বেশি।";
         }
 
         if (type === "sector-rotation") {
@@ -791,11 +799,11 @@ const marketPulseLanguage = {
 
       whyItMatters: (type) => {
         if (type === "unusual-volume") {
-          return "আজকের Volume prior-session median baseline-এর ওপরে।";
+          return "এই সেশনের লেনদেন আগের সেশনের মধ্যক পরিমাণের ওপরে।";
         }
 
         if (type === "momentum-reversal") {
-          return "দুর্বল canonical Trend-এর বিপরীতে session move positive।";
+          return "দুর্বল প্রবণতা-এর বিপরীতে session move positive।";
         }
 
         if (type === "liquidity-surge") {
@@ -816,7 +824,7 @@ const marketPulseLanguage = {
 
     chips: {
       session: "বাজার",
-      "active-alerts": "সক্রিয় Alert",
+      "active-alerts": "সক্রিয় সতর্কতা",
       "sector-focus": "ফোকাস সেক্টর",
       "in-focus": "নজরে",
     },

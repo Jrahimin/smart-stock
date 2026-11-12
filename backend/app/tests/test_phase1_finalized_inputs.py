@@ -328,7 +328,9 @@ async def test_universe_and_details_quote_projection_ignores_prior_decision_age(
         fixture.generation, sync_id="live", trade_date=d3, data_state=MarketDataState.LIVE
     )
     fixture = replace(fixture, updating=True)
-    repository = SimpleNamespace(list_quote_price_observations=AsyncMock(return_value=observations))
+    repository = SimpleNamespace(list_quote_price_observations=AsyncMock(return_value=observations),
+        list_recent_exchange_session_dates=AsyncMock(return_value=[d1,d2,d3]),
+        list_observed_exchange_session_dates=AsyncMock(return_value=[d1,d2,d3]))
     stocks = SimpleNamespace(count_stocks=AsyncMock(return_value=1))
     universe = MarketUniverseService(repository, stocks, _MemoryRedis(), Settings())
     universe.get_canonical_universe = AsyncMock(return_value=fixture)

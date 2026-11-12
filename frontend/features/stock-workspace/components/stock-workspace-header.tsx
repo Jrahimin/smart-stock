@@ -8,6 +8,7 @@ import type { StockDecisionViewModel } from "@/features/stock-workspace/view-mod
 import type { StockWorkspaceModel } from "@/features/stock-workspace/view-models/stock-workspace-view-model";
 import type { StockWorkspaceLanguage } from "@/features/stock-workspace/stock-workspace-language";
 import { DEFAULT_LOCALE, type AppLocale } from "@/lib/locale/app-locale";
+import { sectorName } from "@/features/market-dashboard/terminal-copy";
 
 type StockWorkspaceHeaderProps = {
   model: StockWorkspaceModel;
@@ -40,10 +41,10 @@ export function StockWorkspaceHeader({ model, decision, stockId, copy, locale = 
           {model.header.exchange} /{" "}
           {sectorHref ? (
             <Link className="stock-header-sector-link" href={sectorHref}>
-              {sector}
+              {sectorName(sector, locale)}
             </Link>
           ) : (
-            sector
+            sector ? sectorName(sector, locale) : sector
           )}{" "}
           / {copy.categoryPrefix} {model.header.category}
         </p>

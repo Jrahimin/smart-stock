@@ -283,7 +283,9 @@ async def mature_shadow_outcomes(session, dataset, config):
         payload = canonicalize_audit_value(receipt)
         revision = stable_audit_hash(payload)
         if selection.id not in latest or latest[selection.id].outcome_revision != revision:
-            await repository.record_outcome(selection,through_date=date.fromisoformat(payload["through_date"]),revision=revision,payload=payload)
+            stored = await repository.record_outcome(selection,through_date=date.fromisoformat(payload["through_date"]),revision=revision,payload=payload)
+            if "supersedes_revision" in stored.payload:
+                payload["supersedes_revision"] = stored.payload["supersedes_revision"]
         result.append(payload)
     return result
 

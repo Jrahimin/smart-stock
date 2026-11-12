@@ -21,13 +21,13 @@ const signalActionLabels: Record<AppLocale, SignalActionLabelCopy> = {
   },
   bn: {
     default: {
-      POTENTIAL_BUY: "Potential Buy",
-      WAIT: "Wait",
-      SELL: "Sell",
-      HOLD: "Hold",
+      POTENTIAL_BUY: "কেনার সম্ভাবনা",
+      WAIT: "অপেক্ষা করুন",
+      SELL: "বিক্রি করুন",
+      HOLD: "ধরে রাখুন",
     },
     compact: {
-      POTENTIAL_BUY: "P. BUY",
+      POTENTIAL_BUY: "কেনার সম্ভাবনা",
     },
   },
 };

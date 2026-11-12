@@ -11,8 +11,9 @@ import { getTerminalCopy } from "../terminal-copy";
 import { clearStoredAuthTokens } from "@/lib/api/backend-api-client";
 import type { BackendDashboardMarketSentimentDto, BackendDashboardOverviewDto } from "@/lib/api/backend-api-types";
 import type { MarketDashboardModel } from "../types/market-dashboard-types";
+import { shortTradeDate } from "@/lib/formatters/trader-formatters";
 
-const state = vi.hoisted(() => ({ freshness: { exchange: "DSE", market_sync_id: "gA", trade_date: "2026-11-10", market_status: "OPEN", data_state: "LIVE", dashboard_cache_ttl_seconds: 60 } }));
+const state = vi.hoisted(() => ({ freshness: { exchange: "DSE", market_sync_id: "gA", trade_date: "2026-11-10", market_status: "OPEN", data_state: "LIVE", dashboard_cache_ttl_seconds: 60, last_synced_at: null as string | null } }));
 vi.mock("@/hooks/market/use-market-data-freshness", () => ({ useMarketDataFreshness: () => ({ data: state.freshness, isLoading: false, isError: false }) }));
 vi.mock("@/hooks/market/use-market-cache-coordinator", () => ({ useMarketCacheRefresh: () => vi.fn() }));
 vi.mock("./use-dashboard-heatmap", () => ({ useDashboardHeatmap: () => ({ data: undefined, isLoading: false }) }));
@@ -41,7 +42,7 @@ function sentiment(generation: string): BackendDashboardMarketSentimentDto {
       index_change_percent: generation === "gA" ? "-0.5" : "1", volume_vs_average: generation === "gA" ? "0.8" : "1.18", volume_average_sessions: 29, breadth: breadth(generation) } };
 }
 const clients: QueryClient[] = [];
-afterEach(() => { cleanup(); clients.splice(0).forEach(client => client.clear()); clearStoredAuthTokens(); vi.unstubAllGlobals(); });
+afterEach(() => { cleanup(); clients.splice(0).forEach(client => client.clear()); clearStoredAuthTokens(); vi.unstubAllGlobals(); vi.useRealTimers(); Object.assign(state.freshness, { market_sync_id: "gA", trade_date: "2026-11-10", last_synced_at: null }); });
 
 it.each([["en", "market-sentiment"], ["bn", "market-sentiment"], ["en", "overview"], ["bn", "overview"]] as const)("real section hooks/API wrappers withhold mixed same-day updates and restore matching IDs (%s, %s first)", async (locale, first) => {
   clearStoredAuthTokens();
@@ -101,4 +102,62 @@ it.each(["overview", "sentiment"] as const)("keeps the established date-compatib
   await waitFor(() => expect(container.querySelector(".sw-insight-market-mood")).not.toBeNull());
   expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("More stocks fell");
   expect(container.querySelector(".sw-insight-market-mood")?.textContent).toContain("DSEX -0.50%");
+});
+
+
+it.each(["en", "bn"].flatMap(locale => [{ quoteDate: "2026-11-12", activity: null }, { quoteDate: "2026-11-10", activity: null }, { quoteDate: "2026-11-12", activity: 250 }, { quoteDate: "2026-11-12", activity: 0 }].map(test => ({ locale: locale as "en" | "bn", ...test }))))("keeps independently dated quote breadth, index and activity through actual hooks ($locale, $quoteDate, activity=$activity)", async ({ locale, quoteDate, activity }) => {
+  vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(new Date("2026-11-12T05:00:00Z"));
+  Object.assign(state.freshness, { trade_date: quoteDate, market_sync_id: "gA" });
+  const body = overview("gA"); body.session_trade_date = quoteDate;
+  if (activity !== null) body.summaries.push({ ...body.summaries[0], trade_date: quoteDate, index_close: null, index_change: null, index_change_percent: null, total_volume: activity, total_turnover: 500 });
+  body.breadth = { ...breadth("gA"), as_of_date: quoteDate, advancing: 111, declining: 29, unchanged: 2, known_count: 142, denominator: 142, cohort_count: 142 };
+  body.last_synced_at = "2026-11-12T04:59:00Z";
+  const reading = sentiment("gA"); reading.interpretation = { ...reading.interpretation!, as_of_date: quoteDate, code: "BREADTH_ONLY", index_change_percent: null, volume_vs_average: activity === null ? null : String(activity / 100), breadth: body.breadth };
+  vi.stubGlobal("fetch", vi.fn((url: string) => Promise.resolve(new Response(JSON.stringify({ success: true,
+    data: new URL(url).pathname.endsWith("/dashboard/overview") ? body : reading }), { status: 200, headers: { "Content-Type": "application/json" } }))));
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }); clients.push(client);
+  const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  let current!: MarketDashboardModel;
+  function View() { const data = useMarketDashboard({ locale }); current = data.model; return <><MarketOverview model={current} freshness={data.freshness} copy={getTerminalCopy(locale)} locale={locale} loading={false} leadersLoading={false} /><InsightSidebar model={current} insights={current.insights} intraday={current.isIntraday} copy={getTerminalCopy(locale)} locale={locale} /></>; }
+  const { container } = render(<View />, { wrapper });
+  await waitFor(() => expect(container.querySelector(".sw-insight-market-mood")).not.toBeNull());
+  expect(current.breadth.advancing).toBe(111); expect(current.pulse.latestTradeDate).toBe(quoteDate);
+  expect(current.pulse.indexTradeDate).toBe("2026-11-10"); expect(current.pulse.activityTradeDate).toBe(activity === null ? "2026-11-10" : quoteDate);
+  expect(current.isIntraday).toBe(quoteDate === "2026-11-12"); expect(current.activityIsIntraday).toBe(activity !== null);
+  if (activity !== null) {
+    expect(current.pulse.volumeContext.primaryValue).toContain(String(activity));
+    expect(current.pulse.volumeContext.ratioVsAvg).toBe(`${(activity / 100).toFixed(2)}x`);
+    expect(container.querySelector(".sw-insight-market-mood")?.textContent).not.toMatch(/DSEX [+-]/);
+  }
+  expect(container.querySelector(".sw-index-value")?.textContent).toBe("5,000.00");
+  expect(container.querySelector(".sw-breadth-labels .sw-positive b")?.textContent).toBe("111");
+  if (quoteDate === "2026-11-12") {
+    expect(container.querySelector(".sw-index-date")?.textContent).toContain(shortTradeDate("2026-11-10", locale));
+    if (activity === null) {
+      const activityMetrics = [...container.querySelectorAll(".sw-metric")].filter(node => [getTerminalCopy(locale).volume, getTerminalCopy(locale).turnover].includes(node.querySelector("dt")?.textContent ?? ""));
+      expect(activityMetrics).toHaveLength(2);
+      for (const metric of activityMetrics) expect(metric.textContent).toContain(shortTradeDate("2026-11-10", locale));
+    }
+    expect(container.textContent).not.toContain(locale === "en" ? "prices are not in" : "দাম এখনও আসেনি");
+    expect(container.textContent).not.toContain(locale === "en" ? "DSEX still fell" : "তবু DSEX সূচক কমেছে");
+  } else expect(container.textContent).toContain(locale === "en" ? "prices are not in" : "দাম এখনও আসেনি");
+});
+
+it.each(["en", "bn"].flatMap(locale => ["new-overview", "old-overview", "missing-own-time", "legacy"].map(mode => ({ locale: locale as "en" | "bn", mode }))))("timestamps actual overview bodies without borrowing another same-day generation ($locale, $mode)", async ({ locale, mode }) => {
+  const older = "2026-11-12T04:03:00Z", newer = "2026-11-12T06:49:00Z";
+  Object.assign(state.freshness, { trade_date: "2026-11-12", market_sync_id: mode === "old-overview" ? "gB" : "gA", last_synced_at: mode === "old-overview" ? newer : older });
+  const body = overview(mode === "old-overview" ? "gA" : "gB"); body.session_trade_date = "2026-11-12";
+  body.last_synced_at = mode === "new-overview" ? newer : mode === "old-overview" ? older : null;
+  if (mode === "legacy") delete body.market_sync_id;
+  vi.stubGlobal("fetch", vi.fn((url: string) => Promise.resolve(new Response(JSON.stringify({ success: true,
+    data: new URL(url).pathname.endsWith("/dashboard/overview") ? body : sentiment("gA") }), { status: 200, headers: { "Content-Type": "application/json" } }))));
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }); clients.push(client);
+  const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  function View() { const data = useMarketDashboard({ locale }); return <MarketOverview model={data.model} freshness={data.freshness} copy={getTerminalCopy(locale)} locale={locale} loading={false} leadersLoading={false} />; }
+  const { container } = render(<View />, { wrapper });
+  await waitFor(() => expect(container.querySelector(".sw-index-value")?.textContent).toBe("5,000.00"));
+  const times = [...container.querySelectorAll(".sw-session time")].map(node => node.getAttribute("datetime"));
+  if (mode === "missing-own-time") { expect(times).not.toContain(older); expect(times).not.toContain(newer); }
+  else { const expected = mode === "new-overview" ? newer : older; expect(times).toContain(expected); expect(times).not.toContain(expected === older ? newer : older); }
+  expect(container.querySelector(".sw-session-state")?.textContent).toContain(getTerminalCopy(locale).open);
 });

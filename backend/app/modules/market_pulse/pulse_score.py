@@ -268,7 +268,7 @@ def build_action_summary(label: PulseFocusLabel) -> str:
         return "Monitor for confirmation"
     if label == PulseFocusLabel.SIGNAL_UPGRADE:
         return "Review upgraded signal"
-    return "Watch closely today"
+    return "Watch the recorded setup closely"
 
 
 def build_why_here(
@@ -290,7 +290,7 @@ def build_why_here(
         if volume_ratio is not None:
             reasons.append(f"Price-volume break at {volume_ratio:.1f}x baseline volume")
     elif label == PulseFocusLabel.MOMENTUM_BUILDING:
-        reasons.append("Momentum improving today")
+        reasons.append("Momentum improved in the recorded session")
 
     if (
         volume_ratio is not None

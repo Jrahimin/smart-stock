@@ -1,6 +1,7 @@
 import React from "react";
 
 import type { AppLocale } from "@/lib/locale/app-locale";
+import { shortTradeDate } from "@/lib/formatters/trader-formatters";
 
 export type DecisionPublication = {
   decision_session_date?: string | null;
@@ -33,11 +34,11 @@ export function DecisionPublicationLabel({ decision, locale, compact = false }: 
     return <small className="decision-publication-compact" data-decision-status={decision.decision_status}>
       <span className="sr-only">{label}{decision.decision_session_date ? ` · ${decision.decision_session_date}` : ""}</span>
       <span aria-hidden="true">{brief}</span>
-      {decision.decision_session_date && <time aria-hidden="true" dateTime={decision.decision_session_date}>{decision.decision_session_date}</time>}
+      {decision.decision_session_date && <time aria-hidden="true" dateTime={decision.decision_session_date}>{shortTradeDate(decision.decision_session_date, locale)}</time>}
     </small>;
   }
   return <small data-decision-status={decision.decision_status}>
-    {label}{decision.decision_session_date ? ` · ${decision.decision_session_date}` : ""}
+    {label}{decision.decision_session_date ? ` · ${shortTradeDate(decision.decision_session_date, locale)}` : ""}
   </small>;
 }
 
@@ -49,16 +50,16 @@ export function QuotePublicationLabel({ quote, locale }: {
   const bn = locale === "bn";
   const labels: Record<string, string> = bn
     ? { PROVISIONAL: "সাময়িক দাম", FINALIZED: "চূড়ান্ত দাম", NO_TRADE: "লেনদেন হয়নি", UNAVAILABLE: "দামের তথ্য নেই" }
-    : { PROVISIONAL: "Provisional quote", FINALIZED: "Finalized quote", NO_TRADE: "No trade", UNAVAILABLE: "Quote unavailable" };
+    : { PROVISIONAL: "Snapshot price", FINALIZED: "Closing price", NO_TRADE: "No trade", UNAVAILABLE: "Price unavailable" };
   const status = quote.observation_status;
   const observationDate = quote.observation_session_date;
   const priceDate = quote.as_of_trade_date;
   return <small data-quote-status={status}>
     {labels[status] ?? labels.UNAVAILABLE}
     {observationDate && (status !== "UNAVAILABLE" || observationDate !== priceDate)
-      ? ` · ${observationDate}` : ""}
+      ? ` · ${shortTradeDate(observationDate, locale)}` : ""}
     {priceDate && (status === "UNAVAILABLE" || (observationDate && priceDate !== observationDate))
-      ? ` · ${bn ? "শেষ বৈধ দাম" : "Last valid quote"} ${priceDate}` : ""}
-    {priceDate && !observationDate && status !== "UNAVAILABLE" ? ` · ${priceDate}` : ""}
+      ? ` · ${bn ? "শেষ বৈধ দাম" : "Last valid price"} ${shortTradeDate(priceDate, locale)}` : ""}
+    {priceDate && !observationDate && status !== "UNAVAILABLE" ? ` · ${shortTradeDate(priceDate, locale)}` : ""}
   </small>;
 }

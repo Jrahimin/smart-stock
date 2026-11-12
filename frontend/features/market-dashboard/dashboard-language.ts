@@ -389,7 +389,7 @@ const dashboardLanguage = {
         "Momentum is positive, but chasing the move may be risky.",
     },
     breadthSummary: (advancing, declining, unchanged) =>
-      `More stocks advanced than declined today (${advancing} up, ${declining} down, ${unchanged} flat).`,
+      `More stocks advanced than declined in this session (${advancing} up, ${declining} down, ${unchanged} flat).`,
     breadthPanel: {
       eyebrow: "Market Breadth",
       title: "Advancing, declining, unchanged",
@@ -499,7 +499,7 @@ const dashboardLanguage = {
         signalCoverage: {
           title: "Signal layer ready",
           description: (signalCount) =>
-            `${signalCount} highlighted signals include heuristic evidence and risk metadata.`,
+            `${signalCount} highlighted signals include supporting signals and risk context.`,
         },
         turnoverContext: {
           title: "Trading activity",
@@ -573,7 +573,7 @@ const dashboardLanguage = {
       session: (label) => `Session: ${label}`,
       nextUpdate: (label) => `Next update: ${label}`,
       provisional: (sessionDate) =>
-        `Live snapshot is provisional; canonical decisions use ${sessionDate}.`,
+        `Live snapshot is provisional; dated decisions use ${sessionDate}.`,
     },
   },
 
@@ -739,7 +739,7 @@ const dashboardLanguage = {
         signalCoverage: {
           title: "Signal layer তৈরি",
           description: (signalCount) =>
-            `এই ${signalCount}টি signal-এর heuristic evidence ও risk দেখে কারণ বোঝা যাবে।`,
+            `এই ${signalCount}টি signal-এর বিশ্লেষণের তথ্য ও risk দেখে কারণ বোঝা যাবে।`,
         },
         turnoverContext: {
           title: "কেনাবেচার অবস্থা",

@@ -9,6 +9,13 @@ import {
 /** Bump when market IndexedDB payload shape or validation rules change. */
 export const MARKET_INDEXEDDB_SCHEMA_VERSION = 5;
 
+/** Local presentation revision; HTTP identity and other cache populations stay intact. */
+export function marketPresentationCacheKey(url: string): string {
+  const path = url.split("?")[0];
+  if (path.endsWith("/dashboard/heatmap")) return `${url}#heatmap-measured-v3`;
+  return path.endsWith("/market/pulse") || path.endsWith("/market/pulse/briefing") ? `${url}#pulse-sector-exact-v5` : url;
+}
+
 export type MarketIndexedDbCacheScope = "default" | "market" | "off";
 
 export type MarketIndexedDbPayload<T> = {
@@ -61,6 +68,11 @@ export function evaluateMarketIndexedDbEntry(
   }
 
   const isMarketEntry = isMarketIndexedDbPayload(payload, options);
+
+  if (isMarketEntry && options.cacheKey?.split("?")[0].endsWith("/dashboard/overview") &&
+      (!payload.data || typeof payload.data !== "object" || !("index_snapshot_version" in payload.data) || payload.data.index_snapshot_version !== 2)) {
+    return { status: "miss", reason: "schema" };
+  }
 
   if (isMarketEntry && options.cacheKey?.split("?")[0].endsWith("/dashboard/market-sentiment") &&
       (!payload.data || typeof payload.data !== "object" || !("interpretation" in payload.data) || !payload.data.interpretation)) {

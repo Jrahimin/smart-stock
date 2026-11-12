@@ -71,6 +71,24 @@ async def test_paired_empty_session_sealed_once_and_outcomes_append_idempotently
             progress = await shadow_progress(session, exchange=capture.exchange)
             assert progress["empty_dates"] == 1 and progress["unknown_next_open_receipts"] == 1
             assert progress["eligible_cohort_dates"] == 0 and progress["promoted"] is False
+            # A correction and exact reversion must adopt a new immutable head.
+            from app.modules.backtesting.backtesting_shadow_repository import TradingShadowRepository
+            repo = TradingShadowRepository(session)
+            original = (await repo.latest_outcomes([first.id]))[first.id]
+            corrected_payload = {**original.payload, "audit_test_correction": True}
+            corrected = await repo.record_outcome(first, through_date=original.through_date,
+                revision="ignored-content-hash", payload=corrected_payload)
+            reverted = await repo.record_outcome(first, through_date=original.through_date,
+                revision=original.outcome_revision, payload=original.payload)
+            assert reverted.id != original.id and reverted.id != corrected.id
+            assert reverted.payload["supersedes_revision"] == corrected.outcome_revision
+            assert (await repo.latest_outcomes([first.id]))[first.id].id == reverted.id
+            same = await repo.record_outcome(first, through_date=original.through_date,
+                revision=original.outcome_revision, payload=original.payload)
+            assert same.id == reverted.id
+            await mature_shadow_outcomes(session, dataset, config)
+            assert (await repo.latest_outcomes([first.id]))[first.id].id == reverted.id
+            assert await session.scalar(select(func.count()).select_from(TradingShadowOutcome)) == 3
             with pytest.raises(Exception, match="immutable"):
                 await session.execute(text("UPDATE trading_shadow_selections SET record_hash='changed'"))
             await session.rollback()

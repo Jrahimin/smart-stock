@@ -4,6 +4,7 @@ import json
 import logging
 from dataclasses import dataclass
 from datetime import date, datetime
+from fractions import Fraction
 from typing import Annotated
 from zoneinfo import ZoneInfo
 
@@ -52,7 +53,7 @@ from app.modules.market_pulse.market_pulse_snapshot_repository import (
     get_market_pulse_snapshot_repository,
 )
 from app.modules.market_data.market_mover_rules import is_eligible_session_mover
-from app.modules.market_pulse.market_pulse_briefing import PulseBriefingRow, build_market_briefing
+from app.modules.market_pulse.market_pulse_briefing import PulseBriefingRow, build_market_briefing, measured_price_change
 from app.modules.market_pulse.market_pulse_schemas import (
     FocusStockRead,
     MarketAlertRead,
@@ -102,6 +103,8 @@ class PulsePresentationRow:
     decision: TraderDecisionSummaryRead
     score: object
     label: PulseFocusLabel
+    measured_change_percent: Fraction | None = None
+    change_basis_available: bool = True
 
 
 def is_eligible_pulse_candidate(
@@ -286,7 +289,7 @@ def _select_monitor_rows(
 
 
 def _to_focus_stock_read(row: PulsePresentationRow, rank: int) -> FocusStockRead:
-    change = row.snapshot.price_change_percent
+    change = float(row.measured_change_percent) if row.measured_change_percent is not None else row.snapshot.price_change_percent
     breakdown = row.score
     return FocusStockRead(
         entry_readiness=row.decision.entry_readiness or "NOT_READY",
@@ -328,7 +331,7 @@ def _to_focus_stock_read(row: PulsePresentationRow, rank: int) -> FocusStockRead
 
 
 def _to_market_mover_read(row: PulsePresentationRow) -> MarketMoverRead:
-    change = row.snapshot.price_change_percent
+    change = float(row.measured_change_percent) if row.measured_change_percent is not None else row.snapshot.price_change_percent
     turnover = row.snapshot.turnover
     return MarketMoverRead(
         symbol=getattr(row.stock, "symbol"),
@@ -805,10 +808,12 @@ class MarketPulseService:
                 }))
             return result
         eligible = [row for row in snapshot.rows if is_eligible_pulse_candidate(row, snapshot.generation.trade_date)]
-        breadth = breadth_facts([row.technical_snapshot.price_change_percent for row in eligible],
+        breadth_values = [measured_price_change(row.technical_snapshot, row.session) for row in eligible]
+        breadth = breadth_facts([value if value is not None else measured_price_change(row.technical_snapshot) for row, value in zip(eligible, breadth_values, strict=True)],
             cohort="CANONICAL_ELIGIBLE_SAME_SESSION", band=0.05, source="canonical_completed_session",
             as_of_date=snapshot.generation.trade_date)
         coverage = (payload.coverage or PulseCoverageRead()).model_copy(update={
+            "quote_session_date": getattr(projected.quote_generation, "trade_date", None) if projected.quote_generation else None,
             "market_status": freshness.market_status.value, "breadth": breadth,
             "quote_generation_id": projected.quote_generation.sync_id if projected.quote_generation else None,
         })
@@ -883,6 +888,7 @@ class MarketPulseService:
                 score,
                 previous_recommendation=previous_enum,
             )
+            measured_change = measured_price_change(snapshot, universe_row.session)
             scored_rows.append(
                 PulsePresentationRow(
                     stock=universe_row.stock,
@@ -890,6 +896,8 @@ class MarketPulseService:
                     decision=decision,
                     score=score,
                     label=label,
+                    measured_change_percent=measured_change,
+                    change_basis_available=measured_change is not None,
                 )
             )
 
@@ -910,7 +918,7 @@ class MarketPulseService:
 
         hero = MarketPulseHeroRead(
             greeting=f"{_greeting()}{greeting_name}",
-            attention_headline="Story of the day",
+            attention_headline="Session overview",
             attention_subline="A quick read on what's moving the market and what deserves attention.",
             last_updated_label=_format_time_label(last_synced),
             relative_updated_label=_format_relative_updated(last_synced),
@@ -930,6 +938,8 @@ class MarketPulseService:
                 snapshot=row.snapshot,
                 decision=row.decision,
                 score=row.score,
+                measured_change_percent=row.measured_change_percent,
+                change_basis_available=row.change_basis_available,
             )
             for row in scored_rows
         ]
@@ -983,6 +993,9 @@ class MarketPulseService:
             empty_state=empty_state,
             empty_message=empty_message,
             data_quality_note=(
+                "Some sector comparisons lack an exact source price-change basis."
+                if any(not row.change_basis_available for row in scored_rows)
+                else
                 f"{suspicious_count} instruments flagged for data quality review."
                 if suspicious_count > 0
                 else None
@@ -1055,7 +1068,7 @@ class MarketPulseService:
             name, count = hot_sector
             return TodayInsightRead(
                 title=f"{name} sector attracting unusual volume",
-                explanation=f"Multiple {name} names are trading with expanded participation today, making the group worth a closer read.",
+                explanation=f"Multiple {name} names are trading with expanded participation in the recorded session, making the group worth a closer read.",
                 supporting_fact=f"{count} stocks in this sector are above {VOLUME_EXPANSION_RATIO}x prior-session median volume.",
                 tone="info",
             )
@@ -1074,7 +1087,7 @@ class MarketPulseService:
             return TodayInsightRead(
                 title=f"Multiple focus candidates emerging in {name}",
                 explanation=f"Several {name} stocks crossed the attention threshold together, showing group-level participation rather than an isolated move.",
-                supporting_fact=f"{count} stocks from this sector are in focus today.",
+                supporting_fact=f"{count} stocks from this sector are in focus for this session.",
                 tone="positive",
             )
 
@@ -1087,7 +1100,7 @@ class MarketPulseService:
             return TodayInsightRead(
                 title="Broad momentum improvement across the market",
                 explanation="Positive momentum is present beyond a handful of leaders while volume confirmation remains necessary.",
-                supporting_fact=f"{len(improving)} stocks are in uptrends with positive moves today.",
+                supporting_fact=f"{len(improving)} stocks are in uptrends with positive session moves.",
                 tone="positive",
             )
 
@@ -1138,7 +1151,7 @@ class MarketPulseService:
                         time_label=time_label,
                         change_type="exited-focus",
                         title=f"{row.stock.symbol} exited Focus List",
-                        description="Attention score fell below today's threshold.",
+                        description="Attention score fell below the session threshold.",
                         badge="Exited",
                         badge_tone="warning",
                         symbol=row.stock.symbol,

@@ -40,9 +40,10 @@ export function WorkspaceCommandSearch({
   showQuickActions = false,
   variant = "default",
   placeholder: placeholderProp,
-  ariaLabel = "Global stock search",
+  ariaLabel,
   locale = "en",
 }: WorkspaceCommandSearchProps) {
+  const searchLabel = ariaLabel ?? (locale === "bn" ? "শেয়ার খুঁজুন" : "Global stock search");
   const labels = locale === "bn"
     ? { recent: "সাম্প্রতিক খোঁজ", popular: "জনপ্রিয় শেয়ার", searching: "খোঁজা হচ্ছে…", suggestions: "মিলেছে যে শেয়ারগুলো", empty: "মিল আছে এমন কোনো শেয়ার পাওয়া যায়নি", shortcut: "শেয়ার খোঁজার ঘরে যান", unclassified: "অন্যান্য" }
     : { recent: "Recent", popular: "Popular stocks", searching: "Searching…", suggestions: "Suggestions", empty: "No matching symbol", shortcut: "Focus stock search", unclassified: "Unclassified" };
@@ -51,10 +52,10 @@ export function WorkspaceCommandSearch({
   const placeholder =
     placeholderProp ??
     (isDiscovery
-      ? "Search any stock…"
+      ? (locale === "bn" ? "শেয়ার খুঁজুন…" : "Search any stock…")
       : isCompact
-        ? "Search e.g. GP, BATBC, banks…"
-        : "Search stocks, companies, sectors, or signals…");
+        ? (locale === "bn" ? "যেমন GP, BATBC বা ব্যাংক…" : "Search e.g. GP, BATBC, banks…")
+        : (locale === "bn" ? "শেয়ার, কোম্পানি, খাত বা সংকেত খুঁজুন…" : "Search stocks, companies, sectors, or signals…"));
   const searchClassName = isDiscovery
     ? "explorer-command-search explorer-command-search-discovery"
     : isCompact
@@ -192,13 +193,13 @@ export function WorkspaceCommandSearch({
       <div className={`explorer-command-input-shell ${isOpen ? "is-open" : ""}`}>
         <label className="explorer-command-search-icon" htmlFor={inputId}>
           <Search aria-hidden="true" size={iconSize} strokeWidth={isDiscovery ? 2.1 : 2} />
-          <span className="sr-only">{ariaLabel}</span>
+          <span className="sr-only">{searchLabel}</span>
         </label>
         <input
           aria-autocomplete="list"
           aria-controls={showMenu ? `${inputId}-results` : undefined}
           aria-expanded={showMenu}
-          aria-label={ariaLabel}
+          aria-label={searchLabel}
           autoComplete="off"
           className="explorer-command-input"
           id={inputId}

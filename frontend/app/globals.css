@@ -32395,3 +32395,57 @@ button {
 .portfolio-email-timing { color:var(--muted); font-size:11px; line-height:1.5; }
 .portfolio-summary-grid-v3 .portfolio-pulse-value { font-size:clamp(1.7rem,2.4vw,2.25rem); }
 :root:not([data-theme="light"]) .portfolio-summary-grid-v3 .sw-info-trigger { color:var(--primary); }
+/* Trader review: concise checks, readable labels and page-friendly chart/rail. */
+.entry-applicability:not(.entry-check-alert) { border:0; background:transparent; padding:0; color:var(--muted); font-size:12px; line-height:1.5; }
+.entry-check-detail summary { cursor:pointer; width:fit-content; list-style:none; font-size:12px; }
+.entry-check-detail summary:focus-visible { outline:2px solid var(--primary); outline-offset:3px; border-radius:3px; }
+.entry-check-detail p { max-width:54ch; font-size:12px; color:var(--foreground); margin:8px 0; }
+.entry-check-alert { border-left-color:var(--warning); }
+.snapshot-price-note { margin:0; color:var(--muted); font-size:12px; line-height:1.5; }
+.signal-center-view .signal-center-item, .scanner-result-card { min-width:0; gap:8px; padding:16px; }
+.signal-center-view .signal-center-item > small, .scanner-result-card > small, .signal-center-item .signal-badge, .pulse-focus-card .signal-badge { font-size:12px; }
+.signal-center-view .signal-center-item > a, .scanner-result-card > a { color:var(--primary); font-size:12px; margin-top:auto; }
+.signal-center-topline > div { min-width:0; }
+.signal-center-topline span, .pulse-focus-identity > span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; }
+.pulse-focus-card-header { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
+.pulse-focus-card-head, .pulse-focus-identity { min-width:0; flex:1; }
+.pulse-focus-identity { max-width:none; }
+.pulse-focus-card small, .pulse-focus-card-footer small, .pulse-next-trigger strong { font-size:12px; }
+.pulse-next-trigger { display:grid; gap:4px; padding:10px 0; border-block:1px solid var(--border); }
+.pulse-focus-why-block { margin-top:8px; }
+.stock-workspace-header { flex-wrap:wrap; }
+.stock-workspace-header .stock-header-metrics { max-width:none; flex:1 1 650px; grid-template-columns:repeat(4,minmax(140px,1fr)); }
+.stock-workspace-header .stock-header-metrics small, .stock-workspace-header .stock-header-metrics span { white-space:normal; overflow:visible; text-overflow:clip; font-size:12px; }
+.stock-workspace-header .stock-header-metric-action .signal-badge { font-size:12px; white-space:normal; max-width:none; }
+.trade-plan-zone.entry { background:color-mix(in srgb,var(--primary) 55%,transparent); border:2px solid var(--primary); opacity:1; }
+.portfolio-sector-legend span, .portfolio-sector-legend strong { white-space:normal; text-overflow:clip; overflow:visible; }
+.portfolio-guidance-cell { padding-right:20px!important; }
+.portfolio-unified-table-v2 { min-width:960px; }
+@media(min-width:1024px) { .trader-decision-rail { max-height:calc(100dvh - 100px); overflow-y:auto; overscroll-behavior:contain; scrollbar-gutter:stable; } }
+@media(max-width:767px) { .stock-workspace-header .stock-header-metrics { flex-basis:100%; grid-template-columns:repeat(2,minmax(0,1fr)); } }
+.signal-center-topline { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; }
+.signal-center-topline > div { min-width:0; width:auto; overflow:hidden; }
+.signal-center-topline > div > span { display:block; width:100%; }
+.signal-center-topline > .signal-badge { flex-shrink:0; max-width:130px; min-width:0; white-space:normal; overflow:visible; text-overflow:clip; }
+.signal-center-view .explorer-hero { padding:16px 20px; gap:10px; }
+.signal-center-view .explorer-hero-head { margin-block:4px; }
+.signal-center-view .explorer-hero h1 { margin-block:2px; font-size:clamp(24px,2.7vw,32px); }
+.signal-center-view .explorer-hero-subtitle { font-size:12px; line-height:1.4; }
+.signal-center-view .explorer-hero-controls { margin-top:8px; gap:8px; }
+.portfolio-exposure-legend span, .portfolio-exposure-legend strong { white-space:normal; text-overflow:clip; overflow:visible; }
+.signal-center-view .signal-center-item { gap:6px; }
+.signal-center-view .signal-center-item { padding:14px; }
+.signal-center-view .signal-center-item { line-height:1.45; }
+.trader-decision-hero small, .trade-plan-date, .portfolio-market-cell small, .portfolio-account-decision small, .sw-signals td small { font-size:12px; }
+.scanner-result-card .signal-badge, .sw-signals .signal-badge { font-size:12px; white-space:normal; overflow:visible; text-overflow:clip; }
+@media(min-width:1100px) {
+  .signal-center-view { gap:6px; }
+  .signal-center-view .explorer-hero { grid-template-columns:minmax(0,1fr) auto; grid-template-areas:"head status" "controls controls"; gap:8px 18px; padding:12px 18px; }
+  .signal-center-view .explorer-hero-status-row { grid-area:status; width:auto; align-self:center; }
+  .signal-center-view .explorer-hero-head { grid-area:head; padding-right:0; margin:0; }
+  .signal-center-view .explorer-hero-copy > .eyebrow { display:none; }
+  .signal-center-view .explorer-hero h1 { margin:0; line-height:1.2; }
+  .signal-center-view .explorer-hero-controls { grid-area:controls; margin-top:0; }
+  .signal-center-view .explorer-hero-discovery { flex-basis:320px; min-width:280px; }
+}
+.sw-index-date { display:block; color:var(--muted); font-size:12px; margin:4px 0 0 16px; }

@@ -5,6 +5,7 @@ import { getMarketFreshnessGeneration } from "@/lib/market/market-freshness-regi
 import {
   evaluateMarketIndexedDbEntry,
   MARKET_INDEXEDDB_SCHEMA_VERSION,
+  marketPresentationCacheKey,
   type MarketIndexedDbPayload,
 } from "@/lib/market/market-indexeddb-cache";
 import { isMarketApiCacheUrl as isMarketApiCacheUrlFromRegistry } from "@/lib/market/market-cache-url-registry";
@@ -223,7 +224,7 @@ function resolvePersistentCacheMode(
 }
 
 function getCacheKey(url: string) {
-  return url;
+  return marketPresentationCacheKey(url);
 }
 
 function openApiCacheDatabase() {

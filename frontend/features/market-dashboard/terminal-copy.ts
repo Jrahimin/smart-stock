@@ -112,6 +112,7 @@ export const getTerminalCopy = (locale: AppLocale) => copy[locale];
 export type TerminalCopy = ReturnType<typeof getTerminalCopy>;
 
 export function breadthContrast({ breadth, pulse }: MarketDashboardModel, locale: AppLocale) {
+  if (pulse.indexTradeDate && pulse.indexTradeDate !== pulse.latestTradeDate) return null;
   if (!pulse.indexAvailable || pulse.indexChangePercent === null || breadth.total <= 0) return null;
   if (pulse.indexChangePercent > 0 && breadth.declining > breadth.advancing) {
     return locale === "bn" ? "তবু DSEX সূচক বেড়েছে।" : "DSEX still rose.";
@@ -139,7 +140,7 @@ const sectorsBn: Record<string, string> = {
   "food & allied": "খাদ্য ও সংশ্লিষ্ট শিল্প", "financial institutions": "আর্থিক প্রতিষ্ঠান", telecommunication: "টেলিযোগাযোগ",
   cement: "সিমেন্ট", "it sector": "তথ্যপ্রযুক্তি", "miscellaneous": "বিবিধ", services: "সেবা", "services & real estate": "সেবা ও আবাসন",
   jute: "পাট", paper: "কাগজ", "paper & printing": "কাগজ ও মুদ্রণ", "tannery industries": "চামড়া শিল্প", "travel & leisure": "ভ্রমণ ও অবসর",
-  "corporate bond": "করপোরেট বন্ড", "treasury bond": "ট্রেজারি বন্ড", "unclassified": "অন্যান্য",
+  "corporate bond": "করপোরেট বন্ড", "treasury bond": "ট্রেজারি বন্ড", "unclassified": "অন্যান্য", "travel and leisure": "ভ্রমণ ও অবসর",
 };
 
 export function sectorName(value: string, locale: AppLocale) {

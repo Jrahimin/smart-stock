@@ -29,7 +29,7 @@ import {
   getDashboardStaleTimeMs,
 } from "@/lib/market/market-cache-policy";
 import { isSectionLoading } from "@/lib/ui/section-loading";
-import { shouldUseDashboardInitialData } from "./dashboard-query-key";
+import { shouldUseDashboardInitialData, dashboardSectionMatchesOverview } from "./dashboard-query-key";
 
 function isSectionAwaitingData<T>(
   data: T | undefined,
@@ -130,35 +130,34 @@ export function useMarketDashboard(options?: {
   });
 
   const mappedMovers = useMemo(
-    () => (moversQuery.data ? mapDashboardMoversDto(moversQuery.data) : undefined),
-    [moversQuery.data],
+    () => (moversQuery.data && dashboardSectionMatchesOverview(overviewQuery.data, moversQuery.data) ? mapDashboardMoversDto(moversQuery.data) : undefined),
+    [moversQuery.data, overviewQuery.data?.market_sync_id],
   );
   const mappedSignals = useMemo(
     () => signalsQuery.data?.signals,
     [signalsQuery.data],
   );
   const mappedTimeline = useMemo(
-    () => (alertsQuery.data ? mapDashboardAlertsDto(alertsQuery.data) : undefined),
-    [alertsQuery.data],
+    () => (alertsQuery.data && dashboardSectionMatchesOverview(overviewQuery.data, alertsQuery.data) ? mapDashboardAlertsDto(alertsQuery.data) : undefined),
+    [alertsQuery.data, overviewQuery.data?.market_sync_id],
   );
   const mappedHeatmap = useMemo(
-    () => (heatmapQuery.data ? mapDashboardHeatmapDto(heatmapQuery.data) : undefined),
-    [heatmapQuery.data],
+    () => (heatmapQuery.data && dashboardSectionMatchesOverview(overviewQuery.data, heatmapQuery.data) ? mapDashboardHeatmapDto(heatmapQuery.data) : undefined),
+    [heatmapQuery.data, overviewQuery.data?.market_sync_id],
   );
   const mappedSentiment = useMemo(
     () => {
       if (!sentimentQuery.data) return undefined;
       const mapped = mapDashboardSentimentDto(sentimentQuery.data);
-      const overviewId = overviewQuery.data?.market_sync_id;
       // A current HTTP body can land under an older query key. Join delivered
       // section identities before any sentiment-derived field reaches the model.
-      return overviewId && mapped.marketSyncId && overviewId !== mapped.marketSyncId ? undefined : mapped;
+      return dashboardSectionMatchesOverview(overviewQuery.data, sentimentQuery.data) ? mapped : undefined;
     },
     [sentimentQuery.data, overviewQuery.data?.market_sync_id],
   );
   const mappedLeadersContext = useMemo(
-    () => (sectorsQuery.data ? mapDashboardSectorsToLeadersContext(sectorsQuery.data) : undefined),
-    [sectorsQuery.data],
+    () => (sectorsQuery.data && dashboardSectionMatchesOverview(overviewQuery.data, sectorsQuery.data) ? mapDashboardSectorsToLeadersContext(sectorsQuery.data) : undefined),
+    [sectorsQuery.data, overviewQuery.data?.market_sync_id],
   );
 
   const model = useMemo(
@@ -168,6 +167,7 @@ export function useMarketDashboard(options?: {
         overviewQuery.data?.dsex_index ?? null,
         freshness ?? null,
         {
+          overview: overviewQuery.data,
           breadth: overviewQuery.data?.breadth,
           listedStockCount: overviewQuery.data?.listed_stock_count,
           movers: mappedMovers,

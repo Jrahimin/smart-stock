@@ -1,4 +1,5 @@
 /** @vitest-environment jsdom */
+import { shortTradeDate } from "@/lib/formatters/trader-formatters";
 import { createElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -37,6 +38,8 @@ describe("increment2 common-fixture journey", () => {
     const client = new QueryClient(); const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
     const signals = render(<SignalCenterView locale={locale} />, { wrapper }).container.innerHTML;
     const scanner = render(<ScannerWorkspaceView locale={locale} />, { wrapper }).container.innerHTML;
+    expect(scanner).toContain(locale === "bn" ? 'placeholder="শেয়ার খুঁজুন…"' : 'placeholder="Search any stock…"');
+    expect(scanner).toContain(locale === "bn" ? 'aria-label="শেয়ার খুঁজুন"' : 'aria-label="Global stock search"');
     const dashboard = renderToStaticMarkup(<SmartSignalFeed locale={locale} signals={mapUniverseRowsToSignalFeed([fixture.row])} />);
     const detail = renderToStaticMarkup(<TraderDecisionCard decision={buildStockDecisionViewModel(fixture.support, locale)} copy={getStockWorkspaceLanguage(locale).decision} />);
     const pulse = buildMarketPulseViewModel(fixture.pulse, locale); const copy = getMarketPulseLanguage(locale);
@@ -48,15 +51,15 @@ describe("increment2 common-fixture journey", () => {
       if (html !== detail) expect(html).toContain("/stocks/DSE/TEST");
       expect(html).not.toContain("Do not treat this legacy trigger");
     }
-    expect(signals.indexOf(outside)).toBeLessThan(signals.indexOf("21.0"));
+    expect(signals.indexOf(outside)).toBeLessThan(signals.indexOf(locale === "bn" ? "সবচেয়ে শক্ত দিক" : "Strongest factor"));
     const genericPlan = controllingReasonLabel("bullish_setup_breakout", "", locale);
     expect(signals).not.toContain(genericPlan);
     expect(dashboard).not.toContain(genericPlan);
-    expect(dashboard).toContain("21.0");
+    expect(dashboard).toContain(locale === "bn" ? "সবচেয়ে শক্ত দিক" : "Strongest factor");
     expect(scanner.indexOf(outside)).toBeLessThan(scanner.indexOf(locale === "bn" ? "খোঁজের কারণ" : "Discovery"));
     expect(focus.indexOf(outside)).toBeLessThan(focus.indexOf("pulse-focus-why-block"));
     expect(focus).toContain("110.00"); expect(focus).toContain(locale === "bn" ? "সেশনের সমাপনী দর" : "Session close");
-    expect(pulse.hero.sessionLabel).toContain(locale === "bn" ? "লেনদেন শুরুর আগে" : "PRE_OPEN"); expect(pulse.hero.sessionLabel).toContain("2026-11-10");
+    expect(pulse.hero.sessionLabel).toContain(locale === "bn" ? "লেনদেন শুরুর আগে" : "PRE_OPEN"); expect(pulse.hero.sessionLabel).toContain(shortTradeDate("2026-11-10", locale));
     expect(pulse.sessionDisablesRefresh).toBe(false);
   });
   it("filters true WAIT separately from missing action and keeps SPECULATIVE/UNKNOWN risk distinct", () => {
@@ -73,8 +76,8 @@ describe("increment2 common-fixture journey", () => {
   });
   it("shows measured breadth populations and does not turn absent sector moves or one-bar mood into observations", () => {
     const facts = order4SurfaceFixture().pulse.coverage!.breadth!;
-    expect(breadthCoverageLabel(facts, "en")).toContain("1/2 known");
-    expect(breadthCoverageLabel(facts, "en")).toContain("1 unknown");
+    expect(breadthCoverageLabel(facts, "en")).toContain("1 of 2");
+    expect(breadthCoverageLabel(facts, "en")).toContain("1 not reported");
     expect(breadthCoverageLabel(facts, "bn")).toContain("0.05%");
     const sectors = mapDashboardSectorsToLeadersContext({ sectors: [{ name: "Unknown", change_percent: null }, { name: "Known", change_percent: "2" }], top_gainer: null } as never);
     expect(sectors.primary?.name).toBe("Known");
@@ -97,7 +100,7 @@ it.each(["en", "bn"] as const)("hides zero-known distribution and directional co
   expect(model.briefing?.story.metrics).toEqual([]);
   expect(model.briefing?.story.headline).not.toContain("PRICE STRENGTH");
   expect(model.briefing?.moneyFlow.inflows).toEqual([]);
-  expect(model.briefing?.breadthNote).toContain("0/2");
+  expect(model.briefing?.breadthNote).toContain(locale === "bn" ? "0টির তথ্য আছে" : "0 of 2");
   expect(model.briefing?.opportunityScore.score).toBe(46);
   expect(model.briefing?.leadership.freshBuySignals).toEqual([]);
 });
@@ -116,11 +119,11 @@ it.each(["en", "bn"] as const)("keeps the canonical decision date separate from 
   const signalCard = signals.container.querySelector(".signal-center-item")!;
   const scannerCard = scanner.container.querySelector(".scanner-result-card")!;
   for (const card of [signalCard, scannerCard]) {
-    expect(card.textContent).toContain("2026-11-10");
+    expect(card.textContent).toContain(shortTradeDate("2026-11-10", locale));
     expect(card.textContent).not.toMatch(/Decision[^·<]*2026-11-05/);
   }
-  expect(scannerCard.textContent).toContain("2026-11-05");
-  expect(scannerCard.textContent).toContain(locale === "bn" ? "নতুন অবস্থান" : "Prospective entry");
+  expect(scannerCard.textContent).toContain(shortTradeDate("2026-11-05", locale));
+  expect(scannerCard.textContent).toContain(locale === "bn" ? "নতুন ক্রেতার জন্য" : "For new buyers");
   const selects = signals.container.querySelectorAll("select");
   fireEvent.change(selects[2], { target: { value: "VOLUME_CONFIRMED" } });
   expect(selects[2].selectedOptions[0].textContent).toBe(locale === "bn" ? "লেনদেনে অংশগ্রহণের ক্রম" : "Volume participation rank");
@@ -157,5 +160,5 @@ it.each(["en", "bn"] as const)("Detail holder instruction leads while public the
 it("holder reason reuses the localized support-break code instead of a generic Bangla fallback", () => {
   const fixture = order4SurfaceFixture(); fixture.support.decision.holder_action = "REVIEW"; fixture.support.decision.primary_reason_code = "support_break";
   const model = withStockHolderInstruction(buildStockDecisionViewModel(fixture.support, "bn"), fixture.support, true);
-  expect(model.holderInstruction?.reason).toBe("প্রকাশিত বিশ্লেষণে support ভাঙতে দেখা গেছে।");
+  expect(model.holderInstruction?.reason).toBe("সাপোর্ট ভেঙেছে। হোল্ডিংয়ের সুরক্ষা নির্দেশনা অনুসরণ করুন।");
 });

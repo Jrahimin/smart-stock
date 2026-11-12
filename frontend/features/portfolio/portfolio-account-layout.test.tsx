@@ -1,4 +1,5 @@
 /** @vitest-environment jsdom */
+import { shortTradeDate } from "@/lib/formatters/trader-formatters";
 import React, { type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
@@ -21,7 +22,7 @@ beforeEach(() => { Element.prototype.scrollIntoView = vi.fn(); state.compact = f
 afterEach(() => { cleanup(); vi.resetAllMocks(); });
 it.each([[false, "en"], [true, "en"], [false, "bn"], [true, "bn"]] as const)("same server account money and precise instruction in compact=%s %s", (compact, locale) => {
   state.compact = compact; const { container } = mount(locale);
-  expect(container.textContent).toContain("৳103"); expect(container.textContent).toContain("+1.98%"); expect(container.textContent).toContain("+3.00%"); expect(container.textContent).toContain("2026-11-10");
+  expect(container.textContent).toContain("৳103"); expect(container.textContent).toContain("+1.98%"); expect(container.textContent).toContain("+3.00%"); expect(container.textContent).toContain(shortTradeDate("2026-11-10", locale));
   expect(container.textContent).toContain(portfolioLanguage[locale].actionLabels.REDUCE);
   expect(container.querySelectorAll(".portfolio-account-decision")).toHaveLength(1);
 });

@@ -163,6 +163,22 @@ def test_uses_shared_pulse_cache_only_for_anonymous_requests() -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("section", ["response", "summary"])
+async def test_exact_sector_revision_never_reuses_the_same_generation_float_verdict(section):
+    key = pulse_cache_key(section, ExchangeCode.DSE, DECISION_DATE, MARKET_SYNC_ID)
+    assert "market-generation-v5" in key
+    old_key = key.replace("market-generation-v4", "market-generation-v3")
+    store = {old_key: _pulse("old float verdict").model_dump(mode="json")}
+    service = _service_with_redis(store)
+    service._compute_market_pulse = AsyncMock(return_value=_pulse("exact sector verdict"))
+    read = service.get_market_pulse if section == "response" else service.get_market_pulse_summary
+    result = await read(exchange=ExchangeCode.DSE, previous=None)
+    assert result.hero.greeting == "exact sector verdict"
+    service._compute_market_pulse.assert_awaited_once()
+    assert old_key in store and key in store
+
+
+@pytest.mark.asyncio
 async def test_anonymous_summary_reads_and_writes_shared_cache() -> None:
     store: dict[str, dict] = {}
     service = _service_with_redis(store)
@@ -405,6 +421,7 @@ async def test_focus_and_monitor_project_same_fenced_quote_and_verified_transiti
     service.market_data_service.get_market_freshness = AsyncMock(return_value=SimpleNamespace(market_status=MarketSessionStatus.PRE_OPEN))
     result = await service._refresh_current_fields(payload, snapshot)
     assert result.quote_generation_id == "owning-quote"
+    assert result.coverage.quote_session_date == projected.quote_generation.trade_date
     assert result.coverage.market_status == "PRE_OPEN"
     for entry in [*result.focus_stocks, *result.monitor_candidates]:
         assert entry.display_quote.current_price == 103

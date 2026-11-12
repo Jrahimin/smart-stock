@@ -1,11 +1,12 @@
 "use client";
 
-import { riskValueLabel } from "@/lib/market/decision-presentation";
+import { riskValueLabel, isDatedPlanGuidance } from "@/lib/market/decision-presentation";
 import { EntryApplicabilityLabel } from "@/components/market/entry-applicability-label";
 import { SignalBadge } from "@/components/ui/signal-badge";
 import type { DecisionDisplayAction } from "@/lib/api/backend-api-types";
 import Link from "next/link";
-import { Check, Eye } from "lucide-react";
+import { shortTradeDate } from "@/lib/formatters/trader-formatters";
+import { Eye } from "lucide-react";
 
 import type { FocusStockModel } from "@/features/market-pulse/types/market-pulse-types";
 import type { MarketPulseLanguage } from "@/features/market-pulse/market-pulse-language";
@@ -18,6 +19,7 @@ type FocusStockCardProps = {
 };
 
 export function FocusStockCard({ stock, copy, scoreCopy }: FocusStockCardProps) {
+  const condition = stock.actionableTrigger ? stock.trigger : stock.recommendation === "POTENTIAL_BUY" && isDatedPlanGuidance(stock.controllingReasonCode) ? stock.controllingReason : null;
   return (
     <article className="pulse-focus-card">
       <div className="pulse-focus-card-header">
@@ -26,28 +28,29 @@ export function FocusStockCard({ stock, copy, scoreCopy }: FocusStockCardProps) 
           <div className="pulse-focus-identity">
             <strong title={stock.symbol}>{stock.symbol}</strong>
             <span title={stock.name}>{stock.name}</span>
+            <SignalBadge signal={["POTENTIAL_BUY", "WAIT", "HOLD", "SELL"].includes(stock.recommendation ?? "") ? stock.recommendation as DecisionDisplayAction : null} locale={stock.locale ?? "en"} />
           </div>
         </div>
+        <PulseScoreHeaderCluster breakdown={stock.scoreBreakdown} copy={scoreCopy} score={stock.pulseScore} />
       </div>
 
       <div className="pulse-focus-conviction">
-        <SignalBadge signal={["POTENTIAL_BUY", "WAIT", "HOLD", "SELL"].includes(stock.recommendation ?? "") ? stock.recommendation as DecisionDisplayAction : null} locale={stock.locale ?? "en"} />
         <small>{stock.decisionContext}</small>
         <EntryApplicabilityLabel assessment={stock.entryApplicability} locale={stock.locale ?? "en"} policyReason={stock.controllingReason} />
-        {stock.controllingReason && stock.entryApplicability?.reason_code !== "ACTION_NOT_PERMITTED" ? <small>{stock.controllingReason}</small> : null}
+        {stock.controllingReason && !condition ? <small>{stock.controllingReason}</small> : null}
       </div>
-      <div className="pulse-focus-score-row"><PulseScoreHeaderCluster breakdown={stock.scoreBreakdown} copy={scoreCopy} score={stock.pulseScore} /></div>
-      <span className={`pulse-focus-label-badge pulse-focus-label-badge-${stock.labelTone}`}>{stock.focusLabel}</span>
+      {condition ? <div className="pulse-next-trigger"><small>{stock.locale === "bn" ? "সেটআপের পরের শর্ত" : "Next setup trigger"}</small><strong>{condition}</strong></div> : null}
+      <span className={`pulse-focus-label-badge pulse-focus-label-badge-${stock.labelTone}`}>{copy.label(stock.focusLabel)}</span>
       <div className="pulse-focus-why-block">
         <span className="pulse-focus-why-label">{copy.whySelected}</span>
-        <ul className="pulse-focus-reasons">{stock.whyHere.map((reason) => <li key={reason}><Check aria-hidden="true" size={12} />{reason}</li>)}</ul>
+        <ul className="pulse-focus-reasons">{stock.whyHere.map((reason) => <li key={reason}>{reason}</li>)}</ul>
       </div>
       <small>{scoreCopy.tradingRisk}: {riskValueLabel(stock.entryRiskLabel, stock.locale ?? "en")}</small>
       {stock.watchLevel != null ? <small>{copy.watchLevel}: {stock.watchLevel.toFixed(2)}</small> : null}
 
       <div className="pulse-focus-card-footer">
         <div className="pulse-focus-quote-values">
-          <small>{stock.locale === "bn" ? "সেশনের সমাপনী দর" : "Session close"} · {stock.decisionDate ?? "—"}</small>
+          <small>{stock.locale === "bn" ? "সেশনের সমাপনী দর" : "Session close"} · {shortTradeDate(stock.decisionDate, stock.locale)}</small>
           <span className="pulse-focus-price">{stock.latestPrice}</span>
           <span className={`pulse-focus-change pulse-focus-change-${stock.priceTone}`}>{stock.priceChangePercent}</span>
         </div>

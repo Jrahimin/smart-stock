@@ -22,6 +22,7 @@ export function MarketPulseHero({ hero, briefingChips, copy, locale }: MarketPul
       subtitle={
         <div className="pulse-hero-briefing">
           <p className="pulse-hero-subline pulse-hero-subline-brief">{copy.hero.subline}</p>
+          {hero.sessionLabel && <p className="pulse-hero-session" role="status">{hero.sessionLabel}</p>}
 
           {briefingChips.length > 0 ? (
             <div className="pulse-briefing-chips" role="list" aria-label={copy.hero.contextAriaLabel}>

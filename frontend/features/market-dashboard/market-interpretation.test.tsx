@@ -25,7 +25,7 @@ it.each(["en", "bn"] as const)("routes typed backend interpretation through mapp
     turnover: { turnoverLabel: "N/A", vsYesterday: "N/A", vs30DayAvg: "N/A", liquidityKey: "average_liquidity" } });
   const html = renderToStaticMarkup(<InsightSidebar insights={insights} copy={getTerminalCopy(locale)} locale={locale} />);
   expect(html).toContain(locale === "en" ? "Index and breadth advance" : "সূচক ও শেয়ারের বিস্তার ঊর্ধ্বমুখী");
-  expect(html).toContain("DSEX +0.20%"); expect(html).toContain("399/426"); expect(html).toContain("2026-11-10");
+  expect(html).toContain("DSEX +0.20%"); expect(html).toContain("399"); expect(html).toContain("426"); expect(html).toContain(locale === "bn" ? "10 নভেম্বর" : "10 Nov");
   expect(html).not.toContain("Accumulation"); expect(html).not.toContain("Unsupported historic claim");
 });
 it("keeps old unsupported mood absent and zero-known breadth explicitly unknown", () => {

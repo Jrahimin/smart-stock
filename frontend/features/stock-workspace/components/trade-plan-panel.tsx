@@ -1,4 +1,5 @@
 import { formatNumber } from "@/lib/formatters/financial-formatters";
+import { shortTradeDate } from "@/lib/formatters/trader-formatters";
 import type { StockDecisionViewModel } from "@/features/stock-workspace/view-models/stock-decision-view-model";
 import type { StockWorkspaceLanguage } from "@/features/stock-workspace/stock-workspace-language";
 
@@ -25,9 +26,9 @@ export function TradePlanPanel({ decision, copy }: TradePlanPanelProps) {
     <div className="strip-heading"><span>{copy.tradePlan}{plan.status === "WATCH_ONLY" ? ` · ${copy.watchOnly}` : ""}</span>
       <strong className="trade-plan-rr">{copy.plannedRewardRisk} {plan.riskReward !== null ? `${plan.riskReward.toFixed(2)}×` : "—"}</strong>
     </div>
-    <p className="trade-plan-date">{copy.planAsOf} {plan.asOfDate ?? "—"} · {copy.decisionReference} {formatNumber(plan.reference)}</p>
+    <p className="trade-plan-date">{copy.planAsOf} {shortTradeDate(plan.asOfDate, decision.locale)} · {copy.decisionReference} {formatNumber(plan.reference)}</p>
     <div className="trade-plan-timeline">
-      <div className="trade-plan-row"><span>{copy.entryZone}</span><div className="trade-plan-track">{band(plan.entryLow, plan.entryHigh, "")}</div><strong>{range(plan.entryLow, plan.entryHigh)}</strong></div>
+      <div className="trade-plan-row"><span>{copy.entryZone}</span><div className="trade-plan-track">{band(plan.entryLow, plan.entryHigh, "entry")}</div><strong>{range(plan.entryLow, plan.entryHigh)}</strong></div>
       <div className="trade-plan-row"><span>{copy.markedQuote}</span><div className="trade-plan-track">{valid(plan.current) ? <i aria-hidden="true" className="trade-plan-dot trade-plan-dot-current" style={{ left: `${position(plan.current)}%` }} /> : null}</div><strong>{formatNumber(plan.current)}</strong></div>
       <div className="trade-plan-row trade-plan-stop"><span>{copy.stopLoss}</span><div className="trade-plan-track">{valid(plan.stopLoss) ? <i aria-hidden="true" className="trade-plan-marker trade-plan-marker-stop" style={{ left: `${position(plan.stopLoss)}%` }} /> : null}</div><strong>{formatNumber(plan.stopLoss)}</strong></div>
       <div className="trade-plan-row trade-plan-target"><span>{copy.target}</span><div className="trade-plan-track">{band(plan.targetLow, plan.targetHigh, "trade-plan-target-band")}</div><strong>{range(plan.targetLow, plan.targetHigh)}</strong></div>

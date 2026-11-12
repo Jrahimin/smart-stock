@@ -87,7 +87,7 @@ function buildSignalsLanguage(locale: AppLocale): SignalsLanguage {
         decisionEngine: "Decision engine",
       },
       row: {
-        confidenceAria: (value) => `${value} of 100 heuristic evidence`,
+        confidenceAria: (value) => `${value} of 100 signal strength`,
         confidence: (value) => `${value}/100 evidence`,
         risk: (label) => `${label} risk`,
         riskShort: (label) => `Risk ${label}`,
@@ -124,15 +124,15 @@ function buildSignalsLanguage(locale: AppLocale): SignalsLanguage {
     },
 
     filters: {
-      allActions: "সব action",
-      allRisk: "সব Risk",
-      lowRisk: "কম Risk",
-      mediumRisk: "মাঝারি Risk",
-      highRisk: "বেশি Risk",
+      allActions: "সব সিদ্ধান্ত",
+      allRisk: "সব ঝুঁকি",
+      lowRisk: "কম ঝুঁকি",
+      mediumRisk: "মাঝারি ঝুঁকি",
+      highRisk: "বেশি ঝুঁকি",
       speculative: "বেশি ঝুঁকির",
       highestConviction: "সবচেয়ে শক্ত Signal",
       newest: "সর্বশেষ",
-      riskAdjusted: "Risk বিবেচনায়",
+      riskAdjusted: "ঝুঁকি বিবেচনায়",
       volumeConfirmed: "লেনদেনে অংশগ্রহণের ক্রম",
     },
 
@@ -148,7 +148,7 @@ function buildSignalsLanguage(locale: AppLocale): SignalsLanguage {
     },
 
     row: {
-      confidenceAria: (value) => `${value} of 100 heuristic evidence`,
+      confidenceAria: (value) => `${value} of 100 signal strength`,
       confidence: (value) => `${value}/100 evidence`,
       risk: (label) => `${label} Risk`,
       riskShort: (label) => `Risk ${label}`,

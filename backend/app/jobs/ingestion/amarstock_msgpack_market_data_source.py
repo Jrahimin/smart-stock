@@ -202,6 +202,11 @@ class AmarStockMarketSnapshotSource(MarketDataSource):
         response_date = _parse_http_date(response.headers.get("date"))
         last_modified = _parse_http_date(response.headers.get("last-modified"))
         received = response.received_at or datetime.now(UTC)
+        logger.info("Snapshot timing evidence source=%s receipt=%s http_date=%s last_modified=%s modified_lag_seconds=%s cache_age=%s",
+            self.source_name, response.received_at.isoformat() if response.received_at else None, response_date.isoformat() if response_date else None,
+            last_modified.isoformat() if last_modified else None,
+            (response.received_at-last_modified).total_seconds() if last_modified and response.received_at else None,
+            int(response.headers["age"]) if response.headers.get("age", "").isdigit() else None)
         for name, value in (("Date", response_date), ("Last-Modified", last_modified)):
             if value is not None and value > received:
                 raise MarketSnapshotValidationError(f"AmarStock {name} is later than transport receipt")

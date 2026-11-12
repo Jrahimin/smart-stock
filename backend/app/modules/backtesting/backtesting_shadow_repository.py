@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 from app.models import TradingShadowOutcome, TradingShadowSelection, DecisionGenerationCapture
 from app.core.constants.trading_constants import TRADING_STRATEGY_VERSION
+from app.core.audit_hashing import stable_audit_hash
 
 
 class TradingShadowRepository:
@@ -28,8 +29,23 @@ class TradingShadowRepository:
         ))
 
     async def record_outcome(self, selection, *, through_date, revision, payload):
+        if payload.get("kind") == "MODELED_OUTCOMES":
+            # Serialize adoption per selection while keeping all receipts immutable.
+            await self.session.execute(select(TradingShadowSelection.id).where(
+                TradingShadowSelection.id == selection.id).with_for_update())
+            current = (await self.latest_outcomes([selection.id])).get(selection.id)
+            payload = {key: value for key, value in payload.items() if key != "supersedes_revision"}
+            if current:
+                current_content = {key: value for key, value in current.payload.items() if key != "supersedes_revision"}
+                if payload == current_content:
+                    await self.session.commit()
+                    return current
+                if through_date >= current.through_date:
+                    payload["supersedes_revision"] = current.outcome_revision
+            revision = stable_audit_hash(payload)
         await self.session.execute(insert(TradingShadowOutcome).values(
             selection_id=selection.id, through_date=through_date, outcome_revision=revision, payload=payload,
+            recorded_at=func.clock_timestamp(),
         ).on_conflict_do_nothing(index_elements=["selection_id", "outcome_revision"]))
         await self.session.commit()
         return await self.session.scalar(select(TradingShadowOutcome).where(

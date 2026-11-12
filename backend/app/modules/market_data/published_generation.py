@@ -67,6 +67,8 @@ async def resolve_published_market_generation(
 
     if selected is None:
         return None
+    if market_status == MarketSessionStatus.OPEN and selected.trade_date < today:
+        data_state = MarketDataState.STALE
     if selected is today_live:
         synced_at = selected.source_last_synced_at
         if synced_at.tzinfo is None:
