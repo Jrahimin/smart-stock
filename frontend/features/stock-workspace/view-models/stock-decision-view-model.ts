@@ -221,7 +221,9 @@ export function buildStockDecisionViewModel(
         (displayAction ? recommendationToneMap[displayAction] : null) ?? "neutral",
       entryCondition:
         displayAction === "POTENTIAL_BUY" && decision.entry_applicability?.status === "APPLICABLE"
-          ? decision.trade_plan.entry_timing === "PULLBACK"
+          ? decision.entry_applicability.price_basis === "LAST_CLOSE"
+            ? (locale === "bn" ? "নথিভুক্ত সমাপনী দাম প্রকাশিত এন্ট্রির শর্তের সঙ্গে মিলে।" : "The recorded closing quote meets the published entry conditions.")
+            : decision.trade_plan.entry_timing === "PULLBACK"
             ? (locale === "bn" ? "দর pullback সীমার মধ্যে আছে; support টিকে থাকে কি না দেখুন।" : "Quote is in the pullback zone; watch whether support holds.")
             : decision.trade_plan.entry_timing === "BREAKOUT"
               ? (locale === "bn" ? "সম্পূর্ণ সেশনের close ও volume নিশ্চিত হয়েছে এবং অনুমোদিত entry session এসেছে; প্রকাশিত ব্যবস্থাপনার শর্ত অনুসরণ করুন।" : "Completed-session close and volume are confirmed and the permitted entry session has arrived; follow the dated management conditions.")

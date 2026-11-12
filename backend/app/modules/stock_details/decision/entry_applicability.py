@@ -47,6 +47,7 @@ class EntryApplicabilityRead(BaseModel):
     source_observed_at: datetime | None = None
     publication_observed_at: datetime | None = None
     recheck_at: datetime | None = None
+    price_basis: Literal["CURRENT", "LAST_CLOSE"] = "CURRENT"
 
 
 @dataclass(frozen=True)
@@ -75,11 +76,12 @@ def evaluate_entry_applicability(
     now: datetime, market_open: bool, coverage_verified: bool,
     path: EntryPathFacts = EntryPathFacts(), withdrawn: bool = False,
     publication_observed_at: datetime | None = None,
-    session_pause_reason: Literal["MARKET_CLOSED", "SESSION_SETTLING"] | None = None,
     recheck_at: datetime | None = None,
     session_open_at: datetime | None = None,
+    session_close_at: datetime | None = None,
 ) -> EntryApplicabilityRead:
     """Stable precedence: withdrawal; permission; invalidation; expiry; evidence; zone; timing."""
+    closing_basis = not market_open and session_close_at is not None
     def result(status, code):
         return EntryApplicabilityRead(
             status=status, reason_code=code, assessed_at=now,
@@ -89,7 +91,8 @@ def evaluate_entry_applicability(
             quote_session_date=date.fromisoformat(quote.as_of_trade_date) if quote and quote.as_of_trade_date else None,
             source_observed_at=getattr(quote, "source_observed_at", None),
             publication_observed_at=publication_observed_at,
-            recheck_at=recheck_at if code in {"MARKET_CLOSED", "SESSION_SETTLING"} else None,
+            recheck_at=recheck_at if closing_basis else None,
+            price_basis="LAST_CLOSE" if closing_basis else "CURRENT",
         )
 
     if withdrawn:
@@ -113,18 +116,19 @@ def evaluate_entry_applicability(
         len(sessions) == expiry and sessions[-1] in (path.ended_sessions if path.ended_sessions is not None else path.completed_sessions)
     )):
         return result("EXPIRED", "PLAN_EXPIRED")
-    if not market_open:
-        return result("AWAITING_CONFIRMATION", session_pause_reason or "MARKET_CLOSED")
     if not coverage_verified:
         return result("UNVERIFIED", "COVERAGE_UNKNOWN")
     price = quote.current_price if quote else None
     observed_at = getattr(quote, "source_observed_at", None)
+    expected_day = session_close_at.date() if closing_basis else now.date()
+    quote_timing_valid = bool(observed_at and observed_at <= now and (
+        abs((observed_at - session_close_at).total_seconds()) <= getattr(quote, "max_age_seconds", 1800)
+        if closing_basis else (session_open_at is None or observed_at >= session_open_at)
+        and (now - observed_at).total_seconds() <= getattr(quote, "max_age_seconds", 1800)))
     if (price is None or not isfinite(price) or price <= 0 or quote.observation_status not in {"FINALIZED", "PROVISIONAL"}
         or getattr(quote, "data_quality", None) == "SUSPICIOUS"
-        or observed_at is None or observed_at > now
-        or session_open_at is not None and observed_at < session_open_at
-        or (now - observed_at).total_seconds() > getattr(quote, "max_age_seconds", 1800)
-        or quote.as_of_trade_date != now.date().isoformat()):
+        or not quote_timing_valid
+        or quote.as_of_trade_date != expected_day.isoformat()):
         return result("UNVERIFIED", "QUOTE_UNUSABLE")
     if not path.complete:
         return result("UNVERIFIED", "PATH_INCOMPLETE")
@@ -143,7 +147,7 @@ def evaluate_entry_applicability(
         return result("OUTSIDE_ZONE", "ABOVE_ENTRY_ZONE")
     if plan.entry_timing == "BREAKOUT" and path.confirmed_on is None:
         return result("AWAITING_CONFIRMATION", "COMPLETED_BREAKOUT_REQUIRED")
-    if (not market_open or not sessions or now.date() not in permitted
+    if not closing_basis and (not market_open or not sessions or now.date() not in permitted
         or now.date() <= reference_date
         or path.confirmed_on is not None and now.date() <= path.confirmed_on):
         return result("AWAITING_CONFIRMATION", "ENTRY_SESSION_PENDING")

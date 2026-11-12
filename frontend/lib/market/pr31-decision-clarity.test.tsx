@@ -69,11 +69,9 @@ it("joins explicit section identities but preserves independently dated timeline
 });
 
 
-it.each(["en", "bn"] as const)("renders scheduled entry pauses without implying approval (%s)", locale => {
-  const { container, rerender } = render(<EntryApplicabilityLabel locale={locale} assessment={{ status:"AWAITING_CONFIRMATION", reason_code:"MARKET_CLOSED", quote_session_date:"2026-11-10" }} />);
-  expect(container.textContent).toContain(locale === "en" ? "Market closed" : "বাজার বন্ধ");
-  expect(container.textContent).toContain(locale === "en" ? "Last recorded quote" : "শেষ নথিভুক্ত দাম");
-  expect(container.querySelector("details")?.open).toBe(false);
-  rerender(<EntryApplicabilityLabel locale={locale} assessment={{ status:"AWAITING_CONFIRMATION", reason_code:"SESSION_SETTLING" }} />);
-  expect(container.textContent).toContain(locale === "en" ? "Closing data settling" : "সমাপনী তথ্য হালনাগাদ হচ্ছে");
+it.each(["en", "bn"] as const)("renders closing eligibility with a dated basis and no pause instruction (%s)", locale => {
+  const {container} = render(<EntryApplicabilityLabel locale={locale} assessment={{status:"APPLICABLE",reason_code:"ENTRY_TERMS_MET",price_basis:"LAST_CLOSE",quote_session_date:"2026-11-12",assessed_at:"2026-11-12T20:00:00+06:00"}} />);
+  expect(container.textContent).toContain(locale === "en" ? "closing quote" : "সমাপনী দামের ভিত্তিতে");
+  expect(container.textContent).not.toContain("recheck at opening");
+  expect(container.textContent).not.toContain("খুললে আবার");
 });

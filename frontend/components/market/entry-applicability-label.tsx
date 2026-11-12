@@ -8,15 +8,6 @@ export function EntryApplicabilityLabel({ assessment, locale = "en", copy: suppl
   const copy = suppliedCopy ?? getStockWorkspaceLanguage(locale).panels;
   if (assessment?.status === "NOT_APPLICABLE") return null;
   const bn = locale === "bn";
-  if (assessment && ["MARKET_CLOSED", "SESSION_SETTLING"].includes(assessment.reason_code)) {
-    const settling = assessment.reason_code === "SESSION_SETTLING";
-    const label = settling ? (bn ? "সমাপনী তথ্য হালনাগাদ হচ্ছে" : "Closing data settling")
-      : (bn ? "বাজার বন্ধ · খুললে আবার যাচাই হবে" : "Market closed · recheck at opening");
-    return <details className="entry-applicability entry-check-detail"><summary aria-live={announce ? "polite" : undefined}>{label} <span aria-hidden="true">ⓘ</span></summary>
-      <p>{copy.entryReason[assessment.reason_code]}</p>
-      {assessment.quote_session_date ? <small>{bn ? "শেষ নথিভুক্ত দাম" : "Last recorded quote"} · {shortTradeDate(assessment.quote_session_date, locale)}</small> : null}
-    </details>;
-  }
   if (!assessment || assessment.status === "UNVERIFIED") {
     const quoteDate = assessment?.quote_session_date ? shortTradeDate(assessment.quote_session_date, locale) : null;
     const quoteUnusable = assessment?.reason_code === "QUOTE_UNUSABLE";
@@ -33,9 +24,12 @@ export function EntryApplicabilityLabel({ assessment, locale = "en", copy: suppl
   const time = (value?: string | null) => value && Number.isFinite(Date.parse(value)) ? new Intl.DateTimeFormat(locale === "bn" ? "bn-BD-u-nu-latn" : "en-GB", { timeZone: "Asia/Dhaka", day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true }).format(new Date(value)) : null;
   const assessed = time(assessment?.assessed_at);
   const source = time(assessment?.source_observed_at);
+  const closingBasis = assessment.price_basis === "LAST_CLOSE" && assessment.quote_session_date;
+  const basisLabel = closingBasis ? (bn ? `${shortTradeDate(assessment.quote_session_date, locale)}-এর সমাপনী দামের ভিত্তিতে` : `Based on the ${shortTradeDate(assessment.quote_session_date, locale)} closing quote`) : null;
   return <div className={`entry-applicability entry-applicability-${assessment.status.toLowerCase()}${["INVALIDATED", "EXPIRED"].includes(assessment.status) ? " entry-check-alert" : ""}`}>
     <strong aria-live={announce ? "polite" : undefined} aria-atomic={announce ? "true" : undefined}>{assessment ? copy.entryStatus[assessment.status] ?? copy.currentEntryUnverified : copy.currentEntryUnverified}</strong>
-    {assessment ? <p>{assessment.reason_code === "ACTION_NOT_PERMITTED" && policyReason ? policyReason : assessment.status === "APPLICABLE" && assessed ? copy.entryApplicableAt(assessed) : copy.entryReason[assessment.reason_code] ?? copy.currentEntryUnverified}</p> : null}
+    {assessment ? <p>{assessment.reason_code === "ACTION_NOT_PERMITTED" && policyReason ? policyReason : assessment.status === "APPLICABLE" && assessed ? (basisLabel ?? copy.entryApplicableAt(assessed)) : copy.entryReason[assessment.reason_code] ?? copy.currentEntryUnverified}</p> : null}
+    {basisLabel && assessment.status !== "APPLICABLE" ? <small>{basisLabel}</small> : null}
     {assessment && source ? <small>{copy.quoteObservedAt(source)}</small> : null}
   </div>;
 }

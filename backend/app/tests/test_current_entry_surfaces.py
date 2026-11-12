@@ -21,7 +21,7 @@ from app.tests.test_market_pulse_cache import _pulse
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("hour,minute,pause", [(5,0,None),(9,0,"SESSION_SETTLING"),(9,15,"MARKET_CLOSED"),(3,59,"MARKET_CLOSED")])
+@pytest.mark.parametrize("hour,minute,pause", [(5,0,None),(9,0,None),(9,15,None),(3,59,"QUOTE_UNUSABLE")])
 @pytest.mark.parametrize("price,low,expected", [(100, 99, "ENTRY_TERMS_MET"),
     (105, 99, "ABOVE_ENTRY_ZONE"), (96, 96, "STOP_BREACHED"), (100, 95, "STOP_BREACHED")])
 async def test_universe_signals_support_and_cached_pulse_share_current_codes(monkeypatch, price, low, expected, hour, minute, pause):
@@ -88,6 +88,6 @@ async def test_universe_signals_support_and_cached_pulse_share_current_codes(mon
     codes = [response.rows[0].entry_applicability.reason_code, signal.decision.entry_applicability.reason_code,
         support.entry_applicability.reason_code, pulse.focus_stocks[0].entry_applicability.reason_code]
     assert codes == [expected]*4
-    assert pulse.focus_stocks[0].actionable_trigger is (expected == "ENTRY_TERMS_MET")
+    assert pulse.focus_stocks[0].actionable_trigger is (expected == "ENTRY_TERMS_MET" and hour == 5)
     assert response.rows[0].decision.canonical.shared_decision_id == original.decision.canonical.shared_decision_id
     assert support.canonical_decision.shared_decision_id == original.decision.canonical.shared_decision_id

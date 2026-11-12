@@ -68,12 +68,19 @@ function positiveDeadline(entry: EntryRecord, freshness?: BackendMarketFreshness
   const publication = timestamp(assessment.publication_observed_at);
   const age = quote.max_age_seconds;
   const session = quote.as_of_trade_date;
-  if (!Number.isFinite(source) || !Number.isFinite(assessed) || !Number.isFinite(publication) || publication > source || source > assessed ||
+  const closingBasis = assessment.price_basis === "LAST_CLOSE";
+  if (!Number.isFinite(source) || !Number.isFinite(assessed) || !Number.isFinite(publication) || publication > assessed || (!closingBasis && publication > source) || source > assessed ||
     timestamp(assessment.source_observed_at) !== source || assessment.quote_session_date !== session || quote.observation_session_date !== session ||
-    typeof session !== "string" || session !== freshness.trade_date || dhakaDate(source) !== session || dhakaDate(assessed) !== session || dhakaDate(publication) >= session ||
+    typeof session !== "string" || session !== freshness.trade_date || dhakaDate(source) !== session || (!closingBasis && (dhakaDate(assessed) !== session || dhakaDate(publication) >= session)) ||
     typeof age !== "number" || !Number.isFinite(age) || age <= 0 ||
     !["PROVISIONAL", "FINALIZED"].includes(String(quote.observation_status)) || quote.data_quality === "SUSPICIOUS" ||
-    typeof quote.current_price !== "number" || !Number.isFinite(quote.current_price) || quote.current_price <= 0 || freshness.market_status !== "OPEN") return null;
+    typeof quote.current_price !== "number" || !Number.isFinite(quote.current_price) || quote.current_price <= 0) return null;
+  if (closingBasis) {
+    const deadline = timestamp(assessment.recheck_at);
+    const close = /^\d{2}:\d{2}(?::\d{2})?$/.test(freshness.market_close_time) ? Date.parse(`${session}T${freshness.market_close_time}+06:00`) : NaN;
+    return Number.isFinite(close) && Math.abs(source - close) <= age * 1000 && Number.isFinite(deadline) && assessed < deadline ? deadline : null;
+  }
+  if (freshness.market_status !== "OPEN") return null;
   const opening = /^\d{2}:\d{2}(?::\d{2})?$/.test(freshness.market_open_time) ? Date.parse(`${session}T${freshness.market_open_time}+06:00`) : NaN;
   if (!Number.isFinite(opening) || source < opening) return null;
   const close = /^\d{2}:\d{2}(?::\d{2})?$/.test(freshness.market_close_time) ? Date.parse(`${session}T${freshness.market_close_time}+06:00`) : NaN;
@@ -81,16 +88,14 @@ function positiveDeadline(entry: EntryRecord, freshness?: BackendMarketFreshness
   return Number.isFinite(deadline) && assessed < deadline ? deadline : null;
 }
 
-function scheduledPause(entry: EntryRecord): boolean {
-  return entry.assessment.status === "AWAITING_CONFIRMATION" &&
-    ["MARKET_CLOSED", "SESSION_SETTLING"].includes(String(entry.assessment.reason_code));
+function transientClosing(entry: EntryRecord): boolean {
+  return entry.assessment.price_basis === "LAST_CLOSE" && !["INVALIDATED", "EXPIRED", "NOT_APPLICABLE"].includes(String(entry.assessment.status));
 }
 
 function entryDeadline(entry: EntryRecord, freshness?: BackendMarketFreshnessDto | null): number | null {
-  if (!scheduledPause(entry)) return positiveDeadline(entry, freshness);
+  if (entry.assessment.status === "APPLICABLE") return positiveDeadline(entry, freshness);
   const deadline = timestamp(entry.assessment.recheck_at);
-  const assessed = timestamp(entry.assessment.assessed_at);
-  return aligned(entry, freshness) && Number.isFinite(deadline) && assessed < deadline ? deadline : null;
+  return transientClosing(entry) && aligned(entry, freshness) && timestamp(entry.assessment.assessed_at) < deadline ? deadline : null;
 }
 
 export function earliestCurrentEntryDeadline(data: unknown, freshness?: BackendMarketFreshnessDto | null, now = Date.now()): number | null {
@@ -111,7 +116,7 @@ export function currentEntryEvidenceTime(data: unknown): number {
 
 /** IDB never renews source age with cache insertion time. Missing freshness cannot certify permission. */
 export function hasUnusablePositiveEntry(data: unknown, freshness?: BackendMarketFreshnessDto | null, now = Date.now()): boolean {
-  return entries(data).some((entry) => (entry.assessment.status === "APPLICABLE" || scheduledPause(entry)) && !usable(entry, freshness, now));
+  return entries(data).some((entry) => (entry.assessment.status === "APPLICABLE" || transientClosing(entry)) && !usable(entry, freshness, now));
 }
 
 function datedWithdrawal(entry: EntryRecord, freshness: BackendMarketFreshnessDto | null | undefined, now: number): boolean {
@@ -132,12 +137,9 @@ function usable(entry: EntryRecord, freshness: BackendMarketFreshnessDto | null 
   if (!instrumentMatches(entry, expected)) return false;
   if (datedWithdrawal(entry, freshness, now)) return true;
   if (!aligned(entry, freshness)) return false;
-  if (scheduledPause(entry)) {
-    const deadline = entryDeadline(entry, freshness);
-    return deadline !== null && timestamp(entry.assessment.assessed_at) <= now && now < deadline && freshness?.market_status !== "OPEN";
-  }
-  if (entry.assessment.status !== "APPLICABLE") return true;
-  const deadline = positiveDeadline(entry, freshness);
+  if (entry.assessment.status !== "APPLICABLE" && !transientClosing(entry)) return true;
+  if (transientClosing(entry) && freshness?.market_status === "OPEN") return false;
+  const deadline = entryDeadline(entry, freshness);
   return deadline !== null && timestamp(entry.assessment.assessed_at) <= now && now < deadline;
 }
 
@@ -162,7 +164,7 @@ export function fenceCurrentEntryPayload<T>(data: T, freshness?: BackendMarketFr
       const item = record(value);
       const entry = assessments[index++];
       const assessment = !(suppressPositive && entry.assessment.status === "APPLICABLE") && usable(entry, freshness, now, expected) ? entry.assessment : null;
-      return { ...item, entry_applicability: assessment, actionable_trigger: assessment?.status === "APPLICABLE" };
+      return { ...item, entry_applicability: assessment, actionable_trigger: assessment?.status === "APPLICABLE" && assessment.price_basis !== "LAST_CLOSE" };
     };
     return { ...payload, focus_stocks: payload.focus_stocks.map(mapItem), monitor_candidates: Array.isArray(payload.monitor_candidates) ? payload.monitor_candidates.map(mapItem) : [] } as T;
   }

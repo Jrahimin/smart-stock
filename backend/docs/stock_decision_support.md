@@ -361,51 +361,59 @@ Verification: 95 affected frontend tests and 38 backend decision tests passed; T
 The final contract review makes `EntryApplicabilityRead.reason_code` an explicit 17-value API enum, matching the evaluator's existing outputs and the frontend DTO. This tightens schema validation/documentation without changing precedence, statuses or permission rules. An unknown code fails backend validation; presentation retains its defensive fallback for older/unexpected responses.
 
 
-## Closed-session current-entry assessment
+## Eligibility based on the last closing quote
 
-Current applicability remains separate from the immutable dated decision.
-The shared evaluator returns `AWAITING_CONFIRMATION` with `MARKET_CLOSED` before
-opening, after closing settlement, and on scheduled weekends. Between configured
-close and `daily_market_sync_time` it returns `SESSION_SETTLING`. With defaults,
-entry permission ends at 15:00 Dhaka and settlement ends at 15:15. If daily sync
-is at or before close there is no settlement buffer. Withdrawal, known stop or
-price-basis invalidation and elapsed-session expiry keep their existing priority.
-A paused assessment defers the current quote/history checks and certifies no
-entry eligibility or historical continuity. It retains the last quote date.
+The shared evaluator assesses the published plan during trading using a fresh
+current-session quote. After close, before the next opening and during scheduled
+weekends it can continue assessing suggestion eligibility using the latest
+stored quote for the latest scheduled closing session. Its source observation
+must be within `max_age_seconds` of that session's configured close (default
+1,800 seconds, inclusive on either side), must not be in the future and must
+match the reference session. Coverage, quality, price zone, confirmation,
+continuity, invalidation and expiry checks remain required. A source fetch time
+alone does not establish a qualifying observation. An old backup does not become
+eligible merely because the market is closed.
 
-Optional `entry_applicability.recheck_at` supplies the scheduled buffer-end or
-next opening instant. It is a refresh deadline using the existing weekday and
-per-date opening override settings. It is not proof of a future exchange session
-or a newly added holiday calendar. Freshness and entry evaluation use half-open
-trading hours `[open, close)` and the same effective opening override. Snapshot
-collection may still include the closing instant.
+The existing status/reason results remain applicable. An after-hours assessment
+adds `price_basis: LAST_CLOSE` and a `recheck_at` at the next configured opening.
+The UI displays eligibility with a small dated closing-quote basis instead of
+closed/settling/recheck instructions. A closing-basis APPLICABLE expresses that
+the suggestion's price conditions are met against that closing observation.
+Pulse does not flag it as a live actionable trigger, and Detail does not claim
+that an execution session has arrived. MARKET_CLOSED and SESSION_SETTLING remain
+accepted legacy enum values but are no longer emitted by this evaluator.
 
-At opening, the normal identity, coverage, quote-quality, maximum age, price
-zone, path continuity and confirmation checks apply. Source observation must
-be at or after that session's effective open. A prior-session or pre-open quote
-cannot authorize entry, even after a successful fetch. There is no forced delay
-after opening when valid new evidence is already available.
+At opening, transient closing results, including OUTSIDE_ZONE, awaiting
+confirmation and unavailable evidence, expire through the existing client query
+coordinator even if generation IDs have not changed. Freshness OPEN also fences
+them out. A current quote observed at or after the effective opening must pass
+normal evaluation. The client validates the supplied closing quote against the
+same delivered age tolerance and close time. IndexedDB schema 7 retires older
+presentation payloads. Older clients continue to fence positive off-hours entry
+with their existing OPEN requirement until upgraded.
 
-The client renders supplied pause reasons with compact English/Bangla disclosures
-and last quote date. It uses the existing current-entry deadline/coordinator to
-expire paused assessments at `recheck_at`, including unchanged generation IDs.
-An OPEN freshness state also rejects a cached pause. IndexedDB schema 6 retires
-older stored assessments. Older backends retain existing behavior. Older clients
-that do not recognize the additive reason codes fall back to unverified entry.
-The canonical strategy and frozen historical experiment identities are unchanged.
+Session timing reuses weekday schedules and per-date opening overrides. This
+adds no official holiday calendar. Normal ingestion runs during the session and
+at the configured daily-finalization time. The evaluator uses the current stored
+quote; it does not reconstruct an older quote from the revision journal. If a
+newer out-of-window observation replaces a qualifying closing quote, eligibility
+becomes unverified. It never combines an old timestamp with a revised price.
+
+Verification includes the inclusive closing-window boundaries, evenings,
+weekends, pre-open and exact opening with earlier/default/later overrides, stop
+breach/expiry precedence, missing source timing, outside-zone results,
+confirmation and unchanged-generation cache retirement. Existing cross-endpoint
+tests cover universe, Signals, Stock Details and cached Pulse. Closing eligibility
+and dated English/Bangla wording are exercised with controlled evidence. The
+local backup's missing source timestamps cannot establish actual positive closing
+eligibility. Independent review found no remaining material code issue under the
+policy and recorded the latest-observation limitation above.
 
 
-Verification on November 12 used the isolated QA clone. The final backend suite
-passed 990 tests with 13 unconfigured Tax Planner persistence skips. All 478
-affected frontend tests, TypeScript and whitespace checks passed. Clock-controlled
-projection of actual FARCHEM backup rows produced QUOTE_UNUSABLE before close,
-SESSION_SETTLING at close, MARKET_CLOSED after the configured buffer and before
-opening, then QUOTE_UNUSABLE at opening with the old untimed quote. This is a
-current-policy clock simulation using the available publication, not historical
-point-in-time trading evidence. Fresh-observation permission was verified with
-controlled inputs, including just-before and exact earlier/default/later opens.
-Cross-endpoint regressions cover universe, signals, stock support and cached Pulse.
-Chrome Signals showed the paused entry and last quote date correctly in English
-and Bangla. Settlement and reopening were verified through controlled clocks and
-cache-deadline tests, rather than waiting for live exchange transitions.
-Independent closure found no remaining material issue in the reviewed scope.
+Final verification for this simplified policy passed 990 backend tests (13
+unconfigured Tax Planner persistence skips), 481 affected frontend tests,
+TypeScript and whitespace checks. Independent closure found no material code
+issue within the documented latest-observation policy. Local Chrome confirmed
+that no closed/settling instruction is shown; the untimed backup correctly stays
+unverified. A positive closing-based result was exercised with controlled
+source-time evidence rather than fabricated observation times in the database.

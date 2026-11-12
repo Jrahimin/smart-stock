@@ -102,7 +102,7 @@ def test_holiday_does_not_consume_expiry_or_permit_entry():
     thursday, sunday = date(2026, 11, 12), date(2026, 11, 15)
     # An actual session calendar omits Friday/Saturday and holidays.
     path = EntryPathFacts(sessions=(thursday,), completed_sessions=frozenset({thursday}), complete=True)
-    assert assess(plan=terms(expiry_sessions=2), path=path, market_open=False).reason_code == "MARKET_CLOSED"
+    assert assess(plan=terms(expiry_sessions=2), path=path, market_open=False).reason_code == "ENTRY_SESSION_PENDING"
     assert assess(plan=terms(expiry_sessions=1), path=path, market_open=False).reason_code == "PLAN_EXPIRED"
     assert sunday not in path.sessions
 
@@ -185,69 +185,59 @@ def test_provisional_close_cannot_confirm_breakout_but_completed_close_can():
     assert build_entry_path_facts(**arguments, completed_sessions=[DAY]).confirmed_on == DAY
 
 
-@pytest.mark.parametrize("clock,reason,recheck", [
-    ("2026-11-12T09:59:59+06:00", "MARKET_CLOSED", "2026-11-12T10:00:00+06:00"),
-    ("2026-11-12T10:00:00+06:00", None, None),
-    ("2026-11-12T14:59:59+06:00", None, None),
-    ("2026-11-12T15:00:00+06:00", "SESSION_SETTLING", "2026-11-12T15:15:00+06:00"),
-    ("2026-11-12T15:14:59+06:00", "SESSION_SETTLING", "2026-11-12T15:15:00+06:00"),
-    ("2026-11-12T15:15:00+06:00", "MARKET_CLOSED", "2026-11-15T10:00:00+06:00"),
-    ("2026-11-13T12:00:00+06:00", "MARKET_CLOSED", "2026-11-15T10:00:00+06:00"),
+@pytest.mark.parametrize("clock,day,deadline", [
+    ("2026-11-12T14:59:59+06:00", "2026-11-12", None),
+    ("2026-11-12T15:00:00+06:00", "2026-11-12", "2026-11-15T10:00:00+06:00"),
+    ("2026-11-12T22:00:00+06:00", "2026-11-12", "2026-11-15T10:00:00+06:00"),
+    ("2026-11-13T12:00:00+06:00", "2026-11-12", "2026-11-15T10:00:00+06:00"),
+    ("2026-11-15T09:59:59+06:00", "2026-11-12", "2026-11-15T10:00:00+06:00"),
+    ("2026-11-15T10:00:00+06:00", "2026-11-15", None),
 ])
-def test_entry_schedule_close_buffer_and_weekend_opening(clock, reason, recheck):
-    from app.jobs.market_session_schedule import entry_session_pause
+def test_quote_reference_session_survives_closed_hours(clock, day, deadline):
+    from app.jobs.market_session_schedule import entry_quote_session
     from app.core.core_config import Settings
-    result, deadline = entry_session_pause(datetime.fromisoformat(clock), Settings())
-    assert result == reason
-    assert (deadline.isoformat() if deadline else None) == recheck
+    opening, closing, recheck = entry_quote_session(datetime.fromisoformat(clock), Settings())
+    assert closing.date().isoformat() == day
+    assert (recheck.isoformat() if recheck else None) == deadline
 
 
-def test_closed_entry_defers_evidence_but_keeps_invalidation_and_expiry():
-    closed = dict(market_open=False, coverage_verified=False, quote=None)
-    assert assess(**closed).reason_code == "MARKET_CLOSED"
-    assert assess(price=95, **closed).reason_code == "STOP_BREACHED"
-    expired = EntryPathFacts(sessions=(DAY,), ended_sessions=frozenset({DAY}))
-    assert assess(plan=terms(expiry_sessions=1), path=expired, **closed).reason_code == "PLAN_EXPIRED"
-    assert assess(market_open=True, coverage_verified=False, quote=None).reason_code == "COVERAGE_UNKNOWN"
+@pytest.mark.parametrize("observed,usable", [("14:29:59",False),("14:30:00",True),("14:55:00",True),("15:30:00",True),("15:30:01",False)])
+def test_closing_quote_tolerance(observed, usable):
+    now = datetime.fromisoformat("2026-11-11T22:00:00+06:00")
+    close = now.replace(hour=15)
+    quote = DisplayQuoteRead(current_price=100, as_of_trade_date=DAY.isoformat(), observation_status="FINALIZED",
+        source_observed_at=datetime.fromisoformat(f"2026-11-11T{observed}+06:00"))
+    result = assess(now=now, market_open=False, session_close_at=close, quote=quote, recheck_at=now+timedelta(hours=12))
+    assert result.status == ("APPLICABLE" if usable else "UNVERIFIED")
+    assert result.price_basis == "LAST_CLOSE"
 
 
-def test_opening_requires_today_quote_and_completed_evidence():
-    now = datetime.fromisoformat("2026-11-12T10:00:00+06:00")
-    quote = DisplayQuoteRead(current_price=100, as_of_trade_date="2026-11-11",
-        observation_status="FINALIZED", source_observed_at=now-timedelta(hours=19))
+def test_closing_basis_keeps_plan_checks_and_rejects_missing_or_wrong_session():
+    now = datetime.fromisoformat("2026-11-13T12:00:00+06:00")
+    close = datetime.fromisoformat("2026-11-12T15:00:00+06:00")
     path = EntryPathFacts(sessions=(date(2026,11,12),), complete=True)
-    assert assess(now=now, path=path, quote=quote).reason_code == "QUOTE_UNUSABLE"
-    fresh = quote.model_copy(update={"as_of_trade_date":"2026-11-12", "source_observed_at":now, "observation_status":"PROVISIONAL"})
-    assert assess(now=now, path=path, quote=fresh).status == "APPLICABLE"
-    assert assess(now=now+timedelta(minutes=31), path=path, quote=fresh).reason_code == "QUOTE_UNUSABLE"
-
-
-@pytest.mark.parametrize("opening,clock,reason", [("09:00","09:30",None),("11:00","10:30","MARKET_CLOSED")])
-def test_entry_and_freshness_share_overridden_opening(opening, clock, reason):
-    from app.jobs.market_session_schedule import entry_session_pause, resolve_market_status
-    from app.core.core_config import Settings
-    config = Settings(market_session_open_overrides={"2026-11-12":opening})
-    now = datetime.fromisoformat(f"2026-11-12T{clock}:00+06:00")
-    pause, deadline = entry_session_pause(now, config)
-    assert pause == reason
-    assert (resolve_market_status(now, config).value == "OPEN") == (reason is None)
-    before = datetime.fromisoformat("2026-11-11T16:00:00+06:00")
-    assert entry_session_pause(before, config)[1].isoformat() == f"2026-11-12T{opening}:00+06:00"
-
-
-def test_entry_and_freshness_agree_at_the_exact_close():
-    from app.jobs.market_session_schedule import entry_session_pause, resolve_market_status
-    from app.core.core_config import Settings
-    now = datetime.fromisoformat("2026-11-12T15:00:00+06:00")
-    assert resolve_market_status(now, Settings()).value == "POST_CLOSE"
-    assert entry_session_pause(now, Settings())[0] == "SESSION_SETTLING"
+    quote = DisplayQuoteRead(current_price=100, as_of_trade_date="2026-11-12", observation_status="FINALIZED",source_observed_at=close)
+    args = dict(now=now, market_open=False, session_close_at=close, quote=quote,path=path)
+    assert assess(**args).status == "APPLICABLE"
+    assert assess(**{**args,"quote":quote.model_copy(update={"source_observed_at":None})}).reason_code == "QUOTE_UNUSABLE"
+    assert assess(**{**args,"quote":quote.model_copy(update={"as_of_trade_date":"2026-11-11"})}).reason_code == "QUOTE_UNUSABLE"
+    assert assess(**{**args,"quote":quote.model_copy(update={"current_price":105})}).reason_code == "ABOVE_ENTRY_ZONE"
+    assert assess(**{**args,"path":replace(path,reliable_lows=((close.date(),95),))}).reason_code == "STOP_BREACHED"
+    assert assess(**{**args,"path":replace(path,ended_sessions=frozenset({close.date()})),"plan":terms(expiry_sessions=1)}).reason_code == "PLAN_EXPIRED"
+    assert assess(**{**args,"path":replace(path,complete=False)}).reason_code == "PATH_INCOMPLETE"
+    assert assess(**{**args,"plan":terms(entry_timing="BREAKOUT",trigger_price=99)}).reason_code == "COMPLETED_BREAKOUT_REQUIRED"
 
 
 @pytest.mark.parametrize("opening", ["09:00", "10:00", "11:00"])
-def test_first_usable_quote_must_be_observed_at_or_after_effective_open(opening):
+def test_opening_rechecks_quote_with_effective_open(opening):
+    from app.jobs.market_session_schedule import entry_quote_session
+    from app.core.core_config import Settings
     now = datetime.fromisoformat(f"2026-11-12T{opening}:00+06:00")
-    quote = DisplayQuoteRead(current_price=100, as_of_trade_date="2026-11-12",
-        observation_status="PROVISIONAL", source_observed_at=now-timedelta(seconds=1))
-    path = EntryPathFacts(sessions=(date(2026,11,12),), complete=True)
-    assert assess(now=now, path=path, quote=quote, session_open_at=now).reason_code == "QUOTE_UNUSABLE"
-    assert assess(now=now, path=path, quote=quote.model_copy(update={"source_observed_at":now}), session_open_at=now).status == "APPLICABLE"
+    config = Settings(market_session_open_overrides={"2026-11-12":opening})
+    assert entry_quote_session(now-timedelta(hours=15),config)[2] == now
+    start,close,deadline = entry_quote_session(now,config)
+    assert start == now and deadline is None
+    quote = DisplayQuoteRead(current_price=100, as_of_trade_date="2026-11-12",observation_status="PROVISIONAL",source_observed_at=now-timedelta(seconds=1))
+    args = dict(now=now,path=EntryPathFacts(sessions=(now.date(),),complete=True),quote=quote,session_open_at=start)
+    assert assess(**args).reason_code == "QUOTE_UNUSABLE"
+    assert assess(**{**args,"quote":quote.model_copy(update={"source_observed_at":now})}).status == "APPLICABLE"

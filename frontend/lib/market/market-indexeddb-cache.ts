@@ -7,7 +7,7 @@ import {
 } from "@/lib/market/market-generation";
 
 /** Bump when market IndexedDB payload shape or validation rules change. */
-export const MARKET_INDEXEDDB_SCHEMA_VERSION = 6;
+export const MARKET_INDEXEDDB_SCHEMA_VERSION = 7;
 
 /** Local presentation revision; HTTP identity and other cache populations stay intact. */
 export function marketPresentationCacheKey(url: string): string {

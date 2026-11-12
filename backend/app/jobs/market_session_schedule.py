@@ -80,17 +80,19 @@ def resolve_market_status(now: datetime, settings: Settings) -> MarketSessionSta
     return MarketSessionStatus.POST_CLOSE
 
 
-def entry_session_pause(now: datetime, settings: Settings) -> tuple[str | None, datetime | None]:
-    """Read-side entry schedule; the daily sync time bounds closing settlement."""
+def entry_quote_session(now: datetime, settings: Settings) -> tuple[datetime, datetime, datetime | None]:
+    """Effective quote session and the deadline for an after-hours closing assessment."""
     moment = now.replace(tzinfo=DHAKA_TZ) if now.tzinfo is None else now.astimezone(DHAKA_TZ)
-    opening = _combine_date_time(moment.date(), session_open_time(moment.date(), settings))
-    closing = _combine_date_time(moment.date(), parse_hh_mm(settings.market_close_time))
-    if is_trading_weekday(moment.weekday()) and opening <= moment < closing:
-        return None, None
-    settlement = _combine_date_time(moment.date(), parse_hh_mm(settings.daily_market_sync_time))
-    if is_trading_weekday(moment.weekday()) and closing <= moment < settlement:
-        return "SESSION_SETTLING", settlement
-    return "MARKET_CLOSED", next_snapshot_sync_at(max(moment, closing + timedelta(microseconds=1)) if moment >= closing else moment, settings)
+    day = moment.date()
+    if resolve_market_status(moment, settings) != MarketSessionStatus.OPEN:
+        if moment < _combine_date_time(day, parse_hh_mm(settings.market_close_time)):
+            day -= timedelta(days=1)
+        while not is_trading_weekday(day.weekday()):
+            day -= timedelta(days=1)
+    opening = _combine_date_time(day, session_open_time(day, settings))
+    closing = _combine_date_time(day, parse_hh_mm(settings.market_close_time))
+    deadline = None if resolve_market_status(moment, settings) == MarketSessionStatus.OPEN else next_snapshot_sync_at(max(moment, closing + timedelta(microseconds=1)), settings)
+    return opening, closing, deadline
 
 
 def _align_to_interval(moment: datetime, interval_minutes: int) -> datetime:

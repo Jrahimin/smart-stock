@@ -153,18 +153,17 @@ describe("Pulse current-entry ownership", () => {
 });
 
 
-it.each(["MARKET_CLOSED", "SESSION_SETTLING"])("expires scheduled %s assessments without a generation change", reason => {
-  const data = entryWorkspace();
-  const deadline = ENTRY_NOW + 120_000;
-  Object.assign(data.decision_support.entry_applicability, { status: "AWAITING_CONFIRMATION", reason_code: reason,
-    recheck_at: new Date(deadline).toISOString() });
-  const closed = entryFreshness({ market_status: "POST_CLOSE" });
-  expect(fenceCurrentEntryPayload(data, closed, ENTRY_NOW).decision_support.entry_applicability?.reason_code).toBe(reason);
-  expect(earliestCurrentEntryDeadline(data, closed, ENTRY_NOW)).toBe(deadline);
-  expect(expiredCurrentEntryKeys(data, closed, deadline)).toHaveLength(1);
-  expect(fenceCurrentEntryPayload(data, closed, deadline).decision_support.entry_applicability).toBeNull();
-  expect(hasUnusablePositiveEntry(data, closed, deadline)).toBe(true);
-  expect(fenceCurrentEntryPayload(data, entryFreshness(), ENTRY_NOW).decision_support.entry_applicability).toBeNull();
+it("retains an eligible closing assessment overnight and expires it at opening", () => {
+  const data = entryWorkspace("2026-11-11T08:59:00Z",1800);
+  const now = Date.parse("2026-11-11T16:00:00Z");
+  const deadline = Date.parse("2026-11-12T04:00:00Z");
+  Object.assign(data.decision_support.entry_applicability, { price_basis:"LAST_CLOSE", assessed_at:new Date(now).toISOString(),recheck_at:new Date(deadline).toISOString() });
+  const closed = entryFreshness({market_status:"POST_CLOSE"});
+  expect(fenceCurrentEntryPayload(data,closed,now).decision_support.entry_applicability?.status).toBe("APPLICABLE");
+  expect(earliestCurrentEntryDeadline(data,closed,now)).toBe(deadline);
+  expect(expiredCurrentEntryKeys(data,closed,deadline)).toHaveLength(1);
+  expect(fenceCurrentEntryPayload(data,closed,deadline).decision_support.entry_applicability).toBeNull();
+  expect(fenceCurrentEntryPayload(data,entryFreshness(),now).decision_support.entry_applicability).toBeNull();
 });
 
 
@@ -173,4 +172,21 @@ it("requires an observation from the opened session, including an override", () 
   const time = Date.parse("2026-11-11T05:00:00Z");
   expect(fenceCurrentEntryPayload(data, entryFreshness({market_open_time:"11:00"}), time).decision_support.entry_applicability?.status).toBe("APPLICABLE");
   expect(fenceCurrentEntryPayload(data, entryFreshness({market_open_time:"11:01"}), time).decision_support.entry_applicability).toBeNull();
+});
+
+
+it.each(["OUTSIDE_ZONE", "AWAITING_CONFIRMATION", "UNVERIFIED"])("retires closing %s evidence at opening", status => {
+  const data = entryWorkspace(); const deadline = ENTRY_NOW + 120_000;
+  Object.assign(data.decision_support.entry_applicability, {status,price_basis:"LAST_CLOSE",recheck_at:new Date(deadline).toISOString()});
+  const closed = entryFreshness({market_status:"POST_CLOSE"});
+  expect(fenceCurrentEntryPayload(data,closed,ENTRY_NOW).decision_support.entry_applicability?.status).toBe(status);
+  expect(earliestCurrentEntryDeadline(data,closed,ENTRY_NOW)).toBe(deadline);
+  expect(fenceCurrentEntryPayload(data,closed,deadline).decision_support.entry_applicability).toBeNull();
+  expect(fenceCurrentEntryPayload(data,entryFreshness(),ENTRY_NOW).decision_support.entry_applicability).toBeNull();
+});
+
+it("rejects a closing approval paired with a morning quote", () => {
+  const data = entryWorkspace();
+  Object.assign(data.decision_support.entry_applicability,{price_basis:"LAST_CLOSE",recheck_at:new Date(ENTRY_NOW+120_000).toISOString()});
+  expect(fenceCurrentEntryPayload(data,entryFreshness({market_status:"POST_CLOSE"}),ENTRY_NOW).decision_support.entry_applicability).toBeNull();
 });

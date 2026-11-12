@@ -31,6 +31,7 @@ export type ScoreComponentDto = {
 };
 
 export type EntryApplicabilityDto = {
+  price_basis?: "CURRENT" | "LAST_CLOSE";
   recheck_at?: string | null;
   quote_timing_status?: "FETCH_ONLY" | "UNKNOWN" | null;
   batch_fetched_at?: string | null;

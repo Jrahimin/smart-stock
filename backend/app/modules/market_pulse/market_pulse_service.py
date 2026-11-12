@@ -297,7 +297,7 @@ def _to_focus_stock_read(row: PulsePresentationRow, rank: int) -> FocusStockRead
         controlling_reason=row.decision.primary_reason,
         decision_session_date=row.decision.canonical.as_of_date if row.decision.canonical else None,
         watch_level=row.snapshot.resistance,
-        actionable_trigger=bool(row.decision.entry_applicability and row.decision.entry_applicability.status == "APPLICABLE"),
+        actionable_trigger=bool(row.decision.entry_applicability and row.decision.entry_applicability.status == "APPLICABLE" and row.decision.entry_applicability.price_basis != "LAST_CLOSE"),
         entry_applicability=row.decision.entry_applicability,
         entry_risk_label=row.decision.trading_risk.label if row.decision.trading_risk else row.decision.risk_label,
         rank=rank,
@@ -803,7 +803,7 @@ class MarketPulseService:
                     "decision_taxonomy_version": row.decision.decision_taxonomy_version if row and row.decision else None,
                     "public_comparison": comparison,
                     "entry_applicability": applicability,
-                    "actionable_trigger": bool(applicability and applicability.status == "APPLICABLE"),
+                    "actionable_trigger": bool(applicability and applicability.status == "APPLICABLE" and applicability.price_basis != "LAST_CLOSE"),
                     "entry_risk_label": row.decision.trading_risk.label if row and row.decision and row.decision.trading_risk else None,
                 }))
             return result
