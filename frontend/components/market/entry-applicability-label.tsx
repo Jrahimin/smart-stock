@@ -25,7 +25,7 @@ export function EntryApplicabilityLabel({ assessment, locale = "en", copy: suppl
   const assessed = time(assessment?.assessed_at);
   const source = time(assessment?.source_observed_at);
   const closingBasis = assessment.price_basis === "LAST_CLOSE" && assessment.quote_session_date;
-  const basisLabel = closingBasis ? (bn ? `${shortTradeDate(assessment.quote_session_date, locale)}-এর সমাপনী দামের ভিত্তিতে` : `Based on the ${shortTradeDate(assessment.quote_session_date, locale)} closing quote`) : null;
+  const basisLabel = closingBasis ? (bn ? `সমাপনী দামের ভিত্তিতে · ${shortTradeDate(assessment.quote_session_date, locale)}` : `Based on the ${shortTradeDate(assessment.quote_session_date, locale)} closing quote`) : null;
   return <div className={`entry-applicability entry-applicability-${assessment.status.toLowerCase()}${["INVALIDATED", "EXPIRED"].includes(assessment.status) ? " entry-check-alert" : ""}`}>
     <strong aria-live={announce ? "polite" : undefined} aria-atomic={announce ? "true" : undefined}>{assessment ? copy.entryStatus[assessment.status] ?? copy.currentEntryUnverified : copy.currentEntryUnverified}</strong>
     {assessment ? <p>{assessment.reason_code === "ACTION_NOT_PERMITTED" && policyReason ? policyReason : assessment.status === "APPLICABLE" && assessed ? (basisLabel ?? copy.entryApplicableAt(assessed)) : copy.entryReason[assessment.reason_code] ?? copy.currentEntryUnverified}</p> : null}
