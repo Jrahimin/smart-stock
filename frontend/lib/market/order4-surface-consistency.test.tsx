@@ -30,6 +30,7 @@ vi.mock("@/features/market-dashboard/hooks/use-market-universe", () => ({ useMar
 vi.mock("@/features/watchlist/hooks/use-user-watchlist", () => ({ useUserWatchlist: () => ({ watchedStockIds: new Set(), holdingStockIds: new Set() }) }));
 vi.mock("@/features/watchlist/components/watchlist-star-toggle", () => ({ WatchlistStarToggle: () => null }));
 vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams(), useRouter: () => ({}), usePathname: () => "/signals" }));
+vi.mock("@/features/auth/context/auth-context", () => ({ useAuth: () => ({ isAuthenticated: false }) }));
 afterEach(cleanup);
 
 describe("increment2 common-fixture journey", () => {
@@ -99,7 +100,7 @@ describe("increment2 common-fixture journey", () => {
       volume_ratio: 1.8, volume_baseline: "PRIOR_20_SESSION_MEDIAN", volume_sample_count: 20 };
     const html = renderToStaticMarkup(<SmartSignalFeed locale={locale} signals={mapUniverseRowsToSignalFeed([row])} />);
     expect(html.match(/RSI 58.4/g)).toHaveLength(1);
-    expect(html).toContain("1.8×"); expect(html).toContain("20-session median");
+    expect(html).toContain(locale === "bn" ? "1.8 গুণ" : "1.8×"); expect(html).toContain(locale === "bn" ? "20 কার্যদিবস" : "20-session median");
     expect(html).not.toContain("RSI 55"); expect(html).not.toContain("average");
   });
   it.each(["en", "bn"].flatMap(locale => [true, false].map(hasLevel => ({ locale: locale as "en" | "bn", hasLevel }))))("retains one precise published trigger condition across the full journey ($locale, level=$hasLevel)", ({ locale, hasLevel }) => {
@@ -119,11 +120,11 @@ describe("increment2 common-fixture journey", () => {
     const focus = renderToStaticMarkup(<FocusStockCard stock={pulse.focusStocks[0]} copy={copy.focus} scoreCopy={copy.score} />);
     for (const html of [signals, scanner, dashboard, detail, focus]) {
       expect(html.includes("96.54")).toBe(hasLevel);
-      if (hasLevel) expect(html).toContain(locale === "en" ? "Trade Plan: close above 96.54 with volume confirmation" : "Trade Plan: 96.54-এর ওপরে close ও volume confirmation প্রয়োজন");
+      if (hasLevel) expect(html).toContain(locale === "en" ? "Trade Plan: close above 96.54 with volume confirmation" : "Trade Plan: দিনশেষে 96.54-এর ওপরে দর ও পর্যাপ্ত লেনদেনের নিশ্চয়তা প্রয়োজন");
       expect(html).not.toContain("Inside entry zone");
     }
     if (hasLevel) { expect(detail).toContain("Trigger 96.54"); expect(model.controllingReason).not.toContain("breakout"); }
-    expect(focus).toContain("Attention"); expect(focus).toContain("Opportunity 70/100");
+    expect(focus).toContain("Attention"); expect(focus).toContain(locale === "bn" ? "সম্ভাবনার স্কোর 70/100" : "Opportunity 70/100");
   });
   it("shows measured breadth populations and does not turn absent sector moves or one-bar mood into observations", () => {
     const facts = order4SurfaceFixture().pulse.coverage!.breadth!;
@@ -212,4 +213,20 @@ it("holder reason reuses the localized support-break code instead of a generic B
   const fixture = order4SurfaceFixture(); fixture.support.decision.holder_action = "REVIEW"; fixture.support.decision.primary_reason_code = "support_break";
   const model = withStockHolderInstruction(buildStockDecisionViewModel(fixture.support, "bn"), fixture.support, true);
   expect(model.holderInstruction?.reason).toBe("support ভেঙেছে। হোল্ডিংয়ের সুরক্ষা নির্দেশনা অনুসরণ করুন।");
+});
+
+
+it.each(["en", "bn"] as const)("labels filters and distinguishes signed-out lists from no market matches (%s)", locale => {
+  state.universe = [];
+  const client = new QueryClient(); const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  const signals = render(<SignalCenterView locale={locale} />, { wrapper });
+  expect(signals.getByRole("combobox", {name: "Decision filter"})).toBeTruthy();
+  expect(signals.getByRole("combobox", {name: "Risk filter"})).toBeTruthy();
+  expect(signals.getByRole("combobox", {name: "Sort results"})).toBeTruthy();
+  signals.unmount();
+  const scanner = render(<ScannerWorkspaceView locale={locale} />, { wrapper });
+  fireEvent.click(scanner.getByRole("button", {name: locale === "bn" ? "আমার নজরের তালিকা" : "My watchlist"}));
+  expect(scanner.container.querySelector(".empty-state[role=status]")!.textContent).toContain(locale === "bn" ? "আপনার তালিকা দেখতে সাইন ইন করুন" : "Sign in to view your personal list");
+  expect(scanner.container.querySelector(".scanner-category-grid")).toBeNull();
+  expect(scanner.getByRole("link", {name: locale === "bn" ? "সাইন ইন করুন" : "Sign in"}).getAttribute("href")).toBe("/login?redirect=/scanner");
 });

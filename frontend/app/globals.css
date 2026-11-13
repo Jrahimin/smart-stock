@@ -32535,3 +32535,17 @@ button {
 .pulse-attention-score-label { grid-column:1 / -1; color:var(--muted); font-size:0.65rem; line-height:1.2; text-align:center; }
 .terminal-shell-collapsed .terminal-sidebar nav a:not(.wealth-workspace-nav-tile) { height:auto; min-height:54px; }
 .terminal-shell-collapsed .terminal-sidebar nav a:not(.wealth-workspace-nav-tile) > span { white-space:normal; text-overflow:clip; overflow:visible; line-height:1.15; }
+
+/* Readable dated price provenance in narrow stock summary tiles. */
+@media (max-width: 639px) {
+  .stock-workspace-header .stock-header-metric-price small {
+    white-space: normal;
+    overflow: visible;
+    line-height: 1.45;
+    font-size: 0.75rem;
+    font-weight: 500;
+    margin-top: 4px;
+  }
+  .stock-workspace-header .stock-header-metric-price { min-height: 108px; }
+  .price-position-labels { gap: 8px; flex-wrap: wrap; }
+}

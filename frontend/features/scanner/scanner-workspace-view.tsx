@@ -8,6 +8,7 @@ import { controllingReasonLabel, selectedDecisionExplanation } from "@/lib/marke
 import { EntryApplicabilityLabel } from "@/components/market/entry-applicability-label";
 import Link from "next/link";
 import { shortTradeDate, commonTradeDate } from "@/lib/formatters/trader-formatters";
+import { useAuth } from "@/features/auth/context/auth-context";
 import { useMemo, useState } from "react";
 
 import { WorkspacePageHero } from "@/components/layout/workspace-page-hero";
@@ -44,6 +45,7 @@ type ScannerWorkspaceViewProps = {
 
 export function ScannerWorkspaceView({ locale = DEFAULT_LOCALE }: ScannerWorkspaceViewProps) {
   const language = getScannerLanguage(locale);
+  const { isAuthenticated } = useAuth();
   const advancedScanners = frontendConfig.features.advancedScanners;
   const { universe, isLoading, isError, isWarmingUp, decisionPublication } = useMarketUniverse({ stockLimit: 500 });
   const { watchedStockIds, holdingStockIds } = useUserWatchlist();
@@ -113,6 +115,7 @@ export function ScannerWorkspaceView({ locale = DEFAULT_LOCALE }: ScannerWorkspa
     ] satisfies ScannerCategoryView[];
   }, [advancedScanners, filteredUniverse]);
 
+  const needsAccount = watchlistFilter !== "ALL" && !isAuthenticated;
   const sharedDate = commonTradeDate(filteredUniverse.map((stock) => stock.decisionDate));
   return (
     <section className="scanner-workspace-view">
@@ -127,7 +130,7 @@ export function ScannerWorkspaceView({ locale = DEFAULT_LOCALE }: ScannerWorkspa
       >
         <div className="explorer-controls">
           <div className="explorer-controls-watchlist" role="group" aria-label={language.filters.watchlistAria}>
-            <select value={watchlistFilter} onChange={(event) => setWatchlistFilter(event.target.value as WatchlistFilterMode)}>
+            <select aria-label={language.filters.watchlistAria} value={watchlistFilter} onChange={(event) => setWatchlistFilter(event.target.value as WatchlistFilterMode)}>
               <option value="ALL">{language.filters.allStocks}</option>
               <option value="WATCHLISTED">{language.filters.watchlistedOnly}</option>
               <option value="NOT_WATCHLISTED">{language.filters.notWatchlisted}</option>
@@ -148,7 +151,12 @@ export function ScannerWorkspaceView({ locale = DEFAULT_LOCALE }: ScannerWorkspa
       <DecisionPublicationLabel decision={sharedDate ? { ...decisionPublication, decision_session_date: sharedDate } : decisionPublication} locale={locale} />
       {isError ? <div className="data-warning">{language.states.loadError}</div> : null}
       {isLoading ? <MarketActivityLoader label={language.states.loading} /> : null}
-      {!isLoading && !isWarmingUp ? (
+      {needsAccount ? <div className="empty-state empty-state-premium" role="status">
+        <strong>{locale === "bn" ? "আপনার তালিকা দেখতে সাইন ইন করুন" : "Sign in to view your personal list"}</strong>
+        <span>{locale === "bn" ? "নজরের তালিকা ও হোল্ডিং আপনার অ্যাকাউন্টের সঙ্গে যুক্ত।" : "Watchlists and holdings belong to your account."}</span>
+        <Link href="/login?redirect=/scanner">{locale === "bn" ? "সাইন ইন করুন" : "Sign in"}</Link>
+      </div> : null}
+      {!needsAccount && !isLoading && !isWarmingUp ? (
         <div className="scanner-category-grid">
           {categories.map((category) => {
             const copy = language.categories[category.id];
@@ -164,7 +172,7 @@ export function ScannerWorkspaceView({ locale = DEFAULT_LOCALE }: ScannerWorkspa
                   {category.items.length ? (
                     category.items.map((stock) => {
                       const decision = resolveTraderDecision(stock);
-                      const selected = selectedDecisionExplanation(stock.traderDecision, locale);
+                      const selected = selectedDecisionExplanation(stock.traderDecision, locale, stock.measuredFacts);
                       const policy = controllingReasonLabel(decision.reasonCode, "", locale);
 
                       return (

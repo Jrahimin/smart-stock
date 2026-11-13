@@ -17,16 +17,19 @@ export function evidenceLabel(status: string | null | undefined, locale: AppLoca
 }
 
 /** Formats the summary's chosen facts; does not select or score a different explanation. */
-export function selectedDecisionExplanation(decision: Pick<BackendTraderDecisionSummaryDto, "measured_support_component" | "opposing_component" | "opposing_constraint_code" | "primary_reason_code"> | null | undefined, locale: AppLocale) {
+export function selectedDecisionExplanation(decision: Pick<BackendTraderDecisionSummaryDto, "measured_support_component" | "opposing_component" | "opposing_constraint_code" | "primary_reason_code"> | null | undefined, locale: AppLocale, facts?: { resistance?: number | null; trigger_price?: number | null } | null) {
   const labels: Record<string, [string, string]> = { trend: ["Trend", "প্রবণতা"], momentum: ["Momentum", "momentum"], volume: ["Volume", "লেনদেনের পরিমাণ"], price_position: ["Price position", "দামের অবস্থান"], liquidity: ["Liquidity", "তারল্য"], risk_adjustment: ["Legacy risk adjustment", "পুরোনো ঝুঁকির সমন্বয়"] };
   const name = (key: string) => labels[key]?.[locale === "bn" ? 1 : 0] ?? (locale === "bn" ? "পরিমাপ করা উপাদান" : "Measured factor");
   const support = decision?.measured_support_component;
   const opposing = decision?.opposing_component;
+  const resistance = facts?.resistance;
+  const levelContext = opposing?.key === "price_position" && resistance != null && Number.isFinite(resistance)
+    ? (locale === "bn" ? ` প্রকাশিত resistance ${resistance.toFixed(2)}।` : ` Published resistance ${resistance.toFixed(2)}.`) : "";
   return {
     support: support ? (locale === "bn" ? `সবচেয়ে শক্ত দিক: ${name(support.key)}।` : `Strongest factor: ${name(support.key).toLowerCase()}.`) : null,
     limitation: decision?.opposing_constraint_code && decision.opposing_constraint_code !== decision.primary_reason_code
       ? controllingReasonLabel(decision.opposing_constraint_code, locale === "bn" ? "প্রকাশিত সিদ্ধান্তে অতিরিক্ত সীমাবদ্ধতা রয়েছে।" : "An additional safety rule limits this setup.", locale)
-      : opposing ? (locale === "bn" ? `মূল সতর্কতা: ${name(opposing.key)}।` : `Main concern: ${name(opposing.key).toLowerCase()}.`) : null,
+      : opposing ? (locale === "bn" ? `দুর্বল দিক: ${name(opposing.key)} (${opposing.score}/100)।${levelContext}` : `Weaker factor: ${name(opposing.key).toLowerCase()} (${opposing.score}/100).${levelContext}`) : null,
   };
 }
 
@@ -48,7 +51,7 @@ export function controllingReasonLabel(code: string | null | undefined, fallback
     bullish_setup_continuation: ["The dated plan follows a confirmed breakout; monitor its published management conditions.", "প্রকাশিত পরিকল্পনা নিশ্চিত breakout অনুসরণ করে; প্রকাশিত ব্যবস্থাপনার শর্ত নজরে রাখুন।"],
     bearish_market_regime: ["The dated market regime limits new long exposure.", "প্রকাশিত বাজারের অবস্থা নতুন long অবস্থান সীমিত করে।"],
     support_break: ["The dated analysis observed a support break.", "প্রকাশিত বিশ্লেষণে support ভাঙতে দেখা গেছে।"],
-    lower_structure: ["Lower highs and lower lows limit a fresh entry.", "ক্রমে কম সর্বোচ্চ ও সর্বনিম্ন দরের কারণে নতুন entry সীমিত।"],
+    lower_structure: ["Price structure shows lower highs and lower lows; the trend indicator measures direction separately.", "দামের শীর্ষ ও তলানি ক্রমে নিচে নামছে; প্রবণতার সূচক দিকনির্দেশ আলাদাভাবে মাপে।"],
     fresh_entry_risk_block: ["Published trading risk or tradability blocks a fresh entry.", "প্রকাশিত trading ঝুঁকি বা লেনদেনের সীমার কারণে নতুন entry বন্ধ।"],
     bullish_setup_downgraded: ["The setup looks good, but one safety rule says wait.", "অনুকূল সংকেত থাকলেও প্রকাশিত সীমাবদ্ধতার কারণে নতুন entry বন্ধ।"],
     bullish_setup_ready: ["The dated evidence supports the plan; see the checked entry assessment.", "প্রকাশিত তথ্য পরিকল্পনাকে সমর্থন করে; entry-এর যাচাই দেখুন।"],

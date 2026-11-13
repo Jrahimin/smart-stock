@@ -11,9 +11,9 @@ const language = {
   },
   bn: {
     holding: "বর্তমান হোল্ডিংয়ের জন্য", publicAction: "প্রকাশিত সাধারণ অ্যাকশন", adding: "এই পজিশনে আরও যোগ করার ক্ষেত্রে", sourceDetails: "প্রকাশিত তথ্যের বিস্তারিত",
-    medianVolume: (ratio: string) => `Volume ${ratio}× আগের 20-session median`,
+    medianVolume: (ratio: string) => `লেনদেন আগের 20 কার্যদিবসের মধ্যকের ${ratio} গুণ`,
     publishedTrigger: (price: string) => `${price} নজরে রাখুন · Trade Plan-এর সঙ্গে মিলিয়ে নিন`,
-    pendingTrigger: (price: string) => `Trade Plan: ${price}-এর ওপরে close ও volume confirmation প্রয়োজন`,
+    pendingTrigger: (price: string) => `Trade Plan: দিনশেষে ${price}-এর ওপরে দর ও পর্যাপ্ত লেনদেনের নিশ্চয়তা প্রয়োজন`,
     excludedSectors: (count: number) => `${count}টি sector বাদ: পর্যাপ্ত তুলনাযোগ্য তথ্য নেই`,
     noAdvancingSector: "কোনো sector-এর দাম বাড়েনি", sectorUnavailable: "Sector-এর তুলনার তথ্য নেই",
   },

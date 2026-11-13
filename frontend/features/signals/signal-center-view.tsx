@@ -93,18 +93,18 @@ export function SignalCenterView({ locale = DEFAULT_LOCALE }: SignalCenterViewPr
         title={language.hero.title}
       >
         <div className="explorer-controls">
-          <select value={filter} onChange={(event) => setFilter(event.target.value)}>
+          <select aria-label="Decision filter" value={filter} onChange={(event) => setFilter(event.target.value)}>
             <option value="ALL">{language.filters.allActions}</option>
             {(["POTENTIAL_BUY", "WAIT", "HOLD", "SELL"] as const).map(action => <option key={action} value={action}>{getSignalActionLabel(action, locale)}</option>)}
           </select>
-          <select value={riskFilter} onChange={(event) => setRiskFilter(event.target.value)}>
+          <select aria-label="Risk filter" value={riskFilter} onChange={(event) => setRiskFilter(event.target.value)}>
             <option value="ALL">{language.filters.allRisk}</option>
             <option value="LOW">{language.filters.lowRisk}</option>
             <option value="MEDIUM">{language.filters.mediumRisk}</option>
             <option value="HIGH">{language.filters.highRisk}</option>
             <option value="SPECULATIVE">{language.filters.speculative}</option>
           </select>
-          <select value={sortMode} onChange={(event) => setSortMode(event.target.value)}>
+          <select aria-label="Sort results" value={sortMode} onChange={(event) => setSortMode(event.target.value)}>
             <option value="CONVICTION">{locale === "bn" ? "নতুন entry-এর সেরা বাছাই" : "Entry shortlist"}</option>
             <option value="HOLDER_EXIT">{locale === "bn" ? "বর্তমান হোল্ডিংয়ের বিক্রির অগ্রাধিকার" : "Holder exit priority"}</option>
             <option value="NEWEST">{language.filters.newest}</option>
@@ -123,7 +123,7 @@ export function SignalCenterView({ locale = DEFAULT_LOCALE }: SignalCenterViewPr
           {signalRows.length ? (
             signalRows.slice(0, visibleCount).map((stock) => {
               const decision = resolveTraderDecision(stock);
-              const selected = selectedDecisionExplanation(stock.traderDecision, locale);
+              const selected = selectedDecisionExplanation(stock.traderDecision, locale, stock.measuredFacts);
               const policy = controllingReasonLabel(decision.reasonCode, "", locale);
 
               return (

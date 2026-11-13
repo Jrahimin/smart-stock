@@ -283,7 +283,7 @@ export function StockDetailWorkspaceView({
 
           <StockResearchSection divided id="technicals" showHeader title={language.sections.technicals.label}>
             <BreakoutAnalysisCard copy={language.panels} decision={decisionModel} />
-            <PricePositionPanel copy={language.panels} decision={decisionModel} />
+            <PricePositionPanel copy={language.panels} decision={decisionModel} locale={locale} />
             <TradePlanPanel copy={language.panels} decision={decisionModel} />
             <SmartWarningsPanel copy={language.panels} decision={decisionModel} />
             <TechnicalSummaryPanel copy={language.technicalSummary} model={model} />
