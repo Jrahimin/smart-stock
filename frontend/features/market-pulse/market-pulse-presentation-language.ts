@@ -35,7 +35,7 @@ const language = {
   bn: {
     status: { OPEN: "লেনদেন চলছে", PRE_OPEN: "লেনদেন শুরুর আগে", POST_CLOSE: "লেনদেন শেষে", HOLIDAY: "বাজার বন্ধ" },
     statusUnavailable: "সেশনের অবস্থা জানা যায়নি", analysis: "বিশ্লেষণ", analysisAndClose: "বিশ্লেষণ ও closing price", closingPrice: "Closing price",
-    forNewBuyers: "নতুন ক্রেতার জন্য", nextTrigger: "সেটআপের পরের শর্ত",
+    forNewBuyers: "নতুন ক্রেতার জন্য", nextTrigger: "Entry condition",
     watch: (level: string) => `Watch level ${level} · confirmation প্রয়োজন`,
     fallbackReason: "প্রকাশিত setup ও বর্তমান বাধা পর্যালোচনা করুন।",
     trendEvidence: (trend: string) => `প্রকাশিত trend: ${trend}`,
@@ -56,7 +56,7 @@ const language = {
       "sector-rotation": (metric: string) => `${metric}। এটি নির্বাচিত এগোনো শেয়ারের চিত্র।`,
       "pulse-score-jump": (metric: string) => `Attention score-এর পরিবর্তন: ${metric}।`,
     },
-    sessionAlert: "Session alert", alertAdvice: "Entry-এর আগে বর্তমান price check ও Trade Plan দেখুন।",
+    sessionAlert: "Session alert", alertAdvice: "Entry-এর আগে বর্তমান দাম ও Trade Plan মিলিয়ে নিন।",
     earlierPrices: (quoteDate: string, analysisDate: string) => `${quoteDate}-এর দাম দেখানো হচ্ছে; আজকের দাম আসেনি। বিশ্লেষণ ${analysisDate}।`,
     priceReview: "কিছু দামের তথ্য যাচাই করা দরকার। Entry-এর আগে source details দেখুন।",
     dimensions: { sentiment: "Sentiment", participation: "লেনদেনে অংশগ্রহণ", momentum: "Uptrend-এ থাকা শেয়ার", leadership: "Sector leadership" },

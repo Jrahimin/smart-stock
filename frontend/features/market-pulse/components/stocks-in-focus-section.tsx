@@ -49,13 +49,15 @@ export function FocusStockCard({ stock, copy, scoreCopy, sharedDecisionDate, sha
         {stock.controllingReason && (!condition || !isDatedPlanGuidance(stock.controllingReasonCode)) ? <small>{stock.controllingReason}</small> : null}
       </div>
       {condition ? <div className="pulse-next-trigger"><small>{language.nextTrigger}</small><strong>{condition}</strong></div> : null}
-      <MeasuredDecisionFacts facts={stock.measuredFacts} locale={stock.locale ?? "en"} ratings />
-      <span className={`pulse-focus-label-badge pulse-focus-label-badge-${stock.labelTone}`}>{copy.label(stock.focusLabel)}</span>
+      <div className="pulse-focus-evidence">
+        <MeasuredDecisionFacts facts={stock.measuredFacts} locale={stock.locale ?? "en"} ratings />
+      </div>
+      {stock.focusLabel !== "Potential Buy Setup" ? <span className={`pulse-focus-label-badge pulse-focus-label-badge-${stock.labelTone}`}>{copy.label(stock.focusLabel)}</span> : null}
       {stock.whyHere.length > 0 && <div className="pulse-focus-why-block">
         <span className="pulse-focus-why-label">{copy.whySelected}</span>
         <ul className="pulse-focus-reasons">{stock.whyHere.map((reason) => <li key={reason}>{reason}</li>)}</ul>
       </div>}
-      <small>{scoreCopy.tradingRisk}: {riskValueLabel(stock.entryRiskLabel, stock.locale ?? "en")}</small>
+      <small className="pulse-focus-risk">{scoreCopy.tradingRisk}: <strong>{riskValueLabel(stock.entryRiskLabel, stock.locale ?? "en")}</strong></small>
       {stock.watchLevel != null && !condition ? <small>{copy.watchLevel}: {stock.watchLevel.toFixed(2)}</small> : null}
 
       <div className="pulse-focus-card-footer">
@@ -65,7 +67,7 @@ export function FocusStockCard({ stock, copy, scoreCopy, sharedDecisionDate, sha
           <span className={`pulse-focus-change pulse-focus-change-${stock.priceTone}`}>{stock.priceChangePercent}</span>
         </div>
         <MiniSparkline points={stock.sparklinePoints} tone={stock.priceTone} />
-        <Link className="pulse-focus-detail-link" href={stock.href}>{stock.locale === "bn" ? "বিস্তারিত" : "Detail"} →</Link>
+        <Link aria-label={stock.locale === "bn" ? `${stock.symbol}-এর বিস্তারিত দেখুন` : `View ${stock.symbol} details`} className="pulse-focus-detail-link" href={stock.href}>{stock.locale === "bn" ? "বিস্তারিত" : "Detail"} →</Link>
       </div>
     </article>
   );

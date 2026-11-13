@@ -24,6 +24,7 @@ const state = vi.hoisted(() => ({ universe: [] as unknown[], decisionPublication
 vi.mock("@/features/market-dashboard/hooks/use-market-universe", () => ({
   useMarketUniverse: () => ({ ...state, listedStockCount: 1, loadedPriceCount: 1 }),
 }));
+vi.mock("@/features/auth/context/auth-context", () => ({ useAuth: () => ({ isAuthenticated: false }) }));
 vi.mock("@/features/watchlist/hooks/use-user-watchlist", () => ({
   useUserWatchlist: () => ({ watchedStockIds: new Set(), holdingStockIds: new Set() }),
 }));
@@ -107,9 +108,9 @@ it.each([
   expect(smartSignals).toContain(shortTradeDate(finalDate, locale));
 });
 
-it.each(["en", "bn"] as const)("shows three finalized signals in source order with the full entry condition (%s)", (locale) => {
+it.each(["en", "bn"] as const)("shows five finalized signals in source order with the full entry condition (%s)", (locale) => {
   const finalDate = "2026-11-02";
-  const symbols = ["ZZZ", "AAA", "BBB", "CCC"];
+  const symbols = ["ZZZ", "AAA", "BBB", "CCC", "DDD", "EEE"];
   const signals = mapDashboardSignalsDto({
     session_trade_date: finalDate,
     evaluated_count: symbols.length,
@@ -123,7 +124,7 @@ it.each(["en", "bn"] as const)("shows three finalized signals in source order wi
     signals={signals.map((signal) => ({ ...signal, technicalContext: { rsi: 52.6, volumeRatio: 1.4 } }))}
     decision={{ decision_status: "CURRENT", decision_session_date: finalDate }} />);
 
-  expect(markup.match(/\/stocks\/DSE\/\w+/g)).toEqual(["/stocks/DSE/ZZZ", "/stocks/DSE/AAA", "/stocks/DSE/BBB"]);
+  expect(markup.match(/\/stocks\/DSE\/\w+/g)).toEqual(["/stocks/DSE/ZZZ", "/stocks/DSE/AAA", "/stocks/DSE/BBB", "/stocks/DSE/CCC", "/stocks/DSE/DDD"]);
   expect(markup.split(shortTradeDate(finalDate, locale))).toHaveLength(2);
   expect(markup).toContain(locale === "bn" ? "দাম এমন সীমা পেরোলে যাতে শর্ত আর খাটে না" : "price crosses the level that invalidates the setup");
   expect(markup).toMatch(/sw-signal-evidence">[^<]*52\.6[^<]*1\.4/);

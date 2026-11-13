@@ -29,7 +29,7 @@ describe("increment2 repair card clarity", () => {
       expect(stock.measuredFacts?.volume_ratio).toBe(2);
       const copy = getMarketPulseLanguage(locale);
       const html = renderToStaticMarkup(<FocusStockCard stock={stock} copy={copy.focus} scoreCopy={copy.score} />);
-      expect(html).toContain("Volume 2×"); expect(html).toContain("20-session median");
+      expect(html).toContain(locale === "bn" ? "2 গুণ" : "Volume 2×"); expect(html).toContain(locale === "bn" ? "20 কার্যদিবস" : "20-session median");
     }
     for (const stock of [...pulse.focus_stocks, ...pulse.monitor_candidates]) stock.public_comparison = { status: "CHANGED", previous_action: "WAIT", current_action: "POTENTIAL_BUY", previous_session_date: "2026-11-09" };
     model = buildMarketPulseViewModel(pulse, locale);
@@ -61,7 +61,7 @@ describe("increment2 repair card clarity", () => {
       fireEvent.blur(button, { relatedTarget: link }); expect(panel.hidden).toBe(true);
       expect(card.textContent).toContain(locale === "bn" ? "জল্পনামূলক" : "Speculative");
       expect(card.textContent).not.toContain("SPECULATIVE");
-      if (locale === "bn") expect(card.textContent).toContain("কেনার সম্ভাব্য সেটআপ");
+      expect(link.getAttribute("aria-label")).toContain("TEST");
     }
   });
   it.each(["en", "bn"] as const)("distinguishes two stocks with the same focus category from structured facts (%s)", locale => {
@@ -72,10 +72,10 @@ describe("increment2 repair card clarity", () => {
     const stocks = buildMarketPulseViewModel(pulse, locale).focusStocks;
     const copy = getMarketPulseLanguage(locale);
     const html = stocks.map(stock => renderToStaticMarkup(<FocusStockCard stock={stock} copy={copy.focus} scoreCopy={copy.score} />));
-    expect(html[0]).toContain("1.6×"); expect(html[1]).toContain("0.7×");
-    expect(html[0]).toContain("uptrend"); expect(html[1]).toContain("downtrend");
+    expect(html[0]).toContain(locale === "bn" ? "1.6 গুণ" : "1.6×"); expect(html[1]).toContain(locale === "bn" ? "0.7 গুণ" : "0.7×");
+    expect(html[0]).toContain(locale === "bn" ? "ঊর্ধ্বমুখী" : "uptrend"); expect(html[1]).toContain(locale === "bn" ? "নিম্নমুখী" : "downtrend");
     for (const markup of html) expect(markup).not.toContain("pulse-focus-why-block");
-    expect(html[0].match(/Volume 1.6×/g)).toHaveLength(1);
+    expect(html[0].match(locale === "bn" ? /1.6 গুণ/g : /Volume 1.6×/g)).toHaveLength(1);
   });
   it("renders leadership by kind when only independently measured volume survives", () => {
     const copy = getMarketPulseLanguage("en");

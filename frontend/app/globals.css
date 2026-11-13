@@ -32549,3 +32549,53 @@ button {
   .stock-workspace-header .stock-header-metric-price { min-height: 108px; }
   .price-position-labels { gap: 8px; flex-wrap: wrap; }
 }
+
+/* Compact Dashboard signal facts without changing other decision surfaces. */
+.sw-signals .measured-decision-facts {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 3px 7px;
+  border-radius: 6px;
+  background: var(--surface-muted, rgba(93, 125, 174, 0.1));
+  color: var(--text, inherit);
+  font-weight: 600;
+  line-height: 1.4;
+}
+.sw-signal-table tbody th, .sw-signal-table tbody td { padding-top: 8px; padding-bottom: 8px; }
+
+/* Pulse: clear hierarchy for decision, evidence and session alerts. */
+.pulse-focus-shell-card .pulse-focus-card {
+  background: linear-gradient(155deg, var(--panel), color-mix(in srgb, var(--panel) 94%, var(--primary) 6%));
+  gap: 10px;
+  padding: 16px;
+}
+.pulse-focus-conviction { border-radius: 10px; padding: 10px 12px; }
+.pulse-next-trigger { border-top: 0; border-radius: 10px; padding: 10px 12px; background: color-mix(in srgb, var(--primary) 6%, var(--panel)); }
+.pulse-next-trigger small { color: var(--muted); font-weight: 700; }
+.pulse-next-trigger strong { display: block; margin-top: 4px; line-height: 1.5; }
+.pulse-focus-evidence { display: grid; gap: 3px; padding: 9px 0; border-block: 1px solid var(--border); }
+.pulse-focus-evidence .measured-decision-facts { line-height: 1.5; }
+.pulse-focus-risk { color: var(--muted); }
+.pulse-focus-risk strong { color: var(--foreground); }
+.pulse-alerts-feed { gap: 8px; }
+.pulse-alerts-feed .pulse-alert-row, .pulse-alerts-feed .pulse-alert-row:first-child {
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--panel) 96%, var(--primary) 4%);
+  padding: 10px 12px;
+  transition: border-color .18s ease, background .18s ease;
+}
+.pulse-alerts-feed a.pulse-alert-row:hover, .pulse-alerts-feed a.pulse-alert-row:focus-visible {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--panel) 91%, var(--primary) 9%);
+}
+.pulse-alerts-feed .pulse-alert-content { gap: 5px; }
+.pulse-alerts-feed .pulse-alert-context { text-align: left; line-height: 1.45; }
+.pulse-alerts-feed .pulse-alert-priority { font-size: .65rem; padding: 4px 6px; }
+.pulse-alerts-feed .pulse-alert-time { font-size: .68rem; }
+
+/* The existing details link covers the card; disclosures stay independently interactive. */
+.pulse-focus-card { position: relative; }
+.pulse-focus-detail-link::after { content: ""; position: absolute; inset: 0; z-index: 1; }
+.pulse-focus-card .pulse-score-insight, .pulse-focus-card .entry-applicability-unverified { position: relative; z-index: 2; }
+.pulse-focus-card:has(.pulse-focus-detail-link:focus-visible) { outline: 2px solid var(--primary); outline-offset: 2px; }

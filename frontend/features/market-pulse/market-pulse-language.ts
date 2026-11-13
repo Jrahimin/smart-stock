@@ -609,7 +609,7 @@ const marketPulseLanguage = {
       whySelected: "কেন নজরে?",
       conviction: "সংকেতের শক্তি",
       nextTrigger: "পরের শর্ত",
-      label: (label) => ({ "Potential Buy Setup": "কেনার সম্ভাব্য সেটআপ", "New BUY Setup": "কেনার নতুন সেটআপ", "Momentum Building": "দামের গতি বাড়ছে", "Volume Breakout": "কেনাবেচা বেড়েছে", "Watch Closely": "নজরে রাখুন", "Signal Upgrade": "সংকেতের উন্নতি" })[label],
+      label: (label) => ({ "Potential Buy Setup": "কেনার সম্ভাব্য সেটআপ", "New BUY Setup": "কেনার নতুন সেটআপ", "Momentum Building": "Momentum Building", "Volume Breakout": "Volume Breakout", "Watch Closely": "Watch Closely", "Signal Upgrade": "Signal Upgrade" })[label],
       reason: (reason, focusLabel) => {
         const evidence =
           reason.match(
@@ -656,7 +656,7 @@ const marketPulseLanguage = {
         return reason;
       },
 
-      watchLevel: "নজরে রাখার দাম",
+      watchLevel: "Watch level",
       actionSummary: (summary) => {
         const copy: Record<string, string> = {
           "Volume expanding faster than price":
@@ -843,7 +843,7 @@ const marketPulseLanguage = {
       volumeExpansion: "Volume-এর অবদান পয়েন্ট",
       participationScore: "Trend + momentum পয়েন্ট",
       riskLevel: "Attention score থেকে কমেছে",
-      tradingRisk: "trading ঝুঁকি",
+      tradingRisk: "Trading risk",
       bandLabels: {
         strong: "শক্ত",
         moderate: "মাঝারি",

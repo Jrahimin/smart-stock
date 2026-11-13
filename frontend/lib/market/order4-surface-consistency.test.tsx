@@ -58,7 +58,7 @@ describe("increment2 common-fixture journey", () => {
     expect(dashboard).not.toContain(genericPlan);
     expect(dashboard).toContain(locale === "bn" ? "সবচেয়ে শক্ত দিক" : "Strongest factor");
     expect(scanner.indexOf(outside)).toBeLessThan(scanner.indexOf(locale === "bn" ? "খোঁজের কারণ" : "Discovery"));
-    expect(focus.indexOf(outside)).toBeLessThan(focus.indexOf("pulse-focus-label-badge"));
+    expect(focus.indexOf(outside)).toBeLessThan(focus.indexOf("pulse-focus-evidence"));
     expect(pulse.focusStocks[0].latestPrice).toBe("103"); expect(focus).toContain(shortTradeDate("2026-11-11", locale));
     expect(pulse.hero.sessionLabel).toContain(locale === "bn" ? "লেনদেন শুরুর আগে" : "Pre-open"); expect(pulse.hero.sessionLabel).toContain(shortTradeDate("2026-11-10", locale));
     expect(pulse.sessionDisablesRefresh).toBe(false);
@@ -229,4 +229,15 @@ it.each(["en", "bn"] as const)("labels filters and distinguishes signed-out list
   expect(scanner.container.querySelector(".empty-state[role=status]")!.textContent).toContain(locale === "bn" ? "আপনার তালিকা দেখতে সাইন ইন করুন" : "Sign in to view your personal list");
   expect(scanner.container.querySelector(".scanner-category-grid")).toBeNull();
   expect(scanner.getByRole("link", {name: locale === "bn" ? "সাইন ইন করুন" : "Sign in"}).getAttribute("href")).toBe("/login?redirect=/scanner");
+});
+
+
+it.each(["en", "bn"] as const)("hides only the requested unverified message on the Dashboard, retaining a price-zone blocker (%s)", locale => {
+  const { row } = order4SurfaceFixture();
+  const outside = renderToStaticMarkup(<SmartSignalFeed locale={locale} signals={mapUniverseRowsToSignalFeed([row])} />);
+  expect(outside).toContain(locale === "bn" ? "Entry zone-এর উপরে" : "Above entry zone");
+  const unverified = { ...row, entry_applicability: { status: "UNVERIFIED" as const, reason_code: "QUOTE_UNUSABLE" as const },
+    decision: { ...row.decision!, entry_applicability: { status: "UNVERIFIED" as const, reason_code: "QUOTE_UNUSABLE" as const } } };
+  const html = renderToStaticMarkup(<SmartSignalFeed locale={locale} signals={mapUniverseRowsToSignalFeed([unverified])} />);
+  expect(html).not.toContain(locale === "bn" ? "Entry-এর আগে broker-এর দাম মিলিয়ে নিন" : "Check live price before entry");
 });
