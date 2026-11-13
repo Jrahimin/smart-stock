@@ -437,7 +437,7 @@ const bn: PortfolioLanguage = {
 
   position: "পজিশন",
   market: "মার্কেট",
-  signal: "সিগন্যাল",
+  signal: "signal",
   notHeld: "কেনা নেই",
   markAsHolding: "হোল্ডিংয়ে যোগ করুন",
 
@@ -462,7 +462,7 @@ const bn: PortfolioLanguage = {
   edit: "এডিট",
 
   action: "অ্যাকশন",
-  trend: "ট্রেন্ড",
+  trend: "trend",
   stock: "শেয়ার",
   quantity: "শেয়ারের সংখ্যা",
   averagePrice: "গড় ক্রয়মূল্য",
@@ -589,7 +589,7 @@ const bn: PortfolioLanguage = {
   filterAttention: "যেগুলো দেখা দরকার",
 
   guidance: {
-    REVIEW_HOLDER_GUIDANCE: "প্রকাশিত হোল্ডার নির্দেশনা ও সীমাবদ্ধতা পর্যালোচনা করুন।",
+    REVIEW_HOLDER_GUIDANCE: "প্রকাশিত holder নির্দেশনা ও সীমাবদ্ধতা পর্যালোচনা করুন।",
     DATA_INCOMPLETE:
       "কিছু তথ্য এখনও বাকি। Quantity, average price বা market data পূরণ করুন।",
 
@@ -619,7 +619,7 @@ const bn: PortfolioLanguage = {
   },
 
   attentionLabels: {
-    HOLDER_REVIEW: "হোল্ডার নির্দেশনা পর্যালোচনা করুন",
+    HOLDER_REVIEW: "holder নির্দেশনা পর্যালোচনা করুন",
     SUPPORT_BREAK: "গুরুত্বপূর্ণ support ভেঙেছে",
     SELL_OR_REDUCE: "SELL বা REDUCE signal",
     PRICE_QUALITY: "দামের তথ্য পুরোপুরি পরিষ্কার নয়",

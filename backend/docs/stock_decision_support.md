@@ -417,3 +417,127 @@ issue within the documented latest-observation policy. Local Chrome confirmed
 that no closed/settling instruction is shown; the untimed backup correctly stays
 unverified. A positive closing-based result was exercised with controlled
 source-time evidence rather than fabricated observation times in the database.
+
+
+## Price-basis follow-up rollout
+
+See [API capability contract](api_collection.md#price-comparison-capability-phase-1-follow-up).
+`entry_contract=price-basis-v2` enables receipt-based `SNAPSHOT` comparisons and
+authoritative timestamp-free `LAST_CLOSE`. Legacy is the default until every
+frontend presenter/cache/expiry consumer supports the capability. New entry
+assessment remains a read-time overlay over the dated immutable thesis.
+
+`MARKET_SESSION_CLOSURES` is an explicit JSON array of ISO exchange closure dates,
+for example `["2026-11-12"]`. The existing open-time overrides still apply.
+Schedule silence is never promoted to a holiday. An ordinary scheduled weekday
+without its expected final publication withholds current eligibility; a traded
+pending session uses `SESSION_SETTLING`. At the exact scheduled reopening, an
+older close cannot remain an eligible current comparison.
+
+The operational logger is driven by existing market/universe cache rebuild jobs,
+not optional HTTP reads. It freezes the first successful rebuild during OPEN and
+the first after the expected final publication. Redis stores each fixed population
+snapshot for seven days across workers/restarts and reserves one combined
+`entry_applicability_daily` emission per exchange/session. Each instrument belongs
+to exactly one basis bucket at each observation; UNVERIFIED status takes precedence.
+The log reports population, actual assessment time, generation identities, top
+unavailable reasons and `open_observed`. Shared coordination failures and missing
+final publication emit explicit gap logs; no process-local count is substituted.
+No real open/final feed observations have been claimed by fixture tests.
+Observation key version 4 also reports `comparison_population` and a
+`NON_COMPARISON` bucket/reasons. Action/eligibility/plan blocks, dated invalidations,
+expiry and unassessed rows remain in the distinct-stock population but do not
+claim CURRENT/SNAPSHOT/LAST_CLOSE use. Only verified compared outcomes contribute
+to those three basis counts; UNVERIFIED still takes precedence over basis.
+
+Undated bulk rows cannot establish that an instrument traded in the requested
+session. Until an independent instrument/session provenance source is integrated,
+actual receipt-only bulk rows remain UNVERIFIED, including unchanged cross-day
+body replays. The SNAPSHOT evaluator is covered using explicitly verified fixtures;
+/Info's market-wide date, response Date, retrieval time and positive cumulative
+volume alone do not establish that provenance. Unchanged refreshes of an already
+verified same-session quote retain its provenance and use the actual receipt budget.
+
+Breakout confirmation now requires a finalized price-publication manifest and a
+valid traded row matching its immutable captured membership and source cutoff.
+A DSEX summary finalized before a failed manifest transaction cannot confirm a
+breakout. Calendar/expiry and the
+strategy's existing volume confirmation baseline stay separate.
+For v2, a permanent path breach also requires evidence for the instrument/session:
+a source-confirmed bar (or explicit independently verified session fixture), or
+an exact price version in the normal publisher's immutable membership capture in
+the existing source journal. The captured row set and cutoff come from one visible
+snapshot; LIVE-to-FINAL promotion retains those members, and decision-only revisions
+inherit their parent's price evidence. Transaction-start publication/update clocks
+cannot authenticate older versions. Historical manifests without a valid capture
+remain unattested. Missing predecessors, unknown operations and ambiguous journal
+ordering withhold positive path completeness; unproven lows cannot create a breach.
+A requested date, positive volume, receipt or journal write alone is insufficient.
+Genuine source/published lows survive later recovery and correction publications.
+Authenticated source history across the whole exchange supplies the shared path,
+ended-session and pending-session calendar, independently of requested stocks or
+candidate actions, even if mutable rows lose their source times. Lows and path
+completeness remain instrument scoped. An undated replay cannot manufacture
+SESSION_SETTLING.
+
+An ordinary v2 timestamp-free LAST_CLOSE requires the exact durable price manifest
+selected for the quote generation and a matching immutable captured price version.
+Unpublished mutable replacements are withheld even when their update time is below
+the shared cutoff, until an actual price publication admits them. A summary-only
+synthetic FINALIZED fallback remains available to legacy callers, but cannot
+authorize a v2 closing comparison.
+
+### Frontend capability and display rollout
+
+The web client explicitly requests `entry_contract=price-basis-v2` on the
+universe, Pulse and stock workspace GETs. These envelopes have the identity,
+quote evidence and mounted expiry owner required for the new comparison.
+Bare decision-support, latest-decision arrays, portfolio and watchlist requests
+retain legacy semantics; they must not opt in before adding the same coverage.
+The token is part of browser/SSR request URLs and the affected TanStack
+query keys. IndexedDB schema version 8 discards the prior payload validation
+shape, and capability query parameters partition persisted response keys.
+Other clients still receive the legacy contract unless they opt in.
+
+Dashboard, Pulse, Signals, Scanner and Stock Details use one entry assessment
+presenter. Dated invalidations remain visible. CURRENT uses its source clock;
+SNAPSHOT uses its actual receipt and verified instrument/session provenance;
+both positive and transient negative price comparisons expire within the existing
+coordinator, including tab resume and IndexedDB restore. A finalized LAST_CLOSE
+may omit the intraday clock and expires at its supplied next-opening boundary.
+Missing or unknown bases cannot become current entry permission or a Pulse trigger.
+Stock Details SSR also fences the workspace against separately loaded freshness.
+
+Cards consume nullable same-generation measured facts instead of deriving new
+strategy evidence. Dashboard shows up to two facts; shortlist cards add compact
+trend/opportunity context; the detail rail places up to three facts before its
+Opportunity and Risk rings and optional published details. The volume label
+explicitly uses the prior 20-session median. Signals ranks/filters the full loaded
+population before rendering 32 rows and expands in place by 32. Common date
+headers suppress only genuinely shared dates; independent quote dates and row
+exceptions remain visible. The detail rail uses page scrolling and sticks only
+when its measured height fits the viewport.
+An actual published trigger is retained as a numeric Trade Plan watch condition
+alongside compact RSI/volume facts, using the same two-decimal level across the
+journey. A watch condition does not grant entry permission. Pulse names its
+Attention score separately from the canonical Opportunity score, and derives
+stock-specific rationale from structured trend/volume/RSI facts. Dashboard and
+Pulse distinguish a measured session with no advancing sector from an unavailable
+comparison and disclose sectors excluded for insufficient comparable stock data.
+Sector SSR seeds, query identities, IndexedDB reuse and final delivered-body joins
+require matching quote and decision IDs with CURRENT status. A same-quote decision
+correction or withdrawal therefore suppresses an old leader immediately, including
+while a late request fails or returns the old body. Unrelated quote-only Dashboard
+sections retain their existing joins.
+
+Portfolio's dated holder instruction uses the same canonical action/reason mapping
+as Stock Details for SELL, HOLD, REVIEW and REDUCE. Account setup and what-next
+guidance remains separately labelled in a disclosure, rather than replacing the
+published holder reason. Rendered account rows and Detail parity are fixture tests,
+not evidence from a signed-in account.
+
+Local acceptance uses controlled verified SNAPSHOT inputs and finalized closing
+fixtures. The currently undated real bulk feed is still UNVERIFIED; the UI rollout
+does not establish live SNAPSHOT use. Holder reason/action parity is fixture-based,
+not evidence from a signed-in account. Local browser observations and independent
+review results are recorded separately from automated test results.

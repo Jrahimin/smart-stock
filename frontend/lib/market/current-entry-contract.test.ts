@@ -155,6 +155,7 @@ describe("Pulse current-entry ownership", () => {
 
 it("retains an eligible closing assessment overnight and expires it at opening", () => {
   const data = entryWorkspace("2026-11-11T08:59:00Z",1800);
+  data.display_metrics.observation_status = "FINALIZED";
   const now = Date.parse("2026-11-11T16:00:00Z");
   const deadline = Date.parse("2026-11-12T04:00:00Z");
   Object.assign(data.decision_support.entry_applicability, { price_basis:"LAST_CLOSE", assessed_at:new Date(now).toISOString(),recheck_at:new Date(deadline).toISOString() });
@@ -176,13 +177,15 @@ it("requires an observation from the opened session, including an override", () 
 
 
 it.each(["OUTSIDE_ZONE", "AWAITING_CONFIRMATION", "UNVERIFIED"])("retires closing %s evidence at opening", status => {
-  const data = entryWorkspace(); const deadline = ENTRY_NOW + 120_000;
-  Object.assign(data.decision_support.entry_applicability, {status,price_basis:"LAST_CLOSE",recheck_at:new Date(deadline).toISOString()});
+  const now = Date.parse("2026-11-11T10:00:00Z");
+  const data = entryWorkspace("2026-11-11T08:59:00Z", 1800); const deadline = Date.parse("2026-11-12T04:00:00Z");
+  data.display_metrics.observation_status = "FINALIZED";
+  Object.assign(data.decision_support.entry_applicability, {status,price_basis:"LAST_CLOSE",assessed_at:new Date(now).toISOString(),recheck_at:new Date(deadline).toISOString()});
   const closed = entryFreshness({market_status:"POST_CLOSE"});
-  expect(fenceCurrentEntryPayload(data,closed,ENTRY_NOW).decision_support.entry_applicability?.status).toBe(status);
-  expect(earliestCurrentEntryDeadline(data,closed,ENTRY_NOW)).toBe(deadline);
+  expect(fenceCurrentEntryPayload(data,closed,now).decision_support.entry_applicability?.status).toBe(status);
+  expect(earliestCurrentEntryDeadline(data,closed,now)).toBe(deadline);
   expect(fenceCurrentEntryPayload(data,closed,deadline).decision_support.entry_applicability).toBeNull();
-  expect(fenceCurrentEntryPayload(data,entryFreshness(),ENTRY_NOW).decision_support.entry_applicability).toBeNull();
+  expect(fenceCurrentEntryPayload(data,entryFreshness(),now).decision_support.entry_applicability).toBeNull();
 });
 
 it("rejects a closing approval paired with a morning quote", () => {

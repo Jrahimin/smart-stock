@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends
 
 from app.core.pagination import PaginationParams, get_pagination_params
 from app.core.response_handler import ApiResponse, success_response
+from app.modules.stock_details.decision.entry_contract import use_entry_contract
 from app.modules.watchlists.watchlists_schemas import (
     UserWatchlistCreate,
     UserWatchlistRead,
@@ -14,7 +15,7 @@ from app.modules.watchlists.watchlists_schemas import (
 )
 from app.modules.watchlists.watchlists_service import WatchlistsService, get_watchlists_service
 
-router = APIRouter(prefix="/watchlist", tags=["watchlist"])
+router = APIRouter(dependencies=[Depends(use_entry_contract)], prefix="/watchlist", tags=["watchlist"])
 
 
 @router.get("/items", response_model=ApiResponse[list[UserWatchlistRead]])

@@ -13,8 +13,7 @@ import {
 import { useMarketCacheRefresh } from "@/hooks/market/use-market-cache-coordinator";
 import type { ExchangeCode } from "@/lib/api/backend-api-types";
 import type { AppLocale } from "@/lib/locale/app-locale";
-
-const sessionBn = { PRE_OPEN: "লেনদেন শুরুর আগে", OPEN: "লেনদেন চলছে", POST_CLOSE: "লেনদেন শেষে", HOLIDAY: "বাজার বন্ধ" } as const;
+import { getTerminalCopy } from "@/features/market-dashboard/terminal-copy";
 
 function localizeRelativeTime(relative: string) {
   if (relative === "just now") return "এইমাত্র";
@@ -48,7 +47,8 @@ function buildFreshnessTooltip(
   locale?: AppLocale,
 ) {
   const bn = locale === "bn";
-  const session = bn && model.raw ? sessionBn[model.raw.market_status] : model.sessionLabel;
+  const sessionCopy = getTerminalCopy(locale ?? "en");
+  const session = model.raw ? { OPEN: sessionCopy.open, PRE_OPEN: sessionCopy.preOpen, POST_CLOSE: sessionCopy.postClose, HOLIDAY: sessionCopy.closed }[model.raw.market_status] : model.sessionLabel;
   const parts = [
     model.lastUpdatedLabel ? labels.synced(model.lastUpdatedLabel) : null,
     bn ? null : model.freshnessLabel,

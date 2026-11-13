@@ -65,7 +65,7 @@ function sessionFromFreshness(freshness: BackendMarketFreshnessDto): MarketSessi
   return {
     state: status,
     label: SESSION_LABELS[status],
-    description: freshness.freshness_label || SESSION_DESCRIPTIONS[status],
+    description: status === "HOLIDAY" ? "Market closed; showing the latest stored session." : freshness.freshness_label || SESSION_DESCRIPTIONS[status],
     shouldPoll,
     pollingIntervalMs: shouldPoll ? pollingMs : false,
     disablesFreshDataActions: status === "PRE_OPEN" || status === "HOLIDAY",
@@ -86,7 +86,7 @@ export function getMarketSession(input: MarketSessionInput = {}): MarketSessionM
     };
   }
 
-  if (input.dataQualityFlag === "PARTIAL" || input.dataQualityFlag === "SUSPICIOUS") {
+  if (!input.freshness && (input.dataQualityFlag === "PARTIAL" || input.dataQualityFlag === "SUSPICIOUS")) {
     return {
       state: "PARTIAL",
       label: input.dataQualityFlag === "SUSPICIOUS" ? "Source Check" : "Partial",
@@ -98,10 +98,7 @@ export function getMarketSession(input: MarketSessionInput = {}): MarketSessionM
   }
 
   if (input.freshness) {
-    const fromApi = sessionFromFreshness(input.freshness);
-    if (!isLikelyStale(input.latestTradeDate ?? input.freshness.trade_date, now)) {
-      return fromApi;
-    }
+    return sessionFromFreshness(input.freshness);
   }
 
   if (isLikelyStale(input.latestTradeDate, now)) {

@@ -1,5 +1,7 @@
 "use client";
 
+import { PRICE_BASIS_CONTRACT } from "@/lib/market/entry-contract-capability";
+
 import { freshnessGenerationToken } from "@/lib/market/market-generation";
 import { useCurrentEntryBoundary } from "@/hooks/market/use-current-entry-boundary";
 import { useMemo } from "react";
@@ -41,7 +43,7 @@ export function useMarketUniverse(options: UseMarketUniverseOptions = {}) {
   const generation = freshnessGenerationToken(freshnessQuery.data) ?? "unavailable";
 
   const universeQuery = useQuery({
-    queryKey: ["market-universe-rows", "DSE", stockLimit, generation],
+    queryKey: ["market-universe-rows", PRICE_BASIS_CONTRACT, "DSE", stockLimit, generation],
     queryFn: ({ queryKey }) => listUniverseRows("DSE", freshnessGenerationToken(freshnessQuery.data), queryClient.getQueryData(queryKey) !== undefined),
     staleTime: cacheMs,
     refetchInterval,
@@ -52,7 +54,7 @@ export function useMarketUniverse(options: UseMarketUniverseOptions = {}) {
     universeQuery.error ?? universeQuery.failureReason,
   );
 
-  const currentData = useCurrentEntryBoundary(universeQuery.data, freshnessQuery.isError ? undefined : freshnessQuery.data, ["market-universe-rows", "DSE", stockLimit, generation]);
+  const currentData = useCurrentEntryBoundary(universeQuery.data, freshnessQuery.isError ? undefined : freshnessQuery.data, ["market-universe-rows", PRICE_BASIS_CONTRACT, "DSE", stockLimit, generation]);
   const rows = currentData?.rows ?? EMPTY_UNIVERSE_ROWS;
   const stocks = useMemo(() => rows.map((row) => row.stock), [rows]);
 

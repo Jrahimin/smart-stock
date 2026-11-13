@@ -1,5 +1,8 @@
+import { getPulsePresentationLanguage } from "@/features/market-pulse/market-pulse-presentation-language";
+import { getTraderJourneyLanguage } from "@/lib/market/trader-journey-language";
+import { formatNumber, formatPercent } from "@/lib/formatters/financial-formatters";
 import { compatibleDisplayAction } from "@/lib/market/decision-action-compatibility";
-import { breadthCoverageLabel } from "@/lib/market/breadth-presentation";
+import { breadthCoverageLabel, breadthDefinition } from "@/lib/market/breadth-presentation";
 import { controllingReasonLabel, readinessLabel } from "@/lib/market/decision-presentation";
 import type { BackendMarketPulseDto, BackendFocusStockDto, BackendMarketMoverDto, BackendMarketBriefingDto, PulseStoryHeadlineCode } from "@/lib/api/backend-api-types";
 import { getMarketSession } from "@/lib/market/market-session-engine";
@@ -53,6 +56,8 @@ function mapFocusStock(stock: BackendFocusStockDto): FocusStockModel {
   const legacyTransition = ["Signal Upgrade", "New BUY Setup"].includes(stock.focus_label) && !verifiedTransition;
   return {
     entryApplicability: stock.entry_applicability,
+    measuredFacts: stock.measured_facts,
+    displayQuote: stock.display_quote,
     entryRiskLabel: stock.entry_risk_label,
     rank: stock.rank,
     recommendation: compatibleDisplayAction({ display_action: stock.recommendation, decision_taxonomy_version: stock.decision_taxonomy_version ?? undefined }) ?? undefined,
@@ -85,8 +90,8 @@ function mapFocusStock(stock: BackendFocusStockDto): FocusStockModel {
     whyHere: legacyTransition ? stock.why_here.slice(1) : stock.why_here,
     trigger: stock.trigger,
     actionSummary: stock.action_summary,
-    latestPrice: stock.latest_price,
-    priceChangePercent: stock.price_change_percent,
+    latestPrice: stock.display_quote ? formatNumber(stock.display_quote.current_price) : stock.latest_price,
+    priceChangePercent: stock.display_quote ? formatPercent(stock.display_quote.price_change_percent) : stock.price_change_percent,
     priceTone: mapPriceTone(stock.price_tone),
     sparklinePoints: stock.sparkline_points,
   };
@@ -199,6 +204,7 @@ function mapBriefing(briefing: BackendMarketBriefingDto): MarketBriefingModel {
       })),
     },
     state: {
+      excludedSectorCount: briefing.state.excluded_sector_count ?? 0,
       dimensions: briefing.state.dimensions.map((dimension) => ({
         key: dimension.key,
         label: dimension.label,
@@ -550,9 +556,30 @@ function resolveMarketMovers(dto: BackendMarketPulseDto, focusStocks: FocusStock
   return deriveMoversFromFocusStocks(unique);
 }
 
+function focusEvidenceReason(stock: FocusStockModel, locale: AppLocale): string[] {
+  const copy = getPulsePresentationLanguage(locale);
+  const facts = stock.measuredFacts;
+  const reasons: string[] = [];
+  if (["Signal Upgrade", "New BUY Setup"].includes(stock.focusLabel)) reasons.push(copy.focusReasons[stock.focusLabel as "Signal Upgrade" | "New BUY Setup"]);
+  const factCount = [facts?.rsi, facts?.volume_ratio].filter(value => value != null && Number.isFinite(value)).length;
+  if (facts?.resistance != null && Number.isFinite(facts.resistance) && facts.resistance > 0 && facts.resistance !== facts.trigger_price
+    && (factCount >= 2 || factCount >= 1 && facts.trigger_price != null)) {
+    reasons.push(copy.resistanceEvidence(formatNumber(facts.resistance, { minimumFractionDigits: 2, maximumFractionDigits: 2 })));
+  }
+  return reasons;
+}
+
+function presentPulseAlert(alert: MarketAlertModel, locale: AppLocale): MarketAlertModel {
+  const copy = getPulsePresentationLanguage(locale);
+  return { ...alert, eventTitle: `${alert.symbol ? `${alert.symbol} · ` : ""}${(copy.alertTitles as Record<string, string>)[alert.type] ?? copy.sessionAlert}`,
+    eventExplanation: (copy.alertExplanations as Record<string, (metric: string) => string>)[alert.type]?.(alert.metricLabel) ?? "",
+    whyItMatters: copy.alertAdvice };
+}
+
 export function buildMarketPulseViewModel(dto: BackendMarketPulseDto, locale: AppLocale = "en"): MarketPulseModel {
   const status = dto.coverage?.market_status;
-  const statusLabel = locale === "bn" && status ? ({ OPEN: "লেনদেন চলছে", PRE_OPEN: "লেনদেন শুরুর আগে", POST_CLOSE: "লেনদেন শেষে", HOLIDAY: "বাজার বন্ধ" } as const)[status] : status;
+  const copy = getPulsePresentationLanguage(locale);
+  const statusLabel = status ? copy.status[status] : copy.statusUnavailable;
   const decisionDate = dto.coverage?.decision_session_date ?? dto.coverage?.session_trade_date;
   const quoteDate = dto.coverage?.quote_session_date ?? [...dto.focus_stocks, ...dto.monitor_candidates]
     .map(stock => stock.display_quote?.observation_session_date ?? stock.display_quote?.as_of_trade_date).filter((value): value is string => Boolean(value)).sort().at(-1);
@@ -591,26 +618,42 @@ export function buildMarketPulseViewModel(dto: BackendMarketPulseDto, locale: Ap
     emptyMessage: dto.empty_message,
     dataQualityNote: dto.data_quality_note,
     sessionDisablesRefresh: false,
-    sessionDescription: status ?? (locale === "bn" ? "সেশনের অবস্থা নেই" : "Session state unavailable"),
+    sessionDescription: statusLabel ?? (locale === "bn" ? "সেশনের অবস্থা নেই" : "Session state unavailable"),
   };
 
   const localized = applyMarketPulseLocalization(model, locale);
   const focus = (stock: FocusStockModel): FocusStockModel => ({ ...stock, locale,
+    whyHere: focusEvidenceReason(stock, locale),
     controllingReason: controllingReasonLabel(stock.controllingReasonCode, "", locale),
-    decisionContext: `${locale === "bn" ? "নতুন ক্রেতার জন্য" : "For new buyers"} · ${shortTradeDate(stock.decisionDate, locale)}`,
+    decisionContext: `${copy.forNewBuyers} · ${shortTradeDate(stock.decisionDate, locale)}`,
   });
   const facts = dto.briefing?.breadth ?? dto.coverage?.breadth;
   const changed = dto.focus_stocks.filter((stock) => stock.public_comparison?.status === "CHANGED" && stock.public_comparison.current_action === stock.recommendation && stock.recommendation === "POTENTIAL_BUY");
   const upgraded = changed.filter((stock) => ["WAIT", "HOLD"].includes(stock.public_comparison?.previous_action ?? ""));
   return { ...localized,
     hero: { ...localized.hero, attentionHeadline: locale === "bn" ? "সেশনের বাজারচিত্র" : localized.hero.attentionHeadline === "Story of the day" ? "Session overview" : localized.hero.attentionHeadline, sessionLabel: status === "OPEN" && quoteDate && !isCurrentIntradaySession("OPEN", quoteDate)
-      ? (locale === "bn" ? `${shortTradeDate(quoteDate, locale)}-এর দাম দেখানো হচ্ছে; আজকের দাম আসেনি। বিশ্লেষণ ${shortTradeDate(decisionDate, locale)}।` : `Showing ${shortTradeDate(quoteDate, locale)} prices; today's prices are not in yet. Analysis ${shortTradeDate(decisionDate, locale)}.`)
-      : `${statusLabel ?? dto.hero.session_label ?? "—"} · ${locale === "bn" ? "বিশ্লেষণ" : "Analysis"} ${shortTradeDate(decisionDate, locale)}` },
+      ? copy.earlierPrices(shortTradeDate(quoteDate, locale), shortTradeDate(decisionDate, locale))
+      : `${statusLabel ?? dto.hero.session_label ?? "—"} · ${copy.analysis} ${shortTradeDate(decisionDate, locale)}` },
+    briefingChips: localized.briefingChips.map((chip) => chip.id === "session" ? { ...chip, value: statusLabel } : chip),
+    alerts: localized.alerts.map((alert) => presentPulseAlert(alert, locale)),
     focusStocks: localized.focusStocks.map(focus), monitorCandidates: localized.monitorCandidates.map(focus),
+    dataQualityNote: dto.data_quality_note ? copy.priceReview : null,
     briefing: localized.briefing ? { ...localized.briefing,
-      leadership: { ...localized.briefing.leadership, decisionDate, freshBuySignals: changed.map((stock) => stock.symbol), freshNewCount: changed.length - upgraded.length, freshUpgradedCount: upgraded.length },
-      breadth: facts, breadthNote: breadthCoverageLabel(facts, locale),
-      sectorBasis: locale === "bn" ? `যোগ্য একই সেশনের শেয়ারের গড় দামের পরিবর্তন · ${facts?.as_of_date ?? decisionDate ?? "—"}` : `Mean price change of eligible same-session stocks · ${facts?.as_of_date ?? decisionDate ?? "—"}`,
+      state: { ...localized.briefing.state, dimensions: localized.briefing.state.dimensions.map((dimension) => ({ ...dimension,
+        label: (copy.dimensions as Record<string, string>)[dimension.key] ?? dimension.label,
+      })) },
+      story: { ...localized.briefing.story, explanation: facts && facts.known_count > 0
+        ? `${copy.breadth(facts.advancing, facts.declining, facts.unchanged)}\n${sectorLeadershipContext(localized.briefing, locale).line}`
+        : localized.briefing.story.explanation },
+      breadth: facts, breadthNote: breadthCoverageLabel(facts, locale), breadthDefinition: breadthDefinition(facts, locale),
+      sectorBasis: `${copy.sectorBasis} · ${shortTradeDate(facts?.as_of_date ?? decisionDate, locale)}${localized.briefing.state.excludedSectorCount ? ` · ${getTraderJourneyLanguage(locale).excludedSectors(localized.briefing.state.excludedSectorCount)}` : ""}`,
+      opportunityScore: { ...localized.briefing.opportunityScore, label: getMarketPulseLanguage(locale).briefing.opportunityLabel(localized.briefing.opportunityScore.score) },
+      leadership: { ...localized.briefing.leadership, decisionDate, freshBuySignals: changed.map((stock) => stock.symbol), freshNewCount: changed.length - upgraded.length, freshUpgradedCount: upgraded.length,
+        cards: localized.briefing.leadership.cards.map((card) => ({ ...card,
+          name: card.kind === "sector" ? sectorName(card.name, locale) : card.name,
+          subtitle: card.kind === "sector" ? copy.sameSessionReturn : card.kind === "stock" ? copy.priceLeader : copy.volumeLeader,
+        })),
+      },
       ...(facts?.known_count === 0 ? { story: { ...localized.briefing.story,
         headline: locale === "bn" ? "বাজারের বিস্তারের তথ্য নেই" : "Breadth unavailable",
         explanation: locale === "bn" ? "এই সেশনের শেয়ারের দামের পরিবর্তনের তথ্য পাওয়া যায়নি।" : "Stock price changes are unavailable for this session.",

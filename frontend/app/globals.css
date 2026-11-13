@@ -32502,3 +32502,36 @@ button {
 }
 
 .trade-plan-zone.trade-plan-target-band { background:color-mix(in srgb,var(--positive) 45%,transparent); }
+
+/* Trader follow-up: measured evidence and one page scroll owner. */
+.measured-decision-facts { display:block; color:var(--muted); font-size:0.74rem; line-height:1.55; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+.sw-signal-company { display:block; font-weight:400; font-size:0.7rem; color:var(--muted); white-space:normal; line-height:1.4; margin-top:3px; }
+.scanner-company-name { display:block; font-size:0.8rem; line-height:1.45; color:var(--muted); }
+.pulse-focus-identity > span { white-space:normal; overflow:visible; text-overflow:clip; }
+.signal-load-more { display:flex; justify-content:center; align-items:center; gap:16px; margin:20px 0; }
+.trader-decision-rail { position:static; max-height:none; overflow:visible; overscroll-behavior:auto; scrollbar-gutter:auto; }
+.trader-decision-hero .measured-decision-facts { padding-top:12px; border-top:1px solid var(--border); }
+@media(min-width:1024px) { .trader-decision-rail[data-sticky-fit="true"] { position:sticky; top:96px; } }
+
+.terminal-shell:not(.terminal-shell-collapsed) .terminal-sidebar nav a > span { white-space:normal; text-overflow:clip; overflow:visible; line-height:1.35; min-width:0; }
+.event-timeline-node strong { white-space:normal; overflow-wrap:anywhere; line-height:1.4; }
+.pulse-alert-title-row { display:flex; align-items:flex-start; gap:8px; }
+.pulse-alert-icon { flex:0 0 18px; display:flex; justify-content:center; padding-top:2px; }
+.pulse-alert-title-row strong { min-width:0; line-height:1.45; }
+
+.signal-center-topline { grid-template-columns:minmax(0,1fr); align-items:start; }
+.signal-center-topline > div { overflow:visible; }
+.signal-center-topline > div > span { white-space:normal; overflow:visible; text-overflow:clip; overflow-wrap:anywhere; }
+.signal-center-topline > .signal-badge { max-width:none; width:fit-content; white-space:nowrap; }
+.pulse-shared-date, .decision-rating-facts { color:var(--muted); font-variant-numeric:tabular-nums; }
+
+.pulse-focus-reasons li::before { content:"•"; }
+
+.trader-decision-action { font-size:1.35rem; letter-spacing:0.005em; line-height:1.15; }
+.published-setup-condition { display:block; color:var(--foreground); line-height:1.5; font-size:0.75rem; margin:4px 0; }
+.pulse-focus-why-block { flex:0 0 auto; min-height:0; align-content:start; grid-template-rows:auto auto; }
+.pulse-focus-reasons { margin:0; align-self:start; }
+.pulse-score-header-cluster { display:grid; grid-template-columns:auto auto; align-items:center; gap:4px; }
+.pulse-attention-score-label { grid-column:1 / -1; color:var(--muted); font-size:0.65rem; line-height:1.2; text-align:center; }
+.terminal-shell-collapsed .terminal-sidebar nav a:not(.wealth-workspace-nav-tile) { height:auto; min-height:54px; }
+.terminal-shell-collapsed .terminal-sidebar nav a:not(.wealth-workspace-nav-tile) > span { white-space:normal; text-overflow:clip; overflow:visible; line-height:1.15; }

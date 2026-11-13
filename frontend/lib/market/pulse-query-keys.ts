@@ -1,3 +1,4 @@
+import { PRICE_BASIS_CONTRACT } from "@/lib/market/entry-contract-capability";
 import type { BackendMarketPulsePreviousSnapshotDto, ExchangeCode } from "@/lib/api/backend-api-types";
 
 export function normalizeDisplayName(displayName: string | null | undefined): string | null {
@@ -41,22 +42,22 @@ export function buildPulseSummaryQueryKey(params: {
   exchange?: ExchangeCode;
   displayName?: string | null;
   previousSnapshot?: BackendMarketPulsePreviousSnapshotDto | null;
-}): readonly ["market-pulse-summary", ExchangeCode, string | null, string | null] {
+}): readonly ["market-pulse-summary", typeof PRICE_BASIS_CONTRACT, ExchangeCode, string | null, string | null] {
   const exchange = params.exchange ?? "DSE";
   const displayName = normalizeDisplayName(params.displayName);
   const previousSnapshotFingerprint = buildPreviousSnapshotFingerprint(params.previousSnapshot);
 
-  return ["market-pulse-summary", exchange, displayName, previousSnapshotFingerprint];
+  return ["market-pulse-summary", PRICE_BASIS_CONTRACT, exchange, displayName, previousSnapshotFingerprint];
 }
 
 export function buildPulseBriefingQueryKey(params: {
   exchange?: ExchangeCode;
   displayName?: string | null;
-}): readonly ["market-pulse-briefing", ExchangeCode, string | null] {
+}): readonly ["market-pulse-briefing", typeof PRICE_BASIS_CONTRACT, ExchangeCode, string | null] {
   const exchange = params.exchange ?? "DSE";
   const displayName = normalizeDisplayName(params.displayName);
 
-  return ["market-pulse-briefing", exchange, displayName];
+  return ["market-pulse-briefing", PRICE_BASIS_CONTRACT, exchange, displayName];
 }
 
 export const PULSE_ANONYMOUS_SUMMARY_QUERY_KEY = buildPulseSummaryQueryKey({

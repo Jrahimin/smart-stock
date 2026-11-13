@@ -20,7 +20,7 @@ it("bounds Dashboard as the sole universe observer across an unchanged-ID positi
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
   const generation = "quote-1|decision-1|CURRENT";
   client.setQueryData(["market-freshness", "DSE"], entryFreshness());
-  client.setQueryData(["market-universe-rows", "DSE", 500, generation], data);
+  client.setQueryData(["market-universe-rows", "price-basis-v2", "DSE", 500, generation], data);
   const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
   const hook = renderHook(() => useDashboardStocksInFocus({ generation, staleTimeMs: 600_000, refetchIntervalMs: 600_000 }), { wrapper });
   expect(hook.result.current.data?.signals[0].entryApplicability?.status).toBe("APPLICABLE");

@@ -126,7 +126,7 @@ function buildBanglaDecisionReasons(): DecisionReasonCopy {
     bearish_structure: "দামের গতিপথে পতনের লক্ষণই বেশি।",
     bearish_directional_evidence: "দামের প্রবণতা ও গতি দুটোই নিম্নমুখী। বিক্রি বা এড়িয়ে যাওয়ার কথা ভাবুন।",
     risk_wait_confirmation: ({ riskLabel }) => riskLabel ? `ঝুঁকির মাত্রা ${banglaRiskLevel(riskLabel)}। আরও স্পষ্ট প্রমাণ না পাওয়া পর্যন্ত কেনাবেচা থেকে বিরত থাকুন।` : "প্রকাশিত ঝুঁকির সীমার কারণে আরও স্পষ্ট প্রমাণের অপেক্ষা করুন।",
-    fresh_entry_risk_block: ({ riskLabel }) => riskLabel ? `ঝুঁকির মাত্রা ${banglaRiskLevel(riskLabel)} অথবা কেনাবেচার সুযোগ সীমিত। নতুন করে কেনার আগে অপেক্ষা করুন।` : "প্রকাশিত ট্রেডিং ঝুঁকি বা লেনদেনের সীমার কারণে নতুন এন্ট্রি বন্ধ।",
+    fresh_entry_risk_block: ({ riskLabel }) => riskLabel ? `ঝুঁকির মাত্রা ${banglaRiskLevel(riskLabel)} অথবা কেনাবেচার সুযোগ সীমিত। নতুন করে কেনার আগে অপেক্ষা করুন।` : "প্রকাশিত trading ঝুঁকি বা লেনদেনের সীমার কারণে নতুন entry বন্ধ।",
     entry_plan_not_valid: "দাম বাড়ার লক্ষণ আছে, তবে কেনার নিরাপদ শর্ত তৈরি হয়নি। শেয়ারটি হাতে না থাকলে অপেক্ষা করুন।",
     momentum_extended_wait_entry: "বাধার কাছাকাছি এসে দাম দ্রুত বেড়েছে। কেনার ভালো সুযোগের জন্য অপেক্ষা করুন।",
     momentum_elevated_hold: "দামের গতি শক্তিশালী এবং প্রবণতা ঊর্ধ্বমুখী। বাড়তি দামে না কিনে হাতে থাকা শেয়ার ধরে রাখুন।",
@@ -147,8 +147,8 @@ function buildBanglaDecisionReasons(): DecisionReasonCopy {
     bullish_setup_pullback: "দাম নির্ধারিত সীমায় ফিরলে কেনার শর্ত পূরণ হতে পারে।",
     bullish_setup_breakout: "দাম নির্ধারিত সীমা পেরিয়ে টিকে থাকলে কেনার কথা ভাবুন।",
     bullish_setup_continuation: "দাম পেরিয়ে যাওয়া সীমার ওপরে টিকে থাকলে সুযোগটি বিবেচনা করুন।",
-    confidence_capped_bearish_regime: "বাজার নিম্নমুখী হওয়ায় প্রমাণের শক্তির স্কোর সীমিত রাখা হয়েছে।",
-    decision_engine_unavailable: "এই শেয়ারের সিগন্যাল গণনা করা যায়নি। আপাতত অপেক্ষা করুন।",
+    confidence_capped_bearish_regime: "বাজার নিম্নমুখী হওয়ায় প্রমাণের শক্তির score সীমিত রাখা হয়েছে।",
+    decision_engine_unavailable: "এই শেয়ারের signal গণনা করা যায়নি। আপাতত অপেক্ষা করুন।",
     unknown: "সিদ্ধান্তের বিস্তারিত এখনও পাওয়া যায়নি।",
   };
 }
@@ -677,7 +677,7 @@ const dashboardLanguage = {
       contextRsi: (value) => `RSI ${value}`,
       contextVolume: (ratio) => `কেনাবেচার পরিমাণ গড়ের ${ratio} গুণ`,
       contextTrend: (value) => `দামের প্রবণতা ${value}`,
-      contextOpportunity: (value) => `সুযোগের স্কোর ${value}`,
+      contextOpportunity: (value) => `সুযোগের score ${value}`,
       decisionReasons: buildBanglaDecisionReasons(),
     },
     timeline: {
@@ -695,7 +695,7 @@ const dashboardLanguage = {
           `${count}টি সক্রিয় শেয়ারের তথ্য একই নিয়মে বিশ্লেষণ করা হয়েছে।`,
         suspiciousTitle: "দামের তথ্য যাচাই প্রয়োজন",
         suspiciousDescription: (count) =>
-          `${count === "Some" ? "কয়েকটি" : `${count}টি`} শেয়ারের দামের উৎস যাচাই করুন, তারপর সিগন্যাল বিবেচনা করুন।`,
+          `${count === "Some" ? "কয়েকটি" : `${count}টি`} শেয়ারের দামের উৎস যাচাই করুন, তারপর signal বিবেচনা করুন।`,
         decisionTitle: (symbol, actionLabel) => `${symbol} ${actionLabel}`,
       },
     },
@@ -758,7 +758,7 @@ const dashboardLanguage = {
             const sessionChange =
               context.vsYesterday !== "N/A" ? ` (আগের কার্যদিবসের তুলনায় ${context.vsYesterday})` : "";
             const averageContext =
-              context.vs30DayAvg !== "N/A" ? `${(context.averageSessions ?? 30).toLocaleString("bn-BD")} কার্যদিবসের গড় BDT ${context.vs30DayAvg}। ` : "";
+              context.vs30DayAvg !== "N/A" ? `${(context.averageSessions ?? 30).toLocaleString("en-GB")} কার্যদিবসের গড় BDT ${context.vs30DayAvg}। ` : "";
             return `দেখানো কার্যদিবসে লেনদেনের মূল্য BDT ${context.turnoverLabel}${sessionChange}। ${averageContext}${liquidityLabel}। ${guidance}।`;
           },
         },

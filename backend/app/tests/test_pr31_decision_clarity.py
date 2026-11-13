@@ -42,15 +42,15 @@ async def test_open_market_without_today_batch_labels_old_finalized_marks_stale_
 
 
 def test_overview_cache_contract_version_is_narrow_and_generation_specific():
-    assert ":index-v2:" in dashboard_cache_key("overview", ExchangeCode.DSE, "gA")
-    assert "index-v2" not in dashboard_cache_key("movers", ExchangeCode.DSE, "gA")
+    assert ":index-v3:" in dashboard_cache_key("overview", ExchangeCode.DSE, "gA")
+    assert "index-v3" not in dashboard_cache_key("movers", ExchangeCode.DSE, "gA")
     assert dashboard_cache_key("overview", ExchangeCode.DSE, "gA") != dashboard_cache_key("overview", ExchangeCode.DSE, "gB")
 
 
 @pytest.mark.parametrize("sector_count", [1,3])
 def test_all_leadership_sentences_use_the_same_existing_scope(sector_count):
-    from app.tests.test_market_pulse_briefing_semantics import _rows
     from app.modules.market_pulse.market_pulse_briefing import build_market_briefing
+    from app.tests.test_market_pulse_briefing_semantics import _rows
     rows = _rows([1.0] * (sector_count*3))
     for index,row in enumerate(rows): row.stock.sector = f"Sector {index//3}"
     result = build_market_briefing(rows,[],[],[],market_summaries=[],format_number=str,
@@ -58,5 +58,9 @@ def test_all_leadership_sentences_use_the_same_existing_scope(sector_count):
     expected = "broad" if sector_count==3 else "concentrated"
     opposite = "concentrated" if sector_count==3 else "broad"
     for sentence in (result.story.explanation,result.leadership.narrative,result.summary.text):
-        assert expected in sentence.lower() and opposite not in sentence.lower()
+        assert expected in sentence.lower()
+        # Broad stock breadth and sector concentration are independent measures.
+        sector_sentence = sentence.lower().split("positive sector leadership")[-1]
+        if "positive sector leadership" in sentence.lower():
+            assert opposite not in sector_sentence
     assert result.money_flow.inflows[0].change_label.endswith("%")

@@ -67,6 +67,8 @@ export type LeaderHighlightRow = {
 };
 
 export type LeadersPulseContext = {
+  leadershipStatus?: "MEASURED" | "NO_ADVANCING_SECTOR" | "UNAVAILABLE";
+  excludedSectorCount?: number;
   rows: LeaderHighlightRow[];
   footer: string;
   primary: SectorLeaderSnapshot | null;

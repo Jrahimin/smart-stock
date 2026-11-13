@@ -12,30 +12,20 @@ from app.core.constants.trading_constants import (
     DASHBOARD_MARKET_MOVERS_LIMIT,
 )
 from app.core.core_config import Settings, get_settings
-from app.core.enums import DataQualityFlag, ExchangeCode, TrendDirection
-from app.jobs.market_session_schedule import current_cache_ttl_seconds
+from app.core.enums import DataQualityFlag, ExchangeCode, MarketDataState, TrendDirection
 from app.core.perf_timing import PerfReport, async_perf_stage
 from app.core.redis_client import OptionalRedisClient, get_redis_client
+from app.jobs.market_session_schedule import current_cache_ttl_seconds
 from app.models import DailyMarketSummary, DailyPrice, Stock
-from app.modules.market_data.market_data_repository import MarketDataRepository, get_market_data_repository
-from app.modules.market_data.market_data_schemas import DailyMarketSummaryRead, MarketFreshnessRead
-from app.modules.market_data.market_data_service import MarketDataService, get_market_data_service
-from app.modules.market_data.market_mover_rules import is_eligible_session_mover
 from app.modules.market_dashboard.market_dashboard_cache import dashboard_cache_key
 from app.modules.market_dashboard.market_dashboard_compute import (
-    build_heatmap_tiles,
     build_heatmap_sectors,
+    build_heatmap_tiles,
     build_market_alerts_from_snapshot,
     build_market_insights,
-    build_sector_snapshots_from_snapshot,
     derive_market_breadth_from_snapshot,
     derive_market_mood_from_snapshot,
     measured_market_interpretation,
-)
-from app.modules.market_dashboard.market_snapshot import (
-    dated_breadth_changes,
-    DashboardMarketSnapshot,
-    load_dashboard_market_snapshot,
 )
 from app.modules.market_dashboard.market_dashboard_schemas import (
     DashboardHeatmapRead,
@@ -46,14 +36,28 @@ from app.modules.market_dashboard.market_dashboard_schemas import (
     DashboardMoverRead,
     DashboardMoversRead,
     DashboardOverviewRead,
-    DashboardSectorRead,
     DashboardSectorsRead,
     DashboardStocksInFocusRead,
     DashboardTimelineItemRead,
-    DashboardTopGainerRead,
 )
+from app.modules.market_dashboard.market_snapshot import (
+    DashboardMarketSnapshot,
+    dated_breadth_changes,
+    load_dashboard_market_snapshot,
+)
+from app.modules.market_data.market_data_repository import (
+    MarketDataRepository,
+    get_market_data_repository,
+)
+from app.modules.market_data.market_data_schemas import DailyMarketSummaryRead, MarketFreshnessRead
+from app.modules.market_data.market_data_service import MarketDataService, get_market_data_service
+from app.modules.market_data.market_mover_rules import is_eligible_session_mover
 from app.modules.stock_details.decision.technical import TechnicalSnapshot, build_technical_snapshot
 from app.modules.stocks.stocks_repository import StocksRepository, get_stocks_repository
+from app.modules.trading_intelligence.decision_snapshot_repository import (
+    DecisionSnapshotRepository,
+    get_decision_snapshot_repository,
+)
 
 DASHBOARD_LATEST_PRICES_LIMIT = 5000
 
@@ -141,12 +145,14 @@ class MarketDashboardService:
         stocks_repository: StocksRepository,
         redis: OptionalRedisClient,
         settings: Settings,
+        decision_snapshot_repository: DecisionSnapshotRepository | None = None,
     ) -> None:
         self.market_repository = market_repository
         self.market_data_service = market_data_service
         self.stocks_repository = stocks_repository
         self.redis = redis
         self.settings = settings
+        self.decision_snapshot_repository = decision_snapshot_repository
         self._last_compute_ms: float | None = None
 
     @property
@@ -249,12 +255,59 @@ class MarketDashboardService:
         )
 
     async def get_sectors(self, *, exchange: ExchangeCode) -> DashboardSectorsRead:
-        return await self._get_cached(
-            "sectors",
-            exchange,
-            DashboardSectorsRead,
-            lambda perf, freshness: self.compute_sectors(exchange, report=perf, freshness=freshness),
+        # The compact publication projection is its own generation-keyed cache.
+        # Do not load the exchange-wide result on a normal warm dashboard read.
+        for _ in range(2):
+            before = await self.market_data_service.get_market_freshness(exchange=exchange)
+            data = await self.compute_sectors(exchange, freshness=before)
+            after = await self.market_data_service.get_market_freshness(exchange=exchange)
+            if (not self._same_generation(before, after)
+                or before.decision_generation_id != after.decision_generation_id
+                or before.decision_status != after.decision_status
+                or data.decision_generation_id is not None and data.decision_generation_id != after.decision_generation_id):
+                continue
+            return data.model_copy(update={"market_sync_id": after.market_sync_id})
+        raise RuntimeError("Published market generation changed while loading dashboard sectors")
+
+    async def _project_session_leaders(self, payload, *, exchange):
+        from app.modules.market_data.published_session_leadership import (
+            build_published_session_leadership,
+            leadership_cache_key,
         )
+        from app.modules.market_universe.market_universe_schemas import ScoredUniverseCacheRead
+        empty = payload.model_copy(update={"sectors": [], "top_gainer": None,
+            "decision_generation_id": None, "decision_session_date": None,
+            "excluded_sector_count": 0, "leadership_status": "UNAVAILABLE"})
+        repository = self.decision_snapshot_repository
+        if repository is None:
+            return empty
+        publication = await repository.latest_publication(exchange=exchange, metadata_only=True)
+        if publication is None or publication.invalidated_at:
+            return empty
+        # Cheap manifest identity check: no historical input fingerprint on the
+        # lightweight dashboard read path. Corrections publish a new manifest.
+        reader = getattr(self.market_repository, "get_latest_market_data_generation", None)
+        manifest = await reader(exchange=exchange, state=MarketDataState.FINALIZED) if reader else None
+        if manifest is not None and (manifest.trade_date != publication.session_date
+            or not (publication.generation_id == manifest.sync_id or publication.generation_id.startswith(manifest.sync_id + ":"))):
+            return empty
+        key = leadership_cache_key(exchange, publication.generation_id)
+        compact = await self.redis.get_json(key)
+        if compact is None:
+            winner = await repository.get_publication(exchange=exchange, generation_id=publication.generation_id)
+            if winner is None or winner.invalidated_at:
+                return empty
+            canonical = ScoredUniverseCacheRead.model_validate(winner.result_payload)
+            if canonical.market_sync_id != publication.generation_id or canonical.session_trade_date != publication.session_date:
+                return empty
+            compact = build_published_session_leadership(canonical)
+            await self.redis.set_json(key, compact, ttl_seconds=28800)
+        if compact.get("decision_generation_id") != publication.generation_id:
+            return empty
+        after = await repository.latest_publication(exchange=exchange, metadata_only=True)
+        if after is None or after.invalidated_at or after.generation_id != publication.generation_id:
+            return empty
+        return DashboardSectorsRead.model_validate({**payload.model_dump(), **compact})
 
     async def get_market_alerts(self, *, exchange: ExchangeCode) -> DashboardMarketAlertsRead:
         return await self._get_cached(
@@ -375,23 +428,14 @@ class MarketDashboardService:
         perf = report or PerfReport("dashboard.sectors")
         if freshness is None:
             freshness = await self.market_data_service.get_market_freshness(exchange=exchange)
-        snapshot = await self._load_snapshot(exchange, perf, freshness)
-
-        async with async_perf_stage(perf, "compute.sectors_agg"):
-            sectors, top_gainer = build_sector_snapshots_from_snapshot(
-                snapshot.rows,
-                session_trade_date=snapshot.session_trade_date,
+        async with async_perf_stage(perf, "compute.eligible_session_leaders"):
+            payload = await self._project_session_leaders(
+                DashboardSectorsRead(session_trade_date=freshness.trade_date), exchange=exchange,
             )
-
         if report is None:
             perf.log_summary()
             self._last_compute_ms = perf.total_ms
-
-        return DashboardSectorsRead(
-            session_trade_date=snapshot.session_trade_date,
-            sectors=[DashboardSectorRead.model_validate(sector) for sector in sectors],
-            top_gainer=DashboardTopGainerRead.model_validate(top_gainer) if top_gainer else None,
-        )
+        return payload
 
     async def compute_market_alerts(
         self,
@@ -539,6 +583,7 @@ def get_market_dashboard_service(
     stocks_repository: Annotated[StocksRepository, Depends(get_stocks_repository)],
     redis: Annotated[OptionalRedisClient, Depends(get_redis_client)],
     settings: Annotated[Settings, Depends(get_settings)],
+    decision_snapshot_repository: Annotated[DecisionSnapshotRepository, Depends(get_decision_snapshot_repository)],
 ) -> MarketDashboardService:
     return MarketDashboardService(
         market_repository,
@@ -546,4 +591,5 @@ def get_market_dashboard_service(
         stocks_repository,
         redis,
         settings,
+        decision_snapshot_repository,
     )

@@ -17,12 +17,11 @@ from app.core.enums import (
     PulseFocusLabel,
     PulseScoreBand,
 )
-
-
-from app.modules.stock_details.decision.entry_applicability import EntryApplicabilityRead
 from app.modules.market_data.breadth import BreadthRead
 from app.modules.market_universe.market_universe_schemas import DisplayQuoteRead
 from app.modules.stock_details.decision.comparison import PublicDecisionComparisonRead
+from app.modules.stock_details.decision.entry_applicability import EntryApplicabilityRead
+from app.modules.stock_details.decision.measured_facts import MeasuredDecisionFactsRead
 
 
 class PulseScoreBreakdownRead(BaseModel):
@@ -39,6 +38,7 @@ class PulseScoreBreakdownRead(BaseModel):
 
 
 class FocusStockRead(BaseModel):
+    measured_facts: MeasuredDecisionFactsRead | None = None
     display_quote: DisplayQuoteRead | None = None
     decision_taxonomy_version: str | None = None
     public_comparison: PublicDecisionComparisonRead | None = None
@@ -157,6 +157,8 @@ class MarketStoryRead(BaseModel):
 
 
 class MarketStateDimensionRead(BaseModel):
+    numerator: int | None = None
+    denominator: int | None = None
     key: str
     label: str
     value: str
@@ -164,6 +166,7 @@ class MarketStateDimensionRead(BaseModel):
 
 
 class MarketStateRead(BaseModel):
+    excluded_sector_count: int = 0
     dimensions: list[MarketStateDimensionRead]
     overall_label: str
     overall_tone: str

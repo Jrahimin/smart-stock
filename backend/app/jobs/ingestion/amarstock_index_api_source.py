@@ -30,8 +30,8 @@ class AmarStockDsexSnapshot:
     day_open: Decimal
     day_high: Decimal
     day_low: Decimal
-    range_52w_low: Decimal
-    range_52w_high: Decimal
+    range_52w_low: Decimal | None
+    range_52w_high: Decimal | None
     return_6m_percent: Decimal | None
     return_1y_percent: Decimal | None
     market_status: str
@@ -175,8 +175,8 @@ class AmarStockIndexApiSource:
         day_open = _decimal(quote.get("Open")) or index_close
         day_high = _decimal(quote.get("High")) or index_close
         day_low = _decimal(quote.get("Low")) or index_close
-        range_low = _decimal(range_52w.get("low")) or day_low
-        range_high = _decimal(range_52w.get("high")) or day_high
+        range_low = _decimal(range_52w.get("low"))
+        range_high = _decimal(range_52w.get("high"))
 
         total_value = _decimal(info.get("TotalValue"))
         total_turnover = total_value * Decimal("1000000") if total_value is not None else None

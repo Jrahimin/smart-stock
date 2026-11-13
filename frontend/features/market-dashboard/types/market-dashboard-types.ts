@@ -79,6 +79,9 @@ export type HeatmapTileModel = {
 };
 
 export type SignalFeedItemModel = {
+  decisionDate?: string | null;
+  name?: string;
+  measuredFacts?: import("@/lib/api/stock-decision-support-types").MeasuredDecisionFactsDto | null;
   decisionSummary?: import("@/lib/api/backend-api-types").BackendTraderDecisionSummaryDto | null;
   symbol: string;
   signal: DecisionDisplayAction | null;

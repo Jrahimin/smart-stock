@@ -30,8 +30,14 @@ export type ScoreComponentDto = {
   explanation: string;
 };
 
+export type MeasuredDecisionFactsDto = {
+  rsi: number | null; trend: string | null; opportunity_score: number | null;
+  trigger_price: number | null; resistance: number | null; volume_ratio: number | null;
+  volume_baseline: "PRIOR_20_SESSION_MEDIAN"; volume_sample_count: number;
+};
+
 export type EntryApplicabilityDto = {
-  price_basis?: "CURRENT" | "LAST_CLOSE";
+  price_basis?: "CURRENT" | "SNAPSHOT" | "LAST_CLOSE" | string | null;
   recheck_at?: string | null;
   quote_timing_status?: "FETCH_ONLY" | "UNKNOWN" | null;
   batch_fetched_at?: string | null;
@@ -45,6 +51,7 @@ export type EntryApplicabilityDto = {
 };
 
 export type StockDecisionSupportDto = {
+  measured_facts?: MeasuredDecisionFactsDto | null;
   entry_applicability?: EntryApplicabilityDto | null;
   stock_id: string;
   symbol: string;
@@ -309,6 +316,8 @@ export type DividendIntelligenceDto = {
 
 /** Backend-resolved mark-to-market metrics (Rule #1). Format only on the client. */
 export type DisplayMetricsDto = {
+  volume?: number | null;
+  session_date_verified?: boolean | null;
   batch_fetched_at?: string | null;
   source_observed_at?: string | null;
   max_age_seconds?: number;

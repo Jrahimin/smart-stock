@@ -1,4 +1,5 @@
-import { holderReasonLabel, evidenceLabel, controllingReasonLabel, selectedDecisionExplanation } from "@/lib/market/decision-presentation";
+import { holderReasonLabel, evidenceLabel, controllingReasonLabel, selectedDecisionExplanation, isDatedPlanGuidance } from "@/lib/market/decision-presentation";
+import { publishedSetupCondition } from "@/lib/market/published-setup-condition";
 import type { DisplayMetricsDto, PatternDetectionDto, StockDecisionSupportDto } from "@/lib/api/stock-decision-support-types";
 import { holderActionLabels, getSignalActionLabel } from "@/lib/market/signal-action-labels";
 import { shortTradeDate } from "@/lib/formatters/trader-formatters";
@@ -56,6 +57,7 @@ export type TradePlanVisual = {
 };
 
 export type StockDecisionViewModel = {
+  measuredFacts?: import("@/lib/api/stock-decision-support-types").MeasuredDecisionFactsDto | null;
   holderInstruction?: { action: HolderAction; label: string; reason: string };
   available: boolean;
   recommendation: string;
@@ -200,6 +202,8 @@ export function buildStockDecisionViewModel(
   const displayAction = compatibleDisplayAction(decision.decision);
   const asOfDate = decision.decision_session_date ?? decision.data_freshness.latest_trade_date;
   const condition = decision.decision.entry_condition ?? decision.trade_plan.condition_text;
+  const reasonCode = decision.decision.primary_reason_code ?? decision.canonical_decision?.primary_reason_code;
+  const setupCondition = publishedSetupCondition(decision.measured_facts, decision.entry_applicability, locale, reasonCode);
 
   return applyStockDecisionLocalization(
     {
@@ -214,13 +218,13 @@ export function buildStockDecisionViewModel(
       confidenceLabel: evidenceLabel(decision.decision.evidence_status, locale),
       controllingReason: [
         decision.decision_status === "UPDATING" ? (locale === "bn" ? "সিদ্ধান্ত আপডেট হচ্ছে; আগের চূড়ান্ত ফল।" : "Updating; previous finalized result.") : null,
-        controllingReasonLabel(decision.decision.primary_reason_code ?? decision.canonical_decision?.primary_reason_code, "", locale),
+        setupCondition && isDatedPlanGuidance(reasonCode) ? null : controllingReasonLabel(reasonCode, "", locale),
         decision.decision.non_holder_action === "AVOID" ? (locale === "bn" ? "নতুন long entry এড়িয়ে চলুন।" : "Avoid a new long entry.") : null,
       ].filter(Boolean).join(" "),
       recommendationTone:
         (displayAction ? recommendationToneMap[displayAction] : null) ?? "neutral",
       entryCondition:
-        displayAction === "POTENTIAL_BUY" && decision.entry_applicability?.status === "APPLICABLE"
+        setupCondition ?? (displayAction === "POTENTIAL_BUY" && decision.entry_applicability?.status === "APPLICABLE"
           ? decision.entry_applicability.price_basis === "LAST_CLOSE"
             ? (locale === "bn" ? "নথিভুক্ত সমাপনী দাম প্রকাশিত এন্ট্রির শর্তের সঙ্গে মিলে।" : "The recorded closing quote meets the published entry conditions.")
             : decision.trade_plan.entry_timing === "PULLBACK"
@@ -228,8 +232,9 @@ export function buildStockDecisionViewModel(
             : decision.trade_plan.entry_timing === "BREAKOUT"
               ? (locale === "bn" ? "সম্পূর্ণ সেশনের close ও volume নিশ্চিত হয়েছে এবং অনুমোদিত entry session এসেছে; প্রকাশিত ব্যবস্থাপনার শর্ত অনুসরণ করুন।" : "Completed-session close and volume are confirmed and the permitted entry session has arrived; follow the dated management conditions.")
             : condition ? `${locale === "bn" ? "প্রকাশিত শর্ত: " : "Dated condition: "}${localizeEntryCondition(condition, locale)}` : null
-          : null,
+          : null),
       decisionSignals: buildDecisionSignals(decision, locale),
+      measuredFacts: decision.measured_facts,
       opportunityScore: decision.opportunity.score,
       opportunityComponents: decision.opportunity.components.map((component) => ({
         key: component.key,
@@ -331,5 +336,5 @@ export function withStockHolderInstruction(model: StockDecisionViewModel, decisi
   const fallback = (model.locale === "en" ? decision?.decision.primary_reason ?? decision?.canonical_decision?.primary_reason : null)
     ?? (model.locale === "bn" ? "প্রকাশিত নির্দেশনার কারণ উৎসের বিস্তারিত অংশে দেখুন।" : "See the published source detail for the holder instruction's reason.");
   const reason = holderReasonLabel(code, fallback, model.locale);
-  return { ...model, holderInstruction: { action, label: holderActionLabels.en[action], reason } };
+  return { ...model, holderInstruction: { action, label: holderActionLabels[model.locale][action], reason } };
 }

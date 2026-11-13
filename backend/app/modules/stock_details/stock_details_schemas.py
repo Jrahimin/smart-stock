@@ -8,8 +8,8 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from app.core.enums import (
     DataQualityFlag,
     DataReliabilityLabel,
-    DecisionDisplayAction,
     DecisionConstraintKind,
+    DecisionDisplayAction,
     EligibilityStatus,
     EntryReadiness,
     EntryTiming,
@@ -255,6 +255,7 @@ def canonical_decision_to_read(result: Any) -> CanonicalDecisionResultRead:
 
 
 from app.modules.stock_details.decision.entry_applicability import EntryApplicabilityRead
+from app.modules.stock_details.decision.measured_facts import MeasuredDecisionFactsRead
 
 
 class TraderDecisionRead(BaseModel):
@@ -559,6 +560,7 @@ class EventTimelineItemRead(BaseModel):
 
 
 class StockDecisionSupportRead(BaseModel):
+    measured_facts: MeasuredDecisionFactsRead | None = None
     quote_generation_id: str | None = None
     decision_generation_id: str | None = None
     entry_applicability: EntryApplicabilityRead | None = None

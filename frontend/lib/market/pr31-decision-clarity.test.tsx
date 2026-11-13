@@ -47,12 +47,12 @@ it.each(["en", "bn"] as const)("keeps no-check neutral/disclosed and uses the co
   const assessment = { status: "UNVERIFIED", reason_code: "QUOTE_UNUSABLE", quote_timing_status: "FETCH_ONLY", quote_session_date: "2026-11-10", assessed_at: "2026-11-12T05:00:00Z" } as EntryApplicabilityDto;
   const { container, rerender } = render(<EntryApplicabilityLabel assessment={assessment} locale={locale} />);
   const disclosure = container.querySelector("details")!; expect(disclosure.open).toBe(false); expect(disclosure.closest("a")).toBeNull(); expect(container.querySelector(".entry-check-alert")).toBeNull();
-  const trigger = screen.getByText(locale === "en" ? "Entry unverified · quote time unavailable" : "এন্ট্রি যাচাই হয়নি · দামের সময় জানা নেই"); fireEvent.click(trigger);
-  expect(container.textContent).toContain(locale === "en" ? "latest recorded price is from 10 Nov" : "শেষ নথিভুক্ত দামের তারিখ 10 নভেম্বর");
+  const trigger = screen.getByText(locale === "en" ? "Check live price before entry" : "Entry-এর আগে broker-এর দাম মিলিয়ে নিন"); fireEvent.click(trigger);
+  expect(container.textContent).toContain(locale === "en" ? "Last saved price: 10 Nov" : "শেষ সংরক্ষিত দাম: 10 নভেম্বর");
   rerender(<EntryApplicabilityLabel assessment={{ ...assessment, reason_code: "COVERAGE_UNKNOWN" }} locale={locale} />);
-  expect(container.textContent).not.toContain(locale === "en" ? "latest recorded price is from" : "শেষ নথিভুক্ত দাম");
+  expect(container.textContent).not.toContain(locale === "en" ? "Last saved price:" : "শেষ সংরক্ষিত দাম:");
   rerender(<EntryApplicabilityLabel assessment={{ ...assessment, source_observed_at: "2026-11-10T08:15:00Z", quote_timing_status: null }} locale={locale} />);
-  expect(container.textContent).not.toContain(locale === "en" ? "quote time unavailable" : "দামের সময় জানা নেই");
+  expect(container.textContent).not.toContain(locale === "en" ? "The time of this price is unknown." : "দামটি কখনের, তা নিশ্চিত নয়।");
 });
 it.each(["NOT_APPLICABLE", "INVALIDATED", "EXPIRED"] as const)("keeps only actionable rare negative statuses in a warning box (%s)", status => {
   const { container } = render(<EntryApplicabilityLabel assessment={{ status, reason_code: status === "EXPIRED" ? "PLAN_EXPIRED" : status === "INVALIDATED" ? "STOP_BREACHED" : "ACTION_NOT_PERMITTED" }} />);
@@ -71,7 +71,7 @@ it("joins explicit section identities but preserves independently dated timeline
 
 it.each(["en", "bn"] as const)("renders closing eligibility with a dated basis and no pause instruction (%s)", locale => {
   const {container} = render(<EntryApplicabilityLabel locale={locale} assessment={{status:"APPLICABLE",reason_code:"ENTRY_TERMS_MET",price_basis:"LAST_CLOSE",quote_session_date:"2026-11-12",assessed_at:"2026-11-12T20:00:00+06:00"}} />);
-  expect(container.textContent).toContain(locale === "en" ? "closing quote" : "সমাপনী দামের ভিত্তিতে");
+  expect(container.textContent).toContain(locale === "en" ? "12 Nov close" : "12 নভেম্বর close");
   expect(container.textContent).not.toContain("recheck at opening");
   expect(container.textContent).not.toContain("খুললে আবার");
 });

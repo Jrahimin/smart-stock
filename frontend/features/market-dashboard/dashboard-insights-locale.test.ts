@@ -47,7 +47,7 @@ describe("dashboard insights localization", () => {
     expect(localized[0]?.categoryLabel).toBe("momentum");
     expect(localized[1]?.description).toContain("দেখানো কার্যদিবসে লেনদেনের মূল্য BDT 16.7B");
     expect(localized[1]?.description).toContain("আগের কার্যদিবসের তুলনায় +5.2%");
-    expect(localized[1]?.description).toContain("৩০ কার্যদিবসের গড় BDT 14.2B");
+    expect(localized[1]?.description).toContain("30 কার্যদিবসের গড় BDT 14.2B");
     expect(localized[1]?.description).toContain("লেনদেন বেশ ভালো");
     expect(localized[1]?.description).toContain("বেশি লেনদেন হয় এমন শেয়ারে");
   });

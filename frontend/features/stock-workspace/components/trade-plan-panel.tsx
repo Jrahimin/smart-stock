@@ -32,7 +32,7 @@ export function TradePlanPanel({ decision, copy }: TradePlanPanelProps) {
       <div className="trade-plan-row trade-plan-entry"><span>{copy.entryZone}</span><div className="trade-plan-track">{band(plan.entryLow, plan.entryHigh, "entry")}</div><strong>{range(plan.entryLow, plan.entryHigh)}</strong></div>
       <div className="trade-plan-row trade-plan-current"><span>{copy.markedQuote}</span><div className="trade-plan-track">{valid(plan.current) ? <i aria-hidden="true" className="trade-plan-dot trade-plan-dot-current" style={{ left: `${position(plan.current)}%` }} /> : null}</div><strong>{formatNumber(plan.current)}</strong></div>
       <div className="trade-plan-row trade-plan-stop"><span>{copy.stopLoss}</span><div className="trade-plan-track">{valid(plan.stopLoss) ? <i aria-hidden="true" className="trade-plan-marker trade-plan-marker-stop" style={{ left: `${position(plan.stopLoss)}%` }} /> : null}</div><strong>{formatNumber(plan.stopLoss)}</strong></div>
-      <div className="trade-plan-row trade-plan-target"><span>{copy.target}</span><div className="trade-plan-track">{band(plan.targetLow, plan.targetHigh, "trade-plan-target-band")}</div><strong>{range(plan.targetLow, plan.targetHigh)}</strong></div>
+      <div className="trade-plan-row trade-plan-target"><span>Trade Plan target</span><div className="trade-plan-track">{band(plan.targetLow, plan.targetHigh, "trade-plan-target-band")}</div><strong>{range(plan.targetLow, plan.targetHigh)}</strong></div>
     </div>
     {plan.trailingRule ? <p className="trade-plan-management"><strong>{copy.trailingManagement}</strong> · {plan.trailingRule}</p> : null}
   </section>;

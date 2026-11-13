@@ -165,6 +165,7 @@ def build_quote_projection(prices, *, finality="FINALIZED", session_date=None) -
         elif latest is observed:
             status = "FINALIZED" if finality == "FINALIZED" else "PROVISIONAL"
     return {
+        "volume": observed.volume if observed is not None else 0,
         "previous_close": float(latest.previous_close_price) if latest and latest.previous_close_price is not None else None,
         "source": latest.source if latest else None,
         "data_quality": latest.data_quality_flag.value if latest else None,

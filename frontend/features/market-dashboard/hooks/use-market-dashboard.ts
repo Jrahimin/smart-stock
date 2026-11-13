@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo } from "react";
 import { freshnessGenerationToken } from "@/lib/market/market-generation";
+import { dashboardSectorGenerationToken, dashboardSectorsMatchFreshness } from "@/lib/market/dashboard-sector-generation";
 
 import { buildMarketDashboardModel } from "@/features/market-dashboard/view-models/market-dashboard-view-model";
 import { useMarketCacheRefresh } from "@/hooks/market/use-market-cache-coordinator";
@@ -56,6 +57,7 @@ export function useMarketDashboard(options?: {
   });
   const freshness = freshnessQuery.data;
   const generation = freshness?.market_sync_id ?? freshness?.last_synced_at ?? null;
+  const sectorGeneration = dashboardSectorGenerationToken(freshness);
   const initialGeneration =
     initialCore?.freshness?.market_sync_id ?? initialCore?.freshness?.last_synced_at ?? null;
   const canUseInitialData = shouldUseDashboardInitialData(initialGeneration, generation);
@@ -97,11 +99,11 @@ export function useMarketDashboard(options?: {
     initialDataUpdatedAt: canUseInitialData ? initialCore?.fetchedAt : undefined,
   });
   const sectorsQuery = useDashboardSectors({
-    generation: generation ?? "pending",
+    generation: sectorGeneration ?? "pending",
     staleTimeMs,
     refetchIntervalMs,
     enabled: generation !== null,
-    initialData: canUseInitialData ? initialCore?.sectors ?? undefined : undefined,
+    initialData: canUseInitialData && dashboardSectorsMatchFreshness(initialCore?.sectors, freshness) ? initialCore?.sectors ?? undefined : undefined,
     initialDataUpdatedAt: canUseInitialData ? initialCore?.fetchedAt : undefined,
   });
   const signalsQuery = useDashboardStocksInFocus({
@@ -156,8 +158,9 @@ export function useMarketDashboard(options?: {
     [sentimentQuery.data, overviewQuery.data?.market_sync_id],
   );
   const mappedLeadersContext = useMemo(
-    () => (sectorsQuery.data && dashboardSectionMatchesOverview(overviewQuery.data, sectorsQuery.data) ? mapDashboardSectorsToLeadersContext(sectorsQuery.data) : undefined),
-    [sectorsQuery.data, overviewQuery.data?.market_sync_id],
+    () => (sectorsQuery.data && !freshnessQuery.isError && dashboardSectorsMatchFreshness(sectorsQuery.data, freshness)
+      && dashboardSectionMatchesOverview(overviewQuery.data, sectorsQuery.data) ? mapDashboardSectorsToLeadersContext(sectorsQuery.data) : undefined),
+    [sectorsQuery.data, overviewQuery.data?.market_sync_id, sectorGeneration, freshnessQuery.isError],
   );
 
   const model = useMemo(

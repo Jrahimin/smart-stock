@@ -9,17 +9,17 @@ import { MarketOverview } from "../components/market-overview";
 import { InsightSidebar } from "../components/insight-sidebar";
 import { getTerminalCopy } from "../terminal-copy";
 import { clearStoredAuthTokens } from "@/lib/api/backend-api-client";
-import type { BackendDashboardMarketSentimentDto, BackendDashboardOverviewDto } from "@/lib/api/backend-api-types";
+import type { BackendDashboardMarketSentimentDto, BackendDashboardOverviewDto, BackendDashboardSectorsDto } from "@/lib/api/backend-api-types";
 import type { MarketDashboardModel } from "../types/market-dashboard-types";
 import { shortTradeDate } from "@/lib/formatters/trader-formatters";
 
-const state = vi.hoisted(() => ({ freshness: { exchange: "DSE", market_sync_id: "gA", trade_date: "2026-11-10", market_status: "OPEN", data_state: "LIVE", dashboard_cache_ttl_seconds: 60, last_synced_at: null as string | null } }));
+const state = vi.hoisted(() => ({ sectors: undefined as BackendDashboardSectorsDto | undefined, freshness: { decision_generation_id: "plan-A", decision_status: "CURRENT", exchange: "DSE", market_sync_id: "gA", trade_date: "2026-11-10", market_status: "OPEN", data_state: "LIVE", dashboard_cache_ttl_seconds: 60, last_synced_at: null as string | null } }));
 vi.mock("@/hooks/market/use-market-data-freshness", () => ({ useMarketDataFreshness: () => ({ data: state.freshness, isLoading: false, isError: false }) }));
 vi.mock("@/hooks/market/use-market-cache-coordinator", () => ({ useMarketCacheRefresh: () => vi.fn() }));
 vi.mock("./use-dashboard-heatmap", () => ({ useDashboardHeatmap: () => ({ data: undefined, isLoading: false }) }));
 vi.mock("./use-dashboard-market-alerts", () => ({ useDashboardMarketAlerts: () => ({ data: undefined, isLoading: false }) }));
 vi.mock("./use-dashboard-movers", () => ({ useDashboardMovers: () => ({ data: undefined, isLoading: false }) }));
-vi.mock("./use-dashboard-sectors", () => ({ useDashboardSectors: () => ({ data: undefined, isLoading: false }) }));
+vi.mock("./use-dashboard-sectors", () => ({ useDashboardSectors: () => ({ data: state.sectors, isLoading: false }) }));
 vi.mock("./use-dashboard-stocks-in-focus", () => ({ useDashboardStocksInFocus: () => ({ data: undefined, isLoading: false }) }));
 
 function breadth(generation: string) {
@@ -42,7 +42,25 @@ function sentiment(generation: string): BackendDashboardMarketSentimentDto {
       index_change_percent: generation === "gA" ? "-0.5" : "1", volume_vs_average: generation === "gA" ? "0.8" : "1.18", volume_average_sessions: 29, breadth: breadth(generation) } };
 }
 const clients: QueryClient[] = [];
-afterEach(() => { cleanup(); clients.splice(0).forEach(client => client.clear()); clearStoredAuthTokens(); vi.unstubAllGlobals(); vi.useRealTimers(); Object.assign(state.freshness, { market_sync_id: "gA", trade_date: "2026-11-10", last_synced_at: null }); });
+afterEach(() => { cleanup(); clients.splice(0).forEach(client => client.clear()); clearStoredAuthTokens(); vi.unstubAllGlobals(); vi.useRealTimers(); state.sectors = undefined; Object.assign(state.freshness, { market_sync_id: "gA", trade_date: "2026-11-10", last_synced_at: null }); });
+
+it("withholds an actual mapped gB sector response from overview gA and restores matching gA", async () => {
+  state.sectors = { market_sync_id: "gB", decision_generation_id: "plan-B", session_trade_date: "2026-11-10",
+    leadership_status: "MEASURED", excluded_sector_count: 1, sectors: [{ name: "Bank", change_percent: "1.2", stock_count: 3 }], top_gainer: null };
+  vi.stubGlobal("fetch", vi.fn((url: string) => Promise.resolve(new Response(JSON.stringify({ success: true,
+    data: new URL(url).pathname.endsWith("/dashboard/overview") ? overview("gA") : sentiment("gA") }), { status: 200 }))));
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }); clients.push(client);
+  const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  let current!: MarketDashboardModel;
+  function View() { const data = useMarketDashboard({ locale: "en" }); current = data.model; return <span>{current.pulse.leadingSector?.name ?? "No joined leader"}</span>; }
+  const view = render(<View />, { wrapper });
+  await waitFor(() => expect(current.overviewPublication?.market_sync_id).toBe("gA"));
+  expect(current.pulse.leadingSector).toBeNull(); expect(view.container.textContent).toBe("No joined leader");
+  state.sectors = { ...state.sectors, market_sync_id: "gA", decision_generation_id: "plan-A" };
+  view.rerender(<View />);
+  await waitFor(() => expect(current.pulse.leadingSector?.name).toBe("Bank"));
+  expect(current.pulse.leadersContext.excludedSectorCount).toBe(1);
+});
 
 it.each([["en", "market-sentiment"], ["bn", "market-sentiment"], ["en", "overview"], ["bn", "overview"]] as const)("real section hooks/API wrappers withhold mixed same-day updates and restore matching IDs (%s, %s first)", async (locale, first) => {
   clearStoredAuthTokens();
@@ -144,6 +162,7 @@ it.each(["en", "bn"].flatMap(locale => [{ quoteDate: "2026-11-12", activity: nul
 });
 
 it.each(["en", "bn"].flatMap(locale => ["new-overview", "old-overview", "missing-own-time", "legacy"].map(mode => ({ locale: locale as "en" | "bn", mode }))))("timestamps actual overview bodies without borrowing another same-day generation ($locale, $mode)", async ({ locale, mode }) => {
+  vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(new Date("2026-11-12T07:00:00Z"));
   const older = "2026-11-12T04:03:00Z", newer = "2026-11-12T06:49:00Z";
   Object.assign(state.freshness, { trade_date: "2026-11-12", market_sync_id: mode === "old-overview" ? "gB" : "gA", last_synced_at: mode === "old-overview" ? newer : older });
   const body = overview(mode === "old-overview" ? "gA" : "gB"); body.session_trade_date = "2026-11-12";

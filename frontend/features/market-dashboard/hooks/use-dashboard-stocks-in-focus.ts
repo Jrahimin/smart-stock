@@ -1,5 +1,7 @@
 "use client";
 
+import { PRICE_BASIS_CONTRACT } from "@/lib/market/entry-contract-capability";
+
 import { useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMarketDataFreshness } from "@/hooks/market/use-market-data-freshness";
@@ -42,7 +44,7 @@ export function useDashboardStocksInFocus({
   const client = useQueryClient();
   const freshness = useMarketDataFreshness(exchange);
   const universeQuery = useQuery({
-    queryKey: ["market-universe-rows", exchange, UNIVERSE_ROWS_QUERY_KEY_LIMIT, generation],
+    queryKey: ["market-universe-rows", PRICE_BASIS_CONTRACT, exchange, UNIVERSE_ROWS_QUERY_KEY_LIMIT, generation],
     queryFn: ({ queryKey }) => listUniverseRows(exchange, generation, client.getQueryData(queryKey) !== undefined),
     staleTime: staleTimeMs,
     refetchInterval: refetchIntervalMs,
@@ -50,7 +52,7 @@ export function useDashboardStocksInFocus({
     retry: shouldRetryUniverseCache,
     retryDelay: () => UNIVERSE_CACHE_WARM_RETRY_DELAY_MS,
   });
-  const boundedData = useCurrentEntryBoundary(universeQuery.data, freshness.isError ? undefined : freshness.data, ["market-universe-rows", exchange, UNIVERSE_ROWS_QUERY_KEY_LIMIT, generation]);
+  const boundedData = useCurrentEntryBoundary(universeQuery.data, freshness.isError ? undefined : freshness.data, ["market-universe-rows", PRICE_BASIS_CONTRACT, exchange, UNIVERSE_ROWS_QUERY_KEY_LIMIT, generation]);
 
   const data = useMemo((): DashboardStocksInFocusQueryData | undefined => {
     if (!boundedData?.rows) {

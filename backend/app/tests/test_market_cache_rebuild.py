@@ -40,6 +40,9 @@ async def test_rebuild_market_read_cache_priority_order(monkeypatch) -> None:
         async def cache_scored_universe(self, exchange, rows):
             call_order.append("cache:universe")
 
+        async def observe_scheduled_entries(self, *, exchange):
+            call_order.append("observe:entries")
+
     monkeypatch.setattr(
         "app.jobs.market_cache_rebuild._build_dashboard_service",
         lambda session, settings, redis: FakeDashboardService(),
@@ -60,6 +63,7 @@ async def test_rebuild_market_read_cache_priority_order(monkeypatch) -> None:
     result = await rebuild_market_read_cache(ExchangeCode.DSE, settings=Settings(), redis=redis)
 
     assert result.success is True
+    assert call_order.index("cache:universe") < call_order.index("observe:entries")
     assert call_order.index("overview") < call_order.index("sectors") < call_order.index("movers") < call_order.index("universe")
     assert (
         call_order.index("cache:overview")
@@ -172,7 +176,10 @@ async def test_spawn_rebuild_universe_read_cache_dedupes_inflight(monkeypatch) -
 @pytest.mark.asyncio
 async def test_spawn_rebuild_universe_skips_when_market_read_inflight(monkeypatch) -> None:
     import app.jobs.market_cache_spawn as spawn_module
-    from app.jobs.market_cache_spawn import spawn_rebuild_market_read_cache, spawn_rebuild_universe_read_cache
+    from app.jobs.market_cache_spawn import (
+        spawn_rebuild_market_read_cache,
+        spawn_rebuild_universe_read_cache,
+    )
 
     spawn_module._inflight_rebuilds.clear()
     spawn_module._rebuild_tasks.clear()

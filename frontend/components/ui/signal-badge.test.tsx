@@ -14,8 +14,8 @@ describe("SignalBadge", () => {
   it("shows the Bangla potential-buy label by default locale", () => {
     const markup = renderToStaticMarkup(<SignalBadge signal="POTENTIAL_BUY" />);
 
-    expect(markup).toContain('aria-label="কেনার সম্ভাবনা"');
-    expect(markup).toContain(">কেনার সম্ভাবনা<");
+    expect(markup).toContain('aria-label="POTENTIAL BUY"');
+    expect(markup).toContain(">POTENTIAL BUY<");
   });
 
   it("uses a shorter table label for compact potential-buy badges", () => {

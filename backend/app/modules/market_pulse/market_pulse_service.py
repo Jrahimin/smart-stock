@@ -29,8 +29,6 @@ from app.core.constants.trading_constants import (
 from app.core.core_config import Settings, get_settings
 from app.core.enums import (
     DataQualityFlag,
-    DecisionDisplayAction,
-    EligibilityStatus,
     ExchangeCode,
     MarketAlertType,
     MarketDataState,
@@ -38,7 +36,17 @@ from app.core.enums import (
     TrendDirection,
 )
 from app.core.redis_client import OptionalRedisClient, get_redis_client
+from app.jobs.market_session_schedule import resolve_market_status
 from app.modules.market_data.market_data_service import MarketDataService, get_market_data_service
+from app.modules.market_data.market_mover_rules import is_eligible_session_mover
+from app.modules.market_data.session_leadership import (
+    is_eligible_session_candidate as is_eligible_pulse_candidate,
+)
+from app.modules.market_pulse.market_pulse_briefing import (
+    PulseBriefingRow,
+    build_market_briefing,
+    measured_price_change,
+)
 from app.modules.market_pulse.market_pulse_cache import (
     pulse_cache_key,
     pulse_cache_ttl_seconds,
@@ -47,13 +55,6 @@ from app.modules.market_pulse.market_pulse_history import (
     compute_pulse_opportunity_aggregate,
     pulse_history_trend_label,
 )
-from app.modules.market_pulse.market_pulse_snapshot_repository import (
-    MarketPulseSnapshotRepository,
-    PulseSnapshotIdentity,
-    get_market_pulse_snapshot_repository,
-)
-from app.modules.market_data.market_mover_rules import is_eligible_session_mover
-from app.modules.market_pulse.market_pulse_briefing import PulseBriefingRow, build_market_briefing, measured_price_change
 from app.modules.market_pulse.market_pulse_schemas import (
     FocusStockRead,
     MarketAlertRead,
@@ -71,6 +72,11 @@ from app.modules.market_pulse.market_pulse_schemas import (
     SinceLastVisitRead,
     TodayInsightRead,
 )
+from app.modules.market_pulse.market_pulse_snapshot_repository import (
+    MarketPulseSnapshotRepository,
+    PulseSnapshotIdentity,
+    get_market_pulse_snapshot_repository,
+)
 from app.modules.market_pulse.pulse_score import (
     build_conviction_insight,
     build_pulse_trigger,
@@ -81,14 +87,13 @@ from app.modules.market_pulse.pulse_score import (
     meets_focus_threshold,
 )
 from app.modules.market_universe.market_universe_compute import technical_snapshot_from_read
-from app.modules.market_universe.market_universe_schemas import ScoredUniverseRow
 from app.modules.market_universe.market_universe_service import (
     CanonicalUniverseSnapshot,
     MarketUniverseService,
     UniverseCacheUnavailableError,
     get_market_universe_service,
 )
-from app.jobs.market_session_schedule import resolve_market_status
+from app.modules.stock_details.decision.entry_applicability import is_current_entry_trigger
 from app.modules.stock_details.decision.technical import TechnicalSnapshot
 from app.modules.stock_details.stock_details_schemas import TraderDecisionSummaryRead
 
@@ -107,24 +112,6 @@ class PulsePresentationRow:
     change_basis_available: bool = True
 
 
-def is_eligible_pulse_candidate(
-    row: ScoredUniverseRow,
-    decision_date: date | None = None,
-) -> bool:
-    if (
-        row.decision is None
-        or row.eligibility is None
-        or row.eligibility.status != EligibilityStatus.ELIGIBLE
-    ):
-        return False
-    expected_session = decision_date or row.eligibility.exchange_session_date
-    return (
-        expected_session is not None
-        and row.eligibility.exchange_session_date == expected_session
-        and row.eligibility.latest_trade_date == expected_session
-        and row.session.latest_trade_date == expected_session
-        and row.technical_snapshot.latest_trade_date == expected_session.isoformat()
-    )
 
 
 def _comparable_previous_snapshot(
@@ -297,7 +284,7 @@ def _to_focus_stock_read(row: PulsePresentationRow, rank: int) -> FocusStockRead
         controlling_reason=row.decision.primary_reason,
         decision_session_date=row.decision.canonical.as_of_date if row.decision.canonical else None,
         watch_level=row.snapshot.resistance,
-        actionable_trigger=bool(row.decision.entry_applicability and row.decision.entry_applicability.status == "APPLICABLE" and row.decision.entry_applicability.price_basis != "LAST_CLOSE"),
+        actionable_trigger=is_current_entry_trigger(row.decision.entry_applicability),
         entry_applicability=row.decision.entry_applicability,
         entry_risk_label=row.decision.trading_risk.label if row.decision.trading_risk else row.decision.risk_label,
         rank=rank,
@@ -800,10 +787,11 @@ class MarketPulseService:
                 result.append(item.model_copy(update={
                     **presentation,
                     "display_quote": row.display_quote if row else None,
+                    "measured_facts": row.measured_facts if row else None,
                     "decision_taxonomy_version": row.decision.decision_taxonomy_version if row and row.decision else None,
                     "public_comparison": comparison,
                     "entry_applicability": applicability,
-                    "actionable_trigger": bool(applicability and applicability.status == "APPLICABLE" and applicability.price_basis != "LAST_CLOSE"),
+                    "actionable_trigger": is_current_entry_trigger(applicability),
                     "entry_risk_label": row.decision.trading_risk.label if row and row.decision and row.decision.trading_risk else None,
                 }))
             return result
@@ -825,13 +813,13 @@ class MarketPulseService:
             upgraded = [item for item in changed if item.public_comparison.previous_action in {"WAIT", "HOLD"}]
             from app.modules.market_pulse.market_pulse_briefing import measured_price_leader
             from app.modules.market_pulse.market_pulse_schemas import LeadershipCardRead
-            leader = measured_price_leader((row, row.technical_snapshot.price_change_percent) for row in eligible)
+            leader = measured_price_leader((row, measured_price_change(row.technical_snapshot, row.session)) for row in eligible)
             cards = [card for card in payload.briefing.leadership.cards if card.kind != "stock"]
             if leader is not None:
                 technical = technical_snapshot_from_read(leader.technical_snapshot)
                 cards.append(LeadershipCardRead(kind="stock", title="Price-change Leader", name=leader.stock.symbol,
-                    detail=_format_percent(technical.price_change_percent), subtitle=f"Session price leader · {snapshot.generation.trade_date}",
-                    tone=_price_tone(technical.price_change_percent), href=f"/stocks/{leader.stock.exchange.value}/{leader.stock.symbol}",
+                    detail=_format_percent(measured_price_change(leader.technical_snapshot, leader.session)), subtitle=f"Session price leader · {snapshot.generation.trade_date}",
+                    tone=_price_tone(measured_price_change(leader.technical_snapshot, leader.session)), href=f"/stocks/{leader.stock.exchange.value}/{leader.stock.symbol}",
                     sparkline_points=_sparkline_points(technical)))
             leadership = payload.briefing.leadership.model_copy(update={
                 "cards": cards,
@@ -872,7 +860,6 @@ class MarketPulseService:
             previous = None
 
         scored_rows: list[PulsePresentationRow] = []
-        previous_recommendations = previous.recommendations if previous else {}
 
         for universe_row in universe_rows:
             if not is_eligible_pulse_candidate(universe_row, decision_date):

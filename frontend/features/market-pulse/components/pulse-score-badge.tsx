@@ -60,6 +60,7 @@ export function PulseScoreHeaderCluster({ score, breakdown, copy }: PulseScoreHe
   const panelId = useId();
   return (
     <div className="pulse-score-header-cluster">
+      <small className="pulse-attention-score-label">{copy.attentionLabel}</small>
       <ScoreRing breakdown={breakdown} compact score={score} />
       <div className="pulse-score-insight" data-open={open} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false); }}>
         <button

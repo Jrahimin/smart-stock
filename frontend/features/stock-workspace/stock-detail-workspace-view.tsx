@@ -2,7 +2,7 @@
 
 import { useUserWatchlist } from "@/features/watchlist/hooks/use-user-watchlist";
 import { withStockHolderInstruction } from "@/features/stock-workspace/view-models/stock-decision-view-model";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { ExchangeCode } from "@/lib/api/backend-api-types";
 import type { StockWorkspaceDto } from "@/lib/api/stock-decision-support-types";
@@ -26,7 +26,7 @@ import { StockWorkspaceHeader } from "@/features/stock-workspace/components/stoc
 import { StockDurableSummary } from "@/features/stock-workspace/components/stock-durable-summary";
 import { TechnicalSummaryPanel } from "@/features/stock-workspace/components/technical-summary-panel";
 import { TradePlanPanel } from "@/features/stock-workspace/components/trade-plan-panel";
-import { TraderDecisionCard } from "@/features/stock-workspace/components/trader-decision-card";
+import { TraderDecisionCard, DecisionSourceDetails } from "@/features/stock-workspace/components/trader-decision-card";
 import { useRelatedStocks } from "@/features/stock-workspace/hooks/use-related-stocks";
 import { useSectorContext } from "@/features/stock-workspace/hooks/use-sector-context";
 import { useStockSectionNav } from "@/features/stock-workspace/hooks/use-stock-section-nav";
@@ -108,6 +108,18 @@ export function StockDetailWorkspaceView({
   const saved = useUserWatchlist();
   const isHolding = saved.membershipReady && Boolean(intelligence && saved.holdingStockIds.has(intelligence.stock.id));
   const decisionModel = withStockHolderInstruction(publicDecisionModel, decisionRaw, isHolding);
+  const railRef = useRef<HTMLElement>(null);
+  const [railFits, setRailFits] = useState(false);
+  useEffect(() => {
+    const rail = railRef.current;
+    if (!rail) return;
+    const measure = () => setRailFits(rail.getBoundingClientRect().height <= window.innerHeight - 112);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(rail);
+    window.addEventListener("resize", measure);
+    return () => { observer.disconnect(); window.removeEventListener("resize", measure); };
+  }, [isLoading, decisionModel.available, locale]);
   const chartSupport = decisionModel.available ? decisionModel.support : intelligence?.support;
   const chartResistance = decisionModel.available ? decisionModel.resistance : intelligence?.resistance;
 
@@ -244,9 +256,10 @@ export function StockDetailWorkspaceView({
 
 
       <div className="trader-workspace-layout">
-        <aside className="trader-decision-rail">
+        <aside className="trader-decision-rail" ref={railRef} data-sticky-fit={railFits}>
           <TraderDecisionCard copy={language.decision} decision={decisionModel} />
           <DecisionScoresPanel copy={language.decision} decision={decisionModel} />
+          <DecisionSourceDetails decision={decisionModel} />
           {isDecisionLoading ? <div className="data-warning data-warning-compact">{language.states.decisionUpdating}</div> : null}
         </aside>
         <main className="trader-workspace-main">

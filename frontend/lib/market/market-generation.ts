@@ -1,3 +1,5 @@
+import { dashboardSectorsMatchGeneration, isDashboardSectorPayload } from "./dashboard-sector-generation";
+
 export const MARKET_GENERATION_FIELD = "market_sync_id" as const;
 
 export type MarketGenerationStamp = {
@@ -64,6 +66,7 @@ export function responseMatchesMarketFreshness(
   data: unknown,
   freshnessLastSyncedAt: string | null | undefined,
 ): boolean {
+  if (isDashboardSectorPayload(data)) return dashboardSectorsMatchGeneration(data, freshnessLastSyncedAt);
   const generationValue = readMarketGenerationValue(data);
   if (generationValue === undefined) {
     return true;

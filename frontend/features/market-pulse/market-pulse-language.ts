@@ -151,6 +151,7 @@ export type MarketPulseLanguage = {
   };
   chips: Record<PulseBriefingChipKey, string>;
   score: {
+    attentionLabel: string;
     whyScoreAria: (score: number) => string;
     whyScoreTitle: (score: number) => string;
     signalStrength: string;
@@ -250,10 +251,10 @@ const marketPulseLanguage = {
       opportunityTrendLabel: (label) => label,
       opportunityLabel: (score) =>
         score >= 68
-          ? "Broad Attention Environment"
+          ? "Many stocks worth reviewing"
           : score >= 55
-            ? "Selective Attention Environment"
-            : "Limited Attention Environment",
+            ? "A few stocks worth reviewing"
+            : "Few stocks stand out",
     },
     leadership: {
       title: "Market Leadership",
@@ -294,12 +295,12 @@ const marketPulseLanguage = {
       titleMonitorFallback:
         "Stocks approaching attention threshold",
       viewAll: "View all stocks →",
-      whySelected: "Why selected?",
+      whySelected: "Why this stock",
       conviction: "Conviction",
       nextTrigger: "Next Trigger",
       label: (label) => label,
       reason: (reason) => reason,
-      watchLevel: "Watch level (observation)",
+      watchLevel: "Price to watch",
       actionSummary: (summary) => summary,
       trigger: (trigger) => trigger,
     },
@@ -322,6 +323,7 @@ const marketPulseLanguage = {
       "in-focus": "In Focus",
     },
     score: {
+      attentionLabel: "Attention",
       whyScoreAria: (score) => `Why score is ${score}`,
       whyScoreTitle: (score) => `Why score is ${score}`,
       signalStrength: "Signal Strength",
@@ -396,7 +398,7 @@ const marketPulseLanguage = {
       outflowing: "দামে পিছিয়ে",
       opportunityScore: "Current Attention Score",
       lastFiveSessions: "সর্বশেষ পাঁচটি তুলনামূলক সেশন",
-      historyPending: "এই স্কোরটি এখন হিসাব করা হয়েছে। একই ধরনের সেশনের snapshot জমা হলে তুলনামূলক ইতিহাস দেখা যাবে।",
+      historyPending: "এই scoreটি এখন হিসাব করা হয়েছে। একই ধরনের সেশনের snapshot জমা হলে তুলনামূলক ইতিহাস দেখা যাবে।",
       yesterday: (value) => `গতকাল: ${value}`,
       fiveDayAvg: (value) => `5 দিনের গড়: ${value}`,
       trend: (label) => `Trend: ${label}`,
@@ -440,7 +442,7 @@ const marketPulseLanguage = {
         const labels: Record<string, string> = {
           sentiment: "Sentiment",
           participation: "Participation",
-          momentum: "Momentum",
+          momentum: "Stocks in uptrend",
           leadership: "Leadership",
         };
         return labels[key] ?? label;
@@ -474,6 +476,8 @@ const marketPulseLanguage = {
           "Selective Attention": "বেছে নজর দেওয়ার সময়",
           "Selective Opportunity": "বেছে নজর দেওয়ার সময়",
           "Cautious Positioning": "এখন একটু সতর্ক থাকা ভালো",
+          "Broad bounce with limited trend confirmation": "অনেক শেয়ার বেড়েছে; trend confirmation এখনও সীমিত",
+          "Mixed market conditions": "বাজারে মিশ্র চিত্র",
         };
         return states[label] ?? label;
       },
@@ -516,7 +520,7 @@ const marketPulseLanguage = {
         }
 
         if (kind === "accumulation") {
-          return "আগের ২০ session-এর median volume-এর তুলনায়";
+          return "আগের 20 session-এর median volume-এর তুলনায়";
         }
 
         return rawSubtitle;
@@ -525,7 +529,7 @@ const marketPulseLanguage = {
 
     summary: {
       title: "এই সেশনের বাজারের সারাংশ",
-      tradingEnvironment: "ট্রেডিংয়ের পরিবেশ",
+      tradingEnvironment: "tradingয়ের পরিবেশ",
       overall: "সামগ্রিকভাবে",
       readFullAnalysis: "বিস্তারিত দেখুন →",
       narrative: (
@@ -652,7 +656,7 @@ const marketPulseLanguage = {
         return reason;
       },
 
-      watchLevel: "পর্যবেক্ষণমূলক স্তর",
+      watchLevel: "নজরে রাখার দাম",
       actionSummary: (summary) => {
         const copy: Record<string, string> = {
           "Volume expanding faster than price":
@@ -665,7 +669,7 @@ const marketPulseLanguage = {
             "Entry setup-এর নির্দিষ্ট শর্ত আছে; শর্ত পূরণ হলে বিবেচনা করুন",
 
           "Investigate the dated entry setup":
-            "এন্ট্রির আগে সেশনের শর্ত মিলিয়ে নিন",
+            "entry-এর আগে সেশনের শর্ত মিলিয়ে নিন",
 
           "Momentum evidence is improving":
             "Momentum evidence উন্নত হচ্ছে",
@@ -787,7 +791,7 @@ const marketPulseLanguage = {
         }
 
         if (type === "sector-rotation") {
-          return "শুধু +০.৪%-এর বেশি বাড়া eligible শেয়ারগুলোর গড়; পুরো sector-এর গড় নয়।";
+          return "শুধু +0.4%-এর বেশি বাড়া eligible শেয়ারগুলোর গড়; পুরো sector-এর গড় নয়।";
         }
 
         if (type === "pulse-score-jump") {
@@ -803,7 +807,7 @@ const marketPulseLanguage = {
         }
 
         if (type === "momentum-reversal") {
-          return "দুর্বল প্রবণতা-এর বিপরীতে session move positive।";
+          return "দুর্বল trend-এর বিপরীতে session-এর দাম বেড়েছে।";
         }
 
         if (type === "liquidity-surge") {
@@ -830,6 +834,7 @@ const marketPulseLanguage = {
     },
 
     score: {
+      attentionLabel: "Attention",
       whyScoreAria: (score) =>
         `Score ${score} হওয়ার কারণ`,
       whyScoreTitle: (score) =>
@@ -838,7 +843,7 @@ const marketPulseLanguage = {
       volumeExpansion: "Volume-এর অবদান পয়েন্ট",
       participationScore: "Trend + momentum পয়েন্ট",
       riskLevel: "Attention score থেকে কমেছে",
-      tradingRisk: "ট্রেডিং ঝুঁকি",
+      tradingRisk: "trading ঝুঁকি",
       bandLabels: {
         strong: "শক্ত",
         moderate: "মাঝারি",

@@ -66,10 +66,10 @@ def _local_range_from_history(
     *,
     day_low: Decimal,
     day_high: Decimal,
-) -> tuple[Decimal, Decimal]:
-    if historical_closes:
-        return min(historical_closes), max(historical_closes)
-    return day_low, day_high
+) -> tuple[Decimal | None, Decimal | None]:
+    if len(historical_closes) >= TRADING_DAYS_1Y:
+        return min(historical_closes[-TRADING_DAYS_1Y:]), max(historical_closes[-TRADING_DAYS_1Y:])
+    return None, None
 
 
 def _has_local_trading_depth(history: list[DailyMarketSummary], trading_days_back: int) -> bool:
@@ -77,7 +77,7 @@ def _has_local_trading_depth(history: list[DailyMarketSummary], trading_days_bac
 
 
 def _amarstock_metrics_cache_key(exchange: ExchangeCode) -> str:
-    return f"dsex:amarstock_metrics:{exchange.value}"
+    return f"dsex:amarstock_metrics:nullable-range-v2:{exchange.value}"
 
 
 async def _load_cached_amarstock_metrics(

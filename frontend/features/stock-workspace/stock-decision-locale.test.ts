@@ -199,7 +199,7 @@ describe("dated plan current-entry projection", () => {
     expect(rendered).toContain("Plan invalidated");
     expect(rendered).toContain("price recovery does not restore");
     const bn = renderToStaticMarkup(createElement(TraderDecisionCard, { decision: buildStockDecisionViewModel(old, "bn"), copy: getStockWorkspaceLanguage("bn").decision }));
-    expect(bn).toContain("পরিকল্পনা বাতিল");
+    expect(bn).toContain("Trade Plan বাতিল");
   });
 });
 
@@ -222,7 +222,7 @@ describe("fixed price-scale trade plan", () => {
     dto.decision.display_action = "POTENTIAL_BUY";
     dto.price_position.current_price = 110;
     dto.trade_plan = { ...dto.trade_plan, status: "VALID_ENTRY_PLAN", entry_zone_low: 97, entry_zone_high: 101, preferred_entry_zone_low: 98, preferred_entry_zone_high: 100, stop_loss: 94, target_low: 109, target_high: 112, risk_reward_ratio: 1.5 };
-    dto.entry_applicability = { status: "OUTSIDE_ZONE", reason_code: "ABOVE_ENTRY_ZONE" };
+    dto.entry_applicability = { status: "OUTSIDE_ZONE", reason_code: "ABOVE_ENTRY_ZONE", price_basis: "CURRENT", source_observed_at: "2026-11-11T05:00:00Z" };
     const metrics = { current_price: 103 } as Parameters<typeof buildStockDecisionViewModel>[2];
     const model = buildStockDecisionViewModel(dto, "en", metrics);
     expect(model.tradePlanVisual).toMatchObject({ entryLow: 98, entryHigh: 100, reference: 110, current: 103, stopLoss: 94, targetLow: 109, targetHigh: 112, riskReward: 1.5 });
@@ -234,8 +234,9 @@ describe("fixed price-scale trade plan", () => {
     const next = renderToStaticMarkup(createElement(TradePlanPanel, { decision: moved, copy: getStockWorkspaceLanguage("en").panels }));
     expect(html.match(/class="trade-plan-zone " style="[^"]+"/)?.[0]).toBe(next.match(/class="trade-plan-zone " style="[^"]+"/)?.[0]);
     const action = renderToStaticMarkup(createElement(TraderDecisionCard, { decision: model, copy: getStockWorkspaceLanguage("en").decision }));
-    expect(action.indexOf("Outside entry terms")).toBeLessThan(action.indexOf("trader-decision-metrics"));
-    expect(action).toContain("Current price is above the entry zone");
+    expect(action).toContain("Above entry zone");
+    expect(action.indexOf("Above entry zone")).toBeGreaterThan(action.indexOf("POTENTIAL BUY"));
+    expect(action).not.toContain("trader-decision-metrics");
   });
   it("draws equal bounds as a tick and never draws missing quote, stop or target markers", () => {
     const dto = buildDecisionFixture();
@@ -251,7 +252,7 @@ describe("fixed price-scale trade plan", () => {
   it("uses pullback support-hold language without claiming that duration was measured", () => {
     const dto = buildDecisionFixture(); dto.decision.display_action = "POTENTIAL_BUY";
     dto.trade_plan.entry_timing = "PULLBACK";
-    dto.entry_applicability = { status: "APPLICABLE", reason_code: "ENTRY_TERMS_MET", assessed_at: "2026-11-11T05:00:00Z", source_observed_at: "2026-11-11T05:00:00Z" };
+    dto.entry_applicability = { status: "APPLICABLE", reason_code: "ENTRY_TERMS_MET", price_basis: "CURRENT", assessed_at: "2026-11-11T05:00:00Z", source_observed_at: "2026-11-11T05:00:00Z" };
     expect(buildStockDecisionViewModel(dto, "en").entryCondition).toBe("Quote is in the pullback zone; watch whether support holds.");
     expect(buildStockDecisionViewModel(dto, "bn").entryCondition).toContain("support টিকে থাকে কি না");
   });
@@ -269,18 +270,18 @@ describe("repair1 publication reading order and measured basis", () => {
     const dto = buildDecisionFixture(); dto.decision.display_action = "POTENTIAL_BUY";
     dto.trade_plan.entry_timing = "BREAKOUT";
     dto.decision.entry_condition = "Enter only after a completed-session close confirms the trigger with acceptable participation.";
-    dto.entry_applicability = { status: "APPLICABLE", reason_code: "ENTRY_TERMS_MET", assessed_at: "2026-11-11T05:00:00Z", source_observed_at: "2026-11-11T05:00:00Z" };
+    dto.entry_applicability = { status: "APPLICABLE", reason_code: "ENTRY_TERMS_MET", price_basis: "CURRENT", assessed_at: "2026-11-11T05:00:00Z", source_observed_at: "2026-11-11T05:00:00Z" };
     const model = buildStockDecisionViewModel(dto, locale);
     const confirmed = renderToStaticMarkup(createElement(TraderDecisionCard, { decision: model, copy: getStockWorkspaceLanguage(locale).decision }));
     expect(confirmed).toContain(locale === "bn" ? "close ও volume নিশ্চিত হয়েছে" : "close and volume are confirmed");
     expect(confirmed).not.toContain("Enter only after a completed-session close");
-    dto.entry_applicability = { status: "AWAITING_CONFIRMATION", reason_code: "COMPLETED_BREAKOUT_REQUIRED" };
+    dto.entry_applicability = { status: "AWAITING_CONFIRMATION", reason_code: "COMPLETED_BREAKOUT_REQUIRED", price_basis: "CURRENT", source_observed_at: "2026-11-11T05:00:00Z" };
     const pendingClose = renderToStaticMarkup(createElement(TraderDecisionCard, { decision: buildStockDecisionViewModel(dto, locale), copy: getStockWorkspaceLanguage(locale).decision }));
-    expect(pendingClose).toContain(getStockWorkspaceLanguage(locale).panels.entryReason.COMPLETED_BREAKOUT_REQUIRED);
+    expect(pendingClose).toContain(locale === "bn" ? "Breakout confirmation-এর অপেক্ষায়" : "Breakout confirmation pending");
     expect(pendingClose).not.toContain(locale === "bn" ? "close ও volume নিশ্চিত হয়েছে" : "close and volume are confirmed");
     dto.entry_applicability.reason_code = "ENTRY_SESSION_PENDING";
     const pendingSession = renderToStaticMarkup(createElement(TraderDecisionCard, { decision: buildStockDecisionViewModel(dto, locale), copy: getStockWorkspaceLanguage(locale).decision }));
-    expect(pendingSession).toContain(getStockWorkspaceLanguage(locale).panels.entryReason.ENTRY_SESSION_PENDING);
+    expect(pendingSession).toContain(locale === "bn" ? "পরের entry session-এর অপেক্ষায়" : "Next entry session pending");
     dto.trade_plan.management_mode = "TRAILING"; dto.trade_plan.trailing_rule = "Trail below the latest completed-session structure or 2.0 ATR, whichever is higher.";
     dto.trade_plan.target_low = dto.trade_plan.target_high = null;
     const trail = renderToStaticMarkup(createElement(TradePlanPanel, { decision: buildStockDecisionViewModel(dto, locale), copy: getStockWorkspaceLanguage(locale).panels }));
@@ -312,7 +313,7 @@ describe("repair1 publication reading order and measured basis", () => {
       expect(durable).not.toContain("WAIT"); expect(card).not.toContain("WAIT");
       expect(header).toContain(`data-decision-status="${status}"`);
       expect(header).toContain("2026-11-10"); expect(header).toContain(shortTradeDate("2026-11-11", locale));
-      const current = durable.indexOf(locale === "bn" ? "এন্ট্রি যাচাই হয়নি" : "Entry unverified");
+      const current = durable.indexOf(locale === "bn" ? "Entry যাচাই হয়নি" : "Entry unverified");
       expect(current).toBeGreaterThan(0);
       expect(current).toBeLessThan(durable.indexOf(decision.confidenceLabel));
       expect(durable).toContain(locale === "bn" ? "সিদ্ধান্ত অনুপলব্ধ" : "Decision unavailable");
@@ -328,5 +329,6 @@ it("keeps Stock Details decision actions in English with Bangla explanations", (
   expect(model.recommendation).toBe("WAIT");
   const html = renderToStaticMarkup(createElement(TraderDecisionCard, { decision: model, copy: getStockWorkspaceLanguage("bn").decision }));
   expect(html).toContain("WAIT");
-  expect(html).toContain("মিশ্র");
+  expect(html).toContain(model.controllingReason!);
+  expect(html).not.toContain("trader-decision-metrics");
 });

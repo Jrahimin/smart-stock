@@ -143,3 +143,24 @@ Bangla. “Quote time unavailable” is appended only when the assessment has no
 source observation time. The dated quote and controlling reason remain in the
 existing disclosure. Portfolio's saved count includes held stocks, while its
 watchlist-only filter selects unheld saved stocks.
+
+
+### Published eligible session leaders
+
+`/dashboard/sectors` reads a compact generation-keyed projection of the durable
+canonical publication for its named stock leader and equal-weight sector returns. This narrow display
+projection reuses Pulse's same-session ELIGIBLE predicate and exact decimal
+change measure. No decision calculation runs on the HTTP path. The publication
+must match the required finalized generation; withdrawn/missing results are
+unavailable. Decision publication identity is exposed separately from the market
+quote boundary and rechecked on reads, including cached dashboard responses.
+At least three eligible constituents with complete exact change evidence are
+required per sector; `excluded_sector_count` discloses partial coverage. Broad
+snapshot breadth, sector focus and the weighted heatmap remain separate.
+
+The compact leadership projection is warmed when the validated durable universe
+winner is cached. A cold miss hydrates that winner once and caches only leader,
+sector and coverage fields. Warm requests check publication/withdrawal metadata
+and the current compact market manifest; they do not calculate finalized input
+fingerprints or validate every universe row. Changing/withdrawing the published
+head makes a cached leader unavailable. No production latency claim is made.

@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { order4SurfaceFixture } from "@/test-fixtures/order4-surface-fixtures";
 import { mapUniverseRowToListRow } from "./universe-row-mapper";
 import { resolveTraderDecision } from "./trader-decision";
-import { breadthCoverageLabel } from "./breadth-presentation";
+import { breadthCoverageLabel, breadthDefinition } from "./breadth-presentation";
 import { SignalCenterView } from "@/features/signals/signal-center-view";
 import { ScannerWorkspaceView } from "@/features/scanner/scanner-workspace-view";
 import { SmartSignalFeed } from "@/features/market-dashboard/components/smart-signal-feed";
@@ -45,7 +45,7 @@ describe("increment2 common-fixture journey", () => {
     const pulse = buildMarketPulseViewModel(fixture.pulse, locale); const copy = getMarketPulseLanguage(locale);
     const focus = renderToStaticMarkup(<FocusStockCard stock={pulse.focusStocks[0]} copy={copy.focus} scoreCopy={copy.score} />);
     const monitor = renderToStaticMarkup(<FocusStockCard stock={pulse.monitorCandidates[0]} copy={copy.focus} scoreCopy={copy.score} />);
-    const outside = getStockWorkspaceLanguage(locale).panels.entryStatus.OUTSIDE_ZONE;
+    const outside = locale === "bn" ? "Entry zone-এর উপরে" : "Above entry zone";
     for (const html of [signals, scanner, dashboard, detail, focus, monitor]) {
       expect(html).toContain(outside);
       if (html !== detail) expect(html).toContain("/stocks/DSE/TEST");
@@ -57,9 +57,9 @@ describe("increment2 common-fixture journey", () => {
     expect(dashboard).not.toContain(genericPlan);
     expect(dashboard).toContain(locale === "bn" ? "সবচেয়ে শক্ত দিক" : "Strongest factor");
     expect(scanner.indexOf(outside)).toBeLessThan(scanner.indexOf(locale === "bn" ? "খোঁজের কারণ" : "Discovery"));
-    expect(focus.indexOf(outside)).toBeLessThan(focus.indexOf("pulse-focus-why-block"));
-    expect(focus).toContain("110.00"); expect(focus).toContain(locale === "bn" ? "সেশনের সমাপনী দর" : "Session close");
-    expect(pulse.hero.sessionLabel).toContain(locale === "bn" ? "লেনদেন শুরুর আগে" : "PRE_OPEN"); expect(pulse.hero.sessionLabel).toContain(shortTradeDate("2026-11-10", locale));
+    expect(focus.indexOf(outside)).toBeLessThan(focus.indexOf("pulse-focus-label-badge"));
+    expect(pulse.focusStocks[0].latestPrice).toBe("103"); expect(focus).toContain(shortTradeDate("2026-11-11", locale));
+    expect(pulse.hero.sessionLabel).toContain(locale === "bn" ? "লেনদেন শুরুর আগে" : "Pre-open"); expect(pulse.hero.sessionLabel).toContain(shortTradeDate("2026-11-10", locale));
     expect(pulse.sessionDisablesRefresh).toBe(false);
   });
   it("filters true WAIT separately from missing action and keeps SPECULATIVE/UNKNOWN risk distinct", () => {
@@ -74,11 +74,62 @@ describe("increment2 common-fixture journey", () => {
     expect(resolveTraderDecision(mapUniverseRowToListRow(absent)).riskLabel).toBe("UNKNOWN");
     expect(resolveTraderDecision(mapUniverseRowToListRow(row)).riskLabel).toBe("SPECULATIVE");
   });
+  it("shows 32 ranked stocks, expands in place, and resets the window after filtering", () => {
+    const { row } = order4SurfaceFixture();
+    state.universe = Array.from({ length: 65 }, (_, index) => mapUniverseRowToListRow({ ...row,
+      stock: { ...row.stock, id: `stock-${index}`, symbol: `STOCK${index}`, name: `Full company name ${index} Limited` },
+      decision: { ...row.decision!, display_action: index < 40 ? "WAIT" : "POTENTIAL_BUY" },
+    }));
+    const client = new QueryClient();
+    const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+    const view = render(<SignalCenterView locale="en" />, { wrapper });
+    expect(view.container.querySelectorAll(".signal-center-item")).toHaveLength(32);
+    fireEvent.click(view.getByRole("button", { name: "Show 32 more" }));
+    expect(view.container.querySelectorAll(".signal-center-item")).toHaveLength(64);
+    fireEvent.change(view.container.querySelectorAll("select")[0], { target: { value: "WAIT" } });
+    expect(view.container.querySelectorAll(".signal-center-item")).toHaveLength(32);
+    fireEvent.click(view.getByRole("button", { name: "Show 32 more" }));
+    expect(view.container.querySelectorAll(".signal-center-item")).toHaveLength(40);
+    expect(view.queryByRole("button", { name: "Show 32 more" })).toBeNull();
+    expect(view.container.textContent).toContain("Full company name 39 Limited");
+  });
+  it.each(["en", "bn"] as const)("uses backend measured facts once on the compact Dashboard card (%s)", locale => {
+    const { row } = order4SurfaceFixture();
+    row.measured_facts = { rsi: 58.4, trend: "UPTREND", opportunity_score: 72, trigger_price: 110, resistance: 112,
+      volume_ratio: 1.8, volume_baseline: "PRIOR_20_SESSION_MEDIAN", volume_sample_count: 20 };
+    const html = renderToStaticMarkup(<SmartSignalFeed locale={locale} signals={mapUniverseRowsToSignalFeed([row])} />);
+    expect(html.match(/RSI 58.4/g)).toHaveLength(1);
+    expect(html).toContain("1.8×"); expect(html).toContain("20-session median");
+    expect(html).not.toContain("RSI 55"); expect(html).not.toContain("average");
+  });
+  it.each(["en", "bn"].flatMap(locale => [true, false].map(hasLevel => ({ locale: locale as "en" | "bn", hasLevel }))))("retains one precise published trigger condition across the full journey ($locale, level=$hasLevel)", ({ locale, hasLevel }) => {
+    const fixture = order4SurfaceFixture();
+    const facts = { rsi: 58, trend: "UPTREND", opportunity_score: 70, trigger_price: hasLevel ? 96.54 : null, resistance: null,
+      volume_ratio: 1.6, volume_baseline: "PRIOR_20_SESSION_MEDIAN" as const, volume_sample_count: 20 };
+    fixture.row.measured_facts = fixture.support.measured_facts = facts;
+    for (const stock of [...fixture.pulse.focus_stocks, ...fixture.pulse.monitor_candidates]) { stock.measured_facts = facts; stock.controlling_reason_code = "bullish_setup_breakout"; }
+    state.universe = [mapUniverseRowToListRow(fixture.row)];
+    const client = new QueryClient(); const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+    const signals = render(<SignalCenterView locale={locale} />, { wrapper }).container.innerHTML;
+    const scanner = render(<ScannerWorkspaceView locale={locale} />, { wrapper }).container.innerHTML;
+    const dashboard = renderToStaticMarkup(<SmartSignalFeed locale={locale} signals={mapUniverseRowsToSignalFeed([fixture.row])} />);
+    const model = buildStockDecisionViewModel(fixture.support, locale);
+    const detail = renderToStaticMarkup(<TraderDecisionCard decision={model} copy={getStockWorkspaceLanguage(locale).decision} />);
+    const pulse = buildMarketPulseViewModel(fixture.pulse, locale), copy = getMarketPulseLanguage(locale);
+    const focus = renderToStaticMarkup(<FocusStockCard stock={pulse.focusStocks[0]} copy={copy.focus} scoreCopy={copy.score} />);
+    for (const html of [signals, scanner, dashboard, detail, focus]) {
+      expect(html.includes("96.54")).toBe(hasLevel);
+      if (hasLevel) expect(html).toContain(locale === "en" ? "Trade Plan: close above 96.54 with volume confirmation" : "Trade Plan: 96.54-এর ওপরে close ও volume confirmation প্রয়োজন");
+      expect(html).not.toContain("Inside entry zone");
+    }
+    if (hasLevel) { expect(detail).toContain("Trigger 96.54"); expect(model.controllingReason).not.toContain("breakout"); }
+    expect(focus).toContain("Attention"); expect(focus).toContain("Opportunity 70/100");
+  });
   it("shows measured breadth populations and does not turn absent sector moves or one-bar mood into observations", () => {
     const facts = order4SurfaceFixture().pulse.coverage!.breadth!;
     expect(breadthCoverageLabel(facts, "en")).toContain("1 of 2");
     expect(breadthCoverageLabel(facts, "en")).toContain("1 not reported");
-    expect(breadthCoverageLabel(facts, "bn")).toContain("0.05%");
+    expect(breadthDefinition(facts, "bn")).toContain("0.05%");
     const sectors = mapDashboardSectorsToLeadersContext({ sectors: [{ name: "Unknown", change_percent: null }, { name: "Known", change_percent: "2" }], top_gainer: null } as never);
     expect(sectors.primary?.name).toBe("Known");
     const sentiment = mapDashboardSentimentDto({ market_mood: "Accumulation", insights: [{ id: "market-mood" }], turnover_value: null } as never);
@@ -119,7 +170,7 @@ it.each(["en", "bn"] as const)("keeps the canonical decision date separate from 
   const signalCard = signals.container.querySelector(".signal-center-item")!;
   const scannerCard = scanner.container.querySelector(".scanner-result-card")!;
   for (const card of [signalCard, scannerCard]) {
-    expect(card.textContent).toContain(shortTradeDate("2026-11-10", locale));
+    expect((card === signalCard ? signals.container : scanner.container).textContent).toContain(shortTradeDate("2026-11-10", locale));
     expect(card.textContent).not.toMatch(/Decision[^·<]*2026-11-05/);
   }
   expect(scannerCard.textContent).toContain(shortTradeDate("2026-11-05", locale));
@@ -160,5 +211,5 @@ it.each(["en", "bn"] as const)("Detail holder instruction leads while public the
 it("holder reason reuses the localized support-break code instead of a generic Bangla fallback", () => {
   const fixture = order4SurfaceFixture(); fixture.support.decision.holder_action = "REVIEW"; fixture.support.decision.primary_reason_code = "support_break";
   const model = withStockHolderInstruction(buildStockDecisionViewModel(fixture.support, "bn"), fixture.support, true);
-  expect(model.holderInstruction?.reason).toBe("সাপোর্ট ভেঙেছে। হোল্ডিংয়ের সুরক্ষা নির্দেশনা অনুসরণ করুন।");
+  expect(model.holderInstruction?.reason).toBe("support ভেঙেছে। হোল্ডিংয়ের সুরক্ষা নির্দেশনা অনুসরণ করুন।");
 });

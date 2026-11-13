@@ -7,6 +7,11 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { PortfolioWorkspaceView } from "./portfolio-workspace-view";
 import { accountRow, accountWorkspace } from "@/test-fixtures/account-fixtures";
 import { portfolioLanguage } from "./portfolio-language";
+import { order4SurfaceFixture } from "@/test-fixtures/order4-surface-fixtures";
+import { buildStockDecisionViewModel, withStockHolderInstruction } from "@/features/stock-workspace/view-models/stock-decision-view-model";
+import { TraderDecisionCard } from "@/features/stock-workspace/components/trader-decision-card";
+import { getStockWorkspaceLanguage } from "@/features/stock-workspace/stock-workspace-language";
+import { renderToStaticMarkup } from "react-dom/server";
 const state = vi.hoisted(() => ({ compact: false, data: {} as unknown, update: vi.fn(), remove: vi.fn() }));
 vi.mock("@/features/auth/context/auth-context", () => ({ useAuth: () => ({ user: { id: "user-a" }, isAuthenticated: true }) }));
 vi.mock("@/features/portfolio/hooks/use-portfolio-workspace", () => ({ usePortfolioWorkspace: () => ({ data: state.data, isPending: false, isError: false }), resolvePortfolioWorkspaceLoadState: () => "ready" }));
@@ -20,6 +25,21 @@ vi.mock("@/lib/api/watchlist-api", () => ({ updateWatchlistItem: (...args: unkno
 function mount(locale: "en" | "bn") { const client = new QueryClient(); const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>; return render(<PortfolioWorkspaceView locale={locale} />, { wrapper }); }
 beforeEach(() => { Element.prototype.scrollIntoView = vi.fn(); state.compact = false; state.data = accountWorkspace(); });
 afterEach(() => { cleanup(); vi.resetAllMocks(); });
+it.each((["en", "bn"] as const).flatMap(locale => (["SELL", "HOLD", "REVIEW"] as const).map(action => ({ locale, action }))))("rendered account row and Detail retain identical canonical holder evidence ($locale/$action)", ({ locale, action }) => {
+  const reason = action === "SELL" ? "bearish_directional_evidence" : action === "HOLD" ? "constructive_watch" : "illiquid";
+  const row = accountRow({ holder_action: action, action: action === "REVIEW" ? "WAIT" : action, primary_reason_code: reason,
+    what_next_code: action === "SELL" ? "REVIEW_SELL_OR_REDUCE" : action === "HOLD" ? "NO_ACTION_NEEDED" : "REVIEW_HOLDER_GUIDANCE" });
+  state.data = accountWorkspace(row);
+  const view = mount(locale); const holding = view.container.querySelector('tr[data-stock-id="stock-1"]')!;
+  const support = order4SurfaceFixture().support;
+  support.decision.holder_action = action; support.decision.display_action = row.action!; support.decision.primary_reason_code = reason;
+  const detail = withStockHolderInstruction(buildStockDecisionViewModel(support, locale), support, true);
+  const html = renderToStaticMarkup(<TraderDecisionCard decision={detail} copy={getStockWorkspaceLanguage(locale).decision} />);
+  const canonical = holding.querySelector(".portfolio-account-decision > p")?.textContent;
+  expect(canonical).toBe(detail.holderInstruction?.reason); expect(html).toContain(detail.holderInstruction!.reason);
+  expect(holding.querySelector(".portfolio-account-decision > .portfolio-status")?.textContent).toBe(detail.holderInstruction?.label);
+  if (action === "SELL") expect(holding.querySelector(".portfolio-account-next")?.textContent).toContain(portfolioLanguage[locale].guidance.REVIEW_SELL_OR_REDUCE);
+});
 it.each([[false, "en"], [true, "en"], [false, "bn"], [true, "bn"]] as const)("same server account money and precise instruction in compact=%s %s", (compact, locale) => {
   state.compact = compact; const { container } = mount(locale);
   expect(container.textContent).toContain("৳103"); expect(container.textContent).toContain("+1.98%"); expect(container.textContent).toContain("+3.00%"); expect(container.textContent).toContain(shortTradeDate("2026-11-10", locale));

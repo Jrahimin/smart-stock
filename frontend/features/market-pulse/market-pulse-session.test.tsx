@@ -31,7 +31,7 @@ it.each(["en", "bn"] as const)("does not mistake yesterday's finalized decision 
   pulse.coverage!.quote_session_date = "2026-11-12";
   const model = buildMarketPulseViewModel(pulse, locale);
   const view = render(<MarketPulseHero hero={model.hero} briefingChips={model.briefingChips} copy={getMarketPulseLanguage(locale)} locale={locale} />);
-  expect(view.getByRole("status").textContent).toContain(locale === "en" ? "OPEN · Analysis 10 Nov" : "লেনদেন চলছে · বিশ্লেষণ 10 নভেম্বর");
+  expect(view.getByRole("status").textContent).toContain(locale === "en" ? "Market open · Analysis 10 Nov" : "লেনদেন চলছে · বিশ্লেষণ 10 নভেম্বর");
   expect(view.container.textContent).not.toContain(locale === "en" ? "prices are not in" : "দাম আসেনি");
 });
 
@@ -51,5 +51,6 @@ it.each(["en", "bn"] as const)("explains legacy exact-basis unavailability witho
   const { pulse } = order4SurfaceFixture();
   pulse.data_quality_note = "Some sector comparisons lack an exact source price-change basis.";
   const model = buildMarketPulseViewModel(pulse, locale);
-  expect(model.dataQualityNote).toContain(locale === "en" ? "exact source price-change basis" : "সঠিক উৎসভিত্তি");
+  expect(model.dataQualityNote).toContain(locale === "en" ? "Some prices need review" : "কিছু দামের তথ্য যাচাই করা দরকার");
+  expect(model.briefing?.breadth ?? pulse.coverage?.breadth).toEqual(pulse.coverage?.breadth);
 });

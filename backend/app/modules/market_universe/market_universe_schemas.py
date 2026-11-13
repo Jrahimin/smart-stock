@@ -13,7 +13,12 @@ from app.core.constants.trading_constants import (
     TRADING_THRESHOLD_VERSION,
 )
 from app.core.enums import DataQualityFlag, ExchangeCode, MarketDataState, ScannerConditionId
-from app.modules.stock_details.decision.comparison import HolderDecisionComparisonRead, PublicDecisionComparisonRead
+from app.modules.stock_details.decision.comparison import (
+    HolderDecisionComparisonRead,
+    PublicDecisionComparisonRead,
+)
+from app.modules.stock_details.decision.entry_applicability import EntryApplicabilityRead
+from app.modules.stock_details.decision.measured_facts import MeasuredDecisionFactsRead
 from app.modules.stock_details.stock_details_schemas import (
     CanonicalDecisionResultRead,
     DataReliabilityRead,
@@ -29,7 +34,6 @@ from app.modules.stock_details.stock_details_schemas import (
     TradingRiskRead,
 )
 from app.modules.stocks.stocks_schemas import StockRead
-from app.modules.stock_details.decision.entry_applicability import EntryApplicabilityRead
 
 
 class UniverseSessionRead(BaseModel):
@@ -74,6 +78,8 @@ class CanonicalDecisionAnalysisRead(BaseModel):
 
 
 class DisplayQuoteRead(BaseModel):
+    volume: int | None = Field(default=None, exclude_if=lambda value: value is None)
+    session_date_verified: bool | None = Field(default=None, exclude_if=lambda value: value is None)
     previous_close: float | None = None
     source: str | None = None
     data_quality: str | None = None
@@ -101,6 +107,7 @@ class ScoredUniverseRow(BaseModel):
     """Lightweight exchange-wide row — safe for universe:scored Redis cache."""
 
     entry_applicability: EntryApplicabilityRead | None = None
+    measured_facts: MeasuredDecisionFactsRead | None = Field(default=None, exclude_if=lambda value: value is None)
     holder_comparison: "HolderDecisionComparisonRead | None" = Field(default=None, exclude_if=lambda value: value is None)
     public_comparison: "PublicDecisionComparisonRead | None" = Field(default=None, exclude_if=lambda value: value is None)
     previous_publication_generation_id: str | None = Field(default=None, exclude_if=lambda value: value is None)

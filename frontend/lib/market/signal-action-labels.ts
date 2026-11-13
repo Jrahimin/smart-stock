@@ -21,13 +21,13 @@ const signalActionLabels: Record<AppLocale, SignalActionLabelCopy> = {
   },
   bn: {
     default: {
-      POTENTIAL_BUY: "কেনার সম্ভাবনা",
-      WAIT: "অপেক্ষা করুন",
-      SELL: "বিক্রি করুন",
-      HOLD: "ধরে রাখুন",
+      POTENTIAL_BUY: "POTENTIAL BUY",
+      WAIT: "WAIT",
+      SELL: "SELL",
+      HOLD: "HOLD",
     },
     compact: {
-      POTENTIAL_BUY: "কেনার সম্ভাবনা",
+      POTENTIAL_BUY: "POTENTIAL BUY",
     },
   },
 };
@@ -48,5 +48,5 @@ export function getSignalActionLabel(
 
 export const holderActionLabels: Record<AppLocale, Record<HolderAction, string>> = {
   en: { HOLD: "Hold", REVIEW: "Review", REDUCE: "Reduce", SELL: "Sell" },
-  bn: { HOLD: "ধরে রাখুন", REVIEW: "পর্যালোচনা করুন", REDUCE: "অবস্থান কমান", SELL: "বিক্রয়" },
+  bn: { HOLD: "Hold", REVIEW: "Review", REDUCE: "Reduce", SELL: "Sell" },
 };

@@ -327,10 +327,11 @@ export type BackendShortlistDto = { version: string; entry_rank: number; holder_
 export type BackendDisplayQuoteDto = NonNullable<BackendScoredUniverseRowDto["display_quote"]> & { previous_close?: number | null };
 
 export type BackendScoredUniverseRowDto = {
+  measured_facts?: import("./stock-decision-support-types").MeasuredDecisionFactsDto | null;
   public_comparison?: BackendPublicDecisionComparisonDto | null;
   analysis?: { liquidity?: { latest_volume_ratio?: number | null } } | null;
   entry_applicability?: import("./stock-decision-support-types").EntryApplicabilityDto | null;
-  display_quote?: { current_price: number | null; price_change?: number | null; price_change_percent?: number | null; as_of_trade_date?: string | null; observation_session_date?: string | null; observation_status: string; source_observed_at?: string | null; batch_fetched_at?: string | null; max_age_seconds?: number; data_quality?: string | null; source?: string | null; ingested_at?: string | null } | null;
+  display_quote?: { volume?: number | null; session_date_verified?: boolean | null; current_price: number | null; price_change?: number | null; price_change_percent?: number | null; as_of_trade_date?: string | null; observation_session_date?: string | null; observation_status: string; source_observed_at?: string | null; batch_fetched_at?: string | null; max_age_seconds?: number; data_quality?: string | null; source?: string | null; ingested_at?: string | null } | null;
   shortlist?: BackendShortlistDto | null;
   previous_finalized_decision?: BackendCanonicalDecisionResultDto | null;
   stock: BackendStockDto;
@@ -462,6 +463,8 @@ export type BackendDashboardSectorDto = {
 };
 
 export type BackendDashboardSectorsDto = {
+  leadership_status?: "MEASURED" | "NO_ADVANCING_SECTOR" | "UNAVAILABLE";
+  excluded_sector_count?: number;
   session_trade_date: string | null;
   decision_generation_id?: string | null;
   decision_status?: "CURRENT" | "UPDATING" | "UNAVAILABLE";
@@ -869,6 +872,7 @@ export type BackendPulseScoreBreakdownDto = {
 };
 
 export type BackendFocusStockDto = {
+  measured_facts?: import("./stock-decision-support-types").MeasuredDecisionFactsDto | null;
   entry_applicability?: import("./stock-decision-support-types").EntryApplicabilityDto | null;
   display_quote?: BackendScoredUniverseRowDto["display_quote"];
   decision_taxonomy_version?: string | null;
@@ -994,6 +998,7 @@ export type BackendMarketStateDimensionDto = {
 };
 
 export type BackendMarketStateDto = {
+  excluded_sector_count?: number;
   dimensions: BackendMarketStateDimensionDto[];
   overall_label: string;
   overall_tone: string;

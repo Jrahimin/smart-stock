@@ -616,8 +616,8 @@ class MarketDataService:
 
         range_position_percent = self._compute_range_position_percent(
             index_close,
-            performance.range_52w_low or index_close,
-            performance.range_52w_high or index_close,
+            performance.range_52w_low,
+            performance.range_52w_high,
         )
 
         perf.log_summary()
@@ -630,8 +630,8 @@ class MarketDataService:
             day_open=day_open,
             day_high=day_high,
             day_low=day_low,
-            range_52w_low=performance.range_52w_low or index_close,
-            range_52w_high=performance.range_52w_high or index_close,
+            range_52w_low=performance.range_52w_low,
+            range_52w_high=performance.range_52w_high,
             range_position_percent=range_position_percent,
             return_1m_percent=performance.return_1m_percent,
             return_6m_percent=performance.return_6m_percent,
@@ -698,9 +698,11 @@ class MarketDataService:
     def _compute_range_position_percent(
         self,
         current_close: Decimal,
-        range_low: Decimal,
-        range_high: Decimal,
-    ) -> Decimal:
+        range_low: Decimal | None,
+        range_high: Decimal | None,
+    ) -> Decimal | None:
+        if range_low is None or range_high is None:
+            return None
         if range_high <= range_low:
             return Decimal("50")
 
@@ -938,6 +940,7 @@ class MarketDataService:
             fetched_count=fetched_count,
             accepted_count=accepted_count,
             suspicious_count=suspicious_count,
+            capture_price_versions=True,
         )
         await self.repository.commit()
         return sync_id
@@ -987,6 +990,7 @@ class MarketDataService:
             fetched_count=current.fetched_count,
             accepted_count=current.accepted_count,
             suspicious_count=current.suspicious_count,
+            parent_price_generation_id=current.sync_id,
         )
         await self.repository.commit()
         return sync_id

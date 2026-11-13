@@ -282,7 +282,7 @@ const stockDecisionLanguage = {
       },
       elevated_risk: {
         title: "পুরোনো composite ঝুঁকি বেশি",
-        message: ({ riskLabel }) => riskLabel ? `পুরোনো composite ঝুঁকির মাত্রা ${riskLabel}; এটি এন্ট্রির ঝুঁকি থেকে আলাদা।` : "প্রকাশিত পুরোনো composite ঝুঁকির সতর্কতা এন্ট্রির ঝুঁকি থেকে আলাদা।",
+        message: ({ riskLabel }) => riskLabel ? `পুরোনো composite ঝুঁকির মাত্রা ${riskLabel}; এটি entry-এর ঝুঁকি থেকে আলাদা।` : "প্রকাশিত পুরোনো composite ঝুঁকির সতর্কতা entry-এর ঝুঁকি থেকে আলাদা।",
       },
       bearish_pattern: {
         title: ({ confirmed }) => (confirmed ? "Bearish pattern নিশ্চিত" : "Bearish pattern তৈরি হচ্ছে"),

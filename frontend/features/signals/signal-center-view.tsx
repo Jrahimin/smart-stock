@@ -1,11 +1,15 @@
 "use client";
 
+import { MeasuredDecisionFacts } from "@/components/market/measured-decision-facts";
+import { PublishedSetupCondition } from "@/components/market/published-setup-condition";
+
+
 import { EntryApplicabilityLabel } from "@/components/market/entry-applicability-label";
 import { isDatedPlanGuidance, evidenceLabel, controllingReasonLabel, selectedDecisionExplanation, riskValueLabel } from "@/lib/market/decision-presentation";
 import Link from "next/link";
-import { shortTradeDate } from "@/lib/formatters/trader-formatters";
+import { shortTradeDate, commonTradeDate } from "@/lib/formatters/trader-formatters";
 import { getSignalActionLabel } from "@/lib/market/signal-action-labels";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { WorkspacePageHero } from "@/components/layout/workspace-page-hero";
 import { MarketActivityLoader } from "@/components/ui/market-activity-loader";
@@ -37,6 +41,7 @@ type SignalCenterViewProps = {
 export function SignalCenterView({ locale = DEFAULT_LOCALE }: SignalCenterViewProps) {
   const language = getSignalsLanguage(locale);
   const { universe, isLoading, isError, isWarmingUp, isUpdating, decisionDate } = useMarketUniverse({ stockLimit: 500 });
+  const [visibleCount, setVisibleCount] = useState(32);
   const [filter, setFilter] = useState("ALL");
   const [riskFilter, setRiskFilter] = useState("ALL");
   const [sortMode, setSortMode] = useState("CONVICTION");
@@ -69,6 +74,9 @@ export function SignalCenterView({ locale = DEFAULT_LOCALE }: SignalCenterViewPr
     [filter, riskFilter, sortMode, symbolFilter, universe],
   );
 
+  const sharedDate = commonTradeDate(signalRows.map((stock) => stock.decisionDate));
+  useEffect(() => setVisibleCount(32), [filter, riskFilter, sortMode, symbolFilter]);
+
   return (
     <section className="signal-center-view">
       <WorkspacePageHero
@@ -80,7 +88,7 @@ export function SignalCenterView({ locale = DEFAULT_LOCALE }: SignalCenterViewPr
         subtitle={
           isLoading
             ? language.hero.loadingSubtitle
-            : `${language.hero.readySubtitle(signalRows.length)} · ${shortTradeDate(decisionDate, locale)}`
+            : `${language.hero.readySubtitle(signalRows.length)} · ${sharedDate ? shortTradeDate(sharedDate, locale) : locale === "bn" ? "সিদ্ধান্তের তারিখ প্রতিটি শেয়ারের সঙ্গে" : "Decision dates shown per stock"}`
         }
         title={language.hero.title}
       >
@@ -97,8 +105,8 @@ export function SignalCenterView({ locale = DEFAULT_LOCALE }: SignalCenterViewPr
             <option value="SPECULATIVE">{language.filters.speculative}</option>
           </select>
           <select value={sortMode} onChange={(event) => setSortMode(event.target.value)}>
-            <option value="CONVICTION">{locale === "bn" ? "নতুন এন্ট্রির সেরা বাছাই" : "Entry shortlist"}</option>
-            <option value="HOLDER_EXIT">{locale === "bn" ? "হোল্ডারের বিক্রির অগ্রাধিকার" : "Holder exit priority"}</option>
+            <option value="CONVICTION">{locale === "bn" ? "নতুন entry-এর সেরা বাছাই" : "Entry shortlist"}</option>
+            <option value="HOLDER_EXIT">{locale === "bn" ? "বর্তমান হোল্ডিংয়ের বিক্রির অগ্রাধিকার" : "Holder exit priority"}</option>
             <option value="NEWEST">{language.filters.newest}</option>
             <option value="RISK_ADJUSTED">{language.filters.riskAdjusted}</option>
             <option value="VOLUME_CONFIRMED">{language.filters.volumeConfirmed}</option>
@@ -111,9 +119,9 @@ export function SignalCenterView({ locale = DEFAULT_LOCALE }: SignalCenterViewPr
       {isError ? <div className="data-warning">{language.states.loadError}</div> : null}
       {isLoading ? <MarketActivityLoader label={language.states.loading} /> : null}
       {!isLoading && !isWarmingUp ? (
-        <div className="signal-center-list">
+        <div className="signal-center-list" id="signal-results">
           {signalRows.length ? (
-            signalRows.map((stock) => {
+            signalRows.slice(0, visibleCount).map((stock) => {
               const decision = resolveTraderDecision(stock);
               const selected = selectedDecisionExplanation(stock.traderDecision, locale);
               const policy = controllingReasonLabel(decision.reasonCode, "", locale);
@@ -131,13 +139,15 @@ export function SignalCenterView({ locale = DEFAULT_LOCALE }: SignalCenterViewPr
                     </div>
                     <SignalBadge signal={decision.recommendation} locale={locale} />
                   </div>
-                  <small>{locale === "bn" ? "নতুন ক্রেতার জন্য" : "For new buyers"} · {shortTradeDate(stock.decisionDate, locale)}</small>
+                  <small>{locale === "bn" ? "নতুন ক্রেতার জন্য" : "For new buyers"}{!sharedDate ? ` · ${shortTradeDate(stock.decisionDate, locale)}` : ""}</small>
                   <EntryApplicabilityLabel assessment={decision.entryApplicability} locale={locale} policyReason={policy} />
+                  <PublishedSetupCondition facts={stock.measuredFacts} assessment={decision.entryApplicability} locale={locale} reasonCode={decision.reasonCode} />
                   {policy && !isDatedPlanGuidance(decision.reasonCode) ? <p className="signal-controlling-reason">{policy}</p> : null}
                   {selected.limitation && selected.limitation !== policy ? <p className="signal-controlling-reason">{selected.limitation}</p> : null}
-                  {selected.support ? <small className="signal-measured-support">{selected.support}</small> : null}
+                  <MeasuredDecisionFacts facts={stock.measuredFacts} locale={locale} ratings />
+                  {!stock.measuredFacts && selected.support ? <small className="signal-measured-support">{selected.support}</small> : null}
                   <div className="signal-evidence-row">
-                    <span>{stock.traderDecision?.trading_risk ? locale === "bn" ? "এন্ট্রির ঝুঁকি" : "Entry risk" : locale === "bn" ? "প্রকাশিত ঝুঁকি" : "Published risk"}: {riskValueLabel(decision.riskLabel, locale)}</span>
+                    <span>{stock.traderDecision?.trading_risk ? locale === "bn" ? "entry-এর ঝুঁকি" : "Entry risk" : locale === "bn" ? "প্রকাশিত ঝুঁকি" : "Published risk"}: {riskValueLabel(decision.riskLabel, locale)}</span>
                   </div>
                   <Link href={buildStockDetailPath(stock.stock.exchange, stock.stock.symbol)}>{locale === "bn" ? "বিস্তারিত দেখুন" : "View details"} →</Link>
                 </article>
@@ -151,6 +161,10 @@ export function SignalCenterView({ locale = DEFAULT_LOCALE }: SignalCenterViewPr
           )}
         </div>
       ) : null}
+      {signalRows.length > visibleCount ? <div className="signal-load-more">
+        <button type="button" className="secondary-button" aria-controls="signal-results" onClick={() => setVisibleCount((count) => count + 32)}>{locale === "bn" ? "আরও 32 দেখুন" : "Show 32 more"}</button>
+        <small aria-live="polite">{Math.min(visibleCount, signalRows.length)} / {signalRows.length}</small>
+      </div> : null}
     </section>
   );
 }

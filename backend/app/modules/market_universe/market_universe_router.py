@@ -10,8 +10,9 @@ from app.modules.market_universe.market_universe_service import (
     UniverseCacheUnavailableError,
     get_market_universe_service,
 )
+from app.modules.stock_details.decision.entry_contract import use_entry_contract
 
-router = APIRouter(tags=["market-universe"])
+router = APIRouter(dependencies=[Depends(use_entry_contract)], tags=["market-universe"])
 
 
 @router.get("/market/universe-rows", response_model=ApiResponse[UniverseRowsRead])

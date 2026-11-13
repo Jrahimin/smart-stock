@@ -1,5 +1,7 @@
 "use client";
 
+import { PRICE_BASIS_CONTRACT } from "@/lib/market/entry-contract-capability";
+
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 

@@ -6,13 +6,20 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from app.core.enums import ExchangeCode
 from app.core.pagination import PaginationParams, get_pagination_params
 from app.core.response_handler import ApiResponse, success_response
-from app.modules.signals.signals_schemas import StockTraderDecisionRead, TradingSignalCreate, TradingSignalRead
-from app.modules.signals.signals_service import SignalsService, get_signals_service
-from app.modules.signals.trader_decisions_service import TraderDecisionsService, get_trader_decisions_service
-from app.modules.stocks.stocks_schemas import StockRead
 from app.modules.market_universe.market_universe_service import UniverseCacheUnavailableError
+from app.modules.signals.signals_schemas import (
+    StockTraderDecisionRead,
+    TradingSignalCreate,
+    TradingSignalRead,
+)
+from app.modules.signals.signals_service import SignalsService, get_signals_service
+from app.modules.signals.trader_decisions_service import (
+    TraderDecisionsService,
+    get_trader_decisions_service,
+)
+from app.modules.stock_details.decision.entry_contract import use_entry_contract
 
-router = APIRouter(tags=["signals"])
+router = APIRouter(dependencies=[Depends(use_entry_contract)], tags=["signals"])
 
 
 @router.get("/signals/decisions/latest", response_model=ApiResponse[list[StockTraderDecisionRead]])

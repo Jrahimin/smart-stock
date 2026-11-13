@@ -1,3 +1,6 @@
+import { shortTradeDate } from "@/lib/formatters/trader-formatters";
+import { MeasuredDecisionFacts } from "@/components/market/measured-decision-facts";
+import { PublishedSetupCondition } from "@/components/market/published-setup-condition";
 import { isDatedPlanGuidance, controllingReasonLabel, selectedDecisionExplanation } from "@/lib/market/decision-presentation";
 import { EntryApplicabilityLabel } from "@/components/market/entry-applicability-label";
 import Link from "next/link";
@@ -72,12 +75,14 @@ export const SmartSignalFeed = memo(function SmartSignalFeed({
         const policy = controllingReasonLabel(signal.reasonCode, "", locale);
         const condition = signal.decisionSummary ? policy || selected.limitation : sharedWait ? evidence || copy.evidenceUnavailable : entry ? `${locale === "bn" ? "প্রকাশিত শর্ত" : "Dated condition"}: ${entry}` : signal.reason;
         return <tr id={index === 0 ? "sw-signal-example" : undefined} key={signal.symbol + "-" + signal.signal} role="row">
-          <th scope="row" role="rowheader"><Link href={signal.href} prefetch={false}>{signal.symbol}</Link></th>
+          <th scope="row" role="rowheader"><Link href={signal.href} prefetch={false}>{signal.symbol}</Link>{signal.name ? <small className="sw-signal-company">{signal.name}</small> : null}{signal.decisionDate && signal.decisionDate !== decision?.decision_session_date ? <small>{shortTradeDate(signal.decisionDate, locale)}</small> : null}</th>
           <td role="cell"><span className={"sw-action sw-action-" + signal.signal}>{signal.signal ? copy.actions[signal.signal] : copy.missing}</span></td>
           <td role="cell" aria-describedby={sharedWait ? "sw-signal-context" : undefined}>
             <EntryApplicabilityLabel assessment={signal.entryApplicability} locale={locale} policyReason={policy} />
-            {sharedWait ? evidence || copy.evidenceUnavailable : isDatedPlanGuidance(signal.reasonCode) ? null : policy || condition?.trim() || copy.conditionUnavailable}
-            {signal.decisionSummary && selected.support ? <small className="sw-signal-evidence">{selected.support}</small> : entry && evidence ? <small className="sw-signal-evidence">{evidence}</small> : null}
+            <PublishedSetupCondition facts={signal.measuredFacts} assessment={signal.entryApplicability} locale={locale} reasonCode={signal.reasonCode} />
+            {sharedWait ? signal.measuredFacts ? null : evidence || copy.evidenceUnavailable : isDatedPlanGuidance(signal.reasonCode) ? null : policy || condition?.trim() || copy.conditionUnavailable}
+            <MeasuredDecisionFacts facts={signal.measuredFacts} locale={locale} />
+            {!signal.measuredFacts ? (signal.decisionSummary && selected.support ? <small className="sw-signal-evidence">{selected.support}</small> : entry && evidence ? <small className="sw-signal-evidence">{evidence}</small> : null) : null}
           </td>
           <td role="cell">{copy.risks[risk] ?? copy.missing}</td>
         </tr>;

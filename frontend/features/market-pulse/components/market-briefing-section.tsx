@@ -172,7 +172,7 @@ export function MarketBriefingSection({ briefing, copy }: MarketBriefingSectionP
           </div>
           <div className="pulse-story-snapshot">
             <span className="pulse-story-snapshot-label">{copy.briefing.breadthSnapshot}</span>
-            {briefing.breadthNote ? <p className="pulse-breadth-coverage">{briefing.breadthNote}</p> : null}
+            {briefing.breadthNote ? <p className="pulse-breadth-coverage" title={briefing.breadthDefinition}>{briefing.breadthNote}</p> : null}
             <div className="pulse-story-metrics" role="list" aria-label={copy.briefing.breadthSnapshotAria}>
             {story.metrics.map((metric) => (
               <div className={`pulse-story-metric pulse-story-metric-${metric.tone}`} key={metric.label} role="listitem">

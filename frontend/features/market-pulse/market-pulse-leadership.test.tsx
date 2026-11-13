@@ -5,6 +5,10 @@ import { order4SurfaceFixture } from "@/test-fixtures/order4-surface-fixtures";
 import { buildMarketPulseViewModel } from "./view-models/market-pulse-view-model";
 import { MarketBriefingFooter, MarketBriefingSection } from "./components/market-briefing-section";
 import { getMarketPulseLanguage } from "./market-pulse-language";
+import { mapDashboardSectorsToLeadersContext } from "@/features/market-dashboard/view-models/dashboard-sections-mapper";
+import { buildMarketDashboardModel } from "@/features/market-dashboard/view-models/market-dashboard-view-model";
+import { MarketOverview } from "@/features/market-dashboard/components/market-overview";
+import { getTerminalCopy } from "@/features/market-dashboard/terminal-copy";
 
 function leadershipFixture(kind: string, legacy: boolean) {
   const { pulse } = order4SurfaceFixture(); const positive = kind === "positive", available = kind !== "unavailable";
@@ -22,6 +26,23 @@ function leadershipFixture(kind: string, legacy: boolean) {
   return pulse;
 }
 
+it.each(["en", "bn"].flatMap(locale => ["positive", "declining", "flat", "unavailable"].map(kind => ({ locale: locale as "en" | "bn", kind }))))("joins no-advancing/unavailable sector status and excluded counts on Dashboard and Pulse ($locale, $kind)", ({ locale, kind }) => {
+  const status = kind === "positive" ? "MEASURED" : kind === "unavailable" ? "UNAVAILABLE" : "NO_ADVANCING_SECTOR";
+  const change = kind === "positive" ? "1.2" : kind === "flat" ? "0" : "-1.2";
+  const leaders = mapDashboardSectorsToLeadersContext({ leadership_status: status, excluded_sector_count: 2, session_trade_date: "2026-11-10",
+    sectors: kind === "unavailable" ? [] : [{ name: "Bank", change_percent: change, stock_count: 3 }], top_gainer: null });
+  const dashboard = buildMarketDashboardModel([], null, null, { locale, leadersContext: leaders });
+  const dashboardHtml = renderToStaticMarkup(<MarketOverview model={dashboard} copy={getTerminalCopy(locale)} locale={locale} loading={false} leadersLoading={false} />);
+  expect(leaders.primary?.name ?? null).toBe(kind === "positive" ? "Bank" : null);
+  if (status === "NO_ADVANCING_SECTOR") expect(dashboardHtml).toContain(locale === "en" ? "No advancing sector" : "কোনো sector-এর দাম বাড়েনি");
+  if (status === "UNAVAILABLE") expect(dashboardHtml).toContain(locale === "en" ? "Sector comparison unavailable" : "Sector-এর তুলনার তথ্য নেই");
+  const pulse = leadershipFixture(kind, false); pulse.briefing!.state.excluded_sector_count = 2;
+  const briefing = buildMarketPulseViewModel(pulse, locale).briefing!;
+  const pulseHtml = renderToStaticMarkup(<MarketBriefingSection briefing={briefing} copy={getMarketPulseLanguage(locale)} />);
+  for (const html of [dashboardHtml, pulseHtml]) expect(html).toContain(locale === "en" ? "2 sectors excluded" : "2টি sector বাদ");
+  expect(briefing.leadership.cards.some(card => card.kind === "sector")).toBe(kind === "positive");
+});
+
 it.each(["en", "bn"].flatMap(locale => ["declining", "flat", "unavailable", "positive"].flatMap(kind => [false, true].map(legacy => ({ locale: locale as "en" | "bn", kind, legacy })))))("renders measured sector availability consistently ($locale, $kind, legacy=$legacy)", ({ locale, kind, legacy }) => {
   const pulse = leadershipFixture(kind, legacy); const positive = kind === "positive", available = kind !== "unavailable";
   const model = buildMarketPulseViewModel(pulse, locale), briefing = model.briefing!, copy = getMarketPulseLanguage(locale);
@@ -29,7 +50,7 @@ it.each(["en", "bn"].flatMap(locale => ["declining", "flat", "unavailable", "pos
   expect(html).not.toContain("N/A"); expect(html).not.toContain("unknown");
   if (positive) {
     expect(briefing.leadership.cards.some(card => card.kind === "sector")).toBe(true);
-    expect(briefing.leadership.narrative).toContain(locale === "en" ? "Bank" : "ব্যাংক");
+    expect(briefing.leadership.narrative).toContain(locale === "en" ? "Bank" : "Bank");
   } else {
     expect(briefing.leadership.cards.some(card => card.kind === "sector")).toBe(false);
     expect(html).not.toContain("concentrated"); expect(html).not.toContain("অগ্রগতি সীমিত");

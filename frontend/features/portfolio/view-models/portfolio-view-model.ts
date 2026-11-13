@@ -214,6 +214,11 @@ export function portfolioRowAction(item: BackendPortfolioHoldingDto) {
   return action && allowed.includes(action) ? action : null;
 }
 
+/** Dated holder evidence is independent of account setup and what-next tasks. */
+export function portfolioHolderReason(item: BackendPortfolioHoldingDto, locale: AppLocale) {
+  return item.is_holding && portfolioRowAction(item) ? holderReasonLabel(item.primary_reason_code, "", locale) : null;
+}
+
 export function portfolioRowComparison(item: BackendPortfolioHoldingDto) {
   const pair = item.is_holding ? item.holder_comparison : item.public_comparison;
   const action = portfolioRowAction(item);

@@ -12,6 +12,7 @@ import { formatPercent } from "@/lib/formatters/financial-formatters";
 import { shortTradeDate } from "@/lib/formatters/trader-formatters";
 import { isCurrentIntradaySession } from "@/lib/market/market-session-engine";
 import type { AppLocale } from "@/lib/locale/app-locale";
+import { getTraderJourneyLanguage } from "@/lib/market/trader-journey-language";
 
 const dhakaDate = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Dhaka" });
 const dhakaTime = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Dhaka" });
@@ -28,6 +29,7 @@ export function MarketOverview({ model, copy, locale, freshness, loading, leader
 }) {
   const { pulse, breadth, session, insights } = model;
   const premium = getPremiumCopy(locale);
+  const journeyCopy = getTraderJourneyLanguage(locale);
   const hasDate = pulse.tradeDateStatus === "available";
   const stale = session.state === "STALE" || freshness?.data_state === "STALE";
   const previousValue = useRef<string | null>(null);
@@ -136,7 +138,8 @@ export function MarketOverview({ model, copy, locale, freshness, loading, leader
       </Metric>
       <Metric label={copy.sectorLeader}>
         {leader ? <strong>{sectorName(leader.name, locale)} <b className={`sw-${leader.changePercent > 0 ? "positive" : leader.changePercent < 0 ? "negative" : "neutral"}`}>{formatPercent(leader.changePercent)}</b></strong>
-          : <strong>{loading || leadersLoading ? "…" : copy.missing}</strong>}
+          : <strong>{loading || leadersLoading ? "…" : pulse.leadersContext.leadershipStatus === "NO_ADVANCING_SECTOR" ? journeyCopy.noAdvancingSector : journeyCopy.sectorUnavailable}</strong>}
+        {Boolean(pulse.leadersContext.excludedSectorCount) && <small>{journeyCopy.excludedSectors(pulse.leadersContext.excludedSectorCount!)}</small>}
       </Metric>
     </dl>
     <div className="sw-hero-actions" aria-label={locale === "bn" ? "আরও ঘুরে দেখুন" : "Explore workspaces"}>

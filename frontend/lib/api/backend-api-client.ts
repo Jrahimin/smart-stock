@@ -1,3 +1,4 @@
+import { entryContractParams } from "@/lib/market/entry-contract-capability";
 import { frontendConfig } from "@/lib/frontend-config";
 import type { ApiResponse } from "@/lib/api/backend-api-types";
 import { notifyStaleMarketCacheEntry } from "@/lib/market/market-cache-notifications";
@@ -584,7 +585,7 @@ export async function backendApiGet<T>(
   expectedMarketGeneration?: string | null,
 ): Promise<T> {
   const sessionVersion = authSessionVersion;
-  const url = `${frontendConfig.apiBaseUrl}${path}${buildQueryString(params)}`;
+  const url = `${frontendConfig.apiBaseUrl}${path}${buildQueryString(entryContractParams(path, params))}`;
   const cacheMode = resolvePersistentCacheMode(init, persistentCache);
   const cacheTtlMs = getPersistentCacheTtlMs(cacheMode);
   const shouldUsePersistentCache = cacheTtlMs !== null;

@@ -63,6 +63,8 @@ class DividendIntelligenceRead(BaseModel):
 
 
 class DisplayMetricsRead(BaseModel):
+    volume: int | None = Field(default=None, exclude_if=lambda value: value is None)
+    session_date_verified: bool | None = Field(default=None, exclude_if=lambda value: value is None)
     previous_close: float | None = None
     source: str | None = None
     data_quality: str | None = None

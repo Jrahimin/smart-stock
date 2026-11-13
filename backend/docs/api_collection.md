@@ -2763,3 +2763,113 @@ Example `shortlist` object (ranks are 1-based within the published universe):
 ```
 
 Eligibility/technical projections additionally expose expected/observed/missing session counts and calendar/event coverage status where owned by the DTO. Consumers must validate decision identity, quote identity where exposed, and independent Pulse briefing identity against freshness before accepting cached/SSR data. IndexedDB schema 4 invalidates earlier browser records. No new public write endpoint is introduced.
+
+
+### Price comparison capability (Phase 1 follow-up)
+
+GET `/api/v1/market/universe-rows`, `/api/v1/market/pulse`,
+`/api/v1/market/pulse/summary`, `/api/v1/market/pulse/briefing`,
+`/api/v1/signals/decisions/latest`, `/api/v1/stock-details/{exchange}/{symbol}/decision-support`,
+`/api/v1/stock-details/{exchange}/{symbol}/workspace`, and portfolio/watchlist
+canonical reads accept `entry_contract=legacy|price-basis-v2` (default `legacy`).
+Unknown capability values return 422. All response envelopes remain unchanged.
+
+Example request: `GET /api/v1/market/universe-rows?exchange=DSE&entry_contract=price-basis-v2`.
+The following excerpt shows additive fields within `data.rows[0]`:
+
+```json
+{
+  "display_quote": {
+    "current_price": 100.0, "volume": 1000, "data_quality": "OK", "session_date_verified": true,
+    "as_of_trade_date": "2026-11-12", "observation_session_date": "2026-11-12",
+    "observation_status": "PROVISIONAL", "source_observed_at": null,
+    "batch_fetched_at": "2026-11-12T11:00:00+06:00", "max_age_seconds": 1800
+  },
+  "entry_applicability": {
+    "status": "APPLICABLE", "reason_code": "ENTRY_TERMS_MET",
+    "controlling_blocker": null, "assessed_at": "2026-11-12T11:01:00+06:00",
+    "quote_session_date": "2026-11-12", "source_observed_at": null,
+    "batch_fetched_at": "2026-11-12T11:00:00+06:00",
+    "publication_observed_at": "2026-11-11T15:20:00+06:00",
+    "recheck_at": "2026-11-12T11:30:00+06:00", "price_basis": "SNAPSHOT"
+  },
+  "measured_facts": {
+    "rsi": 58.0, "trend": "UPTREND", "opportunity_score": 67,
+    "trigger_price": 99.0, "resistance": 105.0, "volume_ratio": 1.6,
+    "volume_baseline": "PRIOR_20_SESSION_MEDIAN", "volume_sample_count": 20
+  }
+}
+```
+
+`CURRENT` needs valid source timing. `SNAPSHOT` means actual batch retrieval
+time, and positive cumulative session volume only proves some trading that day.
+It additionally requires independently verified instrument/session provenance. The
+current undated bulk AmarStock snapshot has no such evidence: its receipt-only
+rows stay UNVERIFIED/QUOTE_UNUSABLE even when /Info correctly names today, and
+cross-day replay cannot authorize SNAPSHOT. The example above illustrates the
+verified-session contract, exercised by controlled fixtures. Source admission
+must supply genuine evidence before this flag can be emitted; clients cannot
+supply it to GET endpoints.
+
+Its positive and price-dependent negative comparisons expire at `recheck_at`
+(receipt plus budget capped at exchange close). `LAST_CLOSE` requires the
+expected completed published session and a matching valid finalized traded row;
+its intraday clock may be null. Invalid supplied source clocks never fall back
+to retrieval time. Publication gaps with verified trading return
+`UNVERIFIED / SESSION_SETTLING`; silence alone returns ordinary unavailable
+assessment. Dated thesis, invalidation and expiry remain independent.
+
+Finalized price authority uses the normal publisher's immutable price-version
+membership in the existing source journal (`market_price_publications`,
+`PRICE_VERSION_MEMBERSHIP_V1`). The publisher captures the exact visible rows
+and their cutoff together; LIVE-to-FINAL promotion retains those members.
+Decision-only revisions inherit the selected parent's price members and cutoff,
+so they cannot certify an unpublished raw correction. Both historical path lows
+and closing quotes use this same evidence. A changed mutable row stays unavailable
+until a real price publication includes it. Older manifests without this capture
+cannot gain authority from transaction-start timestamps; genuine same-session
+source-backed historical trades remain independent evidence. Exchange session
+dates include authenticated journal history across the exchange, regardless of
+which stocks or candidate actions an endpoint requests. Per-stock lows and path
+completeness remain instrument scoped. No public response fields were added.
+
+Pulse `actionable_trigger` is true only for `APPLICABLE` with explicitly
+`CURRENT` basis. Missing/unknown bases fail closed. `measured_facts` is also
+available on Pulse focus/monitor rows and Stock Details decision support. Facts
+are nullable and belong to the same canonical generation; volume uses the
+existing preceding-20-session traded-volume median, excluding the current bar.
+No strategy baseline or ranking changed.
+
+Capability is request scoped. Pulse/workspace server keys include it; canonical
+immutable generation caches are shared because current overlays are never
+stored there. Clients opting in must include the query parameter in HTTP/SSR,
+query and IndexedDB identities, fence deadlines for negative comparisons too,
+and handle timestamp-free closes before enabling the capability generally.
+
+### GET /api/v1/dashboard/sectors — eligible published leadership
+
+The named price leader and equal-weight sector returns use Pulse's exact
+same-session `ELIGIBLE` canonical cohort. Dashboard reads a compact generation-keyed leader projection, built from the
+durable winner at publication. A cold compact-cache miss hydrates the existing
+result once. Warm reads check cheap publication/withdrawal metadata and the
+market manifest without loading/hashing the full universe or history. Response fields:
+`leader_population=CANONICAL_ELIGIBLE_SAME_SESSION`, `decision_session_date`,
+`decision_generation_id`, `excluded_sector_count`, and
+`leadership_status=MEASURED|NO_ADVANCING_SECTOR|UNAVAILABLE`. A sector needs at
+least three constituents and exact change evidence for all of them. An incomplete
+sector is excluded while complete sectors remain usable. The separate broad
+market breadth and weighted heatmap keep their existing cohorts.
+The compact response retains the current `market_sync_id`. Both quote and
+decision publication identities are checked before/after reading the projection;
+a publication transition retries once, then withholds the response rather than
+stamping a different decision as matching. Warm reads still avoid full-row
+hydration, which is needed only for a cold compact-cache miss.
+The web consumer joins this section to both the quote `market_sync_id` and current
+`decision_generation_id`/status, including SSR seeds and persisted cache reads.
+An old sector body is withheld after a same-quote correction or withdrawal.
+
+Pulse briefing state exposes `excluded_sector_count`; its momentum dimension is
+labelled `Stocks in uptrend` with numeric `numerator`/`denominator`. Strong
+breadth with few established uptrends is described as a broad bounce with limited
+trend confirmation. Missing 52-week DSEX bounds and range position are `null`,
+including when local history is too short and no authoritative range is available.

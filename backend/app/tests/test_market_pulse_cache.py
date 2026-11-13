@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
+from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
@@ -166,8 +167,8 @@ def test_uses_shared_pulse_cache_only_for_anonymous_requests() -> None:
 @pytest.mark.parametrize("section", ["response", "summary"])
 async def test_exact_sector_revision_never_reuses_the_same_generation_float_verdict(section):
     key = pulse_cache_key(section, ExchangeCode.DSE, DECISION_DATE, MARKET_SYNC_ID)
-    assert "market-generation-v5" in key
-    old_key = key.replace("market-generation-v4", "market-generation-v3")
+    assert "market-generation-v6" in key
+    old_key = key.replace("market-generation-v6", "market-generation-v5")
     store = {old_key: _pulse("old float verdict").model_dump(mode="json")}
     service = _service_with_redis(store)
     service._compute_market_pulse = AsyncMock(return_value=_pulse("exact sector verdict"))
@@ -397,11 +398,15 @@ async def test_pulse_reuses_decision_content_when_only_data_state_changes() -> N
 @pytest.mark.asyncio
 async def test_focus_and_monitor_project_same_fenced_quote_and_verified_transition():
     from dataclasses import replace
-    from app.core.enums import MarketSessionStatus, DecisionDisplayAction, PulseFocusLabel
-    from app.modules.market_universe.market_universe_schemas import DisplayQuoteRead
-    from app.modules.market_pulse.market_pulse_service import PulsePresentationRow, _to_focus_stock_read
+
+    from app.core.enums import DecisionDisplayAction, MarketSessionStatus, PulseFocusLabel
+    from app.modules.market_pulse.market_pulse_service import (
+        PulsePresentationRow,
+        _to_focus_stock_read,
+    )
     from app.modules.market_pulse.pulse_score import compute_pulse_score
     from app.modules.market_universe.market_universe_compute import technical_snapshot_from_read
+    from app.modules.market_universe.market_universe_schemas import DisplayQuoteRead
     from app.modules.stock_details.decision.comparison import PublicDecisionComparisonRead
     from app.modules.stock_details.decision.entry_applicability import EntryApplicabilityRead
     from app.tests.test_canonical_generation_architecture import _canonical_fixture
@@ -435,14 +440,19 @@ async def test_focus_and_monitor_project_same_fenced_quote_and_verified_transiti
 @pytest.mark.parametrize("change", [None, -2.0])
 async def test_cached_price_leader_is_rebound_to_measured_change_without_dropping_volume(change):
     from dataclasses import replace
-    from app.modules.market_pulse.market_pulse_briefing import PulseBriefingRow, build_market_briefing
+
+    from app.modules.market_pulse.market_pulse_briefing import (
+        PulseBriefingRow,
+        build_market_briefing,
+    )
     from app.modules.market_pulse.market_pulse_schemas import LeadershipCardRead
-    from app.modules.market_universe.market_universe_compute import technical_snapshot_from_read
     from app.modules.market_pulse.pulse_score import compute_pulse_score
+    from app.modules.market_universe.market_universe_compute import technical_snapshot_from_read
     from app.tests.test_canonical_generation_architecture import _canonical_fixture
     stock, _, row, snapshot = _canonical_fixture()
     from app.core.enums import EligibilityStatus
-    row = row.model_copy(update={"technical_snapshot": row.technical_snapshot.model_copy(update={"price_change_percent": change}),
+    row = row.model_copy(update={"technical_snapshot": row.technical_snapshot.model_copy(update={"price_change_percent": change, "price_change_percent_ratio": None}),
+        "session": row.session.model_copy(update={"change_percent": None if change is None else Decimal(str(change))}),
         "eligibility": row.eligibility.model_copy(update={"status": EligibilityStatus.ELIGIBLE})})
     snapshot = replace(snapshot, payload=snapshot.payload.model_copy(update={"rows": [row]}))
     technical = technical_snapshot_from_read(row.technical_snapshot)

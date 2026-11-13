@@ -141,9 +141,9 @@ class DsexIndexSnapshotRead(BaseModel):
     day_open: Decimal | None = None
     day_high: Decimal | None = None
     day_low: Decimal | None = None
-    range_52w_low: Decimal
-    range_52w_high: Decimal
-    range_position_percent: Decimal
+    range_52w_low: Decimal | None
+    range_52w_high: Decimal | None
+    range_position_percent: Decimal | None
     return_1m_percent: Decimal | None = None
     return_6m_percent: Decimal | None = None
     return_1y_percent: Decimal | None = None

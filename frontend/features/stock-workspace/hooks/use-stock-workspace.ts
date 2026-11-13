@@ -1,5 +1,7 @@
 "use client";
 
+import { PRICE_BASIS_CONTRACT } from "@/lib/market/entry-contract-capability";
+
 import { useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -50,7 +52,7 @@ export function useStockWorkspace({
   ) ? initialWorkspace : null;
 
   const workspaceQuery = useQuery({
-    queryKey: ["stock-workspace", exchange, symbol, generation ?? "unknown"],
+    queryKey: ["stock-workspace", PRICE_BASIS_CONTRACT, exchange, symbol, generation ?? "unknown"],
     queryFn: ({ queryKey }) => getStockWorkspace(exchange, symbol, generation, queryClient.getQueryData(queryKey) !== undefined),
     initialData: alignedInitialWorkspace ?? undefined,
     initialDataUpdatedAt: alignedInitialWorkspace ? 0 : undefined,
@@ -58,7 +60,7 @@ export function useStockWorkspace({
     refetchInterval: getMarketRefetchIntervalMs(freshnessQuery.data),
     retry: false,
   });
-  const workspace = useCurrentEntryBoundary(workspaceQuery.data, freshnessQuery.isError ? undefined : freshnessQuery.data, ["stock-workspace", exchange, symbol, generation ?? "unknown"], { symbol, exchange });
+  const workspace = useCurrentEntryBoundary(workspaceQuery.data, freshnessQuery.isError ? undefined : freshnessQuery.data, ["stock-workspace", PRICE_BASIS_CONTRACT, exchange, symbol, generation ?? "unknown"], { symbol, exchange });
 
   const loadState: StockWorkspaceLoadState = useMemo(() => {
     if (workspaceQuery.isLoading && !workspaceQuery.data) {

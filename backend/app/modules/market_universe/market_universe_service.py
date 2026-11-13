@@ -55,6 +55,7 @@ from app.modules.stock_details.decision.display_metrics import build_quote_proje
 from app.modules.stock_details.decision.market_regime import (
     resolve_regime_result_from_summaries,
 )
+from app.modules.stock_details.decision.measured_facts import build_measured_facts
 from app.modules.stocks.stocks_repository import StocksRepository, get_stocks_repository
 from app.modules.trading_intelligence.decision_snapshot_repository import (
     DecisionSnapshotRepository,
@@ -732,6 +733,15 @@ class MarketUniverseService:
                 durable_payload, context.trade_date, context.source_last_synced_at, context.sync_id,
             ):
                 raise UniverseCachePublicationError("Durable publication winner has invalid identity")
+        # Built from the validated durable winner once; dashboard reads only
+        # this compact projection and publication metadata on warm hits.
+        from app.modules.market_data.published_session_leadership import (
+            build_published_session_leadership,
+            leadership_cache_key,
+        )
+        await self._cache_set(leadership_cache_key(exchange, context.sync_id),
+            build_published_session_leadership(self._parse_cache_payload(serialized_payload)),
+            ttl_seconds=28800)
         primary_ttl_seconds = universe_cache_ttl_seconds(
             self.settings,
             data_state=data_state,
@@ -764,9 +774,9 @@ class MarketUniverseService:
         """Background retry only: repair a missing receipt from the exact durable winner."""
         if self.decision_snapshot_repository is None or not await self.is_input_generation_current(generation, exchange=exchange):
             return
-        from app.modules.backtesting.backtesting_shadow_repository import TradingShadowRepository
-        from app.modules.backtesting.backtesting_shadow import publish_shadow_receipts
         from app.modules.backtesting.backtesting_challengers import EXPERIMENT_ID
+        from app.modules.backtesting.backtesting_shadow import publish_shadow_receipts
+        from app.modules.backtesting.backtesting_shadow_repository import TradingShadowRepository
         session = self.decision_snapshot_repository.session
         try:
             repository = TradingShadowRepository(session)
@@ -830,18 +840,22 @@ class MarketUniverseService:
             rows=rows,
         )
 
-    async def project_current_entries(self, snapshot, *, exchange, stock_ids=None):
+    async def project_current_entries(self, snapshot, *, exchange, stock_ids=None, price_basis_v2=None):
         """Lightweight current overlay; never cached with the immutable generation."""
-        from app.modules.stock_details.decision.entry_applicability import (
-            build_entry_path_facts, evaluate_entry_applicability,
-        )
         from app.jobs.market_session_schedule import entry_quote_session
+        from app.modules.stock_details.decision.entry_applicability import (
+            EntryPathFacts,
+            build_entry_path_facts,
+            evaluate_entry_applicability,
+        )
+        from app.modules.stock_details.decision.entry_contract import price_basis_enabled
+        v2 = price_basis_enabled() if price_basis_v2 is None else price_basis_v2
         now = datetime.now(ZoneInfo("Asia/Dhaka"))
         session_open_at, session_close_at, recheck_at = entry_quote_session(now, self.settings)
         context = await self.resolve_quote_context(exchange=exchange)
         selected = [row for row in snapshot.rows if stock_ids is None or row.stock.id in stock_ids]
         ids = {row.stock.id for row in selected}
-        quotes = await self.get_display_quotes(ids, context=context) if context else {}
+        quotes = await self.get_display_quotes(ids, context=context, exchange=exchange, price_basis_v2=v2) if context else {}
         publication = None
         coverage = False
         required = await self.resolve_generation_context(exchange=exchange)
@@ -853,7 +867,9 @@ class MarketUniverseService:
         if repository is not None:
             publication = await repository.latest_publication(exchange=exchange, generation_id=snapshot.generation.sync_id, metadata_only=True)
             if selected_is_required and publication is not None and publication.generation_id == snapshot.generation.sync_id:
-                from app.modules.trading_intelligence.capture_inventory import verify_capture_coverage
+                from app.modules.trading_intelligence.capture_inventory import (
+                    verify_capture_coverage,
+                )
                 facts = await repository.publication_coverage(exchange=exchange, generation_id=publication.generation_id)
                 coverage = verify_capture_coverage(facts, [str(row.stock.id) for row in snapshot.rows])["verified"]
         candidates = {row.stock.id for row in selected if row.decision and row.decision.display_action == "POTENTIAL_BUY"}
@@ -863,37 +879,80 @@ class MarketUniverseService:
         prior = await repository.latest_publication(exchange=exchange, before_date=reference, metadata_only=True) if repository and hasattr(repository, "latest_publication") else None
         previous_valid = bool(prior and publication and not prior.invalidated_at and prior.session_date == previous_session
             and prior.observed_at <= publication.observed_at)
-        from app.modules.stock_details.decision.comparison import compare_holder_decisions, compare_public_decisions
+        from app.modules.stock_details.decision.comparison import (
+            compare_holder_decisions,
+            compare_public_decisions,
+        )
         observed_reader = getattr(self.market_repository, "list_observed_exchange_session_dates", None)
-        observed = await observed_reader(exchange=exchange, start_date=reference, end_date=now.date()) if candidates and observed_reader else []
-        finalized = frozenset(sessions)
-        sessions = sorted(set(sessions) | set(observed) | ({context.trade_date} if context else set()))
+        observed = await observed_reader(exchange=exchange, start_date=reference, end_date=now.date()) if not v2 and candidates and observed_reader else []
+        if not v2:
+            sessions = sorted(set(sessions) | set(observed) | ({context.trade_date} if context else set()))
         from datetime import time
         close = time.fromisoformat(self.settings.market_close_time)
         ended = frozenset(day for day in sessions if day < now.date() or (
             day == now.date() and now.time().replace(tzinfo=None) >= close
         ))
-        completed = ended & finalized
+        cutoff_reader = getattr(self.market_repository, "list_published_finalized_price_cutoffs", None)
+        from datetime import timedelta
+        cutoff_start = min(reference, context.trade_date if context else reference)-timedelta(days=1)
+        publication_reader = getattr(self.market_repository, "list_finalized_price_publications", None)
+        price_publications = await publication_reader(exchange=exchange, start_date=cutoff_start, end_date=now.date(), known_by=now) if v2 and selected and publication_reader else []
+        if v2:
+            price_cutoffs = {}
+            for item in price_publications:
+                if item.evidence_observed_at is not None and item.evidence_observed_at <= now and item.price_versions:
+                    price_cutoffs[item.trade_date] = max(price_cutoffs.get(item.trade_date, item.source_last_synced_at), item.source_last_synced_at)
+        else:
+            price_cutoffs = await cutoff_reader(exchange=exchange, start_date=cutoff_start, end_date=now.date()) if candidates and cutoff_reader else {}
+        traded_reader = getattr(self.market_repository, "list_authenticated_exchange_session_dates", None)
+        traded = await traded_reader(exchange=exchange, start_date=reference, end_date=now.date(), known_by=now) if v2 and selected and traded_reader else []
         prices, revisions, journal_start = await self.market_repository.list_entry_path_observations(
             stock_ids=candidates, start_date=reference, end_date=now.date(),
         ) if candidates else ([], [], None)
-        actions = await self.market_repository.list_entry_basis_events(stock_ids=candidates, end_date=now.date()) if candidates else {}
-        prices_by_stock = {}
-        revisions_by_stock = {}
+        prices_by_stock, revisions_by_stock = {}, {}
         for price in prices:
             prices_by_stock.setdefault(price.stock_id, []).append(price)
         for revision in revisions:
             revisions_by_stock.setdefault(revision.payload.get("stock_id"), []).append(revision)
+        evidence_by_stock = {}
+        if v2:
+            from app.modules.stock_details.decision.entry_path_evidence import build_entry_price_evidence
+            evidence_by_stock = {stock_id: build_entry_price_evidence(
+                prices=prices_by_stock.get(stock_id, []), revisions=revisions_by_stock.get(str(stock_id), []),
+                publications=price_publications, assessed_at=now, stock_id=stock_id) for stock_id in candidates}
+        if v2:
+            # Calendar proof belongs to the exchange, never the requested IDs
+            # or today's candidate actions. Per-stock evidence only supplies lows.
+            sessions = sorted(set(sessions) | set(traded) | {item.trade_date for item in price_publications})
+            ended = frozenset(day for day in sessions if day < now.date() or (
+                day == now.date() and now.time().replace(tzinfo=None) >= close))
+        completed = ended & price_cutoffs.keys()
+        expected_close = session_close_at.date()
+        finalized_quote_day = context.trade_date if context and context.data_state == MarketDataState.FINALIZED and (not v2 or context.trade_date in price_cutoffs) else None
+        # Schedule silence is not a holiday. Only the actual expected published
+        # session is authoritative; configured closures are skipped by schedule.
+        closing_day = finalized_quote_day if finalized_quote_day == expected_close else None
+        settling = bool(recheck_at is not None and any(
+            day <= expected_close and (finalized_quote_day is None or day > finalized_quote_day)
+            for day in traded
+        ))
+        actions = await self.market_repository.list_entry_basis_events(stock_ids=candidates, end_date=now.date()) if candidates else {}
         projected = {}
         for row in selected:
             plan = row.analysis.trade_plan if row.analysis else None
+            # Non-candidate permission is resolved before path evidence is read.
+            # Do not rebuild unscoped publication members for its unused path.
             path = build_entry_path_facts(
                 prices=prices_by_stock.get(row.stock.id, []),
                 revisions=revisions_by_stock.get(str(row.stock.id), []),
                 sessions=sessions, completed_sessions=completed, ended_sessions=ended, reference_date=reference,
                 published_at=publication.observed_at if publication else None, journal_started_at=journal_start,
                 basis_events=actions.get(row.stock.id, ()), plan=plan, average_volume=row.technical_snapshot.average_volume,
-            )
+                published_price_cutoffs=price_cutoffs,
+                price_basis_v2=v2, assessed_at=now,
+                price_publications=price_publications, price_evidence=evidence_by_stock.get(row.stock.id),
+                authenticated_sessions=v2,
+            ) if not v2 or row.stock.id in candidates else EntryPathFacts()
             applicability = evaluate_entry_applicability(
                 decision=row.decision, plan=plan, eligibility=row.eligibility, quote=quotes.get(row.stock.id),
                 reference_date=reference, now=now, market_open=recheck_at is None,
@@ -901,12 +960,15 @@ class MarketUniverseService:
                 coverage_verified=coverage, path=path,
                 withdrawn=bool(publication and publication.invalidated_at),
                 publication_observed_at=publication.observed_at if publication else None,
+                price_basis_v2=v2, finalized_session_date=closing_day,
+                session_settling=settling,
             )
             decision = row.decision.model_copy(update={"entry_applicability": applicability}) if row.decision else None
             if decision and row.analysis and decision.measured_support_component is None:
                 from app.modules.stock_details.decision.summary import selected_explanation_fields
                 decision = decision.model_copy(update=selected_explanation_fields(decision, row.analysis.opportunity))
             projected[row.stock.id] = row.model_copy(update={
+                "measured_facts": build_measured_facts(row),
                 "display_quote": quotes.get(row.stock.id), "entry_applicability": applicability, "decision": decision,
                 "holder_comparison": compare_holder_decisions(
                     row.decision.canonical if row.decision else None,
@@ -935,16 +997,41 @@ class MarketUniverseService:
                 "rows": [projected.get(row.stock.id, row) for row in snapshot.rows],
             }))
 
+    async def observe_scheduled_entries(self, *, exchange):
+        from app.modules.stock_details.decision.entry_observation_log import (
+            observe_scheduled_entries,
+        )
+        try:
+            await observe_scheduled_entries(self, exchange=exchange)
+        except Exception:
+            logger.exception("entry_applicability_observation_unavailable exchange=%s reason=ASSESSMENT_UNAVAILABLE", exchange.value)
+
     async def get_display_quotes(
         self, stock_ids: set[UUID], *, context: PublishedMarketGeneration,
+        exchange: ExchangeCode = ExchangeCode.DSE, price_basis_v2=None,
     ) -> dict[UUID, DisplayQuoteRead]:
+        from app.modules.stock_details.decision.entry_contract import price_basis_enabled
+        v2 = price_basis_enabled() if price_basis_v2 is None else price_basis_v2
         prices = await self.market_repository.list_quote_price_observations(
             stock_ids=stock_ids, end_date=context.trade_date,
         )
+        price_publication = None
+        valid_publication = False
+        if v2 and context.data_state == MarketDataState.FINALIZED:
+            reader = getattr(self.market_repository, "get_market_data_generation_by_sync_id", None)
+            manifest = await reader(exchange=exchange, sync_id=context.sync_id) if reader else None
+            valid_publication = bool(manifest and manifest.sync_id == context.sync_id and manifest.state == MarketDataState.FINALIZED
+                and manifest.trade_date == context.trade_date and manifest.accepted_count > 0)
+            publication_reader = getattr(self.market_repository, "list_finalized_price_publications", None)
+            if valid_publication and publication_reader:
+                from datetime import timedelta
+                evidence = await publication_reader(exchange=exchange, start_date=context.trade_date-timedelta(days=1),
+                    end_date=context.trade_date, known_by=datetime.now(ZoneInfo("Asia/Dhaka")))
+                price_publication = next((item for item in evidence if item.sync_id == context.sync_id and item.evidence_observed_at is not None), None)
         by_stock: dict[UUID, list] = {}
         for price in prices:
             by_stock.setdefault(price.stock_id, []).append(price)
-        return {
+        projected = {
             stock_id: DisplayQuoteRead(**build_quote_projection(
                 by_stock.get(stock_id, []),
                 finality=context.data_state.value,
@@ -952,6 +1039,18 @@ class MarketUniverseService:
             ))
             for stock_id in stock_ids
         }
+        if v2 and context.data_state == MarketDataState.FINALIZED:
+            from app.modules.stock_details.decision.entry_path_evidence import _row, published_price_matches
+            for stock_id, quote in projected.items():
+                current = next((row for row in by_stock.get(stock_id, []) if row.trade_date == context.trade_date), None)
+                members = price_publication.price_versions if price_publication is not None else ()
+                matches = current is not None and any(str(member.get("stock_id")) == str(stock_id)
+                    and published_price_matches(current, _row(member)) for member in members)
+                if not (valid_publication and matches and current.updated_at is not None
+                    and current.updated_at <= manifest.source_last_synced_at):
+                    # Preserve the saved price as context, never closing authority.
+                    projected[stock_id] = quote.model_copy(update={"observation_status": "UNAVAILABLE"})
+        return projected
 
     async def get_decision_event_observations(self, stock_id: UUID) -> tuple[dict, ...]:
         events = await self.market_repository.list_decision_event_observations(stock_ids={stock_id})

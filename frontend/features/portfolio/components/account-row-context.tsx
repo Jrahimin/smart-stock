@@ -6,7 +6,7 @@ import { QuoteObservationTimes } from "@/components/ui/quote-observation-times";
 import Link from "next/link";
 import { QuotePublicationLabel } from "@/components/ui/market-publication-label";
 import { portfolioLanguage } from "@/features/portfolio/portfolio-language";
-import { accountQuoteForPrice, financialTone, formatPortfolioMoney, formatSignedPercent, getPortfolioWhatNextCopy, portfolioRowAction, portfolioRowComparison } from "@/features/portfolio/view-models/portfolio-view-model";
+import { accountQuoteForPrice, financialTone, formatPortfolioMoney, formatSignedPercent, getPortfolioWhatNextCopy, portfolioHolderReason, portfolioRowAction, portfolioRowComparison } from "@/features/portfolio/view-models/portfolio-view-model";
 import type { BackendPortfolioHoldingDto } from "@/lib/api/backend-api-types";
 import type { AppLocale } from "@/lib/locale/app-locale";
 import { controllingReasonLabel } from "@/lib/market/decision-presentation";
@@ -34,12 +34,14 @@ export function AccountDecisionCell({ item, locale }: { item: BackendPortfolioHo
   const action = portfolioRowAction(item);
   const pair = portfolioRowComparison(item);
   const reason = item.is_holding
-    ? getPortfolioWhatNextCopy(item, t, locale)
+    ? portfolioHolderReason(item, locale)
     : controllingReasonLabel(item.primary_reason_code, "", locale);
+  const accountNext = item.is_holding ? getPortfolioWhatNextCopy(item, t, locale) : null;
   return <div className="portfolio-signal portfolio-signal-v2 portfolio-account-decision">
     <small className="portfolio-audience">{item.is_holding ? t.holderInstruction : t.datedAction}{item.decision_session_date ? ` · ${shortTradeDate(item.decision_session_date, locale)}` : ""}</small>
     <span className={`portfolio-status ${action ? `action-${action.toLowerCase()}` : "action-updating"}`}>{action ? t.actionLabels[action] : t.signalUnavailable}</span>
     {reason && <p>{reason}</p>}
+    {accountNext && accountNext !== reason && <details className="portfolio-account-next"><summary>{t.whatNext}</summary><p>{accountNext}</p></details>}
     {pair?.status === "CHANGED" ? <details className="portfolio-comparison"><summary>{t.comparisonChanged}</summary>
       <small>{pair.previous_session_date}: {t.actionLabels[pair.previous_action!]} → {t.actionLabels[pair.current_action!]}</small>
     </details> : null}

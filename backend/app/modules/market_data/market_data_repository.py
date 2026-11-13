@@ -148,9 +148,82 @@ class MarketDataRepository(BaseRepository[DailyPrice]):
             MarketDataGeneration.trade_date > start_date, MarketDataGeneration.trade_date <= end_date,
         ).distinct().order_by(MarketDataGeneration.trade_date))).all())
 
+    async def list_published_finalized_price_cutoffs(self, *, exchange, start_date, end_date):
+        """A finalized summary alone is not the price-publication barrier."""
+        statement = select(MarketDataGeneration.trade_date,
+            func.max(MarketDataGeneration.source_last_synced_at)).where(
+                MarketDataGeneration.exchange == exchange,
+                MarketDataGeneration.state == MarketDataState.FINALIZED,
+                MarketDataGeneration.accepted_count > 0,
+                MarketDataGeneration.trade_date > start_date,
+                MarketDataGeneration.trade_date <= end_date,
+            ).group_by(MarketDataGeneration.trade_date)
+        return dict((await self.session.execute(statement)).all())
+
+    async def list_finalized_price_publications(self, *, exchange, start_date, end_date, known_by):
+        """Retain each real barrier, including earlier publications of corrected days."""
+        from app.modules.market_data.price_publication_evidence import PRICE_PUBLICATION_SOURCE, publication_evidence
+        manifests = list((await self.session.scalars(select(MarketDataGeneration).where(
+            MarketDataGeneration.exchange == exchange, MarketDataGeneration.state == MarketDataState.FINALIZED,
+            MarketDataGeneration.accepted_count > 0, MarketDataGeneration.trade_date > start_date,
+            MarketDataGeneration.trade_date <= end_date, MarketDataGeneration.published_at <= known_by,
+        ).order_by(MarketDataGeneration.published_at, MarketDataGeneration.id))).all())
+        if not manifests:
+            return []
+        observations = list((await self.session.scalars(select(TradingSourceObservation).where(
+            TradingSourceObservation.source_table == PRICE_PUBLICATION_SOURCE,
+            TradingSourceObservation.source_row_id.in_([str(item.id) for item in manifests]),
+            TradingSourceObservation.observed_at <= known_by,
+        ))).all())
+        by_manifest = {}
+        for observation in observations:
+            by_manifest.setdefault(observation.source_row_id, []).append(observation)
+        return [publication_evidence(item, by_manifest.get(str(item.id), ())) for item in manifests]
+
+    async def list_authenticated_exchange_session_dates(self, *, exchange, start_date, end_date, known_by):
+        """One exchange calendar, independent of requested IDs or candidate actions."""
+        from app.modules.stock_details.decision.entry_path_evidence import _day, _row, _source_proven, _valid
+        current = list((await self.session.scalars(select(DailyPrice).join(Stock, Stock.id == DailyPrice.stock_id).where(
+            Stock.exchange == exchange, DailyPrice.trade_date > start_date, DailyPrice.trade_date <= end_date,
+            DailyPrice.source_observed_at.is_not(None), DailyPrice.source_observed_at <= known_by,
+        ))).all())
+        dates = {item.trade_date for item in current if _valid(item) and _source_proven(item, item.trade_date, known_by, known_by)}
+        revisions = list((await self.session.scalars(select(TradingSourceObservation).join(Stock,
+            cast(Stock.id, String) == TradingSourceObservation.payload["stock_id"].astext).where(
+                Stock.exchange == exchange, TradingSourceObservation.source_table == "daily_prices",
+                TradingSourceObservation.session_date > start_date, TradingSourceObservation.session_date <= end_date,
+                TradingSourceObservation.observed_at <= known_by,
+                or_(TradingSourceObservation.payload["source_observed_at"].astext.is_not(None),
+                    TradingSourceObservation.previous_payload["source_observed_at"].astext.is_not(None)),
+        ))).all())
+        for revision in revisions:
+            payloads = (revision.payload, revision.previous_payload) if revision.operation == "UPDATE" else (revision.payload,) if revision.operation in {"INSERT", "DELETE"} else ()
+            for payload in payloads:
+                row = _row(payload) if payload else None
+                if (row is not None and str(getattr(row, "stock_id", None)) == str(revision.payload.get("stock_id"))
+                    and str(getattr(row, "id", None)) == revision.source_row_id and _day(row) == revision.session_date
+                    and _valid(row) and _source_proven(row, revision.session_date, revision.observed_at, known_by)):
+                    dates.add(revision.session_date)
+        return sorted(dates)
+
+    async def list_traded_exchange_session_dates(self, *, exchange, start_date, end_date):
+        """Source-confirmed trades establish a pending session, never an undated replay."""
+        price = DailyPrice
+        statement = select(price.trade_date).join(Stock, Stock.id == price.stock_id).where(
+            Stock.exchange == exchange, price.trade_date > start_date, price.trade_date <= end_date,
+            price.source_observed_at.is_not(None), price.source_observed_at <= func.now(),
+            func.date(func.timezone("Asia/Dhaka", price.source_observed_at)) == price.trade_date,
+            price.volume > 0, price.data_quality_flag != DataQualityFlag.SUSPICIOUS,
+            *(column > 0 for column in (price.open_price, price.high_price, price.low_price, price.close_price)),
+            *(column != Decimal("NaN") for column in (price.open_price, price.high_price, price.low_price, price.close_price)),
+            price.high_price >= func.greatest(price.open_price, price.low_price, price.close_price),
+            price.low_price <= func.least(price.open_price, price.high_price, price.close_price),
+        ).distinct().order_by(price.trade_date)
+        return list((await self.session.scalars(statement)).all())
+
     async def list_entry_basis_events(self, *, stock_ids, end_date):
-        from app.modules.stock_details.decision.entry_applicability import PriceBasisEvent
         from app.core.enums import CorporateActionSubtype, DividendStatus
+        from app.modules.stock_details.decision.entry_applicability import PriceBasisEvent
         result = {}
         if not stock_ids:
             return result
@@ -708,7 +781,38 @@ class MarketDataRepository(BaseRepository[DailyPrice]):
         fetched_count: int,
         accepted_count: int,
         suspicious_count: int,
+        capture_price_versions: bool = False,
+        parent_price_generation_id: str | None = None,
     ) -> MarketDataGeneration:
+        versions, observed = None, None
+        if parent_price_generation_id is not None:
+            from app.modules.market_data.price_publication_evidence import PRICE_PUBLICATION_SOURCE, price_capture, publication_evidence
+            parent = await self.get_market_data_generation_by_sync_id(exchange=exchange, sync_id=parent_price_generation_id)
+            captures = list((await self.session.scalars(select(TradingSourceObservation).where(
+                TradingSourceObservation.source_table == PRICE_PUBLICATION_SOURCE,
+                TradingSourceObservation.source_row_id == str(parent.id) if parent is not None else False,
+            ))).all())
+            published = publication_evidence(parent, captures) if parent is not None else None
+            original = price_capture(parent, captures) if parent is not None else None
+            if (parent is not None and parent.trade_date == trade_date and original is not None
+                and (state != MarketDataState.FINALIZED or published.evidence_observed_at is not None)):
+                versions = original.payload["price_versions"]
+                source_last_synced_at = parent.source_last_synced_at
+                observed = await self.session.scalar(select(func.clock_timestamp()))
+        elif capture_price_versions:
+            from app.core.audit_hashing import canonicalize_audit_value
+            from app.modules.stock_details.decision.lineage import daily_price_audit_payload
+            await self.session.flush()
+            # One MVCC statement sees our transaction's own writes and only
+            # committed concurrent versions. This is the published membership.
+            prices = list((await self.session.scalars(select(DailyPrice).join(Stock, Stock.id == DailyPrice.stock_id).where(
+                Stock.exchange == exchange, Stock.is_active.is_(True), DailyPrice.trade_date == trade_date,
+            ).order_by(DailyPrice.stock_id).execution_options(populate_existing=True))).all())
+            versions = canonicalize_audit_value([{**daily_price_audit_payload(row), "id": row.id, "stock_id": row.stock_id,
+                "updated_at": row.updated_at, "source_observed_at": row.source_observed_at, "batch_fetched_at": row.batch_fetched_at} for row in prices])
+            if prices:
+                source_last_synced_at = max(row.updated_at for row in prices)
+            observed = await self.session.scalar(select(func.clock_timestamp()))
         generation = MarketDataGeneration(
             exchange=exchange,
             trade_date=trade_date,
@@ -719,9 +823,18 @@ class MarketDataRepository(BaseRepository[DailyPrice]):
             fetched_count=fetched_count,
             accepted_count=accepted_count,
             suspicious_count=suspicious_count,
+            **({"published_at": observed} if observed is not None else {}),
         )
         self.session.add(generation)
         await self.session.flush()
+        if versions is not None:
+            from app.modules.market_data.price_publication_evidence import PRICE_PUBLICATION_CONTRACT, PRICE_PUBLICATION_SOURCE
+            self.session.add(TradingSourceObservation(source_table=PRICE_PUBLICATION_SOURCE, source_row_id=str(generation.id),
+                observed_at=observed, operation="PUBLISH", session_date=trade_date, finality=state.value,
+                payload={"contract": PRICE_PUBLICATION_CONTRACT, "manifest_id": str(generation.id), "sync_id": sync_id,
+                    "exchange": exchange.value, "trade_date": trade_date.isoformat(),
+                    "source_last_synced_at": source_last_synced_at.isoformat(), "price_versions": versions}))
+            await self.session.flush()
         return generation
 
     async def get_latest_market_data_generation(
@@ -760,8 +873,24 @@ class MarketDataRepository(BaseRepository[DailyPrice]):
         *,
         state: MarketDataState,
     ) -> MarketDataGeneration:
+        previous = generation.state
         generation.state = state
         await self.session.flush()
+        if previous != MarketDataState.FINALIZED and state == MarketDataState.FINALIZED:
+            from app.modules.market_data.price_publication_evidence import PRICE_PUBLICATION_CONTRACT, PRICE_PUBLICATION_SOURCE, price_capture
+            captures = list((await self.session.scalars(select(TradingSourceObservation).where(
+                TradingSourceObservation.source_table == PRICE_PUBLICATION_SOURCE,
+                TradingSourceObservation.source_row_id == str(generation.id), TradingSourceObservation.operation == "PUBLISH",
+            ))).all())
+            capture = price_capture(generation, captures)
+            if capture is not None:
+                self.session.add(TradingSourceObservation(source_table=PRICE_PUBLICATION_SOURCE, source_row_id=str(generation.id),
+                    observed_at=await self.session.scalar(select(func.clock_timestamp())), operation="FINALIZE", session_date=generation.trade_date,
+                    finality=state.value, payload={"contract": PRICE_PUBLICATION_CONTRACT, "manifest_id": str(generation.id),
+                        "sync_id": generation.sync_id, "exchange": generation.exchange.value, "trade_date": generation.trade_date.isoformat(),
+                        "source_last_synced_at": generation.source_last_synced_at.isoformat(),
+                        "capture_id": str(capture.id)}))
+                await self.session.flush()
         return generation
 
     async def get_latest_finalized_session_date(

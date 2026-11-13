@@ -21,6 +21,22 @@ function setup(data = entryWorkspace()) {
 }
 
 describe("mounted current-entry deadline", () => {
+  it("expires a mounted negative SNAPSHOT and keeps it suppressed on resume", async () => {
+    vi.useFakeTimers(); vi.setSystemTime(ENTRY_NOW);
+    const data = entryWorkspace();
+    const quote = data.display_metrics as Record<string, unknown>;
+    const check = data.decision_support.entry_applicability as Record<string, unknown>;
+    delete quote.source_observed_at; delete check.source_observed_at;
+    Object.assign(quote, { session_date_verified: true, batch_fetched_at: "2026-11-11T05:00:00Z" });
+    Object.assign(check, { status: "OUTSIDE_ZONE", reason_code: "ABOVE_ENTRY_ZONE", price_basis: "SNAPSHOT", batch_fetched_at: quote.batch_fetched_at });
+    const hook = setup(data);
+    expect(hook.result.current.decision_support.entry_applicability?.status).toBe("OUTSIDE_ZONE");
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+    expect(hook.result.current.decision_support.entry_applicability).toBeNull();
+    await act(async () => { window.dispatchEvent(new Event("focus")); });
+    expect(hook.result.current.decision_support.entry_applicability).toBeNull();
+    expect(hook.result.current.decision_support.trade_plan.stop_loss).toBe(94);
+  });
   it("suppresses at source-age boundary and refreshes the owning active query once", async () => {
     vi.useFakeTimers(); vi.setSystemTime(ENTRY_NOW);
     const hook = setup();

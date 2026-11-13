@@ -154,6 +154,7 @@ class StockDetailsWorkspaceService:
                     "display_metrics": display_metrics,
                     "decision_support": cached_workspace.decision_support.model_copy(
                         update={"decision_status": status, "entry_applicability": applicability,
+                            "measured_facts": current_row.measured_facts if current_row else None,
                             "decision": cached_workspace.decision_support.decision.model_copy(update={"entry_applicability": applicability})}
                     ),
                 }

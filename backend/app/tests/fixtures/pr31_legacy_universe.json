@@ -1,0 +1,524 @@
+{
+  "strategy_version": "trading-intelligence-v3",
+  "threshold_version": "trading-thresholds-v3",
+  "input_schema_version": "trading-input-v3",
+  "decision_taxonomy_version": "v2",
+  "scanner_version": "scanner-conditions-v1",
+  "session_trade_date": "2026-08-09",
+  "decision_session_date": "2026-08-09",
+  "live_data_as_of": null,
+  "is_live_session": false,
+  "source_last_synced_at": "2026-08-09T06:30:00Z",
+  "market_sync_id": "G123",
+  "data_state": "FINALIZED",
+  "decision_status": "CURRENT",
+  "decision_generation_id": null,
+  "quote_generation_id": null,
+  "payload_revision": "5b29a4fd9a6edf9058c837c2a00660c8393cdd67803ad3f4c05e75379d3dcdd5",
+  "rows": [
+    {
+      "entry_applicability": null,
+      "display_quote": {
+        "previous_close": 99.0,
+        "source": "FROZEN_HEAD_FIXTURE",
+        "data_quality": "OK",
+        "ingested_at": "2026-08-09T06:30:00Z",
+        "source_observed_at": null,
+        "max_age_seconds": 1800,
+        "current_price": 100.0,
+        "price_change": 1.0,
+        "price_change_percent": 1.0101,
+        "as_of_trade_date": "2026-08-09",
+        "observation_session_date": "2026-08-09",
+        "observation_status": "FINALIZED"
+      },
+      "shortlist": {
+        "version": "entry-shortlist-v1",
+        "entry_rank": 1,
+        "holder_exit_rank": 1,
+        "risk_rank": 1,
+        "volume_rank": 1
+      },
+      "previous_finalized_decision": null,
+      "stock": {
+        "symbol": "CENTRALINS",
+        "name": "Central Insurance PLC.",
+        "exchange": "DSE",
+        "sector": null,
+        "category": "A",
+        "isin": null,
+        "listing_date": null,
+        "lot_size": null,
+        "paid_up_capital": null,
+        "market_cap": null,
+        "is_active": true,
+        "should_fetch_details": false,
+        "id": "55b3cdce-bd94-48db-95c0-43c6cecfae5b",
+        "created_at": "2026-08-09T06:30:00Z",
+        "updated_at": "2026-08-09T06:30:00Z"
+      },
+      "technical_snapshot": {
+        "price_change_percent_ratio": {
+          "numerator": "100",
+          "denominator": "159"
+        },
+        "latest_price": 80.0,
+        "previous_close": 79.5,
+        "price_change": 0.5,
+        "price_change_percent": 0.628930817610063,
+        "volume": 129000,
+        "average_volume": 118500.0,
+        "turnover": 12900000.0,
+        "rsi": 100.0,
+        "sma20": 75.25,
+        "ema20": 75.25,
+        "volatility": 0.025884027666039814,
+        "support": 69.0,
+        "resistance": 80.5,
+        "trend": "UPTREND",
+        "data_quality": "OK",
+        "latest_trade_date": "2026-08-09",
+        "ohlcv_row_count": 80,
+        "sparkline_closes": [
+          76.5,
+          77.0,
+          77.5,
+          78.0,
+          78.5,
+          79.0,
+          79.5,
+          80.0
+        ],
+        "sma50": 67.75,
+        "atr14": 2.0,
+        "average_turnover": 11850000.0,
+        "return_5d_percent": 3.2258064516129004,
+        "return_20d_percent": 14.28571428571428,
+        "is_breakout": false,
+        "structure": "neutral",
+        "gap_frequency_percent": 0.0,
+        "invalid_ohlcv_row_count": 0,
+        "latest_row_valid": true,
+        "traded_session_count": 80,
+        "zero_volume_session_count": 0,
+        "traded_session_ratio": 1.0,
+        "volume_observation_count": 20,
+        "median_turnover": 11850000.0,
+        "turnover_observation_count": 20,
+        "turnover_provenance": "UNKNOWN",
+        "analytical_price_basis": "RAW_UNADJUSTED",
+        "adjusted_close_coverage_ratio": 0.0,
+        "expected_session_count": 80,
+        "observed_session_count": 80,
+        "missing_session_count": 0,
+        "calendar_status": "EXCHANGE_SESSIONS",
+        "volume_behavior": "NORMAL"
+      },
+      "decision": {
+        "entry_applicability": null,
+        "measured_support": "Price is in an uptrend above moving averages. Price is 6.3% above SMA20. (25.2 contribution points).",
+        "opposing_constraint": "Data eligibility is LIMITED: turnover_not_reported.",
+        "measured_support_component": {
+          "key": "trend",
+          "label": "Trend",
+          "score": 90,
+          "weight": 0.28,
+          "explanation": "Price is in an uptrend above moving averages. Price is 6.3% above SMA20."
+        },
+        "opposing_constraint_code": "data_eligibility",
+        "recommendation": "WAIT",
+        "internal_action": "WAIT",
+        "display_action": "WAIT",
+        "decision_taxonomy_version": "v2",
+        "confidence": 44,
+        "reason": "Data is not eligible for a fresh directional decision; wait for review or refresh.",
+        "opportunity_score": 62,
+        "risk_label": "LOW",
+        "legacy_composite_risk_label": "LOW",
+        "confidence_semantics": "HEURISTIC_EVIDENCE",
+        "evidence_status": "UNAVAILABLE",
+        "evidence_strength": 44,
+        "evidence_strength_semantics": "HEURISTIC_DIRECTIONAL_EVIDENCE",
+        "primary_reason": "Data is not eligible for a fresh directional decision; wait for review or refresh.",
+        "primary_reason_code": "data_not_eligible",
+        "stance": "UNAVAILABLE",
+        "non_holder_action": "WAIT",
+        "holder_action": "REVIEW",
+        "data_reliability": {
+          "score": 75,
+          "label": "MEDIUM",
+          "reason_codes": [
+            "turnover_not_reported",
+            "raw_unadjusted_analytical_series"
+          ],
+          "explanation": "Deterministic input reliability reflects freshness, history coverage, source quality, row validity, and corporate-action resolution.",
+          "score_semantics": "DETERMINISTIC_INPUT_RELIABILITY"
+        },
+        "trading_risk": {
+          "score": 25,
+          "label": "LOW",
+          "components": [
+            {
+              "key": "volatility_gap",
+              "label": "Volatility and Gap Risk",
+              "score": 30,
+              "weight": 0.55,
+              "explanation": "Analytical daily volatility is moderate at 0.03%."
+            },
+            {
+              "key": "category",
+              "label": "Category Risk",
+              "score": 15,
+              "weight": 0.25,
+              "explanation": "Category A is treated as a structural trading-risk input."
+            },
+            {
+              "key": "overextension",
+              "label": "Overextension Risk",
+              "score": 25,
+              "weight": 0.2,
+              "explanation": "Price is not overextended versus its medium-term path."
+            }
+          ],
+          "score_semantics": "HEURISTIC_TRADING_RISK"
+        },
+        "constraints": [
+          {
+            "code": "data_eligibility",
+            "title": "Data eligibility block",
+            "kind": "BLOCK",
+            "reason": "Data eligibility is LIMITED: turnover_not_reported.",
+            "is_critical": false
+          },
+          {
+            "code": "extended_momentum",
+            "title": "Extended momentum",
+            "kind": "BLOCK",
+            "reason": "RSI is above the fresh-entry limit.",
+            "is_critical": false
+          }
+        ],
+        "opportunity_quality": "STRONG",
+        "entry_readiness": "NOT_READY",
+        "entry_timing": null,
+        "entry_condition": null,
+        "blocker_codes": [
+          "data_eligibility",
+          "extended_momentum"
+        ],
+        "canonical": {
+          "stock_id": "55b3cdce-bd94-48db-95c0-43c6cecfae5b",
+          "exchange": "DSE",
+          "strategy_version": "trading-intelligence-v3",
+          "threshold_version": "trading-thresholds-v3",
+          "action_taxonomy": "TRADER_DECISION_V2",
+          "decision_taxonomy_version": "v2",
+          "as_of_date": "2026-08-09",
+          "previous_session_date": "2026-08-08",
+          "calculated_at": "2026-11-12T20:49:32.219135Z",
+          "shared_decision_id": "10266e31-fe36-52c4-88ee-66aaaffc2126",
+          "input_schema_version": "trading-input-v3",
+          "data_revision": "e62cd562ae6f65db47a7bf4b5c3950c6eeb0d7cb099c9caceaf133d762407f2b",
+          "event_revision": "0efae12fa38dee6c15534633110cb7998af2642fbae9574ed46673ea5475a168",
+          "input_hash": "8c5d5e079044887e807d14cefd81f5825e7d68cd48513aa4a0ef47bec5803cde",
+          "replay_status": "IDENTIFIED_WITH_LIMITATIONS",
+          "replay_limitations": [
+            "INPUT_CAPTURE_REQUIRES_COMPLETE_GENERATION_PUBLICATION",
+            "EFFECTIVE_DATED_STATUS_CATEGORY_CIRCUIT_HISTORY_INCOMPLETE"
+          ],
+          "result_semantics": {
+            "recommendation": "DETERMINISTIC_CONTEXTUAL_ACTION",
+            "internal_action": "LEGACY_CANONICAL_ACTION",
+            "display_action": "VERSIONED_PUBLIC_NON_HOLDER_ACTION",
+            "evidence_strength": "HEURISTIC_DIRECTIONAL_EVIDENCE",
+            "opportunity_score": "HEURISTIC_LONG_SETUP_INDEX",
+            "opportunity_quality": "DETERMINISTIC_COMPLETED_SESSION_QUALITY",
+            "entry_readiness": "DETERMINISTIC_PLAN_READINESS",
+            "entry_timing": "DETERMINISTIC_CONDITIONAL_TIMING",
+            "blocker_codes": "ORDERED_MACHINE_READABLE_CONSTRAINTS",
+            "risk_label": "CANONICAL_TRADING_RISK",
+            "trade_plan_status": "DETERMINISTIC_PLAN_FEASIBILITY"
+          },
+          "recommendation": "WAIT",
+          "internal_action": "WAIT",
+          "display_action": "WAIT",
+          "evidence_status": "UNAVAILABLE",
+          "evidence_strength": 44,
+          "opportunity_score": 62,
+          "opportunity_quality": "STRONG",
+          "entry_readiness": "NOT_READY",
+          "entry_timing": null,
+          "entry_condition": null,
+          "blocker_codes": [
+            "data_eligibility",
+            "extended_momentum"
+          ],
+          "risk_label": "LOW",
+          "trade_plan_status": "UNAVAILABLE",
+          "eligibility_status": "LIMITED",
+          "primary_reason": "Data is not eligible for a fresh directional decision; wait for review or refresh.",
+          "primary_reason_code": "data_not_eligible",
+          "stance": "UNAVAILABLE",
+          "non_holder_action": "WAIT",
+          "holder_action": "REVIEW",
+          "regime_score": 50,
+          "regime_label": "NEUTRAL",
+          "regime_phase": "HEALTHY",
+          "regime_confidence": 0
+        }
+      },
+      "analysis": {
+        "opportunity": {
+          "score": 62,
+          "components": [
+            {
+              "key": "trend",
+              "label": "Trend",
+              "score": 90,
+              "weight": 0.28,
+              "explanation": "Price is in an uptrend above moving averages. Price is 6.3% above SMA20."
+            },
+            {
+              "key": "momentum",
+              "label": "Momentum",
+              "score": 44,
+              "weight": 0.22,
+              "explanation": "RSI 100.0 is extended; upside may be crowded. 5-day momentum is positive (3.2%). 20-day trend momentum is strong (14.3%)."
+            },
+            {
+              "key": "volume",
+              "label": "Volume",
+              "score": 67,
+              "weight": 0.2,
+              "explanation": "Volume participation is near normal at 1.1x average."
+            },
+            {
+              "key": "price_position",
+              "label": "Price Position",
+              "score": 32,
+              "weight": 0.2,
+              "explanation": "Price is near resistance; upside may be limited."
+            },
+            {
+              "key": "risk_adjustment",
+              "label": "Risk Adjustment",
+              "score": 71,
+              "weight": 0.1,
+              "explanation": "Higher risk (29) reduces opportunity conviction."
+            }
+          ],
+          "quality": "STRONG",
+          "score_semantics": "HEURISTIC_LONG_SETUP_INDEX"
+        },
+        "risk": {
+          "score": 29,
+          "label": "LOW",
+          "components": [
+            {
+              "key": "volatility",
+              "label": "Volatility",
+              "score": 30,
+              "weight": 0.25,
+              "explanation": "Volatility is moderate at 0.03%."
+            },
+            {
+              "key": "category",
+              "label": "Category",
+              "score": 15,
+              "weight": 0.2,
+              "explanation": "DSE category A contributes to structural risk."
+            },
+            {
+              "key": "liquidity",
+              "label": "Liquidity",
+              "score": 35,
+              "weight": 0.2,
+              "explanation": "Liquidity profile is normal."
+            },
+            {
+              "key": "data_quality",
+              "label": "Data Quality",
+              "score": 20,
+              "weight": 0.15,
+              "explanation": "Latest OHLCV data quality is OK."
+            },
+            {
+              "key": "stale_data",
+              "label": "Data Freshness",
+              "score": 60,
+              "weight": 0.1,
+              "explanation": "OHLCV history is sparse."
+            },
+            {
+              "key": "overextension",
+              "label": "Overextension",
+              "score": 25,
+              "weight": 0.1,
+              "explanation": "Price is not overextended versus its recent mean."
+            }
+          ],
+          "score_semantics": "LEGACY_COMPOSITE_RISK"
+        },
+        "directional_evidence": {
+          "direction": "BULLISH",
+          "bullish_score": 78,
+          "bearish_score": 22,
+          "coverage_percent": 100,
+          "components": [
+            {
+              "key": "trend",
+              "label": "Trend",
+              "direction": "BULLISH",
+              "strength": 85,
+              "weight": 0.5,
+              "explanation": "The established trend is upward."
+            },
+            {
+              "key": "momentum",
+              "label": "Momentum",
+              "direction": "BULLISH",
+              "strength": 84,
+              "weight": 0.3,
+              "explanation": "20-session analytical return is 14.29%."
+            },
+            {
+              "key": "level_event",
+              "label": "Level Event",
+              "direction": "NEUTRAL",
+              "strength": 60,
+              "weight": 0.2,
+              "explanation": "No current structural price-break event is present."
+            }
+          ],
+          "score_semantics": "HEURISTIC_DIRECTIONAL_EVIDENCE"
+        },
+        "data_reliability": {
+          "score": 75,
+          "label": "MEDIUM",
+          "reason_codes": [
+            "turnover_not_reported",
+            "raw_unadjusted_analytical_series"
+          ],
+          "explanation": "Deterministic input reliability reflects freshness, history coverage, source quality, row validity, and corporate-action resolution.",
+          "score_semantics": "DETERMINISTIC_INPUT_RELIABILITY"
+        },
+        "trading_risk": {
+          "score": 25,
+          "label": "LOW",
+          "components": [
+            {
+              "key": "volatility_gap",
+              "label": "Volatility and Gap Risk",
+              "score": 30,
+              "weight": 0.55,
+              "explanation": "Analytical daily volatility is moderate at 0.03%."
+            },
+            {
+              "key": "category",
+              "label": "Category Risk",
+              "score": 15,
+              "weight": 0.25,
+              "explanation": "Category A is treated as a structural trading-risk input."
+            },
+            {
+              "key": "overextension",
+              "label": "Overextension Risk",
+              "score": 25,
+              "weight": 0.2,
+              "explanation": "Price is not overextended versus its medium-term path."
+            }
+          ],
+          "score_semantics": "HEURISTIC_TRADING_RISK"
+        },
+        "price_position": {
+          "current_price": 80.0,
+          "distance_to_support_percent": 15.942028985507244,
+          "distance_to_resistance_percent": 0.625,
+          "above_sma20_percent": 6.312292358803987,
+          "above_ema20_percent": 6.312292358803987
+        },
+        "trade_plan": {
+          "entry_zone_low": null,
+          "entry_zone_high": null,
+          "stop_loss": null,
+          "target_low": null,
+          "target_high": null,
+          "risk_reward_ratio": null,
+          "explanation": "A fresh long-entry plan is unavailable for this decision.",
+          "status": "UNAVAILABLE",
+          "reasons": [
+            "unreliable_data_for_entry_plan"
+          ],
+          "entry_readiness": "NOT_READY",
+          "entry_timing": null,
+          "preferred_entry_zone_low": null,
+          "preferred_entry_zone_high": null,
+          "invalidation_price": null,
+          "condition_text": null,
+          "expiry_sessions": null,
+          "trigger_price": null,
+          "confirmation_rule": null,
+          "management_mode": null,
+          "trailing_rule": null,
+          "reassessment_sessions": null,
+          "partial_profit_price": null
+        },
+        "liquidity": {
+          "label": "NORMAL",
+          "average_volume": 118500.0,
+          "latest_volume_ratio": 1.0886075949367089,
+          "volume_consistency_score": 65,
+          "average_turnover": 11850000.0,
+          "median_turnover": 11850000.0,
+          "turnover_observation_count": 20,
+          "turnover_provenance": "UNKNOWN",
+          "traded_session_ratio": 1.0,
+          "explanation": "Median traded-session turnover is adequate for standard sizing."
+        },
+        "is_stale": false,
+        "is_sparse": false,
+        "suspected_adjustment": false
+      },
+      "eligibility": {
+        "status": "LIMITED",
+        "reason_codes": [
+          "turnover_not_reported"
+        ],
+        "exchange_session_date": "2026-08-09",
+        "latest_trade_date": "2026-08-09",
+        "missed_session_count": 0,
+        "valid_ohlcv_row_count": 80,
+        "invalid_ohlcv_row_count": 0,
+        "traded_session_count": 80,
+        "zero_volume_session_count": 0,
+        "traded_session_ratio": 1.0,
+        "quality_ok_count": 50,
+        "quality_partial_count": 0,
+        "quality_suspicious_count": 0,
+        "median_turnover": 11850000.0,
+        "turnover_observation_count": 20,
+        "turnover_provenance": "UNKNOWN",
+        "analytical_price_basis": "RAW_UNADJUSTED",
+        "expected_session_count": 80,
+        "observed_session_count": 80,
+        "missing_session_count": 0,
+        "event_coverage_status": "UNKNOWN",
+        "corporate_action_status": "NONE"
+      },
+      "scanner": {
+        "version": "scanner-conditions-v1",
+        "matches": []
+      },
+      "session": {
+        "latest_trade_date": "2026-08-09",
+        "close_price": "80",
+        "open_price": "79.5",
+        "volume": 129000,
+        "turnover": "12900000",
+        "change_percent": null,
+        "data_quality_flag": "OK",
+        "updated_at": "2026-08-09T06:30:00Z"
+      }
+    }
+  ]
+}

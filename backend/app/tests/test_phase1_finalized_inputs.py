@@ -350,6 +350,7 @@ async def test_universe_and_details_quote_projection_ignores_prior_decision_age(
     expected_status = "NO_TRADE" if observed else "UNAVAILABLE"
     quote = rows.rows[0].display_quote
     assert quote.model_dump() == {
+        "volume": placeholder.volume if observed else valid.volume,
         "previous_close": None,
         "source": valid.source,
         "data_quality": "OK",

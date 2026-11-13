@@ -83,6 +83,9 @@ export function mapUniverseRowsToSignalFeed(
 
       return {
         symbol: stock.stock.symbol,
+        name: stock.stock.name,
+        decisionDate: stock.decisionDate,
+        measuredFacts: stock.measuredFacts,
         decisionSummary: stock.traderDecision,
         signal: decision.recommendation,
         confidence: decision.evidenceStatus ?? "UNAVAILABLE",
@@ -253,7 +256,8 @@ export function mapDashboardSentimentDto(dto: BackendDashboardMarketSentimentDto
 }
 
 export function mapDashboardSectorsToLeadersContext(dto: BackendDashboardSectorsDto): LeadersPulseContext {
-  const sectors = dto.sectors.filter((sector) => toNumber(sector.change_percent) !== null);
+  const sectors = dto.leadership_status === "UNAVAILABLE" || dto.leadership_status === "NO_ADVANCING_SECTOR" ? []
+    : dto.sectors.filter((sector) => (toNumber(sector.change_percent) ?? 0) > 0);
   const primary = sectors[0]
     ? {
         name: sectors[0].name,
@@ -300,6 +304,8 @@ export function mapDashboardSectorsToLeadersContext(dto: BackendDashboardSectors
   }
 
   return {
+    leadershipStatus: dto.leadership_status ?? (sectors.length ? "MEASURED" : dto.sectors.length ? "NO_ADVANCING_SECTOR" : "UNAVAILABLE"),
+    excludedSectorCount: dto.excluded_sector_count ?? 0,
     rows,
     footer: dto.sectors.length ? `${dto.sectors.length} sectors with session participation` : "Awaiting sector participation",
     primary,

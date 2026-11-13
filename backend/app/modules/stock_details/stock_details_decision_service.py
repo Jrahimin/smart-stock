@@ -247,6 +247,7 @@ class StockDetailsDecisionService:
         ]
 
         return StockDecisionSupportRead(
+            measured_facts=row.measured_facts,
             entry_applicability=row.entry_applicability,
             quote_generation_id=canonical_snapshot.quote_generation.sync_id if canonical_snapshot.quote_generation else None,
             stock_id=stock.id,

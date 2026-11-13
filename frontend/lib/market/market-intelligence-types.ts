@@ -85,6 +85,7 @@ export type PersistedSignalContext = {
 };
 
 export type StockIntelligenceModel = {
+  measuredFacts?: import("@/lib/api/stock-decision-support-types").MeasuredDecisionFactsDto | null;
   decisionDate?: string | null;
   publicComparison?: import("@/lib/api/backend-api-types").BackendPublicDecisionComparisonDto | null;
   latestVolumeRatio?: number | null;

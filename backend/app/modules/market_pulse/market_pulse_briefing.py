@@ -2,12 +2,15 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass
-from decimal import Decimal, InvalidOperation
 from fractions import Fraction
-from math import isfinite
 
 from app.core.enums import ExchangeCode, MarketAlertType, PulseFocusLabel, TrendDirection
 from app.models import DailyMarketSummary
+from app.modules.market_data.session_leadership import (
+    eligible_sector_returns,
+    measured_price_change,
+    measured_price_leader,
+)
 from app.modules.market_pulse.market_pulse_schemas import (
     FocusStockRead,
     HighPriorityRead,
@@ -45,41 +48,12 @@ class PulseBriefingRow:
     change_basis_available: bool = True
 
 
-def measured_price_change(snapshot, session=None) -> Fraction | None:
-    """Prefer the same-session stored decimal; never quantize a represented fallback."""
-    stored = getattr(session, "change_percent", None)
-    same_session = str(getattr(session, "latest_trade_date", None)) == str(snapshot.latest_trade_date)
-    ratio = getattr(snapshot, "price_change_percent_ratio", None)
-    if same_session and stored is not None:
-        value = stored
-    elif ratio is not None:
-        return ratio if isinstance(ratio, Fraction) else ratio.as_fraction()
-    elif session is not None and hasattr(session, "change_percent"):
-        return None  # An old canonical row cannot recover an absent exact source basis.
-    else:
-        value = snapshot.price_change_percent
-    if value is None:
-        return None
-    try:
-        if isinstance(value, Fraction):
-            return value
-        decimal = value if isinstance(value, Decimal) else Decimal(str(value))
-        return Fraction(decimal) if decimal.is_finite() else None
-    except (ValueError, InvalidOperation):
-        return None
-
 
 def _row_change(row: PulseBriefingRow) -> Fraction | None:
     if not row.change_basis_available:
         return None
     return row.measured_change_percent if row.measured_change_percent is not None else measured_price_change(row.snapshot)
 
-
-def measured_price_leader(candidates):
-    """Select only observed price changes, including when every observed move is negative."""
-    known = ((row, change) for row, change in candidates if change is not None and isfinite(change))
-    selected = max(known, key=lambda item: item[1], default=None)
-    return selected[0] if selected else None
 
 
 def _sector_name(stock) -> str:
@@ -214,14 +188,8 @@ def build_market_briefing(
     unch_pct = breadth["unchanged"] / total * 100 if total else 0
     adv_decl_ratio = breadth["advancing"] / breadth["declining"] if breadth["declining"] else None
 
-    sector_perf = _sector_performance(rows)
-    sector_changes = [
-        (name, _avg(values)) for name, values in sector_perf.items() if len(values) >= 3
-    ]
-    # An unknowable constituent must not create a biased positive subset or a
-    # confident no-leader verdict. Keep stock breadth, disclose sector coverage.
-    if any(not row.change_basis_available for row in rows):
-        sector_changes = []
+    measured_sectors, excluded_sector_count = eligible_sector_returns((row.stock, _row_change(row)) for row in rows)
+    sector_changes = [(name, change) for name, change, _ in measured_sectors]
     declining_sectors = sum(1 for _, change in sector_changes if change < Fraction(-3, 20))
     inflow_sectors = sorted(
         ((name, change) for name, change in sector_changes if change > 0),
@@ -341,14 +309,18 @@ def build_market_briefing(
     elif sentiment == "Bullish" and momentum == "Positive":
         overall = "Risk-On Expansion"
         overall_tone = "positive"
+    elif sentiment == "Bullish" and momentum == "Negative":
+        overall = "Broad bounce with limited trend confirmation"
+        overall_tone = "neutral"
     elif sentiment == "Neutral":
         overall = "Selective Attention"
         overall_tone = "info"
     else:
-        overall = "Cautious Positioning"
-        overall_tone = "warning"
+        overall = "Mixed market conditions"
+        overall_tone = "neutral"
 
     state = MarketStateRead(
+        excluded_sector_count=excluded_sector_count,
         dimensions=[
             MarketStateDimensionRead(key="sentiment", label="Sentiment", value=sentiment, tone=_state_tone(sentiment)),
             MarketStateDimensionRead(
@@ -359,8 +331,9 @@ def build_market_briefing(
             ),
             MarketStateDimensionRead(
                 key="momentum",
-                label="Momentum",
-                value=momentum,
+                label="Stocks in uptrend",
+                value=f"{uptrend_count}/{len(rows)}",
+                numerator=uptrend_count, denominator=len(rows),
                 tone=_state_tone(momentum if momentum != "Neutral" else "Neutral"),
             ),
             MarketStateDimensionRead(key="leadership", label="Leadership", value="No positive leader" if leadership == "None" else leadership, tone="neutral" if leadership in {"None", "Unavailable"} else _state_tone(leadership)),
@@ -475,7 +448,7 @@ def build_market_briefing(
         )
 
     strongest_sector = inflow_sectors[0][0] if inflow_sectors else "N/A"
-    strongest_stock_row = measured_price_leader((row, row.snapshot.price_change_percent) for row in rows)
+    strongest_stock_row = measured_price_leader((row, _row_change(row)) for row in rows)
     relative_volume_rows = [row for row in rows if get_volume_ratio(row.snapshot) is not None]
     accumulation_row = max(
         relative_volume_rows,

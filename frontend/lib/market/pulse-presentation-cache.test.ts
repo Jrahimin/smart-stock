@@ -53,7 +53,7 @@ it("misses the old same-generation verdict once, then reuses the new IndexedDB r
   const first = await backendApiGetMarket("/market/pulse/briefing", { exchange: "DSE" });
   const second = await backendApiGetMarket("/market/pulse/briefing", { exchange: "DSE" });
   expect(first).toEqual({ market_sync_id: "gA", marker: "exact-verdict" }); expect(second).toEqual(first);
-  expect(fetcher).toHaveBeenCalledTimes(1); expect(fetcher.mock.calls[0][0]).toBe(url);
-  expect(records.has(url)).toBe(true); expect(records.has(marketPresentationCacheKey(url))).toBe(true);
+  expect(fetcher).toHaveBeenCalledTimes(1); expect(fetcher.mock.calls[0][0]).toBe(`${url}&entry_contract=price-basis-v2`);
+  expect(records.has(url)).toBe(true); expect(records.has(marketPresentationCacheKey(`${url}&entry_contract=price-basis-v2`))).toBe(true);
   expect(records.has(`${url}#pulse-sector-exact-v3`)).toBe(true);
 });
