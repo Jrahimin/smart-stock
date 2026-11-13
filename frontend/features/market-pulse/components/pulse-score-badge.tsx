@@ -1,5 +1,7 @@
 "use client";
 
+import { useId, useState } from "react";
+
 import { MiniSparkline } from "@/components/charts/mini-sparkline";
 import type { PulseScoreBreakdownModel } from "@/features/market-pulse/types/market-pulse-types";
 import type { MarketPulseLanguage } from "@/features/market-pulse/market-pulse-language";
@@ -35,41 +37,6 @@ function signalStrengthLabel(
   return labels.building;
 }
 
-function volumeExpansionLabel(volume: number, labels: MarketPulseLanguage["score"]["bandLabels"]) {
-  if (volume >= 16) {
-    return labels.high;
-  }
-  if (volume >= 10) {
-    return labels.moderate;
-  }
-  return labels.light;
-}
-
-function participationLabel(
-  trend: number,
-  momentum: number,
-  labels: MarketPulseLanguage["score"]["bandLabels"],
-) {
-  const combined = trend + momentum;
-  if (combined >= 30) {
-    return labels.high;
-  }
-  if (combined >= 20) {
-    return labels.moderate;
-  }
-  return labels.low;
-}
-
-function riskLabel(penalty: number, labels: MarketPulseLanguage["score"]["bandLabels"]) {
-  if (penalty >= 12) {
-    return labels.high;
-  }
-  if (penalty >= 6) {
-    return labels.moderate;
-  }
-  return labels.low;
-}
-
 function ScoreRing({ score, breakdown, compact }: PulseScoreBadgeProps) {
   return (
     <div className={`pulse-score-badge pulse-score-badge-${bandTone(breakdown.band)}${compact ? " pulse-score-badge-compact" : ""}`}>
@@ -89,18 +56,25 @@ type PulseScoreHeaderClusterProps = PulseScoreBadgeProps & {
 };
 
 export function PulseScoreHeaderCluster({ score, breakdown, copy }: PulseScoreHeaderClusterProps) {
+  const [open, setOpen] = useState(false);
+  const panelId = useId();
   return (
     <div className="pulse-score-header-cluster">
+      <small className="pulse-attention-score-label">{copy.attentionLabel}</small>
       <ScoreRing breakdown={breakdown} compact score={score} />
-      <div className="pulse-score-insight">
+      <div className="pulse-score-insight" data-open={open} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false); }}>
         <button
           aria-label={copy.whyScoreAria(score)}
+          aria-expanded={open}
+          aria-controls={panelId}
+          onClick={() => setOpen((value) => !value)}
+          onKeyDown={(event) => { if (event.key === "Escape") setOpen(false); }}
           className="pulse-score-insight-trigger"
           type="button"
         >
           i
         </button>
-        <div className="pulse-score-insight-panel" role="tooltip">
+        <div className="pulse-score-insight-panel" role="region" aria-label={copy.whyScoreTitle(score)} id={panelId} hidden={!open}>
           <strong>{copy.whyScoreTitle(score)}</strong>
           <dl>
             <div>
@@ -109,16 +83,16 @@ export function PulseScoreHeaderCluster({ score, breakdown, copy }: PulseScoreHe
             </div>
             <div>
               <dt>{copy.volumeExpansion}</dt>
-              <dd>{volumeExpansionLabel(breakdown.volume, copy.bandLabels)}</dd>
+              <dd>{breakdown.volume}</dd>
             </div>
             <div>
               <dt>{copy.participationScore}</dt>
-              <dd>{participationLabel(breakdown.trend, breakdown.momentum, copy.bandLabels)}</dd>
+              <dd>{breakdown.trend + breakdown.momentum}</dd>
             </div>
-            <div>
+            {breakdown.riskPenalty > 0 && <div>
               <dt>{copy.riskLevel}</dt>
-              <dd>{riskLabel(breakdown.riskPenalty, copy.bandLabels)}</dd>
-            </div>
+              <dd>−{breakdown.riskPenalty}</dd>
+            </div>}
           </dl>
         </div>
       </div>

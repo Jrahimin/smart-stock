@@ -51,7 +51,7 @@ CANONICAL_RESULT_SEMANTICS: tuple[tuple[str, str], ...] = (
     ("entry_readiness", "DETERMINISTIC_PLAN_READINESS"),
     ("entry_timing", "DETERMINISTIC_CONDITIONAL_TIMING"),
     ("blocker_codes", "ORDERED_MACHINE_READABLE_CONSTRAINTS"),
-    ("risk_label", "LEGACY_COMPOSITE_RISK"),
+    ("risk_label", "CANONICAL_TRADING_RISK"),
     ("trade_plan_status", "DETERMINISTIC_PLAN_FEASIBILITY"),
 )
 
@@ -75,6 +75,7 @@ class StrategyInput:
     event_observations: tuple[dict, ...] = ()
     event_coverage_status: str = "UNKNOWN"
     adjustment_coverage: str = "UNVERIFIED"
+    strategy_version: str = TRADING_STRATEGY_VERSION
 
     @property
     def as_of_date(self) -> date:
@@ -289,7 +290,7 @@ def build_canonical_decision_result(
     return CanonicalDecisionResult(
         stock_id=strategy_input.stock_id,
         exchange=strategy_input.exchange,
-        strategy_version=TRADING_STRATEGY_VERSION,
+        strategy_version=strategy_input.strategy_version,
         threshold_version=TRADING_THRESHOLD_VERSION,
         action_taxonomy=TRADING_ACTION_TAXONOMY,
         decision_taxonomy_version=DECISION_TAXONOMY_VERSION,
@@ -308,7 +309,7 @@ def build_canonical_decision_result(
         input_hash=lineage.input_hash,
         replay_status=lineage.replay_status,
         replay_limitations=lineage.replay_limitations,
-        result_semantics=CANONICAL_RESULT_SEMANTICS,
+        result_semantics=tuple((key, "LEGACY_COMPOSITE_RISK" if key == "risk_label" and strategy_input.strategy_version == "trading-intelligence-v2" else value) for key, value in CANONICAL_RESULT_SEMANTICS),
         recommendation=recommendation,
         internal_action=display.internal_action,
         display_action=display.display_action,

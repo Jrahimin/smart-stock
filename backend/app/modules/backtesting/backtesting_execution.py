@@ -51,7 +51,9 @@ def round_tick(value: float, tick: float, *, up: bool) -> float:
 
 
 def rule_on(history: StockReplayHistory, day: date, config: BacktestConfig):
-    cutoff = datetime.combine(day, time.min, tzinfo=UTC)
+    from zoneinfo import ZoneInfo
+    opening = dict(config.session_open_overrides).get(day.isoformat(), config.session_open_time)
+    cutoff = datetime.combine(day, time.fromisoformat(opening), tzinfo=ZoneInfo("Asia/Dhaka"))
     known = [
         rule
         for rule in history.execution_rules
@@ -123,15 +125,17 @@ def simulate_next_session_execution(
     events = [{"state": "SELECTED", "date": observation.as_of_date}]
     attempts = []
     activation = None
+    uncertainty = set()
 
     def result(status, day=None, **kwargs):
         return ExecutionResult(
-            status=status,
+            status="EXECUTION_UNVERIFIED" if uncertainty and status not in {"RULES_UNAVAILABLE", "NO_STOCK_BAR", "INVALID_EXECUTION_PRICE"} else status,
             execution_date=day,
             activation_date=activation,
             attempt_dates=tuple(attempts),
             events=tuple(events),
             policy_id=policy_id,
+            uncertainty_reasons=tuple(sorted(uncertainty)),
             **kwargs,
         )
 
@@ -161,11 +165,14 @@ def simulate_next_session_execution(
         bar = bars.get(day)
         blocked = bar_block(history, bar, day)
         if blocked:
+            if blocked in {"NO_STOCK_BAR", "INVALID_EXECUTION_PRICE"}:
+                uncertainty.add(blocked)
             last_status = blocked
             events.append({"state": "SESSION_BLOCKED", "date": day, "reason": blocked})
             continue
         rule, verified = rule_on(history, day, config)
         if rule is None:
+            uncertainty.add("RULES_UNAVAILABLE")
             last_status = "RULES_UNAVAILABLE"
             events.append({"state": "EXCLUDED", "date": day, "reason": last_status})
             continue
@@ -272,7 +279,7 @@ def simulate_next_session_execution(
         settlement = session_dates[settle_index] if settle_index < len(session_dates) else None
         events.append(
             {
-                "state": "FILLED",
+                "state": "CANDIDATE_FILL_UNVERIFIED" if uncertainty else "FILLED",
                 "date": day,
                 "quantity": quantity,
                 "price": fill,
@@ -290,9 +297,10 @@ def simulate_next_session_execution(
             rules_verified=verified,
             fill_timing=fill_timing,
         )
-    events.append(
-        {"state": "EXPIRED", "date": session_dates[min(start + expiry, len(session_dates)) - 1]}
-    )
+    if start + expiry > len(session_dates):
+        uncertainty.add("ENTRY_WINDOW_INCOMPLETE")
+    events.append({"state": "ENTRY_WINDOW_INCOMPLETE" if start + expiry > len(session_dates) else "EXPIRED",
+        "date": session_dates[min(start + expiry, len(session_dates)) - 1]})
     return result(last_status, session_dates[min(start + expiry, len(session_dates)) - 1])
 
 
@@ -330,7 +338,7 @@ def compute_forward_outcome(
         observation.stock_id,
         observation.as_of_date,
         horizon_sessions,
-        "UNFILLED",
+        "UNFILLED" if execution.is_known else "EXECUTION_UNVERIFIED",
         execution.status,
         outcome_end_date=execution.execution_date or observation.as_of_date,
     )

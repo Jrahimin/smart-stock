@@ -1,3 +1,6 @@
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { PulseScoreHeaderCluster } from "./components/pulse-score-badge";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -144,17 +147,18 @@ describe("market pulse language", () => {
     const localized = applyMarketPulseLocalization(model, "bn");
     expect(localized.hero.attentionSubline).toContain("বাজারে কী চলছে");
     expect(localized.briefing?.story.explanation).toContain("নামা শেয়ার ওঠা শেয়ারের চেয়ে বেশি");
-    expect(localized.focusStocks[0]?.whyHere[0]).toBe("BUY setup-এর heuristic evidence 77/100");
+    expect(localized.focusStocks[0]?.whyHere[0]).toBe("BUY সেটআপের সংকেতের শক্তি 77/100");
     expect(localized.focusStocks[0]?.actionSummary).toBe("দামের চেয়ে Volume দ্রুত বাড়ছে");
     expect(localized.alerts[0]?.eventExplanation).toContain("Volume recent baseline-এর 10.0x");
     expect(localized.briefing?.summary.text).toContain("বাজার এখন");
-    expect(localized.briefing?.story.headline).toBe("দামের দুর্বলতা ছড়াচ্ছে\n3টি সেক্টরে");
+    expect(localized.briefing?.story.headline).toBe("পর্যালোচিত শেয়ারের দাম কমেছে");
   });
 
-  it("localizes story headline variants by tone", () => {
+  it("localizes typed story facts without inferring sector counts", () => {
     const language = getMarketPulseLanguage("bn");
-    expect(language.briefing.storyHeadline("positive", 4)).toBe("দামের শক্তি ছড়াচ্ছে\n4টি সেক্টরে");
-    expect(language.briefing.storyHeadline("warning", 1)).toBe("মিশ্র বাজার, বেছে বেছে price leadership");
+    expect(language.briefing.storyHeadline("STRENGTH_SECTORS", 4)).toBe("দামের শক্তি ছড়াচ্ছে\n4টি খাতে");
+    expect(language.briefing.storyHeadline("STRENGTH_STOCKS", null)).toBe("পর্যালোচিত শেয়ারের দাম বেড়েছে");
+    expect(language.briefing.storyHeadline("SECTOR_UNAVAILABLE", null)).toBe("খাতের অগ্রগতির তথ্য পাওয়া যায়নি");
   });
 
   it("localizes focus stock entry-condition triggers in bn", () => {
@@ -186,4 +190,12 @@ describe("market pulse language", () => {
       "দাম trigger-এর উপরে দিন শেষ করলে এবং কেনার চাপ ভালো থাকলে entry ভাবতে পারেন।",
     );
   });
+});
+
+
+it("shows score deductions as points rather than inferring a trading-risk tier", () => {
+  const html = renderToStaticMarkup(createElement(PulseScoreHeaderCluster, {score: 80, breakdown: {trend: 30, momentum: 30, volume: 25, signalBoost: 1, riskPenalty: 6, total: 80, contributors: [], band: "Worth Watching"}, copy: getMarketPulseLanguage("en").score}));
+  expect(html).toContain("Attention score deduction");
+  expect(html).toContain("−6");
+  expect(html).not.toContain("Risk Level");
 });

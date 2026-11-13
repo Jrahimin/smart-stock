@@ -17,6 +17,8 @@ from app.modules.stocks.stocks_schemas import StockRead
 
 
 class DailyPriceBase(BaseModel):
+    source_observed_at: datetime | None = None
+    batch_fetched_at: datetime | None = None
     stock_id: UUID
     trade_date: date
     open_price: Decimal = Field(ge=0)
@@ -36,6 +38,13 @@ class DailyPriceBase(BaseModel):
     turnover_provenance: TurnoverProvenance = TurnoverProvenance.UNKNOWN
     source: str = Field(min_length=1, max_length=80)
     data_quality_flag: DataQualityFlag = DataQualityFlag.OK
+
+    @field_validator("source_observed_at", "batch_fetched_at")
+    @classmethod
+    def require_aware_time(cls, value):
+        if value is not None and (value.tzinfo is None or value.utcoffset() is None):
+            raise ValueError("observation timestamps must include a timezone")
+        return value
 
     @field_validator("source", mode="before")
     @classmethod
@@ -127,23 +136,23 @@ class DsexIndexSnapshotRead(BaseModel):
     trade_date: date
     market_status: str
     index_close: Decimal
-    index_change: Decimal
-    index_change_percent: Decimal
-    day_open: Decimal
-    day_high: Decimal
-    day_low: Decimal
-    range_52w_low: Decimal
-    range_52w_high: Decimal
-    range_position_percent: Decimal
+    index_change: Decimal | None = None
+    index_change_percent: Decimal | None = None
+    day_open: Decimal | None = None
+    day_high: Decimal | None = None
+    day_low: Decimal | None = None
+    range_52w_low: Decimal | None
+    range_52w_high: Decimal | None
+    range_position_percent: Decimal | None
     return_1m_percent: Decimal | None = None
     return_6m_percent: Decimal | None = None
     return_1y_percent: Decimal | None = None
     total_volume: int | None = None
     total_turnover: Decimal | None = None
     total_trades: int | None = None
-    advancing_issues: int
-    declining_issues: int
-    unchanged_issues: int
+    advancing_issues: int | None = None
+    declining_issues: int | None = None
+    unchanged_issues: int | None = None
     source: str
 
 

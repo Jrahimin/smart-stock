@@ -1,0 +1,58 @@
+import type { AppLocale } from "@/lib/locale/app-locale";
+
+const language = {
+  en: {
+    checkPrice: "Check live price before entry", unverifiedAria: "Entry unverified. Check live price before entry.",
+    settling: "Closing price pending", settlingDetail: "The latest session has closed. Its final price is not available yet.",
+    missingTime: "The time of this price is unknown.",
+    unavailable: "A current entry check is unavailable. Check your broker's price against the Trade Plan.",
+    marketClosed: "The market is closed. This response does not include a verified closing-price check.",
+    missingSession: "This saved price does not confirm a trade in this session. Check your broker's price.",
+    unusablePrice: "This price cannot be used for a current entry check.",
+    incompletePath: "Some prices since this plan was published are missing.",
+    missingHistory: "There is not enough reliable price history to check this plan.",
+    missingTerms: "The plan does not include all the entry or stop levels.",
+    unknownBasis: "Check your broker's price against the published entry zone.",
+    lastPrice: (date: string) => `Last saved price: ${date}. `,
+    fetched: (time: string) => `Price fetched at ${time}; trade time unconfirmed.`,
+    snapshotAdvice: "Snapshot price. Confirm your broker's price before entry.",
+    stopped: "A later price recovery does not restore this Trade Plan.",
+    currentAt: (base: string, time: string) => `${base} · ${time}`,
+    closeAt: (base: string, date: string) => `${base} at the ${date} close`,
+    snapshotAt: (base: string, time: string) => `${base} at the ${time} snapshot`,
+    outcomes: {
+      ENTRY_TERMS_MET: "Inside entry zone", ABOVE_ENTRY_ZONE: "Above entry zone", BELOW_ENTRY_ZONE: "Below entry zone",
+      TARGET_REACHED: "Trade Plan target reached", COMPLETED_BREAKOUT_REQUIRED: "Breakout confirmation pending",
+      ENTRY_SESSION_PENDING: "Next entry session pending", STOP_BREACHED: "Trade Plan invalidated · stop breached",
+      PRICE_BASIS_CHANGED: "Trade Plan invalidated · price basis changed", PUBLICATION_INVALIDATED: "Published Trade Plan withdrawn", PLAN_EXPIRED: "Trade Plan expired",
+    },
+  },
+  bn: {
+    checkPrice: "Entry-এর আগে broker-এর দাম মিলিয়ে নিন", unverifiedAria: "Entry যাচাই হয়নি। Entry-এর আগে broker-এর দাম মিলিয়ে নিন।",
+    settling: "Closing price-এর অপেক্ষায়", settlingDetail: "সর্বশেষ session শেষ হয়েছে। তার চূড়ান্ত দাম এখনও আসেনি।",
+    missingTime: "দামটি কখনের, তা নিশ্চিত নয়।",
+    unavailable: "বর্তমান entry যাচাই করা যাচ্ছে না। Trade Plan-এর সঙ্গে broker-এর দাম মিলিয়ে নিন।",
+    marketClosed: "বাজার বন্ধ। এই তথ্যে closing price-এর যাচাই নেই।",
+    missingSession: "এই দাম দিয়ে এই session-এ লেনদেন হয়েছে কি না নিশ্চিত করা যায়নি। Broker-এর দাম মিলিয়ে নিন।",
+    unusablePrice: "এই দাম দিয়ে বর্তমান entry যাচাই করা যাচ্ছে না।",
+    incompletePath: "এই plan প্রকাশের পর কিছু দামের তথ্য নেই।",
+    missingHistory: "এই plan যাচাই করার মতো নির্ভরযোগ্য দামের ইতিহাস নেই।",
+    missingTerms: "Plan-এ প্রয়োজনীয় সব entry বা stop level নেই।",
+    unknownBasis: "প্রকাশিত entry zone-এর সঙ্গে broker-এর দাম মিলিয়ে নিন।",
+    lastPrice: (date: string) => `শেষ সংরক্ষিত দাম: ${date}। `,
+    fetched: (time: string) => `${time}-এ দাম আনা হয়েছে; লেনদেনের সময় নিশ্চিত নয়।`,
+    snapshotAdvice: "এটি snapshot-এর দাম। Entry-এর আগে broker-এর দাম মিলিয়ে নিন।",
+    stopped: "দাম ফিরলেও পুরোনো Trade Plan আবার বৈধ হয় না।",
+    currentAt: (base: string, time: string) => `${base} · ${time}`,
+    closeAt: (base: string, date: string) => `${base} · ${date} close`,
+    snapshotAt: (base: string, time: string) => `${base} · ${time} snapshot`,
+    outcomes: {
+      ENTRY_TERMS_MET: "Entry zone-এর মধ্যে", ABOVE_ENTRY_ZONE: "Entry zone-এর উপরে", BELOW_ENTRY_ZONE: "Entry zone-এর নিচে",
+      TARGET_REACHED: "Trade Plan target ছুঁয়েছে", COMPLETED_BREAKOUT_REQUIRED: "Breakout confirmation-এর অপেক্ষায়",
+      ENTRY_SESSION_PENDING: "পরের entry session-এর অপেক্ষায়", STOP_BREACHED: "Trade Plan বাতিল · stop ভেঙেছে",
+      PRICE_BASIS_CHANGED: "Trade Plan বাতিল · price basis বদলেছে", PUBLICATION_INVALIDATED: "প্রকাশিত Trade Plan প্রত্যাহার হয়েছে", PLAN_EXPIRED: "Trade Plan-এর মেয়াদ শেষ",
+    },
+  },
+};
+
+export const getEntryAssessmentLanguage = (locale: AppLocale) => language[locale];

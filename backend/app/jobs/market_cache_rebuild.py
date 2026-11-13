@@ -65,6 +65,7 @@ def _build_dashboard_service(session, settings: Settings, redis: OptionalRedisCl
         stocks_repository=StocksRepository(session),
         redis=redis,
         settings=settings,
+        decision_snapshot_repository=DecisionSnapshotRepository(session),
     )
 
 
@@ -149,6 +150,9 @@ async def _rebuild_current_universe(
             promoter = getattr(service, "promote_cached_generation", None)
             if promoter is not None and not await promoter(exchange=exchange, generation=generation):
                 continue
+            recorder = getattr(service, "ensure_cached_shadow_receipt", None)
+            if recorder is not None:
+                await recorder(exchange=exchange, generation=generation)
             return "universe-current"
         rows = await service.recompute_scored_universe(exchange, generation=generation)
         if await service.cache_scored_universe(
@@ -333,6 +337,9 @@ async def rebuild_market_read_cache(
                             universe_service,
                             exchange=exchange,
                         )
+                        observer = getattr(universe_service, "observe_scheduled_entries", None)
+                        if observer is not None:
+                            await observer(exchange=exchange)
                     result.steps.append(RebuildStepResult(step="universe", success=True))
                 except Exception as exc:
                     logger.exception("Rebuild universe failed for %s", exchange.value)
@@ -379,6 +386,9 @@ async def rebuild_universe_read_cache(
         async with AsyncSessionLocal() as session:
             universe_service = _build_universe_service(session, resolved_settings, resolved_redis)
             step = await _rebuild_current_universe(universe_service, exchange=exchange)
+            observer = getattr(universe_service, "observe_scheduled_entries", None)
+            if observer is not None:
+                await observer(exchange=exchange)
             _ensure_rebuild_lease(lease)
             return RebuildStepResult(step=step, success=True)
     except Exception as exc:

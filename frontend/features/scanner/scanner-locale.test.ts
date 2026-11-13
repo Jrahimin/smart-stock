@@ -10,7 +10,7 @@ import { DEFAULT_LOCALE } from "@/lib/locale/app-locale";
 describe("scanner language", () => {
   it("defaults to bn hero copy", () => {
     const language = getScannerLanguage(DEFAULT_LOCALE);
-    expect(language.hero.title).toContain("Daily");
+    expect(language.hero.title).toContain("শেয়ার");
     expect(language.states.loading).toContain("সুযোগ");
   });
 
@@ -18,10 +18,10 @@ describe("scanner language", () => {
     const language = getScannerLanguage("bn");
     const breakout = language.categories.volume_breakouts;
 
-    expect(breakout.title).toContain("Break Event");
-    expect(getScannerCategoryDescription(breakout, false)).toContain("Resistance");
-    expect(getScannerCategoryDescription(breakout, true)).toContain("Resistance");
-    expect(language.categories.oversold_rebound.title).toContain("Weak-RSI");
+    expect(breakout.title).toContain("উত্থান");
+    expect(getScannerCategoryDescription(breakout, false)).toContain("প্রতিরোধসীমা");
+    expect(getScannerCategoryDescription(breakout, true)).toContain("প্রতিরোধসীমা");
+    expect(language.categories.oversold_rebound.title).toBe("সমর্থনমূল্য থেকে ঘুরে দাঁড়ানো");
   });
 
   it("keeps en copy unchanged", () => {

@@ -7,20 +7,25 @@ from app.api.dependencies.auth_dependencies import CurrentAdmin
 from app.core.enums import ExchangeCode
 from app.core.exception_handlers import NotFoundError
 from app.core.response_handler import ApiResponse, success_response
+from app.modules.market_universe.market_universe_service import UniverseCacheUnavailableError
+from app.modules.stock_details.decision.entry_contract import use_entry_contract
+from app.modules.stock_details.sector_intelligence_service import (
+    SectorIntelligenceService,
+    get_sector_intelligence_service,
+)
 from app.modules.stock_details.stock_details_decision_service import (
     StockDetailsDecisionService,
     get_stock_details_decision_service,
 )
-from app.modules.market_universe.market_universe_service import UniverseCacheUnavailableError
 from app.modules.stock_details.stock_details_schemas import (
     StockDecisionSupportRead,
     StockDetailsSyncJobRead,
     StockDetailsSyncRequest,
     StockDetailsSyncResult,
 )
-from app.modules.stock_details.sector_intelligence_service import (
-    SectorIntelligenceService,
-    get_sector_intelligence_service,
+from app.modules.stock_details.stock_details_service import (
+    StockDetailsService,
+    get_stock_details_service,
 )
 from app.modules.stock_details.stock_details_workspace_schemas import (
     SectorContextRead,
@@ -28,16 +33,12 @@ from app.modules.stock_details.stock_details_workspace_schemas import (
     StockWorkspacePatternsRead,
     StockWorkspaceRead,
 )
-from app.modules.stock_details.stock_details_service import (
-    StockDetailsService,
-    get_stock_details_service,
-)
 from app.modules.stock_details.stock_details_workspace_service import (
     StockDetailsWorkspaceService,
     get_stock_details_workspace_service,
 )
 
-router = APIRouter(prefix="/stock-details", tags=["stock details"])
+router = APIRouter(dependencies=[Depends(use_entry_contract)], prefix="/stock-details", tags=["stock details"])
 
 
 @router.get("/{exchange}/{symbol}/decision-support", response_model=ApiResponse[StockDecisionSupportRead])

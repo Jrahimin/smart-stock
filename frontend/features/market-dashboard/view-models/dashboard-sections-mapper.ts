@@ -66,7 +66,7 @@ export function mapUniverseRowsToSignalFeed(
   limit = DASHBOARD_SIGNAL_FEED_LIMIT,
 ): SignalFeedItemModel[] {
   return rows
-    .map(mapUniverseRowToListRow)
+    .map((row) => mapUniverseRowToListRow(row))
     .filter((stock) => {
       const decision = resolveTraderDecision(stock);
       return decision.source === "decision-engine";
@@ -83,6 +83,10 @@ export function mapUniverseRowsToSignalFeed(
 
       return {
         symbol: stock.stock.symbol,
+        name: stock.stock.name,
+        decisionDate: stock.decisionDate,
+        measuredFacts: stock.measuredFacts,
+        decisionSummary: stock.traderDecision,
         signal: decision.recommendation,
         confidence: decision.evidenceStatus ?? "UNAVAILABLE",
         confidenceValue: decision.confidence,
@@ -92,6 +96,7 @@ export function mapUniverseRowsToSignalFeed(
         reasonCode: decision.reasonCode,
         reasonParams: resolvedReason.params,
         entryCondition: decision.entryCondition,
+        entryApplicability: decision.entryApplicability,
         technicalContext: buildSignalTechnicalContext(stock),
         risk: decision.riskLabel,
         priority: "low",
@@ -145,6 +150,7 @@ export function mapTraderDecisionsToSignalFeed(
       reasonCode: decision.primary_reason_code ?? null,
       reasonParams: resolvedReason.params,
       entryCondition: decision.entry_condition ?? null,
+      entryApplicability: decision.entry_applicability,
       technicalContext: {},
       risk: decision.risk_label,
       priority: "low",
@@ -187,7 +193,7 @@ export function mapDashboardSignalsDto(dto: BackendDashboardStocksInFocusDto): S
 }
 
 export function mapDashboardAlertsDto(dto: BackendDashboardMarketAlertsDto): MarketTimelineItemModel[] {
-  return dto.items.map((item) => ({
+  return dto.items.filter(item => !["Market snapshot ready", "Market scan complete", "Generated snapshot update"].includes(item.title)).map((item) => ({
     kind: item.title === "Market snapshot ready" || item.title === "Market scan complete" ? "snapshot"
       : /^Top session mover in the latest snapshot/.test(item.description) ? "mover" : "alert",
     sourceUrl: item.source_url && /^https?:\/\//i.test(item.source_url) ? item.source_url : undefined,
@@ -198,8 +204,10 @@ export function mapDashboardAlertsDto(dto: BackendDashboardMarketAlertsDto): Mar
 }
 
 export function mapDashboardHeatmapDto(dto: BackendDashboardHeatmapDto): HeatmapTileModel[] {
+  const sectors = new Map(dto.sectors?.map((sector) => [sector.name, sector]));
   return dto.tiles.map((tile) => {
-    const changePercent = toNumber(tile.change_percent) ?? 0;
+    const changePercent = tile.trade_date && tile.trade_date === dto.session_trade_date ? toNumber(tile.change_percent) : null;
+    const sector = sectors.get(tile.sector);
     return {
       stockId: tile.stock_id,
       symbol: tile.symbol,
@@ -207,8 +215,11 @@ export function mapDashboardHeatmapDto(dto: BackendDashboardHeatmapDto): Heatmap
       sector: tile.sector,
       value: formatPercent(changePercent),
       changePercent,
+      tradeDate: tile.trade_date,
+      sectorSummary: sector ? { changePercent: toNumber(sector.change_percent), measuredCount: sector.measured_count,
+        totalCount: sector.total_count, weighting: sector.weighting } : undefined,
       weight: toNumber(tile.weight) ?? 1,
-      tone: tile.tone as HeatmapTileModel["tone"],
+      tone: changePercent === null ? "neutral" : tile.tone as HeatmapTileModel["tone"],
       href: `/stocks/DSE/${tile.symbol}`,
       latestPrice: formatNumber(toNumber(tile.latest_price)),
       turnover: formatCompactNumber(toNumber(tile.turnover)),
@@ -219,6 +230,7 @@ export function mapDashboardHeatmapDto(dto: BackendDashboardHeatmapDto): Heatmap
 }
 
 export function mapDashboardSentimentDto(dto: BackendDashboardMarketSentimentDto): {
+  marketSyncId: string | null;
   marketMood: MarketMood;
   insights: InsightBlockModel[];
   signalCount: number;
@@ -226,8 +238,10 @@ export function mapDashboardSentimentDto(dto: BackendDashboardMarketSentimentDto
   turnoverLabel: string;
 } {
   return {
-    marketMood: dto.market_mood as MarketMood,
-    insights: dto.insights.map((insight) => ({
+    marketSyncId: dto.market_sync_id ?? null,
+    marketMood: "Unknown",
+    insights: [...(dto.interpretation ? [{ id: "market-mood", title: "Session interpretation", description: "", tone: dto.interpretation.code === "ALIGNED_UP" ? "positive" : dto.interpretation.code === "ALIGNED_DOWN" ? "negative" : "neutral", category: "momentum", source: "DETERMINISTIC", interpretation: dto.interpretation }] : []), ...dto.insights.filter((insight) => insight.id !== "market-mood")].map((insight) => ({
+      interpretation: "interpretation" in insight ? insight.interpretation : undefined,
       id: insight.id,
       title: insight.title,
       description: insight.description,
@@ -242,18 +256,20 @@ export function mapDashboardSentimentDto(dto: BackendDashboardMarketSentimentDto
 }
 
 export function mapDashboardSectorsToLeadersContext(dto: BackendDashboardSectorsDto): LeadersPulseContext {
-  const primary = dto.sectors[0]
+  const sectors = dto.leadership_status === "UNAVAILABLE" || dto.leadership_status === "NO_ADVANCING_SECTOR" ? []
+    : dto.sectors.filter((sector) => (toNumber(sector.change_percent) ?? 0) > 0);
+  const primary = sectors[0]
     ? {
-        name: dto.sectors[0].name,
-        changePercent: toNumber(dto.sectors[0].change_percent) ?? 0,
-        label: `${dto.sectors[0].name} ${formatPercent(toNumber(dto.sectors[0].change_percent))}`,
+        name: sectors[0].name,
+        changePercent: toNumber(sectors[0].change_percent) ?? 0,
+        label: `${sectors[0].name} ${formatPercent(toNumber(sectors[0].change_percent))}`,
       }
     : null;
-  const runnerUp = dto.sectors[1]
+  const runnerUp = sectors[1]
     ? {
-        name: dto.sectors[1].name,
-        changePercent: toNumber(dto.sectors[1].change_percent) ?? 0,
-        label: `${dto.sectors[1].name} ${formatPercent(toNumber(dto.sectors[1].change_percent))}`,
+        name: sectors[1].name,
+        changePercent: toNumber(sectors[1].change_percent) ?? 0,
+        label: `${sectors[1].name} ${formatPercent(toNumber(sectors[1].change_percent))}`,
       }
     : null;
 
@@ -276,7 +292,7 @@ export function mapDashboardSectorsToLeadersContext(dto: BackendDashboardSectors
       performanceTone: runnerUp.changePercent > 0 ? "positive" : runnerUp.changePercent < 0 ? "negative" : "neutral",
     });
   }
-  if (dto.top_gainer) {
+  if (dto.top_gainer && toNumber(dto.top_gainer.change_percent) !== null) {
     const change = toNumber(dto.top_gainer.change_percent) ?? 0;
     rows.push({
       kind: "top_stock",
@@ -288,6 +304,8 @@ export function mapDashboardSectorsToLeadersContext(dto: BackendDashboardSectors
   }
 
   return {
+    leadershipStatus: dto.leadership_status ?? (sectors.length ? "MEASURED" : dto.sectors.length ? "NO_ADVANCING_SECTOR" : "UNAVAILABLE"),
+    excludedSectorCount: dto.excluded_sector_count ?? 0,
     rows,
     footer: dto.sectors.length ? `${dto.sectors.length} sectors with session participation` : "Awaiting sector participation",
     primary,

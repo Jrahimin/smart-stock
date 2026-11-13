@@ -1,63 +1,85 @@
 """Separate hard ranking/entry promotion decisions; missing evidence always fails closed."""
 
 from collections import Counter, defaultdict
-from datetime import UTC, datetime, time
+from dataclasses import replace
+from bisect import bisect_right
+from app.modules.backtesting.backtesting_availability import capture_availability
 from random import Random
 from statistics import mean, median
 
 from app.modules.backtesting.backtesting_challengers import CHALLENGER_INPUT_GAPS, EXPERIMENT
 from app.modules.backtesting.backtesting_evaluation import observation_key
-from app.modules.backtesting.backtesting_execution import rule_on
+from app.modules.backtesting.backtesting_execution import rule_on, simulate_next_session_execution, compute_forward_outcome
 from app.modules.stock_details.decision.event_availability import utc_instant
+from app.modules.backtesting.backtesting_models import ExecutionResult
 
 
 def paired_block_interval(daily_differences, *, block_sessions=20):
     rows = sorted(daily_differences)
-    blocks = [
-        mean(value for _, value in rows[index : index + block_sessions])
-        for index in range(0, len(rows), block_sessions)
-        if len(rows[index : index + block_sessions]) == block_sessions
-    ]
-    if len(blocks) < 3:
-        return {"status": "UNSUPPORTED", "block_count": len(blocks), "lower": None, "upper": None}
+    block_count = len(rows) // block_sessions
+    diagnostics = {"block_count": block_count, "sample_size": len(rows),
+        "method": EXPERIMENT["uncertainty"]["method"], "block_sessions": block_sessions}
+    if block_count < 3:
+        return {"status": "UNSUPPORTED", **diagnostics, "lower": None, "upper": None}
     random = Random(EXPERIMENT["uncertainty"]["seed"])
+    values = [value for _, value in rows]
+    # Circular moving blocks give every date equal inclusion probability.
+    # Trimming each replicate to N also retains the final partial block.
+    def resample_mean():
+        sample = []
+        for _ in range((len(rows) + block_sessions - 1) // block_sessions):
+            start = random.randrange(len(rows))
+            sample.extend(values[(start + offset) % len(rows)] for offset in range(block_sessions))
+        return mean(sample[:len(rows)])
     samples = sorted(
-        mean(random.choices(blocks, k=len(blocks)))
+        resample_mean()
         for _ in range(EXPERIMENT["uncertainty"]["replicates"])
     )
     return {
         "status": "AVAILABLE",
-        "block_count": len(blocks),
+        **diagnostics,
         "lower": samples[int(0.025 * len(samples))],
         "upper": samples[int(0.975 * len(samples))],
         "mean": mean(value for _, value in rows),
     }
 
 
-def coverage_evidence(dataset, observations, config):
+def coverage_evidence(dataset, observations, config, *, families=None):
     histories = {row.stock.id: row for row in dataset.histories}
     gaps, parity_failures, comparisons = set(), 0, 0
     for item in observations:
-        history = histories[item.stock_id]
+        history = histories.get(item.stock_id)
+        if history is None:
+            gaps.add("MISSING_INSTRUMENT_HISTORY")
+            continue
         if not history.point_in_time_verified:
             gaps.add("POINT_IN_TIME_HISTORY_UNVERIFIED")
         if not history.event_coverage_verified:
             gaps.add("EVENT_COVERAGE_UNKNOWN")
         if not history.instrument_history_verified:
             gaps.add("INSTRUMENT_HISTORY_UNKNOWN")
-        if not all(
-            rule_on(history, day, config)[1]
-            for day in dataset.session_dates
-            if day >= item.as_of_date
-        ):
-            gaps.add("EXECUTION_RULE_COVERAGE_UNKNOWN")
-        captured = [
-            capture
-            for capture in history.captured_inputs
-            if capture["input"]["reference_date"] == item.as_of_date.isoformat()
-            and utc_instant(capture["observed_at"])
-            <= datetime.combine(item.as_of_date, time(18), tzinfo=UTC)
-        ]
+        if item.display_action == "POTENTIAL_BUY":
+            execution = simulate_next_session_execution(item, history, dataset.session_dates, config)
+            start = bisect_right(dataset.session_dates, item.as_of_date)
+            stop = start + max(1, item.expiry_sessions or 1)
+            if execution.is_filled:
+                outcome = compute_forward_outcome(item, execution, history, dataset.session_dates, dataset.market_summaries, config, max(config.horizons))
+                stop = (bisect_right(dataset.session_dates, outcome.outcome_end_date) if outcome.outcome_end_date else
+                    min(len(dataset.session_dates), bisect_right(dataset.session_dates, execution.execution_date) + max(config.horizons)))
+            elif execution.execution_date:
+                stop = bisect_right(dataset.session_dates, execution.execution_date)
+            window = dataset.session_dates[start:stop]
+            if execution.status == "RULES_UNAVAILABLE" or not window or not all(rule_on(history, day, config)[1] for day in window):
+                gaps.add("EXECUTION_RULE_COVERAGE_UNKNOWN")
+        captured = [capture for capture in history.captured_inputs
+            if (capture.get("publication_id") or capture["observed_at"]) == item.publication_id
+            and capture_availability(capture, item.as_of_date, dataset.session_dates, config, dataset.observed_session_dates)[0] == "TIMELY_CAPTURED"]
+        if item.replay_classification != "TIMELY_CAPTURED":
+            gaps.add("INPUT_NOT_TIMELY_CAPTURED")
+        if item.publication_coverage_status != "VERIFIED":
+            gaps.add("LISTED_MEMBERSHIP_COVERAGE_UNKNOWN")
+        if item.engine_version != config.strategy_version:
+            gaps.add("ENGINE_VERSION_NOT_FROZEN_POLICY")
         if not captured:
             gaps.add("MISSING_IMMUTABLE_AS_OF_CAPTURE")
             continue
@@ -66,19 +88,7 @@ def coverage_evidence(dataset, observations, config):
         if not expected:
             gaps.add("MISSING_SAME_INPUT_PARITY_REFERENCE")
             continue
-        actual = {
-            key: getattr(item, key)
-            for key in (
-                "shared_decision_id",
-                "display_action",
-                "eligibility_status",
-                "entry_readiness",
-                "opportunity_quality",
-                "trigger_price",
-                "invalidation_price",
-                "target_price",
-            )
-        }
+        actual = {key: getattr(item, key, None) for key in expected}
         comparisons += 1
         if actual != expected:
             parity_failures += 1
@@ -86,7 +96,8 @@ def coverage_evidence(dataset, observations, config):
             gaps.add("CAPTURE_DECLARES_UNRESOLVED_GAPS")
     if not observations:
         gaps.add("NO_EVALUATION_OBSERVATIONS")
-    challenger_gaps = {gap for family_gaps in CHALLENGER_INPUT_GAPS.values() for gap in family_gaps}
+    requested = tuple(CHALLENGER_INPUT_GAPS) if families is None else tuple(families)
+    challenger_gaps = {gap for family in requested for gap in CHALLENGER_INPUT_GAPS.get(family, ())}
     return {
         "coverage_verified": not gaps and not challenger_gaps,
         "coverage_gaps": sorted(gaps | challenger_gaps),
@@ -95,8 +106,8 @@ def coverage_evidence(dataset, observations, config):
         "unsupported_challenger_inputs": CHALLENGER_INPUT_GAPS,
         "parity_comparisons": comparisons,
         "same_input_parity_failures": parity_failures if comparisons else None,
-        "prospective_shadow_confirmed": False,
-        "safeguard_bypass_count": 0,
+        "prospective_shadow_confirmed": bool(observations) and all(item.forward_selection_id and item.replay_classification == "TIMELY_CAPTURED" for item in observations),
+        "safeguard_bypass_count": sum(len(item.safeguard_bypasses) for item in observations) if observations and all(item.safeguard_bypasses is not None for item in observations) else None,
     }
 
 
@@ -106,6 +117,7 @@ def concentration_and_turnover(selections):
         by_day[item.as_of_date].append(item)
     previous = None
     missing_sectors = any(not item.sector for item in selections)
+    measured_turnover = [item.median_turnover for item in selections if item.median_turnover is not None]
     turnover, concentration = [], []
     for _, rows in sorted(by_day.items()):
         ids = {row.stock_id for row in rows}
@@ -120,9 +132,11 @@ def concentration_and_turnover(selections):
         if concentration and not missing_sectors
         else None,
         "mean_daily_replacement_fraction": mean(turnover) if turnover else None,
-        "median_turnover_bdt": median(item.median_turnover or 0 for item in selections)
-        if selections
+        "median_turnover_bdt": median(measured_turnover)
+        if selections and len(measured_turnover) == len(selections)
         else None,
+        "turnover_measured_count": len(measured_turnover),
+        "turnover_missing_count": len(selections) - len(measured_turnover),
     }
 
 
@@ -190,7 +204,7 @@ def ranking_gate(
         reasons.append("CHALLENGER_FEATURE_COVERAGE_INCOMPLETE")
     pairs = [(day, base[day], other[day]) for day in sorted(base.keys() & other.keys())]
     mature = [row for row in pairs if row[1]["fully_observed"] and row[2]["fully_observed"]]
-    evaluable = sum(row[2]["evaluable_selection_count"] for row in pairs)
+    evaluable = sum(row[2]["evaluable_selection_count"] for row in mature)
     if len(mature) < 60 or evaluable < 200:
         reasons.append("INSUFFICIENT_RANKING_SAMPLE")
     if any(
@@ -202,13 +216,13 @@ def ranking_gate(
         reasons.append("WORSE_OUTCOME_COVERAGE")
     differences = [
         (day, b["mean_net_excess_percent"] - a["mean_net_excess_percent"])
-        for day, a, b in pairs
+        for day, a, b in mature
         if a["mean_net_excess_percent"] is not None and b["mean_net_excess_percent"] is not None
     ]
     gain = mean(value for _, value in differences) if differences else None
     precisions = [
         (a["precision"], b["precision"])
-        for _, a, b in pairs
+        for _, a, b in mature
         if a["precision"] is not None and b["precision"] is not None
     ]
     base_precision = mean(a for a, _ in precisions) if precisions else None
@@ -220,12 +234,13 @@ def ranking_gate(
         reasons.append("PRECISION_PRACTICAL_TARGET_NOT_MET")
     if interval["lower"] is None or interval["lower"] <= 0:
         reasons.append("PAIRED_UNCERTAINTY_NOT_POSITIVE")
+    mature_days = {day for day, _, _ in mature}
     base_risk, other_risk = (
-        concentration_and_turnover(baseline_selections),
-        concentration_and_turnover(challenger_selections),
+        concentration_and_turnover([item for item in baseline_selections if item.as_of_date in mature_days]),
+        concentration_and_turnover([item for item in challenger_selections if item.as_of_date in mature_days]),
     )
     safeguards = EXPERIMENT["safeguards"]
-    for metric in base_risk:
+    for metric in ("mean_max_sector_weight", "mean_daily_replacement_fraction", "median_turnover_bdt"):
         if base_risk[metric] is None or other_risk[metric] is None:
             reasons.append("LIQUIDITY_CONCENTRATION_TURNOVER_UNVERIFIED")
     if (
@@ -238,10 +253,8 @@ def ranking_gate(
             + safeguards["maximum_sector_concentration_increase"]
         ):
             reasons.append("CONCENTRATION_DETERIORATION")
-        if (
-            other_risk["median_turnover_bdt"]
-            < base_risk["median_turnover_bdt"] * safeguards["minimum_relative_median_turnover"]
-        ):
+    if base_risk["median_turnover_bdt"] is not None and other_risk["median_turnover_bdt"] is not None:
+        if other_risk["median_turnover_bdt"] < base_risk["median_turnover_bdt"] * safeguards["minimum_relative_median_turnover"]:
             reasons.append("LIQUIDITY_DETERIORATION")
     if (
         base_risk["mean_daily_replacement_fraction"] is not None
@@ -257,6 +270,8 @@ def ranking_gate(
         evidence,
         {
             "mature_dates": len(mature),
+            "excluded_partial_dates": [day for day, _, _ in pairs if day not in mature_days],
+            "partial_date_count": len(pairs) - len(mature),
             "evaluable_selections": evaluable,
             "mean_net_excess_improvement_pp": gain,
             "relative_precision_improvement": relative,
@@ -280,7 +295,7 @@ def entry_cohorts(selections, base_executions, other_executions, base_outcomes, 
     for name, rows in groups.items():
         dates = len({row.as_of_date for row in rows})
         filled = [
-            sum(executions[observation_key(row)].is_filled for row in rows) / len(rows)
+            sum(executions.get(observation_key(row), ExecutionResult("NO_STOCK_HISTORY")).is_filled for row in rows) / len(rows)
             for executions in (base_executions, other_executions)
         ]
         paired = []
@@ -292,9 +307,10 @@ def entry_cohorts(selections, base_executions, other_executions, base_outcomes, 
                 (base_executions, base_outcomes),
                 (other_executions, other_outcomes),
             ):
-                out = outcomes[key]
+                out = outcomes.get(key)
+                execution = executions.get(key, ExecutionResult("NO_STOCK_HISTORY"))
                 # Cash on a genuinely unfilled attempt is zero; missing FILLED outcomes are unknown.
-                values.append(out.net_return_percent if executions[key].is_filled else 0.0)
+                values.append(out.net_return_percent if out and execution.is_filled else None if execution.is_filled or not execution.is_known else 0.0)
             if any(value is None for value in values):
                 missing += 1
             else:
@@ -377,9 +393,14 @@ def entry_policy_gate(
     )
     if interval["lower"] is None or interval["lower"] <= 0:
         reasons.append("PAIRED_CASH_UNCERTAINTY_NOT_POSITIVE")
-    cohorts = entry_cohorts(
-        selections, base_executions, other_executions, base_outcomes, other_outcomes
-    )
+    def accepted_executions(executions, portfolio):
+        result = {}
+        for key, value in executions.items():
+            evidence = portfolio.get("acceptance_by_key", {}).get(f"{key[0]}:{key[1]}", f"{key[0]}:{key[1]}" in portfolio["accepted_keys"])
+            result[key] = replace(value, status="EXECUTION_UNVERIFIED", uncertainty_reasons=("PORTFOLIO_PATH_UNVERIFIED",)) if value.is_filled and evidence is None else replace(value, status="PORTFOLIO_REJECTED") if value.is_filled and not evidence else value
+        return result
+    cohorts = entry_cohorts(selections, accepted_executions(base_executions, baseline),
+        accepted_executions(other_executions, challenger), base_outcomes, other_outcomes)
     if any(row["fails_gate"] for row in cohorts.values()):
         reasons.append("MATERIAL_COHORT_DETERIORATION")
     return decision(

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -16,9 +17,15 @@ from app.core.enums import (
     PulseFocusLabel,
     PulseScoreBand,
 )
+from app.modules.market_data.breadth import BreadthRead
+from app.modules.market_universe.market_universe_schemas import DisplayQuoteRead
+from app.modules.stock_details.decision.comparison import PublicDecisionComparisonRead
+from app.modules.stock_details.decision.entry_applicability import EntryApplicabilityRead
+from app.modules.stock_details.decision.measured_facts import MeasuredDecisionFactsRead
 
 
 class PulseScoreBreakdownRead(BaseModel):
+    risk_penalty_semantics: str = "ATTENTION_SCORE_POINTS"
     trend: int
     momentum: int
     volume: int
@@ -31,6 +38,12 @@ class PulseScoreBreakdownRead(BaseModel):
 
 
 class FocusStockRead(BaseModel):
+    measured_facts: MeasuredDecisionFactsRead | None = None
+    display_quote: DisplayQuoteRead | None = None
+    decision_taxonomy_version: str | None = None
+    public_comparison: PublicDecisionComparisonRead | None = None
+    entry_applicability: EntryApplicabilityRead | None = None
+    entry_risk_label: str | None = None
     entry_readiness: str = "NOT_READY"
     controlling_reason_code: str | None = None
     controlling_reason: str | None = None
@@ -135,6 +148,8 @@ class MarketStoryMetricRead(BaseModel):
 
 
 class MarketStoryRead(BaseModel):
+    headline_code: Literal["STRENGTH_SECTORS", "STRENGTH_STOCKS", "WEAKNESS_SECTORS", "WEAKNESS_STOCKS", "MIXED_SECTORS", "NO_POSITIVE_SECTOR", "SECTOR_UNAVAILABLE", "BREADTH_UNAVAILABLE"] | None = Field(default=None, exclude_if=lambda value: value is None)
+    sector_count: int | None = Field(default=None, ge=1, exclude_if=lambda value: value is None)
     headline: str
     explanation: str
     tone: str
@@ -142,6 +157,8 @@ class MarketStoryRead(BaseModel):
 
 
 class MarketStateDimensionRead(BaseModel):
+    numerator: int | None = None
+    denominator: int | None = None
     key: str
     label: str
     value: str
@@ -149,6 +166,7 @@ class MarketStateDimensionRead(BaseModel):
 
 
 class MarketStateRead(BaseModel):
+    excluded_sector_count: int = 0
     dimensions: list[MarketStateDimensionRead]
     overall_label: str
     overall_tone: str
@@ -178,6 +196,10 @@ class OpportunityScoreRead(BaseModel):
 
 
 class PulseCoverageRead(BaseModel):
+    quote_session_date: date | None = Field(default=None, exclude_if=lambda value: value is None)
+    quote_generation_id: str | None = None
+    market_status: str | None = None
+    breadth: BreadthRead | None = None
     score_version: str = PULSE_SCORE_VERSION
     decision_taxonomy_version: str = DECISION_TAXONOMY_VERSION
     decision_session_date: date | None = None
@@ -261,6 +283,7 @@ class MarketSummaryRead(BaseModel):
 
 
 class MarketBriefingRead(BaseModel):
+    breadth: BreadthRead | None = None
     decision_generation_id: str | None = None
     decision_status: str = "CURRENT"
     decision_session_date: date | None = None
@@ -286,6 +309,7 @@ class MarketPulsePreviousSnapshot(BaseModel):
 
 
 class MarketPulseRead(BaseModel):
+    quote_generation_id: str | None = None
     hero: MarketPulseHeroRead
     since_last_visit: SinceLastVisitRead
     briefing: MarketBriefingRead | None
@@ -307,6 +331,7 @@ class MarketPulseRead(BaseModel):
 
 
 class MarketPulseSummaryRead(BaseModel):
+    quote_generation_id: str | None = None
     hero: MarketPulseHeroRead
     since_last_visit: SinceLastVisitRead
     focus_stocks: list[FocusStockRead]

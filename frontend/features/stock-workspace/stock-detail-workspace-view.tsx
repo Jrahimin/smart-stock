@@ -1,6 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useUserWatchlist } from "@/features/watchlist/hooks/use-user-watchlist";
+import { withStockHolderInstruction } from "@/features/stock-workspace/view-models/stock-decision-view-model";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { ExchangeCode } from "@/lib/api/backend-api-types";
 import type { StockWorkspaceDto } from "@/lib/api/stock-decision-support-types";
@@ -24,7 +26,7 @@ import { StockWorkspaceHeader } from "@/features/stock-workspace/components/stoc
 import { StockDurableSummary } from "@/features/stock-workspace/components/stock-durable-summary";
 import { TechnicalSummaryPanel } from "@/features/stock-workspace/components/technical-summary-panel";
 import { TradePlanPanel } from "@/features/stock-workspace/components/trade-plan-panel";
-import { TraderDecisionCard } from "@/features/stock-workspace/components/trader-decision-card";
+import { TraderDecisionCard, DecisionSourceDetails } from "@/features/stock-workspace/components/trader-decision-card";
 import { useRelatedStocks } from "@/features/stock-workspace/hooks/use-related-stocks";
 import { useSectorContext } from "@/features/stock-workspace/hooks/use-sector-context";
 import { useStockSectionNav } from "@/features/stock-workspace/hooks/use-stock-section-nav";
@@ -39,7 +41,6 @@ import {
 } from "@/features/stock-workspace/stock-workspace-language";
 import { buildCompanySnapshotStrip } from "@/features/stock-workspace/view-models/company-snapshot-view-model";
 import { buildSectorIntelligenceViewModel } from "@/features/stock-workspace/view-models/sector-context-view-model";
-import { buildStockSemanticSummary } from "@/features/stock-workspace/view-models/stock-semantic-summary-view-model";
 import { frontendConfig } from "@/lib/frontend-config";
 import type { AppLocale } from "@/lib/locale/app-locale";
 import { DEFAULT_LOCALE } from "@/lib/locale/app-locale";
@@ -86,7 +87,7 @@ export function StockDetailWorkspaceView({
 
   const {
     model,
-    decisionModel,
+    decisionModel: publicDecisionModel,
     fundamentalsModel,
     decisionRaw,
     displayMetrics,
@@ -104,6 +105,21 @@ export function StockDetailWorkspaceView({
     locale,
   });
   const intelligence = model.intelligence;
+  const saved = useUserWatchlist();
+  const isHolding = saved.membershipReady && Boolean(intelligence && saved.holdingStockIds.has(intelligence.stock.id));
+  const decisionModel = withStockHolderInstruction(publicDecisionModel, decisionRaw, isHolding);
+  const railRef = useRef<HTMLElement>(null);
+  const [railFits, setRailFits] = useState(false);
+  useEffect(() => {
+    const rail = railRef.current;
+    if (!rail) return;
+    const measure = () => setRailFits(rail.getBoundingClientRect().height <= window.innerHeight - 112);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(rail);
+    window.addEventListener("resize", measure);
+    return () => { observer.disconnect(); window.removeEventListener("resize", measure); };
+  }, [isLoading, decisionModel.available, locale]);
   const chartSupport = decisionModel.available ? decisionModel.support : intelligence?.support;
   const chartResistance = decisionModel.available ? decisionModel.resistance : intelligence?.resistance;
 
@@ -200,7 +216,6 @@ export function StockDetailWorkspaceView({
     const sectorPeers = relatedStocks.groups.find((group) => group.id === "sector-peers");
     return localizeRelatedStocksCta(model.header.sector, Boolean(sectorPeers?.items.length), locale);
   }, [locale, model.header.sector, relatedStocks.groups]);
-  const semanticSummary = useMemo(() => buildStockSemanticSummary(model, decisionModel), [decisionModel, model]);
 
   if (isLoading) {
     return (
@@ -220,7 +235,7 @@ export function StockDetailWorkspaceView({
 
   return (
     <div className="stock-workspace-view stock-workspace-view-v2 trader-workspace-fade-in" data-testid="stock-workspace-loaded">
-      {workspace ? <StockDurableSummary locale={locale} workspace={workspace} /> : null}
+      {workspace ? <StockDurableSummary isHolding={isHolding} locale={locale} workspace={workspace} /> : null}
       {isError ? <div className="data-warning">{language.states.workspaceError(symbol)}</div> : null}
       {isDecisionError ? <div className="data-warning">{language.states.decisionError}</div> : null}
       <div className="trader-workspace-topbar stock-workspace-topbar">
@@ -232,19 +247,19 @@ export function StockDetailWorkspaceView({
           </div>
         </div>
         <div className="stock-workspace-topbar-search">
-          <WorkspaceCommandSearch filterContextName="stocks" showQuickActions={false} variant="discovery" />
+          <WorkspaceCommandSearch filterContextName="stocks" locale={locale} showQuickActions={false} variant="discovery" />
         </div>
       </div>
 
       <StockSectionNav activeSection={activeSection} copy={language.nav} onNavigate={handleNavigate} sections={visibleSections} />
       <CompanySnapshotStrip ariaLabel={language.companySnapshot.ariaLabel} cells={companySnapshotCells} />
 
-      <p className="sr-only">{semanticSummary}</p>
 
       <div className="trader-workspace-layout">
-        <aside className="trader-decision-rail">
+        <aside className="trader-decision-rail" ref={railRef} data-sticky-fit={railFits}>
           <TraderDecisionCard copy={language.decision} decision={decisionModel} />
           <DecisionScoresPanel copy={language.decision} decision={decisionModel} />
+          <DecisionSourceDetails decision={decisionModel} />
           {isDecisionLoading ? <div className="data-warning data-warning-compact">{language.states.decisionUpdating}</div> : null}
         </aside>
         <main className="trader-workspace-main">
@@ -268,7 +283,7 @@ export function StockDetailWorkspaceView({
 
           <StockResearchSection divided id="technicals" showHeader title={language.sections.technicals.label}>
             <BreakoutAnalysisCard copy={language.panels} decision={decisionModel} />
-            <PricePositionPanel copy={language.panels} decision={decisionModel} />
+            <PricePositionPanel copy={language.panels} decision={decisionModel} locale={locale} />
             <TradePlanPanel copy={language.panels} decision={decisionModel} />
             <SmartWarningsPanel copy={language.panels} decision={decisionModel} />
             <TechnicalSummaryPanel copy={language.technicalSummary} model={model} />
@@ -308,6 +323,7 @@ export function StockDetailWorkspaceView({
               isLoading={relatedStocks.isLoading}
               isWarmingUp={relatedStocks.isWarmingUp}
               loadEnabled={relatedLoadEnabled}
+              locale={locale}
               onRequestLoad={requestRelatedLoad}
             />
           </StockResearchSection>

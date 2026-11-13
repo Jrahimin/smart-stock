@@ -182,6 +182,7 @@ describe("dashboard signal localization", () => {
           recommendation: "BUY",
           confidence: 79,
           reason: "Uptrend with favorable opportunity and acceptable reward potential.",
+          primary_reason_code: "buy_uptrend_reward",
           opportunity_score: 78,
           risk_label: "LOW",
         },
@@ -204,7 +205,16 @@ describe("dashboard signal localization", () => {
     });
 
     expect(model.signals[0]?.reason).toContain("দাম ঊর্ধ্বমুখী");
-    expect(model.signals[0]?.reason).toContain("কেনাবেচার পরিমাণ গড়ের 1.5 গুণ");
+    expect(model.signals[0]?.reason).toContain("RSI 65.2");
+    expect(model.signals[0]?.technicalContext.rsi).toBe(65.2);
     expect(model.signals[0]?.reason).not.toContain("acceptable reward potential");
   });
+});
+
+
+it("prefers matching backend breadth and rejects a different session", () => {
+  const summaries = [{trade_date: "2026-11-10"}] as BackendDailyMarketSummaryDto[];
+  const breadth = {cohort: "ACTIVE_VALID_OHLC", source: "daily_prices", as_of_date: "2026-11-10", neutral_band_percent: 0, advancing: 290, declining: 63, unchanged: 46, denominator: 399, known_count: 399, unknown_count: 27, cohort_count: 426};
+  expect(buildMarketDashboardModel(summaries, null, null, {breadth}).breadth).toMatchObject({advancing: 290, total: 399, provenance: {unknown_count: 27}});
+  expect(buildMarketDashboardModel(summaries, null, null, {breadth: {...breadth, as_of_date: "2026-11-09"}}).breadth.advancing).toBe(0);
 });

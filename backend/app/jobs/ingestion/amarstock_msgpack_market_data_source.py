@@ -10,6 +10,7 @@ from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from email.utils import parsedate_to_datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from app.core.core_config import Settings
 from app.core.enums import DataQualityFlag
@@ -47,7 +48,7 @@ class AmarStockMarketSnapshotRow:
     trade_count: int
     turnover_millions: Decimal
 
-    def to_ingested_price(self, *, trade_date: date, source_name: str) -> IngestedDailyPrice:
+    def to_ingested_price(self, *, trade_date: date, source_name: str, batch_fetched_at: datetime | None = None) -> IngestedDailyPrice:
         close_price = self.ltp if self.ltp > 0 else self.source_close
         quality = (
             DataQualityFlag.PARTIAL
@@ -68,6 +69,7 @@ class AmarStockMarketSnapshotRow:
             trade_count=self.trade_count,
             turnover=self.turnover_millions * TURNOVER_MILLIONS_TO_BDT,
             source=source_name,
+            batch_fetched_at=batch_fetched_at,
             data_quality_flag=quality,
         )
 
@@ -152,7 +154,7 @@ class AmarStockMarketSnapshotSource(MarketDataSource):
             raise
         self.last_snapshot = snapshot
         prices = [
-            row.to_ingested_price(trade_date=trade_date, source_name=self.source_name)
+            row.to_ingested_price(trade_date=trade_date, source_name=self.source_name, batch_fetched_at=response.received_at)
             for row in snapshot.rows
         ]
         ltp_fallback_rows = sum(
@@ -199,6 +201,17 @@ class AmarStockMarketSnapshotSource(MarketDataSource):
     ) -> None:
         response_date = _parse_http_date(response.headers.get("date"))
         last_modified = _parse_http_date(response.headers.get("last-modified"))
+        received = response.received_at or datetime.now(UTC)
+        logger.info("Snapshot timing evidence source=%s receipt=%s http_date=%s last_modified=%s modified_lag_seconds=%s cache_age=%s",
+            self.source_name, response.received_at.isoformat() if response.received_at else None, response_date.isoformat() if response_date else None,
+            last_modified.isoformat() if last_modified else None,
+            (response.received_at-last_modified).total_seconds() if last_modified and response.received_at else None,
+            int(response.headers["age"]) if response.headers.get("age", "").isdigit() else None)
+        for name, value in (("Date", response_date), ("Last-Modified", last_modified)):
+            if value is not None and value > received:
+                raise MarketSnapshotValidationError(f"AmarStock {name} is later than transport receipt")
+            if value is not None and value.astimezone(ZoneInfo("Asia/Dhaka")).date() < trade_date:
+                raise MarketSnapshotValidationError(f"AmarStock {name} predates the requested session; cached batch cannot be re-dated")
         if last_modified is not None:
             oldest_allowed = trade_date - timedelta(days=self._max_last_modified_age_days)
             if last_modified.date() < oldest_allowed:

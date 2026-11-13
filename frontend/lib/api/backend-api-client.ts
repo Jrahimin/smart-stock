@@ -1,3 +1,4 @@
+import { entryContractParams } from "@/lib/market/entry-contract-capability";
 import { frontendConfig } from "@/lib/frontend-config";
 import type { ApiResponse } from "@/lib/api/backend-api-types";
 import { notifyStaleMarketCacheEntry } from "@/lib/market/market-cache-notifications";
@@ -5,6 +6,7 @@ import { getMarketFreshnessGeneration } from "@/lib/market/market-freshness-regi
 import {
   evaluateMarketIndexedDbEntry,
   MARKET_INDEXEDDB_SCHEMA_VERSION,
+  marketPresentationCacheKey,
   type MarketIndexedDbPayload,
 } from "@/lib/market/market-indexeddb-cache";
 import { isMarketApiCacheUrl as isMarketApiCacheUrlFromRegistry } from "@/lib/market/market-cache-url-registry";
@@ -55,6 +57,7 @@ type QueryValue = string | number | boolean | null | undefined;
 const API_CACHE_DATABASE = "smart-stock-api-cache";
 const API_CACHE_STORE = "responses";
 const API_CACHE_VERSION = 1;
+export const AUTH_SESSION_STORAGE_KEY = "smart-stock-auth-session";
 const REFRESH_TOKEN_STORAGE_KEY = "smart-stock-refresh-token";
 
 type TokenPair = {
@@ -73,11 +76,42 @@ type BackendApiRequestOptions = {
 };
 
 let accessToken: string | null = null;
+let authSessionVersion = 0;
+let authSessionMarker: string | null | undefined;
+
+function storedSessionMarker() {
+  return typeof window === "undefined" ? null : window.localStorage.getItem(AUTH_SESSION_STORAGE_KEY);
+}
+
+function currentSessionMarker() {
+  if (authSessionMarker === undefined) authSessionMarker = storedSessionMarker();
+  return authSessionMarker;
+}
 let refreshPromise: Promise<string | null> | null = null;
 let authFailureHandler: (() => void) | null = null;
 
 export function setBackendAccessToken(token: string | null) {
+  if (token === null) { clearStoredAuthTokens(); return; }
+  authSessionMarker = typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+  if (typeof window !== "undefined") window.localStorage.setItem(AUTH_SESSION_STORAGE_KEY, authSessionMarker);
+  authSessionVersion += 1;
+  refreshPromise = null;
   accessToken = token;
+}
+
+export function getBackendAuthSessionVersion() {
+  currentSessionMarker();
+  return authSessionVersion;
+}
+
+export function isBackendAuthSessionCurrent(version: number) {
+  return version === authSessionVersion && currentSessionMarker() === storedSessionMarker();
+}
+
+export function assertBackendAuthSession(version: number) {
+  if (!isBackendAuthSessionCurrent(version)) {
+    throw new BackendApiError("Session changed; request discarded", 409, "AUTH_SESSION_CHANGED");
+  }
 }
 
 export function getBackendAccessToken() {
@@ -101,7 +135,36 @@ export function setStoredRefreshToken(token: string) {
   }
 }
 
+/** Storage identity changes are an external session boundary; rotation keeps the same marker. */
+export function synchronizeBackendAuthSession() {
+  if (currentSessionMarker() === storedSessionMarker()) return false;
+  authSessionVersion += 1;
+  refreshPromise = null;
+  accessToken = null;
+  authSessionMarker = storedSessionMarker();
+  return true;
+}
+
+export function rotateBackendAccessToken(token: string, expectedVersion: number) {
+  assertBackendAuthSession(expectedVersion);
+  accessToken = token;
+}
+
 export function clearStoredAuthTokens() {
+  const marker = currentSessionMarker();
+  if (!accessToken && !getStoredRefreshToken() && !storedSessionMarker()) { authSessionMarker = null; return; }
+  authSessionVersion += 1;
+  refreshPromise = null;
+  accessToken = null;
+  // An old tab must not clear a newer tab's installed credentials.
+  if (marker === storedSessionMarker()) {
+    clearAuthTokenValues();
+    if (typeof window !== "undefined") window.localStorage.removeItem(AUTH_SESSION_STORAGE_KEY);
+  }
+  authSessionMarker = storedSessionMarker();
+}
+
+function clearAuthTokenValues() {
   accessToken = null;
   if (typeof window !== "undefined") {
     window.localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
@@ -162,7 +225,7 @@ function resolvePersistentCacheMode(
 }
 
 function getCacheKey(url: string) {
-  return url;
+  return marketPresentationCacheKey(url);
 }
 
 function openApiCacheDatabase() {
@@ -393,14 +456,22 @@ function resolveHeaders(initHeaders?: HeadersInit, hasBody = false) {
   return headers;
 }
 
-async function refreshAccessToken() {
+async function refreshAccessToken(version: number) {
+  assertBackendAuthSession(version);
   const refreshToken = getStoredRefreshToken();
   if (!refreshToken) {
     return null;
   }
 
+  const assertRefreshCurrent = () => {
+    assertBackendAuthSession(version);
+    if (getStoredRefreshToken() !== refreshToken) {
+      throw new BackendApiError("Session credentials changed; request discarded", 409, "AUTH_SESSION_CHANGED");
+    }
+  };
+
   if (!refreshPromise) {
-    refreshPromise = fetch(`${frontendConfig.apiBaseUrl}/auth/refresh`, {
+    const pending = fetch(`${frontendConfig.apiBaseUrl}/auth/refresh`, {
       method: "POST",
       headers: {
         Accept: "application/json",
@@ -409,26 +480,31 @@ async function refreshAccessToken() {
       body: JSON.stringify({ refresh_token: refreshToken }),
     })
       .then(async (response) => {
+        assertRefreshCurrent();
         if (!response.ok) {
-          clearStoredAuthTokens();
+          clearAuthTokenValues();
           return null;
         }
         const envelope = (await response.json()) as ApiResponse<TokenPair>;
+        assertRefreshCurrent();
         if (!envelope.success || !envelope.data) {
-          clearStoredAuthTokens();
+          clearAuthTokenValues();
           return null;
         }
-        setBackendAccessToken(envelope.data.access_token);
+        // Rotation belongs to the same session; external installs advance its boundary.
+        accessToken = envelope.data.access_token;
         setStoredRefreshToken(envelope.data.refresh_token);
         return envelope.data.access_token;
       })
       .catch(() => {
-        clearStoredAuthTokens();
+        assertRefreshCurrent();
+        clearAuthTokenValues();
         return null;
       })
       .finally(() => {
-        refreshPromise = null;
+        if (refreshPromise === pending) refreshPromise = null;
       });
+    refreshPromise = pending;
   }
 
   return refreshPromise;
@@ -438,40 +514,46 @@ async function fetchBackend(
   url: string,
   options: BackendApiRequestOptions,
   hasRetried = false,
+  sessionVersion = authSessionVersion,
 ): Promise<Response> {
+  assertBackendAuthSession(sessionVersion);
   const hasBody = options.body !== undefined;
   const response = await fetch(url, {
     ...options.init,
     method: options.method ?? "GET",
     headers: resolveHeaders(options.init?.headers, hasBody),
     body: hasBody ? JSON.stringify(options.body) : undefined,
-  });
+  }).catch((error) => { assertBackendAuthSession(sessionVersion); throw error; });
+  assertBackendAuthSession(sessionVersion);
 
   if (response.status !== 401 || options.skipAuthRefresh || hasRetried) {
     return response;
   }
 
-  const refreshedToken = await refreshAccessToken();
+  const refreshedToken = await refreshAccessToken(sessionVersion);
+  assertBackendAuthSession(sessionVersion);
   if (!refreshedToken) {
     authFailureHandler?.();
     return response;
   }
 
-  return fetchBackend(url, options, true);
+  return fetchBackend(url, options, true, sessionVersion);
 }
 
 export async function backendApiRequest<T>(
   path: string,
   options: BackendApiRequestOptions = {},
 ): Promise<T> {
+  const sessionVersion = authSessionVersion;
   const url = `${frontendConfig.apiBaseUrl}${path}${buildQueryString(options.params)}`;
-  const response = await fetchBackend(url, options);
+  const response = await fetchBackend(url, options, false, sessionVersion);
 
   if (!response.ok) {
     throw await readApiError(response);
   }
 
   const envelope = (await response.json()) as ApiResponse<T>;
+  assertBackendAuthSession(sessionVersion);
   if (!envelope.success) {
     throw new BackendApiError(envelope.message || "Backend request failed", response.status);
   }
@@ -502,24 +584,27 @@ export async function backendApiGet<T>(
   persistentCache: BackendApiPersistentCache = "default",
   expectedMarketGeneration?: string | null,
 ): Promise<T> {
-  const url = `${frontendConfig.apiBaseUrl}${path}${buildQueryString(params)}`;
+  const sessionVersion = authSessionVersion;
+  const url = `${frontendConfig.apiBaseUrl}${path}${buildQueryString(entryContractParams(path, params))}`;
   const cacheMode = resolvePersistentCacheMode(init, persistentCache);
   const cacheTtlMs = getPersistentCacheTtlMs(cacheMode);
   const shouldUsePersistentCache = cacheTtlMs !== null;
   const cachedData = shouldUsePersistentCache
     ? await readCachedApiResponse<T>(url, cacheMode, expectedMarketGeneration)
     : null;
+  assertBackendAuthSession(sessionVersion);
   if (cachedData !== null) {
     return cachedData;
   }
 
-  const response = await fetchBackend(url, { method: "GET", init });
+  const response = await fetchBackend(url, { method: "GET", init }, false, sessionVersion);
 
   if (!response.ok) {
     throw await readApiError(response);
   }
 
   const envelope = (await response.json()) as ApiResponse<T>;
+  assertBackendAuthSession(sessionVersion);
 
   if (!envelope.success) {
     throw new BackendApiError(envelope.message || "Backend request failed", response.status);
@@ -527,6 +612,7 @@ export async function backendApiGet<T>(
 
   if (shouldUsePersistentCache && cacheTtlMs !== null) {
     await writeCachedApiResponse(url, envelope.data, cacheTtlMs, cacheMode);
+    assertBackendAuthSession(sessionVersion);
   }
 
   return envelope.data;

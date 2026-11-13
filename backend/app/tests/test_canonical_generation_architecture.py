@@ -125,6 +125,25 @@ def _canonical_fixture():
     return stock, prices, row, CanonicalUniverseSnapshot(generation, payload)
 
 
+def test_observation_metadata_is_forward_capture_provenance_not_calculation_identity():
+    from app.modules.stock_details.decision.canonical import build_strategy_input
+    from app.modules.stock_details.decision.lineage import build_decision_input_lineage
+    from app.modules.trading_intelligence.input_capture import capture_strategy_input, restore_strategy_input
+
+    stock, prices, _, _ = _canonical_fixture()
+    value = build_strategy_input(stock, prices, reference_date=SESSION_DATE,
+        exchange_session_dates=tuple(price.trade_date for price in prices))
+    original = build_decision_input_lineage(value)
+    old_capture = capture_strategy_input(value)
+    prices[-1].source_observed_at = SYNCED_AT - timedelta(minutes=3)
+    prices[-1].batch_fetched_at = SYNCED_AT + timedelta(minutes=2)
+    assert build_decision_input_lineage(value) == original
+    observation = capture_strategy_input(value)["source_observations"][-1]
+    assert observation["database_updated_at"] == observation["observed_at"]
+    assert observation["source_observed_at"] != observation["batch_fetched_at"]
+    assert build_decision_input_lineage(restore_strategy_input(old_capture)) == original
+
+
 class _DetailsRepository:
     def __init__(self, stock, prices) -> None:
         self.stock = stock
@@ -157,6 +176,9 @@ class _CanonicalUniverseDouble:
     def __init__(self, snapshot: CanonicalUniverseSnapshot, *, current: bool = True) -> None:
         self.snapshot = snapshot
         self.current = current
+
+    async def project_current_entries(self, snapshot, **kwargs):
+        return snapshot
 
     async def get_canonical_universe(self, **kwargs):
         return self.snapshot
@@ -465,3 +487,28 @@ def test_canonical_market_mutation_routes_require_admin_dependency() -> None:
     request.state.user = ANONYMOUS_USER_CONTEXT
     with pytest.raises(UnauthorizedError):
         require_admin(request)
+
+
+def test_legacy_publication_roundtrip_keeps_payload_hash_without_new_summary_nulls():
+    from app.core.audit_hashing import stable_audit_hash
+    from app.modules.market_universe.market_universe_schemas import ScoredUniverseRow
+    _, _, row, _ = _canonical_fixture()
+    legacy = row.model_dump(mode="json")
+    for key in ("measured_support_component", "opposing_constraint_code", "opposing_component"):
+        legacy["decision"].pop(key, None)
+    legacy_hash = stable_audit_hash([legacy])
+    loaded = ScoredUniverseRow.model_validate(legacy)
+    assert loaded.model_dump(mode="json") == legacy
+    assert compute_universe_payload_revision([loaded]) == legacy_hash
+
+
+def test_summary_projects_selected_support_and_opposition_without_reselecting():
+    _, _, row, _ = _canonical_fixture()
+    selected = row.decision.measured_support_component
+    expected = max(row.analysis.opportunity.components, key=lambda component: component.score * component.weight)
+    assert selected == expected
+    if row.decision.opposing_constraint_code:
+        assert row.decision.opposing_constraint_code != row.decision.primary_reason_code
+    else:
+        weakest = min(row.analysis.opportunity.components, key=lambda component: component.score)
+        assert row.decision.opposing_component == weakest

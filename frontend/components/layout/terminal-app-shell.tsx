@@ -81,6 +81,7 @@ export function TerminalAppShell({ children, dashboardLocale = DEFAULT_LOCALE }:
         guideLauncher={mobileGuideLauncher}
       />
       <MobileNavigationDrawer
+        locale={dashboardLocale}
         guideActive={guideMobileNavigationOpen}
         isOpen={isMobileNavigationOpen}
         menuButtonRef={menuButtonRef}
@@ -123,11 +124,11 @@ export function TerminalAppShell({ children, dashboardLocale = DEFAULT_LOCALE }:
           </button>
         </div>
         <div className="terminal-sidebar-primary">
-          <TerminalSidebarNav collapsed={isSidebarCollapsed} pathname={pathname} />
+          <TerminalSidebarNav locale={dashboardLocale} collapsed={isSidebarCollapsed} pathname={pathname} />
         </div>
         <div aria-hidden="true" className="terminal-sidebar-spacer" />
         <div className="terminal-sidebar-utilities">
-          <SidebarThemeToggle collapsed={isSidebarCollapsed} ready={storeHydrated} />
+          <SidebarThemeToggle locale={dashboardLocale} collapsed={isSidebarCollapsed} ready={storeHydrated} />
           <div className="terminal-sidebar-footer">
           {!storeHydrated || isLoading ? null : isAuthenticated && user ? (
             <>

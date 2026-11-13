@@ -111,6 +111,10 @@ class StockDetailsDecisionService:
         if stock is None:
             raise NotFoundError("Stock was not found")
 
+        if not canonical_snapshot.entries_projected:
+            canonical_snapshot = await self.universe_service.project_current_entries(
+                canonical_snapshot, exchange=exchange, stock_ids={stock.id},
+            )
         row = canonical_snapshot.row_for_symbol(symbol)
         if (
             row is None
@@ -243,6 +247,9 @@ class StockDetailsDecisionService:
         ]
 
         return StockDecisionSupportRead(
+            measured_facts=row.measured_facts,
+            entry_applicability=row.entry_applicability,
+            quote_generation_id=canonical_snapshot.quote_generation.sync_id if canonical_snapshot.quote_generation else None,
             stock_id=stock.id,
             symbol=stock.symbol,
             exchange=stock.exchange,
@@ -256,6 +263,12 @@ class StockDetailsDecisionService:
             ),
             is_live_session=is_live_session,
             decision=TraderDecisionRead(
+                entry_applicability=row.entry_applicability,
+                measured_support=decision.measured_support,
+                opposing_constraint=decision.opposing_constraint,
+                measured_support_component=decision.measured_support_component,
+                opposing_constraint_code=decision.opposing_constraint_code,
+                opposing_component=decision.opposing_component,
                 recommendation=decision.recommendation,
                 internal_action=decision.internal_action,
                 display_action=decision.display_action,

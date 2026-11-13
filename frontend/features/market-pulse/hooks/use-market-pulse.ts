@@ -2,7 +2,8 @@
 
 import { freshnessGenerationToken } from "@/lib/market/market-generation";
 import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useCurrentEntryBoundary } from "@/hooks/market/use-current-entry-boundary";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { useAuth } from "@/features/auth/context/auth-context";
 import { readMarketPulseSnapshot, writeMarketPulseSnapshot } from "@/features/market-pulse/lib/market-pulse-storage";
@@ -86,6 +87,7 @@ export function useMarketPulse(options?: {
   initialCore?: MarketPulseCorePayload | null;
   locale?: AppLocale;
 }): MarketPulseHookResult {
+  const queryClient = useQueryClient();
   const initialCore = options?.initialCore ?? null;
   const locale = options?.locale ?? DEFAULT_LOCALE;
   const { user } = useAuth();
@@ -108,8 +110,9 @@ export function useMarketPulse(options?: {
 
   const anonymousSummaryQuery = useQuery({
     queryKey: PULSE_ANONYMOUS_SUMMARY_QUERY_KEY,
-    queryFn: () =>
+    queryFn: ({ queryKey }) =>
       getMarketPulseSummary({
+        fresh: queryClient.getQueryData(queryKey) !== undefined,
         exchange: "DSE",
         previousSnapshot: null,
         displayName: null,
@@ -128,8 +131,9 @@ export function useMarketPulse(options?: {
       displayName,
       previousSnapshot,
     }),
-    queryFn: () =>
+    queryFn: ({ queryKey }) =>
       getMarketPulseSummary({
+        fresh: queryClient.getQueryData(queryKey) !== undefined,
         exchange: "DSE",
         previousSnapshot,
         displayName,
@@ -141,12 +145,15 @@ export function useMarketPulse(options?: {
     enabled: hasPersonalizationInputs,
   });
 
-  const { anonymousSummary, personalizedSummary, resolvedSummary } = resolveMarketPulseSummary(
+  const { anonymousSummary, personalizedSummary, resolvedSummary, summaryOwner } = resolveMarketPulseSummary(
     initialCore,
     anonymousSummaryQuery,
     personalizedSummaryQuery,
     freshnessGeneration,
   );
+
+  const boundedSummary = useCurrentEntryBoundary(resolvedSummary, freshnessQuery.isError ? undefined : freshnessQuery.data,
+    summaryOwner === "personalized" ? buildPulseSummaryQueryKey({ exchange: "DSE", displayName, previousSnapshot }) : PULSE_ANONYMOUS_SUMMARY_QUERY_KEY);
 
   const anonymousBriefingQuery = useQuery({
     queryKey: PULSE_ANONYMOUS_BRIEFING_QUERY_KEY,
@@ -195,12 +202,9 @@ export function useMarketPulse(options?: {
     );
 
   const pulseDto = useMemo<BackendMarketPulseDto | null>(() => {
-    if (!resolvedSummary) {
-      return null;
-    }
-
-    return buildPulseDtoFromSummary(resolvedSummary, resolvedBriefing);
-  }, [resolvedBriefing, resolvedSummary]);
+    if (!boundedSummary) return null;
+    return buildPulseDtoFromSummary(boundedSummary, resolvedBriefing);
+  }, [resolvedBriefing, boundedSummary]);
 
   const model = useMemo(
     () => (pulseDto ? buildMarketPulseViewModel(pulseDto, locale) : null),

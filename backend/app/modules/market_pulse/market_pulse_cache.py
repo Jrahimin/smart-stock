@@ -15,8 +15,9 @@ from app.core.enums import ExchangeCode
 from app.core.redis_client import OptionalRedisClient
 from app.jobs.market_session_schedule import current_cache_ttl_seconds
 from app.modules.market_pulse.market_pulse_session import is_pulse_degraded_empty_state
+from app.modules.stock_details.decision.entry_contract import entry_contract_cache_token
 
-PULSE_CACHE_REVISION = "market-generation-v1"
+PULSE_CACHE_REVISION = "market-generation-v6"
 PULSE_EMPTY_CACHE_TTL_SECONDS = 300
 PULSE_CACHE_KEY_NAMES: tuple[str, ...] = ("response", "summary")
 logger = logging.getLogger(__name__)
@@ -35,7 +36,7 @@ def pulse_cache_key(
         f"{PULSE_CACHE_REVISION}:"
         f"{TRADING_STRATEGY_VERSION}:{TRADING_THRESHOLD_VERSION}:"
         f"{TRADING_INPUT_SCHEMA_VERSION}:{PULSE_SCORE_VERSION}:"
-        f"{DECISION_TAXONOMY_VERSION}"
+        f"{DECISION_TAXONOMY_VERSION}:{entry_contract_cache_token()}"
     )
 
 

@@ -68,17 +68,14 @@ const stockExplorerLanguage = {
     hero: {
       eyebrow: "Stock Explorer",
       title: "High-speed stock discovery",
-      loadingSubtitle: "Loading price-backed instruments…",
+      loadingSubtitle: "Loading stocks…",
       readySubtitle: ({
         filteredCount,
         listedStockCount,
         loadedPriceCount,
         visibleCount,
         isTableFiltered,
-      }) =>
-        isTableFiltered
-          ? `Showing ${filteredCount} of ${loadedPriceCount} session-backed stocks (${listedStockCount} listed).`
-          : `${filteredCount} price-backed instruments from ${listedStockCount} listed stocks (${loadedPriceCount} with session data). Showing ${visibleCount}.`,
+      }) => `${isTableFiltered ? `${filteredCount} of ${loadedPriceCount}` : filteredCount} stocks · ${visibleCount} shown${loadedPriceCount < listedStockCount ? ` · Prices for ${loadedPriceCount} of ${listedStockCount} listed stocks` : ""}`,
     },
     search: {
       globalPlaceholder: "Search any stock…",
@@ -135,17 +132,14 @@ const stockExplorerLanguage = {
     hero: {
       eyebrow: "Stock Explorer",
       title: "দ্রুত শেয়ার খুঁজে বের করুন",
-      loadingSubtitle: "Session-এর দামসহ শেয়ার লোড হচ্ছে…",
+      loadingSubtitle: "শেয়ারের তালিকা আসছে…",
       readySubtitle: ({
         filteredCount,
         listedStockCount,
         loadedPriceCount,
         visibleCount,
         isTableFiltered,
-      }) =>
-        isTableFiltered
-          ? `Session-backed ${loadedPriceCount}টির মধ্যে ${filteredCount}টি দেখানো হচ্ছে (মোট listed ${listedStockCount})।`
-          : `${listedStockCount}টি listed শেয়ারের মধ্যে ${filteredCount}টি price-backed (${loadedPriceCount}টিতে session data)। দেখানো হচ্ছে ${visibleCount}টি।`,
+      }) => `${isTableFiltered ? `${loadedPriceCount}টির মধ্যে ${filteredCount}টি` : `${filteredCount}টি`} শেয়ার · ${visibleCount}টি দেখানো${loadedPriceCount < listedStockCount ? ` · তালিকাভুক্ত ${listedStockCount}টির মধ্যে ${loadedPriceCount}টির দাম আছে` : ""}`,
     },
     search: {
       globalPlaceholder: "যেকোনো শেয়ার খুঁজুন…",

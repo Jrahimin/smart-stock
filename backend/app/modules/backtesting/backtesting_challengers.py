@@ -2,14 +2,14 @@
 
 from collections import defaultdict
 from dataclasses import replace
-from datetime import UTC, datetime, time
+from app.modules.backtesting.backtesting_availability import capture_availability, knowledge_instant
 from statistics import mean, median
 
 from app.core.audit_hashing import stable_audit_hash
 from app.core.enums import EligibilityStatus
 from app.modules.backtesting.backtesting_evaluation import observation_key, shortlist_key, top_five
 from app.modules.market_universe.shortlist import RANKING_POLICY_VERSION
-from app.modules.stock_details.decision.event_availability import utc_instant
+from app.modules.stock_details.decision.event_availability import utc_instant, available_event_revisions, effective_event_dates
 from app.modules.trading_intelligence.input_capture import restore_strategy_input
 
 # The archive carries retrospective summaries/current classifications for audit.
@@ -25,7 +25,8 @@ CHALLENGER_INPUT_PROVENANCE = {
 }
 
 EXPERIMENT = {
-    "version": "phase2-shadow-factors-v2",
+    "version": "phase2-shadow-factors-v4",
+    "forward_cohort": {"selection_sessions": 120, "primary_horizon": 10, "formal_assessment": "ONCE_AT_PREDECLARED_ENDPOINT", "weekly_reporting": "COVERAGE_AND_MATURITY_ONLY"},
     "ranking_baseline": RANKING_POLICY_VERSION,
     "entry_baseline": "canonical-plan-v1",
     "families": (
@@ -61,7 +62,7 @@ EXPERIMENT = {
         "sufficient_cohort_selections": 30,
     },
     "uncertainty": {
-        "method": "paired nonoverlapping date-block mean bootstrap",
+        "method": "paired circular moving date-block bootstrap",
         "block_sessions": 20,
         "replicates": 2000,
         "seed": 271828,
@@ -84,7 +85,11 @@ EXPERIMENT = {
 EXPERIMENT_ID = stable_audit_hash(EXPERIMENT)
 
 
-def enrich_features(observations, dataset):
+def enrich_features(observations, dataset, config=None):
+    if config is None:
+        from app.modules.backtesting.backtesting_models import BacktestConfig
+        from app.core.enums import ExchangeCode
+        config = BacktestConfig(ExchangeCode.DSE, dataset.session_dates[0], dataset.session_dates[-1])
     histories = {row.stock.id: row for row in dataset.histories}
     grouped = defaultdict(list)
     for item in observations:
@@ -92,17 +97,23 @@ def enrich_features(observations, dataset):
     enriched = []
     for day, rows in sorted(grouped.items()):
         for item in rows:
-            bars = [bar for bar in histories[item.stock_id].prices if bar.trade_date <= day]
-            captures = [
-                capture
-                for capture in histories[item.stock_id].captured_inputs
-                if capture["input"]["reference_date"] == day.isoformat()
-                and utc_instant(capture["observed_at"])
-                <= datetime.combine(day, time(18), tzinfo=UTC)
-            ]
+            history = histories.get(item.stock_id)
+            bars = [bar for bar in history.prices if bar.trade_date <= day] if history else []
+            events = history.event_observations if history else ()
+            basis_dates = history.corporate_action_dates if history else frozenset()
+            basis_verified = bool(history and history.event_coverage_verified)
+            captures = [capture for capture in history.captured_inputs
+                if item.publication_id and (capture.get("publication_id") or capture["observed_at"]) == item.publication_id] if history else []
             if captures:
-                capture = max(captures, key=lambda row: utc_instant(row["observed_at"]))
-                bars = list(restore_strategy_input(capture["input"]).prices)
+                capture = captures[0]
+                status, reason, _ = capture_availability(capture, day, dataset.session_dates, config, dataset.observed_session_dates)
+                if (status == "UNAVAILABLE" and reason != "NEXT_OPEN_UNVERIFIED") or utc_instant(capture["observed_at"]) > knowledge_instant(item, config) or utc_instant(capture["input"]["calculated_at"]) > knowledge_instant(item, config):
+                    bars = []
+                else:
+                    restored = restore_strategy_input(capture["input"])
+                    bars = list(restored.prices)
+                    events = restored.event_observations
+                    basis_dates = restored.known_corporate_action_dates
             # Missing or untraded rows are not compressed into a fabricated consecutive window.
             sessions = [session for session in dataset.session_dates if session <= day][-25:]
             by_date = {bar.trade_date: bar for bar in bars}
@@ -115,16 +126,18 @@ def enrich_features(observations, dataset):
                 for bar in window
             )
             factors = {family: None for family in EXPERIMENT["families"]}
-            if valid and any(
+            selected_events, event_gaps = available_event_revisions(tuple(events), cutoff=knowledge_instant(item, config))
+            known_dates = effective_event_dates(selected_events)
+            unknown_dates = basis_dates - effective_event_dates(tuple(events))
+            unknown_dates |= effective_event_dates(tuple(event for event in events if not event.get("known_at")))
+            raw_valid = valid and basis_verified and not event_gaps and not any(sessions[0] <= action_day <= day for action_day in known_dates | unknown_dates)
+            if raw_valid and any(
                 sessions[0] <= action.effective_date <= day
-                and utc_instant(action.known_at) <= datetime.combine(day, time(18), tzinfo=UTC)
-                for action in histories[item.stock_id].corporate_actions
+                and utc_instant(action.known_at) <= knowledge_instant(item, config)
+                for action in history.corporate_actions
             ):
-                valid = False  # Raw-share factors need clean post-action windows.
+                raw_valid = False  # Raw-share factors need clean post-action windows.
             if valid:
-                stock_return = (
-                    float(window[-1].close_price) / float(window[-21].close_price) - 1
-                ) * 100
                 prior = window[-25:-5]
                 recent = window[-5:]
                 turnovers = [
@@ -140,6 +153,7 @@ def enrich_features(observations, dataset):
                 if (
                     len(turnovers) == 20
                     and len(trades) == 20
+                    and all(bar.turnover_provenance == "REPORTED" for bar in window)
                     and all(
                         bar.turnover is not None
                         and bar.turnover > 0
@@ -154,6 +168,8 @@ def enrich_features(observations, dataset):
                         + median(bar.trade_count for bar in recent) / median(trades)
                         - 1
                     ) / 2
+            if raw_valid:
+                stock_return = (float(window[-1].close_price) / float(window[-21].close_price) - 1) * 100
                 factors["followthrough_exhaustion"] = (
                     float(window[-1].close_price) / float(window[-4].close_price) - 1
                 ) * 100 - max(0, stock_return - EXPERIMENT["exhaustion_threshold_percent"])

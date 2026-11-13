@@ -18,6 +18,7 @@ from app.core.enums import (
     TrendDirection,
 )
 from app.modules.market_universe.market_universe_schemas import DisplayQuoteRead
+from app.modules.stock_details.decision.comparison import HolderDecisionComparisonRead, PublicDecisionComparisonRead
 
 
 class PortfolioEventRead(BaseModel):
@@ -28,6 +29,8 @@ class PortfolioEventRead(BaseModel):
 
 
 class PortfolioWorkspaceMetaRead(BaseModel):
+    quote_generation_id: str | None = None
+    decision_generation_id: str | None = None
     exchange: ExchangeCode
     market_sync_id: str | None = None
     decision_session_date: date | None = None
@@ -74,6 +77,12 @@ class PortfolioHoldingRead(BaseModel):
     price_change_percent: Decimal | None = None
     price_status: PortfolioPriceStatus = PortfolioPriceStatus.UNAVAILABLE
     latest_trade_date: date | None = None
+    display_quote: DisplayQuoteRead | None = None
+    decision_session_date: date | None = None
+    decision_taxonomy_version: str | None = None
+    primary_reason_code: str | None = None
+    public_comparison: PublicDecisionComparisonRead | None = None
+    holder_comparison: HolderDecisionComparisonRead | None = None
     invested_amount: Decimal | None = None
     current_value: Decimal | None = None
     unrealized_gain_amount: Decimal | None = None
@@ -115,6 +124,12 @@ class PortfolioActionGroupRead(BaseModel):
     current_value: Decimal
 
 
+class PortfolioHolderActionGroupRead(BaseModel):
+    holder_action: HolderAction | None = None
+    count: int
+    current_value: Decimal
+
+
 class PortfolioPositionReferenceRead(BaseModel):
     stock_id: UUID
     symbol: str
@@ -127,6 +142,7 @@ class PortfolioShapeRead(BaseModel):
     position_exposure: list[PortfolioExposureRead] = Field(default_factory=list)
     sector_exposure: list[PortfolioExposureRead] = Field(default_factory=list)
     action_groups: list[PortfolioActionGroupRead] = Field(default_factory=list)
+    holder_action_groups: list[PortfolioHolderActionGroupRead] = Field(default_factory=list)
     largest_holding: PortfolioPositionReferenceRead | None = None
     strongest_position: PortfolioPositionReferenceRead | None = None
     weakest_position: PortfolioPositionReferenceRead | None = None
@@ -135,6 +151,7 @@ class PortfolioShapeRead(BaseModel):
 
 
 class PortfolioWatchlistSuggestionRead(BaseModel):
+    price_status: PortfolioPriceStatus | None = None
     stock_id: UUID
     symbol: str
     name: str
@@ -155,6 +172,7 @@ class PortfolioWorkspaceRead(BaseModel):
     meta: PortfolioWorkspaceMetaRead
     pulse: PortfolioPulseRead
     attention: list[PortfolioAttentionRead] = Field(default_factory=list)
+    holder_review_attention: PortfolioAttentionRead | None = None
     holdings: list[PortfolioHoldingRead] = Field(default_factory=list)
     # All of the user's current watchlist entries. ``holdings`` is retained for
     # consumers that only need calculated positions; the portfolio workspace

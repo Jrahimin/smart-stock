@@ -31,6 +31,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
 
   return (
     <html lang={locale} suppressHydrationWarning>
+      <head><script dangerouslySetInnerHTML={{ __html: `try{var t=JSON.parse(localStorage.getItem("smart-stock-workspace")||"null")?.state?.theme;if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch{}` }} /></head>
       <body suppressHydrationWarning>
         <AppProviders>{children}</AppProviders>
       </body>

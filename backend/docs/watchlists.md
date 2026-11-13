@@ -80,3 +80,22 @@ User-facing **Action** badges use the shared trader decision engine (`BUY`, `HOL
 ## Scope boundary
 
 The current-position module deliberately does not introduce snapshots, performance history, notification jobs, multiple portfolios, or accounting features.
+
+
+### One account valuation mark
+
+Watchlist gains and Portfolio position value, unrealized gain, weights, totals
+and dependent suggestions use the same resolved display quote (including its
+matching previous close/change/date/source/quality), rather than the finalized
+analysis close. Positive dated fallback marks can value holdings independently
+of fresh-entry permission. Missing values retain incomplete-total indicators;
+stale marks retain their existing last-known status and daily-change suppression.
+Quantity and cost basis are unchanged.
+
+### Resolved account mark and active client route (Order 4)
+
+`UserWatchlistRead.display_quote` exposes the same account mark used by `current_price` and `unrealized_gain_percent`, including change, source, status and dates. Older responses retain their supplied account price/gain; clients omit unattributable daily change. The compatibility mapper no longer substitutes a separately fetched universe quote or labels a holding with a public-action NEW transition.
+
+The application routes `/watchlist` to the unified `/portfolio` workspace with Holdings and WatchlistOnly filters. Scanner save/remove and holding membership use generation-keyed active saved-item queries and user-scoped mutation refresh. The dormant standalone `WatchlistView` is not revived.
+
+Saved item data alone establishes membership/audience; a separate summary request cannot hide a known same-account holding. Correct-account cached membership survives a background read error or generation refresh while a new account cannot inherit its placeholder. Queued saves/removals are bound to their initiating account session before offline pause and rechecked before actual API invocation.

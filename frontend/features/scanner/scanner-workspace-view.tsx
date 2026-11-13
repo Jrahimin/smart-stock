@@ -1,6 +1,14 @@
 "use client";
 
+import { MeasuredDecisionFacts } from "@/components/market/measured-decision-facts";
+import { PublishedSetupCondition } from "@/components/market/published-setup-condition";
+
+
+import { controllingReasonLabel, selectedDecisionExplanation } from "@/lib/market/decision-presentation";
+import { EntryApplicabilityLabel } from "@/components/market/entry-applicability-label";
 import Link from "next/link";
+import { shortTradeDate, commonTradeDate } from "@/lib/formatters/trader-formatters";
+import { useAuth } from "@/features/auth/context/auth-context";
 import { useMemo, useState } from "react";
 
 import { WorkspacePageHero } from "@/components/layout/workspace-page-hero";
@@ -28,7 +36,7 @@ import { buildStockDetailPath } from "@/lib/seo/stock-page-seo";
 
 type ScannerCategoryView = {
   id: ScannerCategoryId;
-  items: StockIntelligenceModel[];
+  items: ReturnType<typeof buildScannerCategoryItems>;
 };
 
 type ScannerWorkspaceViewProps = {
@@ -37,6 +45,7 @@ type ScannerWorkspaceViewProps = {
 
 export function ScannerWorkspaceView({ locale = DEFAULT_LOCALE }: ScannerWorkspaceViewProps) {
   const language = getScannerLanguage(locale);
+  const { isAuthenticated } = useAuth();
   const advancedScanners = frontendConfig.features.advancedScanners;
   const { universe, isLoading, isError, isWarmingUp, decisionPublication } = useMarketUniverse({ stockLimit: 500 });
   const { watchedStockIds, holdingStockIds } = useUserWatchlist();
@@ -106,6 +115,8 @@ export function ScannerWorkspaceView({ locale = DEFAULT_LOCALE }: ScannerWorkspa
     ] satisfies ScannerCategoryView[];
   }, [advancedScanners, filteredUniverse]);
 
+  const needsAccount = watchlistFilter !== "ALL" && !isAuthenticated;
+  const sharedDate = commonTradeDate(filteredUniverse.map((stock) => stock.decisionDate));
   return (
     <section className="scanner-workspace-view">
       <WorkspacePageHero
@@ -119,7 +130,7 @@ export function ScannerWorkspaceView({ locale = DEFAULT_LOCALE }: ScannerWorkspa
       >
         <div className="explorer-controls">
           <div className="explorer-controls-watchlist" role="group" aria-label={language.filters.watchlistAria}>
-            <select value={watchlistFilter} onChange={(event) => setWatchlistFilter(event.target.value as WatchlistFilterMode)}>
+            <select aria-label={language.filters.watchlistAria} value={watchlistFilter} onChange={(event) => setWatchlistFilter(event.target.value as WatchlistFilterMode)}>
               <option value="ALL">{language.filters.allStocks}</option>
               <option value="WATCHLISTED">{language.filters.watchlistedOnly}</option>
               <option value="NOT_WATCHLISTED">{language.filters.notWatchlisted}</option>
@@ -135,11 +146,17 @@ export function ScannerWorkspaceView({ locale = DEFAULT_LOCALE }: ScannerWorkspa
           </div>
         </div>
       </WorkspacePageHero>
+      <p className="snapshot-price-note">{locale === "bn" ? "দাম স্ন্যাপশট থেকে নেওয়া। সিদ্ধান্তের আগে ব্রোকারের লাইভ দাম মিলিয়ে নিন।" : "Prices are snapshots. Check your broker's live price before acting."}</p>
       {isWarmingUp ? <div className="data-warning">Market view is warming up.</div> : null}
-      <DecisionPublicationLabel decision={decisionPublication} locale={locale} />
+      <DecisionPublicationLabel decision={sharedDate ? { ...decisionPublication, decision_session_date: sharedDate } : decisionPublication} locale={locale} />
       {isError ? <div className="data-warning">{language.states.loadError}</div> : null}
       {isLoading ? <MarketActivityLoader label={language.states.loading} /> : null}
-      {!isLoading && !isWarmingUp ? (
+      {needsAccount ? <div className="empty-state empty-state-premium" role="status">
+        <strong>{locale === "bn" ? "আপনার তালিকা দেখতে সাইন ইন করুন" : "Sign in to view your personal list"}</strong>
+        <span>{locale === "bn" ? "নজরের তালিকা ও হোল্ডিং আপনার অ্যাকাউন্টের সঙ্গে যুক্ত।" : "Watchlists and holdings belong to your account."}</span>
+        <Link href="/login?redirect=/scanner">{locale === "bn" ? "সাইন ইন করুন" : "Sign in"}</Link>
+      </div> : null}
+      {!needsAccount && !isLoading && !isWarmingUp ? (
         <div className="scanner-category-grid">
           {categories.map((category) => {
             const copy = language.categories[category.id];
@@ -155,38 +172,31 @@ export function ScannerWorkspaceView({ locale = DEFAULT_LOCALE }: ScannerWorkspa
                   {category.items.length ? (
                     category.items.map((stock) => {
                       const decision = resolveTraderDecision(stock);
+                      const selected = selectedDecisionExplanation(stock.traderDecision, locale, stock.measuredFacts);
+                      const policy = controllingReasonLabel(decision.reasonCode, "", locale);
 
                       return (
-                        <Link className="scanner-result-card" href={buildStockDetailPath(stock.stock.exchange, stock.stock.symbol)} key={stock.stock.id}>
+                        <article className="scanner-result-card" key={stock.stock.id}>
                           <div className="scanner-card-topline">
                             <strong>{stock.stock.symbol}</strong>
                             <div className="scanner-card-actions">
-                              <WatchlistStarToggle stockId={stock.stock.id} stopPropagation />
+                              <WatchlistStarToggle locale={locale} stockId={stock.stock.id} stopPropagation />
                               <SignalBadge locale={locale} signal={decision.recommendation} />
                             </div>
                           </div>
+                          <span className="scanner-company-name">{stock.stock.name}</span>
                           <span>
                             {formatNumber(stock.latestPrice)} / {formatPercent(stock.priceChangePercent)}
                           </span>
-                          <QuotePublicationLabel locale={locale} quote={stock.displayQuote} />
-                          {decision.recommendation === "POTENTIAL_BUY" && decision.entryCondition ? (
-                            <small className="scanner-entry-condition">
-                              {localizeEntryCondition(decision.entryCondition, locale)}
-                            </small>
-                          ) : null}
-                          <div className="mini-momentum-bar" aria-label={language.states.momentumAria}>
-                            <span style={{ width: `${Math.min(100, Math.abs(stock.priceChangePercent ?? 0) * 12)}%` }} />
-                          </div>
-                          <small className="scanner-context-row">
-                            <span>
-                              {language.metrics.rsi} {formatNumber(stock.rsi)}
-                            </span>
-                            <span>
-                              {language.metrics.vol} {formatCompactNumber(stock.volume)}
-                            </span>
-                            <span className={`trend-icon trend-icon-${stock.trend.toLowerCase()}`} aria-label={stock.trend} title={stock.trend} />
-                          </small>
-                        </Link>
+                          {!sharedDate || stock.displayQuote?.as_of_trade_date !== sharedDate || stock.displayQuote?.observation_session_date !== sharedDate || stock.displayQuote?.observation_status !== "FINALIZED" ? <QuotePublicationLabel locale={locale} quote={stock.displayQuote} /> : null}
+                          <small>{locale === "bn" ? "নতুন ক্রেতার জন্য" : "For new buyers"}{!sharedDate ? ` · ${shortTradeDate(stock.decisionDate, locale)}` : ""}</small>
+                          <EntryApplicabilityLabel assessment={decision.entryApplicability} locale={locale} policyReason={policy} />
+                          <PublishedSetupCondition facts={stock.measuredFacts} assessment={decision.entryApplicability} locale={locale} reasonCode={decision.reasonCode} />
+                          <MeasuredDecisionFacts facts={stock.measuredFacts} locale={locale} ratings />
+                          {(policy || selected.limitation) ? <p className="scanner-entry-condition">{policy || selected.limitation}</p> : null}
+                          <small>{scannerMatchReason(stock.scannerMatch.reason_code, locale)}</small>
+                          <Link href={buildStockDetailPath(stock.stock.exchange, stock.stock.symbol)}>{locale === "bn" ? "বিস্তারিত দেখুন" : "View details"} →</Link>
+                        </article>
                       );
                     })
                   ) : (
@@ -203,4 +213,17 @@ export function ScannerWorkspaceView({ locale = DEFAULT_LOCALE }: ScannerWorkspa
       ) : null}
     </section>
   );
+}
+
+
+export function scannerMatchReason(code: string, locale: AppLocale): string {
+  const reasons: Record<string, [string, string]> = {
+    price_volume_break_event: ["Discovery: price crossed prior resistance with expanded relative volume.", "খোঁজের কারণ: স্বাভাবিকের তুলনায় লেনদেন বেড়ে দাম আগের প্রতিরোধসীমা পেরিয়েছে।"],
+    support_reclaim_event: ["Discovery: support rebound; price reclaimed the support band.", "খোঁজের কারণ: দাম সমর্থনসীমায় ফিরে এসেছে।"],
+    uptrend_positive_5d_return: ["Discovery: uptrend with a positive five-session return.", "খোঁজের কারণ: ঊর্ধ্বমুখী প্রবণতায় পাঁচ সেশনের পরিবর্তন ইতিবাচক।"],
+    support_break_event: ["Discovery: price crossed below prior support.", "খোঁজের কারণ: দাম আগের সমর্থনসীমার নিচে নেমেছে।"],
+    elevated_trading_risk: ["Discovery: elevated trading risk.", "খোঁজের কারণ: trading ঝুঁকি বেশি।"],
+    low_volatility_compression: ["Discovery: measured low-volatility compression.", "খোঁজের কারণ: পরিমাপ করা কম অস্থিরতার সীমায় দাম আছে।"],
+  };
+  return reasons[code]?.[locale === "bn" ? 1 : 0] ?? (locale === "bn" ? "এই বাছাইয়ের প্রকাশিত শর্ত মিলে গেছে।" : "Matches this scan's published condition.");
 }

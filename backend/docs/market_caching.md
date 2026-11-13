@@ -573,3 +573,94 @@ Disabled during PRE_OPEN / HOLIDAY (refresh button only; programmatic refetch st
 | `app/tests/test_market_universe_contract.py` | Key naming, invalidation deletes all 10 keys |
 | `app/tests/test_market_snapshot_workflow.py` | Snapshot orchestration |
 | `app/tests/test_backfill_daily_prices.py` | Backfill insert-only behavior |
+
+### PR31 presentation compatibility
+
+Dashboard overview keys carry the narrow `index-v2` contract suffix. The response
+includes `index_snapshot_version: 2`; browser overview persistence rejects older
+shapes. Other section keys and immutable decision payloads are unchanged. A same-
+response, same-index/date summary with missing movement also normalizes older
+snapshot DTOs to null before rendering, including SSR. Missing movement stays
+unknown without waiting for sentiment; measured zero remains zero. Day OHLC is
+omitted because two closing prices do not measure the session's open or extremes.
+
+Overview composition checks the delivered `market_sync_id` of sentiment, movers,
+sectors, heatmap and alerts. Explicit mismatches are withheld until ordinary
+section refetch or freshness reconciliation restores matching identities. Legacy
+missing IDs retain date compatibility. Company-event dates and canonical signal
+decision dates remain independently owned; their calendar dates need not equal
+the quote session. Pulse presentation cache revision `market-generation-v2`
+refreshes the unified leadership wording without changing strategy versions.
+
+Pulse coverage adds optional read-time `quote_session_date` from the projected
+quote generation. The visible hero uses this date (legacy fallback: delivered
+row quote dates) to explain an earlier quote session while the market is open.
+The analysis date remains separate: yesterday's finalized decision with today's
+quote does not imply that today's prices are missing. Null new fields are omitted
+on legacy serialization; no historical publication is rewritten.
+
+Dashboard composition also retains the delivered overview's quote-session date
+and sync timestamp separately from DSEX. A lagging index remains visible with its
+own date; turnover/volume and comparison history retain their activity date. A
+newer same-index summary can supply activity even when its close is null; missing
+fields remain missing instead of borrowing older values. Typed participation uses
+that same-session volume while an older index move stays unavailable. Measured
+zero remains a real observation.
+Current measured breadth and typed interpretation use the overview quote session,
+and an older index cannot imply that today's stock quotes are missing. The hero
+uses the overview's own sync time; only a date-compatible, identity-compatible
+legacy response can borrow freshness time. The exchange's current market status
+remains independent. Without overview metadata, the established index/summary
+date fallback remains available. Older activity is not called intraday merely
+because today's quote session is open.
+
+Pulse leadership descriptions, state, summary and sector-card visibility follow
+the measured positive-sector list. Known all-flat/all-declining sectors have no
+positive leader; absent sector measurements are unavailable. A legacy `N/A`
+placeholder is not a measured leader. No strategy or ranking thresholds change.
+
+Pulse story adds optional `headline_code` and `sector_count` presentation facts.
+The existing minimum of three measured constituents applies symmetrically before
+counting expanding or declining sectors; existing move thresholds are unchanged.
+The count is emitted only when the selected headline reports measured sectors,
+and may exceed the three-row sector preview. Both locales format these facts.
+Legacy stories without them retain delivered stock direction without parsing an
+English headline or assuming one sector. Known breadth with insufficient sector
+coverage remains distinct from missing breadth and from a known empty positive
+sector side. Null new fields are omitted from legacy serialization.
+
+Pulse sector arithmetic uses the same-session `UniverseSessionRead.change_percent`
+decimal when present (persisted price percentages use `Numeric(10,4)`), carried
+privately to presentation rows. Older/missing stored percentages retain the
+delivered technical value's decimal spelling; no epsilon or four-decimal
+quantization is applied to those values or their means. This does not reconstruct
+precision absent from a legacy float. Exact rational sums/means determine sector
+sign, ordering and strict `> +0.20%` / `< -0.15%` counts. All sector story, flow,
+leadership and summary outputs share those means and the existing three-measured-
+constituent minimum. Float conversion is confined to display. Genuine nonzero
+sector means below0.01% display a signed bound (`+<0.01%` / `-<0.01%`) in flow and
+leader labels; unrelated stock labels and all public DTO types stay unchanged.
+
+The targeted Redis Pulse response/summary revision is `market-generation-v4`.
+Persisted full-Pulse/briefing browser keys carry local `#pulse-sector-exact-v4`;
+HTTP URLs, summaries, other cache populations and normal cache hits are unchanged.
+Old entries need no global flush. Deploy the corrected backend before the client
+cache revision so the new local key is populated from the corrected authority.
+
+For absent stored percentages, the technical builder now also captures an exact
+ratio before float subtraction/division. Stored percentage wins; otherwise stored
+monetary change wins over close difference. A nonzero explicit previous close
+wins over the prior valid historical row; historical fallback follows the same
+raw or verified-adjusted analytical close basis as the existing builder. Ratio
+division is rational, including repeating results. `price_change_percent_ratio`
+is optional technical/canonical metadata with string `numerator`/`denominator`,
+and survives JSON/cache reconstruction without denominator approximation.
+
+Existing numeric technical fields retain their versioned engine/replay behavior;
+this additive precision basis does not change recommendations. Pulse comparisons
+and formatted change labels prefer the exact ratio. Null metadata is omitted, so
+old immutable publication bytes/hash remain valid and are never rewritten. An
+old canonical row with no stored percentage or exact ratio cannot manufacture an
+exact basis from rounded fields: stock breadth remains available, sector means
+are withheld (including mixed old/new constituents), and a localized note explains
+the missing exact source basis. Legacy standalone percentages remain readable.

@@ -1,3 +1,4 @@
+import { sectorName } from "@/features/market-dashboard/terminal-copy";
 import { evidenceLabel } from "@/lib/market/decision-presentation";
 import type { DecisionPublication, QuotePublication } from "@/components/ui/market-publication-label";
 import type { BackendDailyPriceDto, BackendStockDto } from "@/lib/api/backend-api-types";
@@ -219,7 +220,7 @@ export function buildStockWorkspaceModel(
       symbol: stock?.symbol ?? "UNKNOWN",
       name: stock?.name ?? "Stock not found",
       exchange: stock?.exchange ?? "DSE",
-      sector: stock?.sector ?? "Unclassified",
+      sector: sectorName(stock?.sector ?? "Unclassified", "en"),
       category: stock?.category ?? "N/A",
       listingDate: stock?.listing_date ?? null,
       latestPrice,

@@ -12,10 +12,33 @@ from app.modules.stock_details.stock_details_schemas import (
 )
 
 
+def selected_explanation_fields(decision, opportunity):
+    """The existing summary selection, also projected for older immutable rows."""
+    priority = {"EXIT_AVOID": 0, "BLOCK": 1, "DOWNGRADE": 2, "CAUTION": 3}
+    opposing = sorted((item for item in decision.constraints if item.code != decision.primary_reason_code),
+        key=lambda item: priority.get(getattr(item.kind, "value", item.kind), 4))
+    strongest = max(opportunity.components, key=lambda item: item.score * item.weight) if opportunity.components else None
+    weakest = min(opportunity.components, key=lambda item: item.score) if opportunity.components else None
+    return dict(measured_support_component=ScoreComponentRead.model_validate(strongest, from_attributes=True) if strongest else None,
+        opposing_constraint_code=opposing[0].code if opposing else None,
+        opposing_component=ScoreComponentRead.model_validate(weakest, from_attributes=True) if not opposing and weakest else None)
+
+
 def build_trader_decision_summary(bundle: TraderDecisionBundle) -> TraderDecisionSummaryRead:
     data_reliability = bundle.data_reliability
     trading_risk = bundle.trading_risk
     canonical = bundle.canonical_result
+    priority = {"EXIT_AVOID": 0, "BLOCK": 1, "DOWNGRADE": 2, "CAUTION": 3}
+    opposing = sorted((item for item in bundle.decision.constraints if item.code != bundle.decision.primary_reason_code),
+        key=lambda item: priority.get(item.kind.value, 4))
+    strongest = max(bundle.opportunity.components, key=lambda item: item.score * item.weight) if bundle.opportunity.components else None
+    weakest = min(bundle.opportunity.components, key=lambda item: item.score) if bundle.opportunity.components else None
+    counterargument = next((item.reason for item in opposing), None)
+    if counterargument is None:
+        counterargument = (f"Weakest setup factor: {weakest.label}. {weakest.explanation}"
+                           if weakest else "No additional opposing constraint identified.")
+        if bundle.data_reliability and bundle.data_reliability.score < 100:
+            counterargument += " Input limitations: " + ", ".join(bundle.data_reliability.reason_codes) + "."
     return TraderDecisionSummaryRead(
         recommendation=bundle.decision.recommendation,
         internal_action=(canonical.internal_action if canonical else bundle.decision.recommendation),
@@ -23,8 +46,12 @@ def build_trader_decision_summary(bundle: TraderDecisionBundle) -> TraderDecisio
         decision_taxonomy_version=(canonical.decision_taxonomy_version if canonical else "v1"),
         confidence=bundle.decision.confidence,
         reason=bundle.decision.primary_reason,
+        measured_support=f"{strongest.explanation} ({strongest.score * strongest.weight:.1f} contribution points)." if strongest else None,
+        opposing_constraint=counterargument,
+        **selected_explanation_fields(bundle.decision, bundle.opportunity),
         opportunity_score=bundle.opportunity.score,
-        risk_label=bundle.risk.label,
+        risk_label=canonical.risk_label if canonical else (trading_risk.label if trading_risk else bundle.risk.label),
+        legacy_composite_risk_label=bundle.risk.label,
         evidence_strength=bundle.decision.evidence_strength,
         evidence_status=canonical.evidence_status if canonical else "UNAVAILABLE",
         primary_reason=bundle.decision.primary_reason,

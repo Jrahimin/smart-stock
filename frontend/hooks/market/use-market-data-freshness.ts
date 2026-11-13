@@ -119,7 +119,7 @@ export function formatRelativeLastUpdated(iso: string | null) {
     return `${diffHours} hours ago`;
   }
 
-  const diffDays = Math.floor(diffHours / 24);
+  const diffDays = Math.round(diffHours / 24);
   if (diffDays === 1) {
     return "1 day ago";
   }

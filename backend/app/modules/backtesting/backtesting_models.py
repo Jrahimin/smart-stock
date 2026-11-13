@@ -9,6 +9,7 @@ from app.core.constants.trading_constants import (
     DECISION_TAXONOMY_VERSION,
     PULSE_SCORE_FOCUS_THRESHOLD,
     TRADING_STRATEGY_VERSION,
+    SUPPORTED_TRADING_STRATEGY_VERSIONS,
     TRADING_THRESHOLD_VERSION,
 )
 from app.core.enums import (
@@ -56,7 +57,12 @@ class BacktestConfig:
     assumed_settlement_sessions: int = 2
     slippage_multiplier: float = 1.0
     sensitivity_order_values: tuple[float, ...] = (25_000, 100_000, 250_000)
-    replay_version: str = "corrected-phase1-replay-v2"
+    replay_mode: Literal["reconstructed", "captured", "capture_diagnostic"] = "reconstructed"
+    publication_ids: tuple[str, ...] = ()
+    session_open_time: str = "10:00"
+    session_close_time: str = "15:00"
+    session_open_overrides: tuple[tuple[str, str], ...] = ()
+    replay_version: str = "capture-aware-replay-v4"
     maximum_turnover_fraction: float = 0.01
     slippage_tiers: tuple[SlippageTier, ...] = DEFAULT_SLIPPAGE_TIERS
     pulse_focus_threshold: int = PULSE_SCORE_FOCUS_THRESHOLD
@@ -111,8 +117,10 @@ class BacktestConfig:
             <= 0
         ):
             raise ValueError("walk-forward session counts must be positive")
-        if self.strategy_version != TRADING_STRATEGY_VERSION:
-            raise ValueError("This replay build can only execute the current strategy version")
+        if self.replay_mode not in {"reconstructed", "captured", "capture_diagnostic"}:
+            raise ValueError("Unknown replay mode")
+        if self.strategy_version not in SUPPORTED_TRADING_STRATEGY_VERSIONS:
+            raise ValueError("This replay build requires an explicitly supported strategy version")
         if self.threshold_version != TRADING_THRESHOLD_VERSION:
             raise ValueError("This replay build can only execute the current threshold version")
         if self.decision_taxonomy_version != DECISION_TAXONOMY_VERSION:
@@ -178,6 +186,8 @@ class BacktestDataset:
     session_dates: tuple[date, ...]
     market_summaries: tuple[DailyMarketSummary, ...] = ()
     limitations: tuple[str, ...] = ()
+    publications: tuple[dict, ...] = ()
+    observed_session_dates: tuple[date, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -222,6 +232,19 @@ class ReplayObservation:
     controlling_reason: str | None = None
     liquidity_tier: str = "UNKNOWN"
     research_features: tuple[tuple[str, float | None], ...] = ()
+    publication_id: str | None = None
+    replay_classification: str = "RECONSTRUCTED"
+    publication_observed_at: datetime | None = None
+    input_calculated_at: datetime | None = None
+    selection_at: datetime | None = None
+    next_open_at: datetime | None = None
+    engine_version: str = TRADING_STRATEGY_VERSION
+    input_hash: str = ""
+    publication_coverage_status: str = "UNKNOWN"
+    parity_status: str = "UNAVAILABLE"
+    parity_differences: tuple[str, ...] = ()
+    forward_selection_id: str | None = None
+    safeguard_bypasses: tuple[str, ...] | None = None
 
 
 ExecutionStatus = Literal[
@@ -262,10 +285,21 @@ class ExecutionResult:
     rules_verified: bool = False
     policy_id: str = "canonical-plan-v1"
     fill_timing: Literal["OPEN", "INTRADAY", "CLOSE"] | None = None
+    uncertainty_reasons: tuple[str, ...] = ()
 
     @property
     def is_filled(self) -> bool:
-        return self.status == "FILLED"
+        return self.status == "FILLED" and self.is_known
+
+    @property
+    def is_known(self) -> bool:
+        """Unknown/new states fail closed; reasons survive later terminal states."""
+        return not self.uncertainty_reasons and self.status in {
+            "FILLED", "ZERO_VOLUME", "SUSPENDED", "CIRCUIT_LOCKED", "CAPACITY_EXCEEDED",
+            "EXPIRED_WITHOUT_ENTRY", "INVALIDATED_BEFORE_ENTRY", "AMBIGUOUS_PRE_ENTRY",
+            "NOT_PERMITTED", "GAP_REJECTED", "INVALID_PLAN", "LOT_TOO_LARGE", "PRICE_LIMIT",
+            "CASH_UNAVAILABLE", "ALREADY_HELD", "PORTFOLIO_REJECTED",
+        }
 
 
 OutcomeStatus = Literal[

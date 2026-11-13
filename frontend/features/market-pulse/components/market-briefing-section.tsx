@@ -172,6 +172,7 @@ export function MarketBriefingSection({ briefing, copy }: MarketBriefingSectionP
           </div>
           <div className="pulse-story-snapshot">
             <span className="pulse-story-snapshot-label">{copy.briefing.breadthSnapshot}</span>
+            {briefing.breadthNote ? <p className="pulse-breadth-coverage" title={briefing.breadthDefinition}>{briefing.breadthNote}</p> : null}
             <div className="pulse-story-metrics" role="list" aria-label={copy.briefing.breadthSnapshotAria}>
             {story.metrics.map((metric) => (
               <div className={`pulse-story-metric pulse-story-metric-${metric.tone}`} key={metric.label} role="listitem">
@@ -206,6 +207,7 @@ export function MarketBriefingSection({ briefing, copy }: MarketBriefingSectionP
 
         <article className="pulse-flow-card">
           <p className="pulse-card-kicker">{copy.briefing.moneyFlow}</p>
+          <p className="pulse-breadth-coverage">{briefing.sectorBasis}</p>
           <div className="pulse-flow-group">
             <p className="pulse-flow-heading pulse-flow-heading-in">
               <ArrowUpRight aria-hidden="true" size={14} />
@@ -276,7 +278,9 @@ type MarketBriefingFooterProps = {
 };
 
 export function MarketBriefingFooter({ leadership, summary, copy }: MarketBriefingFooterProps) {
-  const [sectorCard, stockCard, accumulationCard] = leadership.cards;
+  const sectorCard = leadership.cards.find((card) => card.kind === "sector");
+  const stockCard = leadership.cards.find((card) => card.kind === "stock");
+  const accumulationCard = leadership.cards.find((card) => card.kind === "accumulation");
   const summaryLines = summary.text.split("\n").map((line) => line.trim()).filter(Boolean);
   const summaryHeadline = summaryLines[0] ?? null;
   const summaryBodyLines = summaryLines.slice(1);
@@ -287,7 +291,7 @@ export function MarketBriefingFooter({ leadership, summary, copy }: MarketBriefi
         <div className="pulse-section-head pulse-section-head-compact">
           <div>
             <p className="pulse-card-kicker">{copy.leadership.title}</p>
-            <p className="pulse-leadership-subtitle">{copy.leadership.subtitle}</p>
+            <p className="pulse-leadership-subtitle">{copy.leadership.subtitle}{leadership.decisionDate ? ` · ${leadership.decisionDate}` : ""}</p>
           </div>
         </div>
         {leadership.narrative ? <p className="pulse-leadership-narrative">{leadership.narrative}</p> : null}
@@ -303,8 +307,8 @@ export function MarketBriefingFooter({ leadership, summary, copy }: MarketBriefi
             <div className="pulse-leadership-widget-signals">
               <span className="pulse-leadership-kind">{copy.leadership.freshSignals}</span>
               <div className="pulse-leadership-signal-stats">
-                <span>{copy.leadership.newToday(leadership.freshNewCount)}</span>
-                <span>{copy.leadership.upgradedToday(leadership.freshUpgradedCount)}</span>
+                <span>{copy.leadership.newToday(leadership.freshNewCount, leadership.decisionDate)}</span>
+                <span>{copy.leadership.upgradedToday(leadership.freshUpgradedCount, leadership.decisionDate)}</span>
               </div>
               <div className="pulse-leadership-signal-list">
                 {leadership.freshBuySignals.map((symbol) => (

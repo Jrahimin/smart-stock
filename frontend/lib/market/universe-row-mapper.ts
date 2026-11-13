@@ -1,12 +1,13 @@
+import { sectorName } from "@/features/market-dashboard/terminal-copy";
 import type { BackendScoredUniverseRowDto, SignalType } from "@/lib/api/backend-api-types";
 import type { DerivedSignalModel, RiskLevel, StockIntelligenceModel, TrendDirection } from "@/lib/market/market-intelligence-types";
 import { normalizeTrendDirection } from "@/lib/market/trend-display";
 
 function mapRiskLabel(value: string | undefined): RiskLevel {
-  if (value === "LOW" || value === "MEDIUM" || value === "HIGH") {
+  if (value === "LOW" || value === "MEDIUM" || value === "HIGH" || value === "SPECULATIVE") {
     return value;
   }
-  return "MEDIUM";
+  return "UNKNOWN";
 }
 
 function mapRecommendationToSignal(recommendation: string | undefined): SignalType {
@@ -23,7 +24,7 @@ function mapTrend(value: string): TrendDirection {
   return normalizeTrendDirection(value);
 }
 
-export function mapUniverseRowToListRow(row: BackendScoredUniverseRowDto): StockIntelligenceModel {
+export function mapUniverseRowToListRow(row: BackendScoredUniverseRowDto, publicationDate?: string | null): StockIntelligenceModel {
   const snapshot = row.technical_snapshot;
   const session = row.session;
   const stock = row.stock;
@@ -48,6 +49,10 @@ export function mapUniverseRowToListRow(row: BackendScoredUniverseRowDto): Stock
   };
 
   return {
+    measuredFacts: row.measured_facts,
+    decisionDate: decision ? decision.canonical?.as_of_date ?? publicationDate ?? null : null,
+    latestVolumeRatio: row.analysis?.liquidity?.latest_volume_ratio ?? null,
+    publicComparison: row.public_comparison,
     shortlist: row.shortlist,
     displayQuote: row.display_quote,
     previousFinalizedDecision: row.previous_finalized_decision,
@@ -63,7 +68,7 @@ export function mapUniverseRowToListRow(row: BackendScoredUniverseRowDto): Stock
     averageVolume: snapshot.average_volume,
     turnover: snapshot.turnover ?? (session.turnover != null ? Number(session.turnover) : null),
     marketCap: stock.market_cap != null ? Number(stock.market_cap) : null,
-    sector: stock.sector || stock.category || "Unclassified",
+    sector: sectorName(stock.sector || stock.category || "Unclassified", "en"),
     latestTradeDate: snapshot.latest_trade_date ?? session.latest_trade_date,
     dataQuality: snapshot.data_quality ?? session.data_quality_flag ?? "UNKNOWN",
     rsi: snapshot.rsi,

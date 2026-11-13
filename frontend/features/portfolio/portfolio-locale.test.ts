@@ -12,6 +12,7 @@ import type {
 } from "@/lib/api/backend-api-types";
 
 const guidanceCodes: PortfolioWhatNextCode[] = [
+  "REVIEW_HOLDER_GUIDANCE",
   "DATA_INCOMPLETE",
   "PRICE_STALE_OR_SUSPENDED",
   "REVIEW_SUPPORT_BREAK",
@@ -24,6 +25,7 @@ const guidanceCodes: PortfolioWhatNextCode[] = [
 ];
 
 const attentionCodes: PortfolioAttentionCode[] = [
+  "HOLDER_REVIEW",
   "SUPPORT_BREAK",
   "SELL_OR_REDUCE",
   "PRICE_QUALITY",
@@ -90,6 +92,7 @@ describe("portfolio localization", () => {
   it("uses the taka marker while preserving Western financial digits", () => {
     expect(formatPortfolioMoney("1234.50", "bn")).toBe("৳1,234.5");
     expect(formatPortfolioMoney("-7200", "en")).toBe("-৳7,200");
+    expect(formatPortfolioMoney("20.1760", "en", 4)).toBe("৳20.176");
   });
 });
 

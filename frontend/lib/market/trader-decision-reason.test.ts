@@ -37,8 +37,8 @@ describe("resolveTraderDecisionReason", () => {
     "No strong directional edge is present; patience is preferred.",
     "no_directional_edge",
   ],
-] as const)("maps %s to %s", (reason, key) => {
-    expect(resolveTraderDecisionReason(reason).key).toBe(key);
+] as const)("does not infer a code from prose: %s (%s)", (reason, key) => {
+    expect(resolveTraderDecisionReason(reason).key).toBe("unknown");
   });
 
   it("prefers primary_reason_code over prose matching", () => {
@@ -79,12 +79,13 @@ describe("resolveDecisionReasonSummary", () => {
       getDashboardLanguage("bn").signals.decisionReasons,
     );
 
-    expect(summary).toBe(rawReason);
+    expect(summary).toBe(getDashboardLanguage("bn").signals.decisionReasons.unknown);
   });
 
   it("localizes parameterized reasons in bangla", () => {
     const resolved = resolveTraderDecisionReason(
-      "Risk level is LOW; wait for cleaner confirmation rather than forcing a trade.",
+      "Risk level is HIGH; wait for cleaner confirmation rather than forcing a trade.",
+      "risk_wait_confirmation", { riskLabel: "LOW" },
     );
     const summary = resolveDecisionReasonSummary(
       resolved,
@@ -103,7 +104,7 @@ describe("buildLocalizedSignalReason", () => {
     const reason = buildLocalizedSignalReason(
       { rsi: 65.2, volumeRatio: 1.9 },
       resolveTraderDecisionReason(
-        "Uptrend with favorable opportunity and acceptable reward potential.",
+        "Uptrend with favorable opportunity and acceptable reward potential.", "buy_uptrend_reward",
       ),
       language.signals,
     );
@@ -119,7 +120,7 @@ describe("buildLocalizedSignalReason", () => {
     const reason = buildLocalizedSignalReason(
       { rsi: 55.3, volumeRatio: 1.4 },
       resolveTraderDecisionReason(
-        "Data is not eligible for a fresh directional decision; wait for review or refresh.",
+        "Data is not eligible for a fresh directional decision; wait for review or refresh.", "data_not_eligible",
       ),
       language.signals,
     );
@@ -153,6 +154,6 @@ describe("buildLocalizedSignalReason", () => {
       language.signals,
     );
 
-    expect(reason).toBe(`RSI 61.2. ${rawReason}`);
+    expect(reason).toBe(`RSI 61.2. ${language.signals.decisionReasons.unknown}`);
   });
 });

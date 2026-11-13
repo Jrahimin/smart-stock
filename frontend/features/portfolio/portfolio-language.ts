@@ -1,3 +1,4 @@
+import { holderActionLabels } from "@/lib/market/signal-action-labels";
 import type {
   PortfolioAttentionCode,
   PortfolioPriceStatus,
@@ -24,6 +25,9 @@ type PortfolioLanguage = {
   watchlistEmpty: string;
   knownValue: string;
   knownInvestment: string;
+  valueCoverage: string;
+  partialAccount: string;
+  valueMethod: string;
   unrealized: string;
   dailyMovement: string;
   holdingCount: string;
@@ -131,10 +135,29 @@ type PortfolioLanguage = {
   savingHolding: string;
   needsSetup: string;
   signalUnavailable: string;
+  holderInstruction: string;
+  datedAction: string;
+  sourceDetails: string;
+  markDate: string;
+  sourceTime: string;
+  previousClose: string;
+  sinceCost: string;
+  pendingValues: string;
+  editFailed: string;
+  partialPL: string;
+  partialDaily: string;
+  partialInvestment: string;
+  comparisonChanged: string;
+  comparisonUnchanged: string;
+  comparisonUnavailable: string;
+  actionLabels: Record<string, string>;
   partialExposure: string;
   concentration: string;
   insights: string;
   highestRisk: string;
+  lowestDailyContribution: string;
+  dailyContributionBasis: string;
+  percentagePoints: string;
   emailSummary: string;
   emailSummaryDetail: string;
   emailSummaryEnabled: string;
@@ -151,7 +174,7 @@ type PortfolioLanguage = {
 };
 
 const en: PortfolioLanguage = {
-  eyebrow: "Current-position intelligence",
+  eyebrow: "Your holdings",
   title: "My Portfolio",
   subtitle: "What your holdings are worth, what is happening now, and what deserves attention.",
   freshness: "Market data",
@@ -159,7 +182,7 @@ const en: PortfolioLanguage = {
   finalized: "Published session",
   pulse: "Portfolio Pulse",
   attention: "Needs Your Attention",
-  noAttention: "No action needed today",
+  noAttention: "No action needed for this holding",
   noAttentionDetail: "No material issue was found in the current signals and available holding data.",
   viewAll: "View all",
   showLess: "Show less",
@@ -167,13 +190,16 @@ const en: PortfolioLanguage = {
   shape: "Portfolio Shape",
   watchlist: "Watchlist to Review",
   watchlistEmpty: "No watchlist idea has a meaningful current reason to surface.",
-  knownValue: "Known current value",
+  knownValue: "Marked value",
+  valueCoverage: "Value coverage",
+  partialAccount: "Partial account data",
+  valueMethod: "Value uses supplied quantities and dated marks. P/L includes only known cost; daily movement includes comparable previous prices.",
   knownInvestment: "Known investment",
-  unrealized: "Known unrealized P/L",
-  dailyMovement: "Estimated daily movement",
+  unrealized: "Since-cost P/L",
+  dailyMovement: "Daily movement",
   holdingCount: "Holdings",
   estimated: "Estimated",
-  coverage: (known, total) => `${known} of ${total} holdings included in known value.`,
+  coverage: (known, total) => known === total ? "All holdings are priced" : `${known} of ${total} holdings are priced.`,
   loading: "Building your current-position view…",
   error: "Your portfolio could not be loaded.",
   retry: "Try again",
@@ -235,14 +261,14 @@ const en: PortfolioLanguage = {
   largest: "Largest holding",
   strongest: "Strongest position",
   weakest: "Weakest position",
-  bestToday: "Best contributor today",
-  worstToday: "Weakest contributor today",
+  bestToday: "Best session contributor",
+  worstToday: "Lowest session contribution",
   editHolding: "Holding information",
-  filtersAnnouncement: (count) => `${count} holdings shown`,
+  filtersAnnouncement: (count) => `${count} saved ${count === 1 ? "stock" : "stocks"} shown`,
   completeHoldings: "Complete holdings",
   setupProgress: (completed, total) => `${completed} of ${total} holdings completed`,
   chipHoldings: (count) => `${count} holdings`,
-  chipWatched: (count) => `${count} watched`,
+  chipWatched: (count) => `${count} saved`,
   chipIncomplete: (count) => `${count} incomplete`,
   chipReview: (count) => `Review now ${count}`,
   chipDataState: "Known value",
@@ -275,11 +301,30 @@ const en: PortfolioLanguage = {
   previewNoDailyFromStale: "Daily movement is not calculated from stale prices.",
   savingHolding: "Saving…",
   needsSetup: "Needs setup",
-  signalUnavailable: "Signal unavailable",
+  signalUnavailable: "Decision unavailable",
+  holderInstruction: "For this holding",
+  datedAction: "Dated action",
+  sourceDetails: "Price observation",
+  markDate: "Price date",
+  sourceTime: "Source observed",
+  previousClose: "Previous close",
+  sinceCost: "Since cost",
+  pendingValues: "Saving · Showing last confirmed account values",
+  editFailed: "Could not save. Account values remain unchanged. Try again.",
+  partialPL: "P/L includes only positions with known cost and usable marks.",
+  partialDaily: "Daily movement includes only positions with comparable price changes.",
+  partialInvestment: "Investment includes only positions with known quantity and cost.",
+  comparisonChanged: "Changed since previous session",
+  comparisonUnchanged: "Unchanged since previous session",
+  comparisonUnavailable: "Previous-session comparison unavailable",
+  actionLabels: { ...holderActionLabels.en, WAIT: "Wait", POTENTIAL_BUY: "Potential buy" },
   partialExposure: "Exposure reflects only holdings with known current value.",
   concentration: "Concentration",
   insights: "Portfolio insights",
-  highestRisk: "Highest risk today",
+  highestRisk: "Highest position risk",
+  lowestDailyContribution: "Lowest daily contribution",
+  dailyContributionBasis: "Of portfolio daily return · comparable holdings",
+  percentagePoints: "pp",
   emailSummary: "Daily summary email",
   emailSummaryDetail: "Get one concise email after the market close with your portfolio summary, P/L, and attention items.",
   emailSummaryEnabled: "Summary emails on",
@@ -290,6 +335,7 @@ const en: PortfolioLanguage = {
   groupWatching: (count) => `Watching · ${count}`,
   filterAttention: "Attention filter",
   guidance: {
+    REVIEW_HOLDER_GUIDANCE: "Review the published holder guidance and its constraints.",
     DATA_INCOMPLETE: "Complete quantity, average price, or market data.",
     PRICE_STALE_OR_SUSPENDED: "Price quality needs review before acting.",
     REVIEW_SUPPORT_BREAK: "Review the support break and reassess risk.",
@@ -298,9 +344,10 @@ const en: PortfolioLanguage = {
     DO_NOT_AVERAGE_DOWN_FOR_COST_ONLY: "Do not average down only to reduce cost.",
     WATCH_RESISTANCE: "Price is near resistance; watch whether volume confirms.",
     PROFITABLE_TREND_INTACT: "Uptrend remains intact; watch support if momentum weakens.",
-    NO_ACTION_NEEDED: "No action needed today.",
+    NO_ACTION_NEEDED: "No action needed for this holding.",
   },
   attentionLabels: {
+    HOLDER_REVIEW: "Review holder guidance",
     SUPPORT_BREAK: "Support break",
     SELL_OR_REDUCE: "SELL or REDUCE signal",
     PRICE_QUALITY: "Stale, suspended, or uncertain price",
@@ -325,7 +372,7 @@ const en: PortfolioLanguage = {
   priceStatus: {
     FINALIZED: "Finalized price",
     PROVISIONAL: "Provisional price",
-    NON_TRADED: "Not traded today",
+    NON_TRADED: "No trade in this session",
     STALE_LAST_KNOWN: "Stale last-known price",
     SUSPENDED: "Trading suspended",
     SUSPICIOUS: "Price needs verification",
@@ -357,10 +404,13 @@ const bn: PortfolioLanguage = {
   watchlist: "ওয়াচলিস্টে দেখার মতো",
   watchlistEmpty: "ওয়াচলিস্টে এখন আলাদা করে সামনে আনার মতো কোনো নতুন কারণ নেই।",
 
-  knownValue: "হিসাব করা বর্তমান ভ্যালু",
+  knownValue: "বর্তমান ভ্যালু",
+  valueCoverage: "হিসাবের পরিধি",
+  partialAccount: "হিসাবের কিছু তথ্য অসম্পূর্ণ",
+  valueMethod: "দেওয়া পরিমাণ ও তারিখযুক্ত দাম দিয়ে ভ্যালু হয়। ক্রয়মূল্য জানা থাকলে লাভ/ক্ষতি এবং আগের তুলনাযোগ্য দাম থাকলে দৈনিক পরিবর্তন হিসাব হয়।",
   knownInvestment: "হিসাব করা বিনিয়োগ",
   unrealized: "বর্তমান লাভ/ক্ষতি",
-  dailyMovement: "আজকের আনুমানিক পরিবর্তন",
+  dailyMovement: "দৈনিক পরিবর্তন",
   holdingCount: "হোল্ডিংস",
   estimated: "আনুমানিক",
 
@@ -381,20 +431,20 @@ const bn: PortfolioLanguage = {
   review: "দেখা দরকার",
   stable: "স্বাভাবিক",
   incomplete: "তথ্য অসম্পূর্ণ",
-  holdingsOnly: "শুধু Holdings",
-  watchlistOnly: "শুধু Watchlist",
+  holdingsOnly: "শুধু হোল্ডিং",
+  watchlistOnly: "শুধু নজরে রাখা",
   watching: "ওয়াচলিস্টে",
 
   position: "পজিশন",
   market: "মার্কেট",
-  signal: "সিগন্যাল",
+  signal: "signal",
   notHeld: "কেনা নেই",
-  markAsHolding: "Hold করুন",
+  markAsHolding: "হোল্ডিংয়ে যোগ করুন",
 
   add: "যোগ করুন",
   addNote: "নোট লিখুন",
   watched: "ওয়াচলিস্টে",
-  holding: "Holding",
+  holding: "হোল্ডিং",
 
   moreActions: "আরও অপশন",
   actionsColumn: "অপশন",
@@ -412,10 +462,10 @@ const bn: PortfolioLanguage = {
   edit: "এডিট",
 
   action: "অ্যাকশন",
-  trend: "ট্রেন্ড",
+  trend: "trend",
   stock: "শেয়ার",
-  quantity: "Quantity",
-  averagePrice: "Average Buy price",
+  quantity: "শেয়ারের সংখ্যা",
+  averagePrice: "গড় ক্রয়মূল্য",
   currentPrice: "বর্তমান দাম",
   currentValue: "বর্তমান ভ্যালু",
   weight: "পোর্টফোলিওতে অংশ",
@@ -432,43 +482,43 @@ const bn: PortfolioLanguage = {
   scanner: "Scanner match",
   evidence: "কেন এই signal",
   event: "গুরুত্বপূর্ণ event",
-  stockDetails: "Stock Details দেখুন",
+  stockDetails: "শেয়ারের বিস্তারিত দেখুন",
 
   unknown: "তথ্য নেই",
   known: "হিসাব করা",
   provisional: "Market live থাকায় আজকের পরিবর্তনটি এখনও provisional।",
 
   positionExposure: "কোন শেয়ারে কতটা আছে",
-  sectorExposure: "কোন sector-এ কতটা আছে",
+  sectorExposure: "কোন খাতে কতটা আছে",
   knownSectorExposure: "হিসাব করা sector exposure",
   knownPositionExposure: "হিসাব করা position exposure",
-  actionGroups: "Action অনুযায়ী holdings",
+  actionGroups: "হোল্ডিংয়ে করণীয়",
 
-  largest: "সবচেয়ে বড় holding",
+  largest: "সবচেয়ে বড় হোল্ডিং",
   strongest: "সবচেয়ে ভালো অবস্থানে",
   weakest: "সবচেয়ে দুর্বল অবস্থানে",
   bestToday: "আজ সবচেয়ে বেশি সহায়তা করেছে",
   worstToday: "আজ সবচেয়ে বেশি চাপ দিয়েছে",
 
   editHolding: "Holding-এর তথ্য",
-  filtersAnnouncement: (count) => `${count}টি stock দেখানো হচ্ছে`,
+  filtersAnnouncement: (count) => `${count}টি সংরক্ষিত শেয়ার দেখানো হচ্ছে`,
 
   completeHoldings: "তথ্যগুলো পূরণ করুন",
   setupProgress: (completed, total) =>
     `${total}টির মধ্যে ${completed}টি holding-এর হিসাব সম্পূর্ণ`,
 
-  chipHoldings: (count) => `${count} Holdings`,
-  chipWatched: (count) => `${count} Watchlist`,
+  chipHoldings: (count) => `${count}টি হোল্ডিং`,
+  chipWatched: (count) => `${count}টি সংরক্ষিত`,
   chipIncomplete: (count) => `${count} তথ্য বাকি`,
   chipReview: (count) => `${count}টি দেখা দরকার`,
-  chipDataState: "Known value",
+  chipDataState: "সম্পূর্ণ হিসাব",
 
   valueAndPL: "ভ্যালু ও লাভ/ক্ষতি",
 
-  addQuantity: "Quantity যোগ করলে value আর portfolio weight দেখা যাবে",
-  addAveragePrice: "Average buy price যোগ করলে লাভ/ক্ষতি দেখা যাবে",
-  addQuantityAction: "Quantity যোগ করুন",
-  addAveragePriceAction: "Average buy price যোগ করুন",
+  addQuantity: "শেয়ারের সংখ্যা দিলে মূল্য ও পোর্টফোলিওতে অংশ দেখা যাবে",
+  addAveragePrice: "গড় ক্রয়মূল্য দিলে লাভ বা ক্ষতি দেখা যাবে",
+  addQuantityAction: "শেয়ারের সংখ্যা দিন",
+  addAveragePriceAction: "গড় ক্রয়মূল্য দিন",
   addHolding: "পোর্টফোলিওতে যোগ করুন",
   addHoldingTitle: "হোল্ডিং যোগ করুন",
   updateHoldingTitle: "পোর্টফোলিও আপডেট করুন",
@@ -494,7 +544,23 @@ const bn: PortfolioLanguage = {
   savingHolding: "সেভ হচ্ছে…",
 
   needsSetup: "তথ্য বাকি",
-  signalUnavailable: "Signal পাওয়া যায়নি",
+  signalUnavailable: "সিদ্ধান্ত পাওয়া যায়নি",
+  holderInstruction: "এই হোল্ডিংয়ের জন্য",
+  datedAction: "প্রকাশিত অ্যাকশন",
+  sourceDetails: "দামের পর্যবেক্ষণ",
+  markDate: "দামের তারিখ",
+  sourceTime: "উৎসে পর্যবেক্ষণ",
+  previousClose: "আগের সমাপনী দাম",
+  sinceCost: "ক্রয়মূল্যের তুলনায়",
+  pendingValues: "সেভ হচ্ছে · সর্বশেষ নিশ্চিত হিসাব দেখানো হচ্ছে",
+  editFailed: "সেভ হয়নি। আগের হিসাব অপরিবর্তিত আছে। আবার চেষ্টা করুন।",
+  partialPL: "ক্রয়মূল্য ও ব্যবহারযোগ্য দাম জানা পজিশনগুলোর লাভ/ক্ষতি দেখানো হচ্ছে।",
+  partialDaily: "তুলনাযোগ্য দামের পরিবর্তন জানা পজিশনগুলো দৈনিক হিসাবে আছে।",
+  partialInvestment: "পরিমাণ ও ক্রয়মূল্য জানা পজিশনগুলোর বিনিয়োগ দেখানো হচ্ছে।",
+  comparisonChanged: "আগের সেশনের তুলনায় বদলেছে",
+  comparisonUnchanged: "আগের সেশনের তুলনায় অপরিবর্তিত",
+  comparisonUnavailable: "আগের সেশনের তুলনা পাওয়া যায়নি",
+  actionLabels: { ...holderActionLabels.bn, WAIT: "অপেক্ষা করুন", POTENTIAL_BUY: "সম্ভাব্য ক্রয়" },
 
   partialExposure:
     "যেসব holding-এর current value হিসাব করা গেছে, শুধু সেগুলো দিয়েই এই চিত্র দেখানো হচ্ছে।",
@@ -502,6 +568,9 @@ const bn: PortfolioLanguage = {
   concentration: "এক জায়গায় বেশি ওজন",
   insights: "পোর্টফোলিও ইনসাইট",
   highestRisk: "আজ সবচেয়ে বেশি ঝুঁকিতে",
+  lowestDailyContribution: "দৈনিক রিটার্নে সর্বনিম্ন অবদান",
+  dailyContributionBasis: "পোর্টফোলিওর দৈনিক রিটার্নে · তুলনাযোগ্য হোল্ডিংস",
+  percentagePoints: "শতাংশ পয়েন্ট",
 
   emailSummary: "Daily portfolio email",
   emailSummaryDetail:
@@ -515,11 +584,12 @@ const bn: PortfolioLanguage = {
 
   viewStock: "শেয়ারটি দেখুন",
 
-  groupHoldings: (count) => `Holdings · ${count}`,
-  groupWatching: (count) => `Watchlist · ${count}`,
+  groupHoldings: (count) => `হোল্ডিং · ${count}`,
+  groupWatching: (count) => `নজরে রাখা · ${count}`,
   filterAttention: "যেগুলো দেখা দরকার",
 
   guidance: {
+    REVIEW_HOLDER_GUIDANCE: "প্রকাশিত holder নির্দেশনা ও সীমাবদ্ধতা পর্যালোচনা করুন।",
     DATA_INCOMPLETE:
       "কিছু তথ্য এখনও বাকি। Quantity, average price বা market data পূরণ করুন।",
 
@@ -545,10 +615,11 @@ const bn: PortfolioLanguage = {
       "Trend এখনও ভালো আছে। Momentum দুর্বল হলে support-এর দিকে নজর রাখুন।",
 
     NO_ACTION_NEEDED:
-      "আজ আলাদা করে কিছু করার নেই।",
+      "এই হোল্ডিংয়ে আলাদা করে কিছু করার নির্দেশনা নেই।",
   },
 
   attentionLabels: {
+    HOLDER_REVIEW: "holder নির্দেশনা পর্যালোচনা করুন",
     SUPPORT_BREAK: "গুরুত্বপূর্ণ support ভেঙেছে",
     SELL_OR_REDUCE: "SELL বা REDUCE signal",
     PRICE_QUALITY: "দামের তথ্য পুরোপুরি পরিষ্কার নয়",
@@ -573,11 +644,11 @@ const bn: PortfolioLanguage = {
   },
 
   priceStatus: {
-    FINALIZED: "Finalized price",
-    PROVISIONAL: "Live provisional price",
+    FINALIZED: "চূড়ান্ত দাম",
+    PROVISIONAL: "সাময়িক দাম",
     NON_TRADED: "আজ লেনদেন হয়নি",
     STALE_LAST_KNOWN: "সর্বশেষ পাওয়া পুরোনো দাম",
-    SUSPENDED: "Trading suspended",
+    SUSPENDED: "লেনদেন স্থগিত",
     SUSPICIOUS: "দামটি যাচাই করা দরকার",
     UNAVAILABLE: "দাম পাওয়া যায়নি",
   },

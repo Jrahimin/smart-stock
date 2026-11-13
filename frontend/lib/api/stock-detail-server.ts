@@ -1,4 +1,6 @@
-import type { ExchangeCode, ApiResponse } from "@/lib/api/backend-api-types";
+import { fenceCurrentEntryPayload } from "@/lib/market/current-entry-contract";
+import { PRICE_BASIS_CONTRACT } from "@/lib/market/entry-contract-capability";
+import type { ExchangeCode, ApiResponse, BackendMarketFreshnessDto } from "@/lib/api/backend-api-types";
 import type { StockWorkspaceDto } from "@/lib/api/stock-decision-support-types";
 import { frontendConfig } from "@/lib/frontend-config";
 import { encodeStockSymbolSegment } from "@/lib/seo/stock-page-seo";
@@ -21,7 +23,7 @@ export async function loadStockWorkspace(
   const path = `/stock-details/${exchange}/${encodeStockSymbolSegment(normalizedSymbol)}/workspace`;
 
   try {
-    const response = await fetch(`${frontendConfig.apiBaseUrl}${path}`, {
+    const response = await fetch(`${frontendConfig.apiBaseUrl}${path}?entry_contract=${PRICE_BASIS_CONTRACT}`, {
       cache: "no-store",
     });
 
@@ -44,7 +46,12 @@ export async function loadStockWorkspace(
       return { status: "not_found" };
     }
 
-    return { status: "ok", data };
+    let freshness: BackendMarketFreshnessDto | null = null;
+    try {
+      const response = await fetch(`${frontendConfig.apiBaseUrl}/market/freshness?exchange=${exchange}`, { cache: "no-store" });
+      if (response.ok) freshness = ((await response.json()) as ApiResponse<BackendMarketFreshnessDto>).data ?? null;
+    } catch { /* Dated facts can render while the current price check is withheld. */ }
+    return { status: "ok", data: fenceCurrentEntryPayload(data, freshness, Date.now(), { symbol: normalizedSymbol, exchange }) };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Stock workspace request failed";
     return { status: "error", message };

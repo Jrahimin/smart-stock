@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
+from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
@@ -120,9 +121,11 @@ class FakePulseRedis:
 def _service_with_redis(store: dict[str, dict]) -> MarketPulseService:
     redis = FakePulseRedis(store=store)
     market_data_service = MagicMock()
+    market_data_service.get_market_freshness = AsyncMock(return_value=SimpleNamespace(market_status=__import__("app.core.enums", fromlist=["MarketSessionStatus"]).MarketSessionStatus.OPEN))
     universe_service = MagicMock()
     universe_service.get_canonical_universe = AsyncMock(return_value=_snapshot())
     universe_service.is_generation_current = AsyncMock(return_value=True)
+    universe_service.project_current_entries = AsyncMock(side_effect=lambda snapshot, **kwargs: snapshot)
     return MarketPulseService(
         market_data_service=market_data_service,
         universe_service=universe_service,
@@ -136,7 +139,9 @@ def _snapshot(
     sync_id: str = MARKET_SYNC_ID,
     data_state: MarketDataState = MarketDataState.LIVE,
 ):
-    return SimpleNamespace(updating=False,
+    return SimpleNamespace(
+        quote_generation=None,
+        updating=False,
         generation=SimpleNamespace(
             sync_id=sync_id,
             trade_date=DECISION_DATE,
@@ -156,6 +161,22 @@ def test_uses_shared_pulse_cache_only_for_anonymous_requests() -> None:
     assert uses_shared_pulse_cache(previous, None) is False
     assert uses_shared_pulse_cache(previous, "Alex") is False
     assert normalize_pulse_display_name(" Alex ") == "Alex"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("section", ["response", "summary"])
+async def test_exact_sector_revision_never_reuses_the_same_generation_float_verdict(section):
+    key = pulse_cache_key(section, ExchangeCode.DSE, DECISION_DATE, MARKET_SYNC_ID)
+    assert "market-generation-v6" in key
+    old_key = key.replace("market-generation-v6", "market-generation-v5")
+    store = {old_key: _pulse("old float verdict").model_dump(mode="json")}
+    service = _service_with_redis(store)
+    service._compute_market_pulse = AsyncMock(return_value=_pulse("exact sector verdict"))
+    read = service.get_market_pulse if section == "response" else service.get_market_pulse_summary
+    result = await read(exchange=ExchangeCode.DSE, previous=None)
+    assert result.hero.greeting == "exact sector verdict"
+    service._compute_market_pulse.assert_awaited_once()
+    assert old_key in store and key in store
 
 
 @pytest.mark.asyncio
@@ -372,3 +393,79 @@ async def test_pulse_reuses_decision_content_when_only_data_state_changes() -> N
     service._compute_market_pulse.assert_not_called()
     assert stale_pulse.market_sync_id == MARKET_SYNC_ID
     assert stale_pulse.data_state == MarketDataState.STALE
+
+
+@pytest.mark.asyncio
+async def test_focus_and_monitor_project_same_fenced_quote_and_verified_transition():
+    from dataclasses import replace
+
+    from app.core.enums import DecisionDisplayAction, MarketSessionStatus, PulseFocusLabel
+    from app.modules.market_pulse.market_pulse_service import (
+        PulsePresentationRow,
+        _to_focus_stock_read,
+    )
+    from app.modules.market_pulse.pulse_score import compute_pulse_score
+    from app.modules.market_universe.market_universe_compute import technical_snapshot_from_read
+    from app.modules.market_universe.market_universe_schemas import DisplayQuoteRead
+    from app.modules.stock_details.decision.comparison import PublicDecisionComparisonRead
+    from app.modules.stock_details.decision.entry_applicability import EntryApplicabilityRead
+    from app.tests.test_canonical_generation_architecture import _canonical_fixture
+    from app.tests.test_entry_applicability import NOW
+    stock, _, row, snapshot = _canonical_fixture()
+    assessment = EntryApplicabilityRead(status="OUTSIDE_ZONE", reason_code="ABOVE_ENTRY_ZONE", assessed_at=NOW)
+    decision = row.decision.model_copy(update={"display_action": DecisionDisplayAction.POTENTIAL_BUY, "entry_applicability": assessment})
+    quote = DisplayQuoteRead(current_price=103, as_of_trade_date="2026-11-11", observation_session_date="2026-11-11", source_observed_at=NOW, max_age_seconds=120, observation_status="PROVISIONAL")
+    row = row.model_copy(update={"decision": decision, "entry_applicability": assessment, "display_quote": quote,
+        "public_comparison": PublicDecisionComparisonRead(status="CHANGED", previous_action="WAIT", current_action="POTENTIAL_BUY", previous_session_date="2026-11-10")})
+    projected = replace(snapshot, quote_generation=replace(snapshot.generation, sync_id="owning-quote"), payload=snapshot.payload.model_copy(update={"rows": [row]}))
+    technical = technical_snapshot_from_read(row.technical_snapshot)
+    item = _to_focus_stock_read(PulsePresentationRow(stock, technical, decision, compute_pulse_score(technical, decision), PulseFocusLabel.POTENTIAL_BUY_SETUP), 1)
+    payload = _pulse("Test").model_copy(update={"focus_stocks": [item], "monitor_candidates": [item]})
+    service = _service_with_redis({})
+    service.universe_service.project_current_entries = AsyncMock(return_value=projected)
+    service.market_data_service.get_market_freshness = AsyncMock(return_value=SimpleNamespace(market_status=MarketSessionStatus.PRE_OPEN))
+    result = await service._refresh_current_fields(payload, snapshot)
+    assert result.quote_generation_id == "owning-quote"
+    assert result.coverage.quote_session_date == projected.quote_generation.trade_date
+    assert result.coverage.market_status == "PRE_OPEN"
+    for entry in [*result.focus_stocks, *result.monitor_candidates]:
+        assert entry.display_quote.current_price == 103
+        assert entry.display_quote.max_age_seconds == 120
+        assert entry.entry_applicability.reason_code == "ABOVE_ENTRY_ZONE"
+        assert entry.focus_label == PulseFocusLabel.SIGNAL_UPGRADE
+        assert entry.latest_price == item.latest_price  # finalized session close stays distinct
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("change", [None, -2.0])
+async def test_cached_price_leader_is_rebound_to_measured_change_without_dropping_volume(change):
+    from dataclasses import replace
+
+    from app.modules.market_pulse.market_pulse_briefing import (
+        PulseBriefingRow,
+        build_market_briefing,
+    )
+    from app.modules.market_pulse.market_pulse_schemas import LeadershipCardRead
+    from app.modules.market_pulse.pulse_score import compute_pulse_score
+    from app.modules.market_universe.market_universe_compute import technical_snapshot_from_read
+    from app.tests.test_canonical_generation_architecture import _canonical_fixture
+    stock, _, row, snapshot = _canonical_fixture()
+    from app.core.enums import EligibilityStatus
+    row = row.model_copy(update={"technical_snapshot": row.technical_snapshot.model_copy(update={"price_change_percent": change, "price_change_percent_ratio": None}),
+        "session": row.session.model_copy(update={"change_percent": None if change is None else Decimal(str(change))}),
+        "eligibility": row.eligibility.model_copy(update={"status": EligibilityStatus.ELIGIBLE})})
+    snapshot = replace(snapshot, payload=snapshot.payload.model_copy(update={"rows": [row]}))
+    technical = technical_snapshot_from_read(row.technical_snapshot)
+    briefing = build_market_briefing([PulseBriefingRow(stock, technical, row.decision, compute_pulse_score(technical, row.decision))], [], [], [],
+        market_summaries=[], format_number=str, format_percent=lambda value: str(value), price_tone=lambda value: "neutral", sparkline_points=lambda *args: [])
+    briefing.leadership.cards = [card for card in briefing.leadership.cards if card.kind != "stock"] + [
+        LeadershipCardRead(kind="stock", title="Strongest Stock", name="UNKNOWN-OLD-LEADER", tone="positive")]
+    payload = _pulse("Cached old leadership").model_copy(update={"briefing": briefing})
+    service = _service_with_redis({})
+    service.universe_service.project_current_entries = AsyncMock(return_value=snapshot)
+    result = await service._refresh_current_fields(payload, snapshot)
+    cards = result.briefing.leadership.cards
+    assert all(card.name != "UNKNOWN-OLD-LEADER" for card in cards)
+    leaders = [card for card in cards if card.kind == "stock"]
+    assert ([card.name for card in leaders] == [stock.symbol]) if change is not None else not leaders
+    assert any(card.kind == "accumulation" for card in cards)

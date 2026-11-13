@@ -3,6 +3,7 @@ from __future__ import annotations
 import gzip
 import json
 import logging
+from datetime import UTC, datetime
 from email.message import Message
 from urllib.error import HTTPError
 
@@ -54,6 +55,7 @@ def test_fetch_bytes_decompresses_gzip_and_requires_msgpack(
         lambda *_args, **_kwargs: _FakeResponse(compressed),
     )
 
+    before = datetime.now(UTC)
     response = client._fetch_bytes(
         "https://example.test/hash",
         accept="application/x-msgpack",
@@ -64,6 +66,7 @@ def test_fetch_bytes_decompresses_gzip_and_requires_msgpack(
     )
 
     assert response.body == b"messagepack-body"
+    assert before <= response.received_at <= datetime.now(UTC)
 
 
 @pytest.mark.parametrize(

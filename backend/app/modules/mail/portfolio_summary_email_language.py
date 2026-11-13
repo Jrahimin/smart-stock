@@ -33,6 +33,7 @@ class PortfolioSummaryEmailLanguage(TypedDict):
 
 ATTENTION_LABELS: dict[AppLocale, dict[PortfolioAttentionCode, str]] = {
     "en": {
+        PortfolioAttentionCode.HOLDER_REVIEW: "Review holder guidance",
         PortfolioAttentionCode.SUPPORT_BREAK: "Support break",
         PortfolioAttentionCode.SELL_OR_REDUCE: "SELL or REDUCE signal",
         PortfolioAttentionCode.PRICE_QUALITY: "Stale, suspended, or uncertain price",
@@ -44,6 +45,7 @@ ATTENTION_LABELS: dict[AppLocale, dict[PortfolioAttentionCode, str]] = {
         PortfolioAttentionCode.IMPORTANT_EVENT: "Important company event",
     },
     "bn": {
+        PortfolioAttentionCode.HOLDER_REVIEW: "হোল্ডার নির্দেশনা পর্যালোচনা করুন",
         PortfolioAttentionCode.SUPPORT_BREAK: "গুরুত্বপূর্ণ support ভেঙেছে",
         PortfolioAttentionCode.SELL_OR_REDUCE: "SELL signal",
         PortfolioAttentionCode.PRICE_QUALITY: "দামের তথ্য পুরোপুরি পরিষ্কার নয়",

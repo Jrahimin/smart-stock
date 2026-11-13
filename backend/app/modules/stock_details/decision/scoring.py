@@ -94,9 +94,9 @@ def _momentum_blocks_buy(snapshot: TechnicalSnapshot) -> bool:
 
 
 def _volume_supports_breakout(snapshot: TechnicalSnapshot) -> bool:
-    if not snapshot.average_volume or snapshot.average_volume <= 0:
-        return True
-    return snapshot.volume / snapshot.average_volume >= RECOMMENDATION_BREAKOUT_VOLUME_RATIO
+    if snapshot.volume_facts.ratio is None:
+        return False
+    return snapshot.volume_facts.ratio >= RECOMMENDATION_BREAKOUT_VOLUME_RATIO
 
 
 def _breakout_confirmed(snapshot: TechnicalSnapshot) -> bool:
@@ -241,7 +241,7 @@ def _score_volume(snapshot: TechnicalSnapshot, liquidity_label: LiquidityLabel) 
     score = 50.0
     explanations: list[str] = []
     if snapshot.average_volume and snapshot.average_volume > 0:
-        ratio = snapshot.volume / snapshot.average_volume
+        ratio = snapshot.volume_facts.ratio
         if ratio >= VOLUME_EXPANSION_RATIO:
             score = 85
             explanations.append(f"Volume is {ratio:.1f}x the 20-day average.")

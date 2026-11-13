@@ -33,6 +33,7 @@ class AmarStockHttpResponse:
     status: int
     content_type: str
     headers: Mapping[str, str]
+    received_at: datetime | None = None
 
 
 class AmarStockHttpError(RuntimeError):
@@ -229,6 +230,7 @@ class AmarStockHttpClient:
                     status=response.status,
                 )
             body = response.read(max_response_bytes + 1)
+            received_at = datetime.now(UTC)
             if len(body) > max_response_bytes:
                 raise AmarStockContractError(
                     f"AmarStock response exceeded {max_response_bytes} bytes",
@@ -250,6 +252,7 @@ class AmarStockHttpClient:
                 status=response.status,
                 content_type=raw_content_type,
                 headers={key.lower(): value for key, value in response.headers.items()},
+                received_at=received_at,
             )
 
     def _retry_delay(self, attempt: int, error: HTTPError | None) -> float:

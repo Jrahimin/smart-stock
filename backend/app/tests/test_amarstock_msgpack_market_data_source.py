@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import date
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from unittest.mock import AsyncMock
 
@@ -225,5 +225,55 @@ async def test_very_old_last_modified_is_rejected() -> None:
         client=client,
     )
 
-    with pytest.raises(MarketSnapshotValidationError, match="too old"):
+    with pytest.raises(MarketSnapshotValidationError, match="predates the requested session"):
         await source.fetch_daily_prices(date(2026, 8, 6))
+
+
+@pytest.mark.parametrize("headers, rejected", [
+    ({"last-modified": "Wed, 11 Nov 2026 10:00:00 GMT"}, True),
+    ({"date": "Wed, 11 Nov 2026 12:00:00 GMT", "age": "61200"}, True),
+    ({"date": "Wed, 11 Nov 2026 12:00:00 GMT", "last-modified": "Thu, 12 Nov 2026 04:00:00 GMT"}, True),
+    ({"last-modified": "Thu, 12 Nov 2026 05:01:00 GMT"}, True),
+    ({"date": "Thu, 12 Nov 2026 05:01:00 GMT"}, True),
+    # UTC yesterday is already the requested session in Dhaka.
+    ({"last-modified": "Wed, 11 Nov 2026 18:01:00 GMT", "age": "3600"}, False),
+    ({"date": "Wed, 11 Nov 2026 18:01:00 GMT", "age": "3600"}, False),
+    ({"date": "Thu, 12 Nov 2026 05:00:00 GMT"}, False),
+    ({}, False),
+])
+@pytest.mark.asyncio
+async def test_primary_snapshot_dates_and_receipt_never_supply_a_quote_clock(headers, rejected):
+    receipt = datetime(2026, 11, 12, 5, tzinfo=UTC)
+    client = AsyncMock()
+    client.fetch_bytes.return_value = AmarStockHttpResponse(body=_pack(), status=200,
+        content_type="application/x-msgpack", headers=headers, received_at=receipt)
+    source = AmarStockMarketSnapshotSource(base_url="https://example.test", snapshot_path="/fixture",
+        max_retries=1, retry_delay_seconds=0, max_response_bytes=1_000_000,
+        max_last_modified_age_days=7, client=client)
+    if rejected:
+        with pytest.raises(MarketSnapshotValidationError):
+            await source.fetch_daily_prices(date(2026, 11, 12))
+        assert source.last_snapshot is None
+    else:
+        prices = await source.fetch_daily_prices(date(2026, 11, 12))
+        assert all(row.trade_date == date(2026, 11, 12) for row in prices)
+        assert all(row.batch_fetched_at == receipt and row.source_observed_at is None for row in prices)
+
+
+@pytest.mark.parametrize("headers", [{"last-modified": "Thu, 12 Nov 2026 18:10:00 GMT"},
+    {"date": "Thu, 12 Nov 2026 18:10:00 GMT"},
+    {"date": "Thu, 12 Nov 2026 18:10:00 GMT", "last-modified": "Thu, 12 Nov 2026 18:10:00 GMT"}])
+@pytest.mark.asyncio
+async def test_after_midnight_capture_preserves_requested_historical_session(headers):
+    client = AsyncMock()
+    receipt = datetime(2026, 11, 12, 18, 30, tzinfo=UTC)  # Nov13 00:30 Dhaka
+    client.fetch_bytes.return_value = AmarStockHttpResponse(body=_pack(), status=200,
+        content_type="application/x-msgpack", received_at=receipt,
+        headers=headers)
+    source = AmarStockMarketSnapshotSource(base_url="https://example.test", snapshot_path="/fixture",
+        max_retries=1, retry_delay_seconds=0, max_response_bytes=1_000_000,
+        max_last_modified_age_days=7, client=client)
+    rows = await source.fetch_daily_prices(date(2026, 11, 12))
+    assert rows[0].trade_date == date(2026, 11, 12)
+    assert rows[0].source_observed_at is None
+    assert rows[0].batch_fetched_at == receipt

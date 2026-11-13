@@ -85,6 +85,8 @@ def build_dataset_revision(dataset: BacktestDataset) -> str:
             "input_schema_version": TRADING_INPUT_SCHEMA_VERSION,
             "histories": histories,
             "session_dates": dataset.session_dates,
+            "observed_session_dates": dataset.observed_session_dates,
+            "publications": dataset.publications,
             "market_summaries": [
                 _market_summary_payload(summary)
                 for summary in sorted(

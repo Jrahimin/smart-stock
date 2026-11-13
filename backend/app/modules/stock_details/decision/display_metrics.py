@@ -165,6 +165,14 @@ def build_quote_projection(prices, *, finality="FINALIZED", session_date=None) -
         elif latest is observed:
             status = "FINALIZED" if finality == "FINALIZED" else "PROVISIONAL"
     return {
+        "volume": observed.volume if observed is not None else 0,
+        "previous_close": float(latest.previous_close_price) if latest and latest.previous_close_price is not None else None,
+        "source": latest.source if latest else None,
+        "data_quality": latest.data_quality_flag.value if latest else None,
+        "ingested_at": latest.updated_at if latest else None,
+        # Provider observation and actual batch receipt have distinct meanings.
+        "source_observed_at": getattr(latest, "source_observed_at", None) if latest else None,
+        "batch_fetched_at": getattr(latest, "batch_fetched_at", None) if latest else None,
         "current_price": float(latest.close_price) if latest else None,
         "price_change_percent": float(latest.price_change_percent)
         if latest and latest.price_change_percent is not None
@@ -176,3 +184,40 @@ def build_quote_projection(prices, *, finality="FINALIZED", session_date=None) -
         "observation_session_date": observed.trade_date.isoformat() if observed else None,
         "observation_status": status,
     }
+
+
+def account_mark_is_usable(mark):
+    from math import isfinite
+    return bool(mark and mark.current_price is not None and isfinite(mark.current_price)
+                and mark.current_price > 0 and mark.as_of_trade_date)
+
+
+def resolve_account_mark(*, row=None, fallback_price=None):
+    """The displayed quote and holding arithmetic share this exact observation."""
+    display = getattr(row, "display_quote", None) if row is not None else None
+    if account_mark_is_usable(display):
+        return display
+    from app.modules.market_universe.market_universe_schemas import DisplayQuoteRead
+    if fallback_price is not None:
+        value = fallback_price.close_price
+        return DisplayQuoteRead(
+            current_price=float(value) if value is not None and value.is_finite() and value > 0 else None,
+            previous_close=fallback_price.previous_close_price,
+            price_change=fallback_price.price_change, price_change_percent=fallback_price.price_change_percent,
+            as_of_trade_date=fallback_price.trade_date.isoformat(),
+            observation_status="NO_TRADE" if fallback_price.volume == 0 else "FINALIZED",
+            source=getattr(fallback_price, "source", None), data_quality=fallback_price.data_quality_flag,
+            ingested_at=getattr(fallback_price, "updated_at", None),
+            source_observed_at=getattr(fallback_price, "source_observed_at", None),
+            batch_fetched_at=getattr(fallback_price, "batch_fetched_at", None),
+        )
+    if display is None and row is not None and row.technical_snapshot is not None:
+        # Compatibility for old cached rows: the dated session is an explicitly dated mark.
+        technical = row.technical_snapshot
+        return DisplayQuoteRead(current_price=float(row.session.close_price) if row.session.close_price > 0 else None,
+            previous_close=technical.previous_close, price_change=technical.price_change,
+            price_change_percent=row.session.change_percent,
+            as_of_trade_date=row.session.latest_trade_date.isoformat(),
+            observation_status="FINALIZED", data_quality=row.session.data_quality_flag.value,
+            ingested_at=row.session.updated_at)
+    return DisplayQuoteRead(current_price=None)

@@ -358,6 +358,8 @@ class DailyPrice(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ForeignKey("stocks.id", ondelete="CASCADE"),
         nullable=False,
     )
+    source_observed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    batch_fetched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     trade_date: Mapped[date] = mapped_column(Date, nullable=False)
     open_price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
     high_price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
@@ -1526,3 +1528,32 @@ class TradingSourceObservation(UUIDPrimaryKeyMixin, Base):
     finality: Mapped[str] = mapped_column(String(24), nullable=False)
     payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     previous_payload: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+
+
+class TradingShadowSelection(UUIDPrimaryKeyMixin, Base):
+    """Sealed paired selections, including explicit empty exchange sessions."""
+    __tablename__ = "trading_shadow_selections"
+    __table_args__ = (UniqueConstraint("exchange", "session_date", "strategy_version", "experiment_id", name="uq_shadow_selection_session_policy"),)
+    source_capture_id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), ForeignKey("decision_generation_captures.id"), nullable=False)
+    exchange: Mapped[ExchangeCode] = mapped_column(Enum(ExchangeCode), nullable=False)
+    session_date: Mapped[date] = mapped_column(Date, nullable=False)
+    strategy_version: Mapped[str] = mapped_column(String(80), nullable=False)
+    experiment_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    selected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.clock_timestamp(), nullable=False)
+    next_open_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    record_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    invalidated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class TradingShadowOutcome(UUIDPrimaryKeyMixin, Base):
+    """Append-only modeled outcome vintages; sealed selections never acquire future bars."""
+    __tablename__ = "trading_shadow_outcomes"
+    __table_args__ = (UniqueConstraint("selection_id", "outcome_revision", name="uq_shadow_outcome_revision"),)
+    selection_id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), ForeignKey("trading_shadow_selections.id"), nullable=False)
+    through_date: Mapped[date] = mapped_column(Date, nullable=False)
+    outcome_revision: Mapped[str] = mapped_column(String(64), nullable=False)
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.clock_timestamp(), nullable=False)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    invalidated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

@@ -1,5 +1,7 @@
 "use client";
 
+import { PRICE_BASIS_CONTRACT } from "@/lib/market/entry-contract-capability";
+
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
@@ -32,7 +34,7 @@ export function useRelatedStocks({ exchange, currentStock, sectorLabel, enabled 
   const staleTimeMs = getMarketStaleTimeMs(freshnessQuery.data);
 
   const universeQuery = useQuery({
-    queryKey: ["market-universe-rows", exchange, 500],
+    queryKey: ["market-universe-rows", PRICE_BASIS_CONTRACT, exchange, 500],
     queryFn: () => listUniverseRows(exchange),
     enabled: enabled && currentStock !== null,
     staleTime: staleTimeMs,

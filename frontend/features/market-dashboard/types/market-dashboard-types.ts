@@ -53,6 +53,7 @@ export type MarketMetricModel = {
 };
 
 export type BreadthModel = {
+  provenance?: import("@/lib/api/backend-api-types").BackendBreadthDto;
   advancing: number;
   declining: number;
   unchanged: number;
@@ -65,7 +66,9 @@ export type HeatmapTileModel = {
   label: string;
   sector: string;
   value: string;
-  changePercent: number;
+  changePercent: number | null;
+  tradeDate?: string | null;
+  sectorSummary?: { changePercent: number | null; measuredCount: number; totalCount: number; weighting: "TURNOVER" | "EQUAL" | "UNAVAILABLE" };
   weight: number;
   tone: "positive" | "negative" | "neutral";
   href: string;
@@ -76,8 +79,12 @@ export type HeatmapTileModel = {
 };
 
 export type SignalFeedItemModel = {
+  decisionDate?: string | null;
+  name?: string;
+  measuredFacts?: import("@/lib/api/stock-decision-support-types").MeasuredDecisionFactsDto | null;
+  decisionSummary?: import("@/lib/api/backend-api-types").BackendTraderDecisionSummaryDto | null;
   symbol: string;
-  signal: DecisionDisplayAction;
+  signal: DecisionDisplayAction | null;
   confidence: string;
   confidenceValue: number;
   reason: string;
@@ -86,6 +93,7 @@ export type SignalFeedItemModel = {
   reasonCode?: string | null;
   reasonParams?: ResolvedTraderDecisionReason["params"];
   entryCondition?: string | null;
+  entryApplicability?: import("@/lib/api/stock-decision-support-types").EntryApplicabilityDto | null;
   technicalContext: SignalTechnicalContext;
   risk: string;
   priority: "high" | "medium" | "low";
@@ -142,6 +150,8 @@ export type IndexPerformanceModel = {
 };
 
 export type MarketPulseModel = {
+  indexTradeDate?: string | null;
+  activityTradeDate?: string | null;
   indexName: string;
   indexAvailable: boolean;
   indexValue: string;
@@ -174,6 +184,9 @@ export type MarketPulseModel = {
 };
 
 export type MarketDashboardModel = {
+  overviewPublication?: Pick<import("@/lib/api/backend-api-types").BackendDashboardOverviewDto, "market_sync_id" | "last_synced_at" | "session_trade_date">;
+  activityIsIntraday?: boolean;
+  isIntraday: boolean;
   exchange: ExchangeCode;
   marketMood: MarketMood;
   latestTradeDate: string;

@@ -1,11 +1,21 @@
 import { isMarketApiCacheUrl } from "@/lib/market/market-cache-url-registry";
+import { hasUnusablePositiveEntry } from "@/lib/market/current-entry-contract";
+import { getCurrentMarketFreshness } from "@/lib/market/market-freshness-registry";
 import {
   hasMarketGenerationField,
   responseMatchesMarketFreshness,
 } from "@/lib/market/market-generation";
 
 /** Bump when market IndexedDB payload shape or validation rules change. */
-export const MARKET_INDEXEDDB_SCHEMA_VERSION = 4;
+export const MARKET_INDEXEDDB_SCHEMA_VERSION = 8;
+
+/** Local presentation revision; HTTP identity and other cache populations stay intact. */
+export function marketPresentationCacheKey(url: string): string {
+  const path = url.split("?")[0];
+  if (path.endsWith("/dashboard/movers")) return `${url}#movers-top10-v1`;
+  if (path.endsWith("/dashboard/heatmap")) return `${url}#heatmap-measured-v3`;
+  return path.endsWith("/market/pulse") || path.endsWith("/market/pulse/briefing") ? `${url}#pulse-sector-exact-v5` : url;
+}
 
 export type MarketIndexedDbCacheScope = "default" | "market" | "off";
 
@@ -59,6 +69,20 @@ export function evaluateMarketIndexedDbEntry(
   }
 
   const isMarketEntry = isMarketIndexedDbPayload(payload, options);
+
+  if (isMarketEntry && options.cacheKey?.split("?")[0].endsWith("/dashboard/overview") &&
+      (!payload.data || typeof payload.data !== "object" || !("index_snapshot_version" in payload.data) || payload.data.index_snapshot_version !== 2)) {
+    return { status: "miss", reason: "schema" };
+  }
+
+  if (isMarketEntry && options.cacheKey?.split("?")[0].endsWith("/dashboard/market-sentiment") &&
+      (!payload.data || typeof payload.data !== "object" || !("interpretation" in payload.data) || !payload.data.interpretation)) {
+    return { status: "miss", reason: "schema" };
+  }
+
+  if (isMarketEntry && hasUnusablePositiveEntry(payload.data, getCurrentMarketFreshness(), now)) {
+    return { status: "miss", reason: "expired" };
+  }
 
   if (isMarketEntry && payload.marketSchemaVersion !== MARKET_INDEXEDDB_SCHEMA_VERSION) {
     return { status: "miss", reason: "schema" };

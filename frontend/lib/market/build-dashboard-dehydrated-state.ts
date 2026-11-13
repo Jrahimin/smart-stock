@@ -2,6 +2,7 @@ import { QueryClient, dehydrate, type DehydratedState } from "@tanstack/react-qu
 
 import type { DashboardCorePayload } from "@/lib/api/dashboard-server";
 import { dashboardQueryKey } from "@/features/market-dashboard/hooks/dashboard-query-key";
+import { dashboardSectorGenerationToken, dashboardSectorsMatchFreshness } from "./dashboard-sector-generation";
 
 const DASHBOARD_FRESHNESS_QUERY_KEY = ["market-freshness", "DSE"] as const;
 
@@ -41,8 +42,9 @@ export function buildDashboardDehydratedState(core: DashboardCorePayload | null)
     stampQueryUpdatedAt(queryClient, key, core.fetchedAt);
   }
 
-  if (core.sectors) {
-    const key = dashboardQueryKey("sectors", "DSE", generation);
+  const sectorGeneration = dashboardSectorGenerationToken(core.freshness);
+  if (core.sectors && sectorGeneration && dashboardSectorsMatchFreshness(core.sectors, core.freshness)) {
+    const key = dashboardQueryKey("sectors", "DSE", sectorGeneration);
     queryClient.setQueryData(key, core.sectors);
     stampQueryUpdatedAt(queryClient, key, core.fetchedAt);
   }

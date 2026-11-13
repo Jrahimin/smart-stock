@@ -4,6 +4,7 @@ import json
 import logging
 from dataclasses import dataclass
 from datetime import date, datetime
+from fractions import Fraction
 from typing import Annotated
 from zoneinfo import ZoneInfo
 
@@ -28,8 +29,6 @@ from app.core.constants.trading_constants import (
 from app.core.core_config import Settings, get_settings
 from app.core.enums import (
     DataQualityFlag,
-    DecisionDisplayAction,
-    EligibilityStatus,
     ExchangeCode,
     MarketAlertType,
     MarketDataState,
@@ -37,7 +36,17 @@ from app.core.enums import (
     TrendDirection,
 )
 from app.core.redis_client import OptionalRedisClient, get_redis_client
+from app.jobs.market_session_schedule import resolve_market_status
 from app.modules.market_data.market_data_service import MarketDataService, get_market_data_service
+from app.modules.market_data.market_mover_rules import is_eligible_session_mover
+from app.modules.market_data.session_leadership import (
+    is_eligible_session_candidate as is_eligible_pulse_candidate,
+)
+from app.modules.market_pulse.market_pulse_briefing import (
+    PulseBriefingRow,
+    build_market_briefing,
+    measured_price_change,
+)
 from app.modules.market_pulse.market_pulse_cache import (
     pulse_cache_key,
     pulse_cache_ttl_seconds,
@@ -46,13 +55,6 @@ from app.modules.market_pulse.market_pulse_history import (
     compute_pulse_opportunity_aggregate,
     pulse_history_trend_label,
 )
-from app.modules.market_pulse.market_pulse_snapshot_repository import (
-    MarketPulseSnapshotRepository,
-    PulseSnapshotIdentity,
-    get_market_pulse_snapshot_repository,
-)
-from app.modules.market_data.market_mover_rules import is_eligible_session_mover
-from app.modules.market_pulse.market_pulse_briefing import PulseBriefingRow, build_market_briefing
 from app.modules.market_pulse.market_pulse_schemas import (
     FocusStockRead,
     MarketAlertRead,
@@ -70,6 +72,11 @@ from app.modules.market_pulse.market_pulse_schemas import (
     SinceLastVisitRead,
     TodayInsightRead,
 )
+from app.modules.market_pulse.market_pulse_snapshot_repository import (
+    MarketPulseSnapshotRepository,
+    PulseSnapshotIdentity,
+    get_market_pulse_snapshot_repository,
+)
 from app.modules.market_pulse.pulse_score import (
     build_conviction_insight,
     build_pulse_trigger,
@@ -80,14 +87,13 @@ from app.modules.market_pulse.pulse_score import (
     meets_focus_threshold,
 )
 from app.modules.market_universe.market_universe_compute import technical_snapshot_from_read
-from app.modules.market_universe.market_universe_schemas import ScoredUniverseRow
 from app.modules.market_universe.market_universe_service import (
     CanonicalUniverseSnapshot,
     MarketUniverseService,
     UniverseCacheUnavailableError,
     get_market_universe_service,
 )
-from app.jobs.market_session_schedule import resolve_market_status
+from app.modules.stock_details.decision.entry_applicability import is_current_entry_trigger
 from app.modules.stock_details.decision.technical import TechnicalSnapshot
 from app.modules.stock_details.stock_details_schemas import TraderDecisionSummaryRead
 
@@ -102,26 +108,10 @@ class PulsePresentationRow:
     decision: TraderDecisionSummaryRead
     score: object
     label: PulseFocusLabel
+    measured_change_percent: Fraction | None = None
+    change_basis_available: bool = True
 
 
-def is_eligible_pulse_candidate(
-    row: ScoredUniverseRow,
-    decision_date: date | None = None,
-) -> bool:
-    if (
-        row.decision is None
-        or row.eligibility is None
-        or row.eligibility.status != EligibilityStatus.ELIGIBLE
-    ):
-        return False
-    expected_session = decision_date or row.eligibility.exchange_session_date
-    return (
-        expected_session is not None
-        and row.eligibility.exchange_session_date == expected_session
-        and row.eligibility.latest_trade_date == expected_session
-        and row.session.latest_trade_date == expected_session
-        and row.technical_snapshot.latest_trade_date == expected_session.isoformat()
-    )
 
 
 def _comparable_previous_snapshot(
@@ -286,7 +276,7 @@ def _select_monitor_rows(
 
 
 def _to_focus_stock_read(row: PulsePresentationRow, rank: int) -> FocusStockRead:
-    change = row.snapshot.price_change_percent
+    change = float(row.measured_change_percent) if row.measured_change_percent is not None else row.snapshot.price_change_percent
     breakdown = row.score
     return FocusStockRead(
         entry_readiness=row.decision.entry_readiness or "NOT_READY",
@@ -294,8 +284,9 @@ def _to_focus_stock_read(row: PulsePresentationRow, rank: int) -> FocusStockRead
         controlling_reason=row.decision.primary_reason,
         decision_session_date=row.decision.canonical.as_of_date if row.decision.canonical else None,
         watch_level=row.snapshot.resistance,
-        actionable_trigger=row.decision.display_action == DecisionDisplayAction.POTENTIAL_BUY
-        and bool(row.decision.entry_condition),
+        actionable_trigger=is_current_entry_trigger(row.decision.entry_applicability),
+        entry_applicability=row.decision.entry_applicability,
+        entry_risk_label=row.decision.trading_risk.label if row.decision.trading_risk else row.decision.risk_label,
         rank=rank,
         stock_id=getattr(row.stock, "id"),
         symbol=getattr(row.stock, "symbol"),
@@ -327,7 +318,7 @@ def _to_focus_stock_read(row: PulsePresentationRow, rank: int) -> FocusStockRead
 
 
 def _to_market_mover_read(row: PulsePresentationRow) -> MarketMoverRead:
-    change = row.snapshot.price_change_percent
+    change = float(row.measured_change_percent) if row.measured_change_percent is not None else row.snapshot.price_change_percent
     turnover = row.snapshot.turnover
     return MarketMoverRead(
         symbol=getattr(row.stock, "symbol"),
@@ -611,7 +602,7 @@ class MarketPulseService:
                     generation,
                     exchange=exchange,
                 ):
-                    return self._stamp_pulse(cached_pulse, snapshot)
+                    return await self._stamp_pulse(cached_pulse, snapshot)
 
             payload = await self._compute_market_pulse(
                 exchange=exchange,
@@ -621,7 +612,7 @@ class MarketPulseService:
             )
             if not await self.universe_service.is_generation_current(generation, exchange=exchange):
                 continue
-            stamped = self._stamp_pulse(payload, snapshot)
+            stamped = await self._stamp_pulse(payload, snapshot)
             if uses_shared_pulse_cache(previous, display_name):
                 await self._cache_set(
                     cache_key,
@@ -653,7 +644,7 @@ class MarketPulseService:
                     generation,
                     exchange=exchange,
                 ):
-                    return self._stamp_summary(cached_summary, snapshot)
+                    return await self._stamp_summary(cached_summary, snapshot)
 
             pulse = await self._compute_market_pulse(
                 exchange=exchange,
@@ -663,7 +654,7 @@ class MarketPulseService:
             )
             if not await self.universe_service.is_generation_current(generation, exchange=exchange):
                 continue
-            stamped_pulse = self._stamp_pulse(pulse, snapshot)
+            stamped_pulse = await self._stamp_pulse(pulse, snapshot)
             summary = MarketPulseSummaryRead(
                 hero=stamped_pulse.hero,
                 since_last_visit=stamped_pulse.since_last_visit,
@@ -678,6 +669,7 @@ class MarketPulseService:
                 market_sync_id=stamped_pulse.market_sync_id,
                 decision_generation_id=stamped_pulse.decision_generation_id,
                 decision_status=stamped_pulse.decision_status,
+                quote_generation_id=stamped_pulse.quote_generation_id,
                 data_state=stamped_pulse.data_state,
             )
             if uses_shared_pulse_cache(previous, display_name):
@@ -713,11 +705,11 @@ class MarketPulseService:
             }
         )
 
-    @staticmethod
-    def _stamp_pulse(
-        pulse: MarketPulseRead,
+    async def _stamp_pulse(
+        self, pulse: MarketPulseRead,
         snapshot: CanonicalUniverseSnapshot,
     ) -> MarketPulseRead:
+        pulse = await self._refresh_current_fields(pulse, snapshot)
         generation = snapshot.generation
         coverage = pulse.coverage.model_copy(
             update={
@@ -741,11 +733,11 @@ class MarketPulseService:
             }
         )
 
-    @staticmethod
-    def _stamp_summary(
-        summary: MarketPulseSummaryRead,
+    async def _stamp_summary(
+        self, summary: MarketPulseSummaryRead,
         snapshot: CanonicalUniverseSnapshot,
     ) -> MarketPulseSummaryRead:
+        summary = await self._refresh_current_fields(summary, snapshot)
         generation = snapshot.generation
         coverage = summary.coverage.model_copy(
             update={
@@ -768,6 +760,74 @@ class MarketPulseService:
                 "data_state": generation.data_state,
             }
         )
+
+    async def _refresh_current_fields(self, payload, snapshot):
+        from app.modules.market_data.breadth import breadth_facts
+        exchange = snapshot.rows[0].stock.exchange if snapshot.rows else ExchangeCode.DSE
+        projected = await self.universe_service.project_current_entries(snapshot, exchange=exchange)
+        by_id = {row.stock.id: row for row in projected.rows}
+        freshness = await self.market_data_service.get_market_freshness(exchange=exchange)
+        def refresh(items):
+            result = []
+            for item in items:
+                row = by_id.get(item.stock_id)
+                applicability = row.entry_applicability if row else None
+                comparison = row.public_comparison if row else None
+                label = item.focus_label
+                if row and row.decision:
+                    previous_action = comparison.previous_action if comparison and comparison.status != "UNCOMPARABLE" else None
+                    label = derive_pulse_focus_label(technical_snapshot_from_read(row.technical_snapshot), row.decision,
+                        item.score_breakdown, previous_recommendation=previous_action)
+                presentation = {}
+                if row and row.decision:
+                    technical = technical_snapshot_from_read(row.technical_snapshot)
+                    presentation = {"focus_label": label, "label_tone": _label_tone(label),
+                        "why_here": build_why_here(technical, row.decision, item.score_breakdown, label),
+                        "action_summary": build_conviction_insight(technical, row.decision, item.score_breakdown, label)}
+                result.append(item.model_copy(update={
+                    **presentation,
+                    "display_quote": row.display_quote if row else None,
+                    "measured_facts": row.measured_facts if row else None,
+                    "decision_taxonomy_version": row.decision.decision_taxonomy_version if row and row.decision else None,
+                    "public_comparison": comparison,
+                    "entry_applicability": applicability,
+                    "actionable_trigger": is_current_entry_trigger(applicability),
+                    "entry_risk_label": row.decision.trading_risk.label if row and row.decision and row.decision.trading_risk else None,
+                }))
+            return result
+        eligible = [row for row in snapshot.rows if is_eligible_pulse_candidate(row, snapshot.generation.trade_date)]
+        breadth_values = [measured_price_change(row.technical_snapshot, row.session) for row in eligible]
+        breadth = breadth_facts([value if value is not None else measured_price_change(row.technical_snapshot) for row, value in zip(eligible, breadth_values, strict=True)],
+            cohort="CANONICAL_ELIGIBLE_SAME_SESSION", band=0.05, source="canonical_completed_session",
+            as_of_date=snapshot.generation.trade_date)
+        coverage = (payload.coverage or PulseCoverageRead()).model_copy(update={
+            "quote_session_date": getattr(projected.quote_generation, "trade_date", None) if projected.quote_generation else None,
+            "market_status": freshness.market_status.value, "breadth": breadth,
+            "quote_generation_id": projected.quote_generation.sync_id if projected.quote_generation else None,
+        })
+        update = {"focus_stocks": refresh(payload.focus_stocks), "monitor_candidates": refresh(payload.monitor_candidates),
+            "coverage": coverage, "quote_generation_id": projected.quote_generation.sync_id if projected.quote_generation else None,
+            "hero": payload.hero.model_copy(update={"session_label": freshness.market_status.value.replace("_", " ")})}
+        if isinstance(payload, MarketPulseRead) and payload.briefing:
+            changed = [item for item in update["focus_stocks"] if item.public_comparison and item.public_comparison.status == "CHANGED" and item.public_comparison.current_action == "POTENTIAL_BUY"]
+            upgraded = [item for item in changed if item.public_comparison.previous_action in {"WAIT", "HOLD"}]
+            from app.modules.market_pulse.market_pulse_briefing import measured_price_leader
+            from app.modules.market_pulse.market_pulse_schemas import LeadershipCardRead
+            leader = measured_price_leader((row, measured_price_change(row.technical_snapshot, row.session)) for row in eligible)
+            cards = [card for card in payload.briefing.leadership.cards if card.kind != "stock"]
+            if leader is not None:
+                technical = technical_snapshot_from_read(leader.technical_snapshot)
+                cards.append(LeadershipCardRead(kind="stock", title="Price-change Leader", name=leader.stock.symbol,
+                    detail=_format_percent(measured_price_change(leader.technical_snapshot, leader.session)), subtitle=f"Session price leader · {snapshot.generation.trade_date}",
+                    tone=_price_tone(measured_price_change(leader.technical_snapshot, leader.session)), href=f"/stocks/{leader.stock.exchange.value}/{leader.stock.symbol}",
+                    sparkline_points=_sparkline_points(technical)))
+            leadership = payload.briefing.leadership.model_copy(update={
+                "cards": cards,
+                "fresh_buy_signals": [item.symbol for item in changed],
+                "fresh_new_count": len(changed) - len(upgraded), "fresh_upgraded_count": len(upgraded),
+            })
+            update["briefing"] = payload.briefing.model_copy(update={"breadth": breadth, "leadership": leadership})
+        return payload.model_copy(update=update)
 
     async def _compute_market_pulse(
         self,
@@ -800,7 +860,6 @@ class MarketPulseService:
             previous = None
 
         scored_rows: list[PulsePresentationRow] = []
-        previous_recommendations = previous.recommendations if previous else {}
 
         for universe_row in universe_rows:
             if not is_eligible_pulse_candidate(universe_row, decision_date):
@@ -808,18 +867,7 @@ class MarketPulseService:
             snapshot = technical_snapshot_from_read(universe_row.technical_snapshot)
             decision = universe_row.decision
             score = compute_pulse_score(snapshot, decision)
-            previous_finalized = universe_row.previous_finalized_decision
-            prev_rec = (
-                previous_finalized.display_action.value if previous_finalized is not None
-                and previous_finalized.as_of_date < decision_date
-                else previous_recommendations.get(str(universe_row.stock.id))
-            )
-            previous_enum: DecisionDisplayAction | None = None
-            if prev_rec:
-                try:
-                    previous_enum = DecisionDisplayAction(prev_rec)
-                except ValueError:
-                    previous_enum = None
+            previous_enum = None  # Transition claims are projected from verified public pairs at read time.
 
             label = derive_pulse_focus_label(
                 snapshot,
@@ -827,6 +875,7 @@ class MarketPulseService:
                 score,
                 previous_recommendation=previous_enum,
             )
+            measured_change = measured_price_change(snapshot, universe_row.session)
             scored_rows.append(
                 PulsePresentationRow(
                     stock=universe_row.stock,
@@ -834,6 +883,8 @@ class MarketPulseService:
                     decision=decision,
                     score=score,
                     label=label,
+                    measured_change_percent=measured_change,
+                    change_basis_available=measured_change is not None,
                 )
             )
 
@@ -854,7 +905,7 @@ class MarketPulseService:
 
         hero = MarketPulseHeroRead(
             greeting=f"{_greeting()}{greeting_name}",
-            attention_headline="Story of the day",
+            attention_headline="Session overview",
             attention_subline="A quick read on what's moving the market and what deserves attention.",
             last_updated_label=_format_time_label(last_synced),
             relative_updated_label=_format_relative_updated(last_synced),
@@ -874,6 +925,8 @@ class MarketPulseService:
                 snapshot=row.snapshot,
                 decision=row.decision,
                 score=row.score,
+                measured_change_percent=row.measured_change_percent,
+                change_basis_available=row.change_basis_available,
             )
             for row in scored_rows
         ]
@@ -927,6 +980,9 @@ class MarketPulseService:
             empty_state=empty_state,
             empty_message=empty_message,
             data_quality_note=(
+                "Some sector comparisons lack an exact source price-change basis."
+                if any(not row.change_basis_available for row in scored_rows)
+                else
                 f"{suspicious_count} instruments flagged for data quality review."
                 if suspicious_count > 0
                 else None
@@ -979,7 +1035,7 @@ class MarketPulseService:
             new_changes_count=len(changes),
             new_focus_count=new_focus_count,
             new_alerts_count=new_alerts_count,
-            summary_label=parts and " · ".join(parts) or "No new changes since your last visit",
+            summary_label=parts and " Â· ".join(parts) or "No new changes since your last visit",
         )
 
     def _build_today_insight(
@@ -999,7 +1055,7 @@ class MarketPulseService:
             name, count = hot_sector
             return TodayInsightRead(
                 title=f"{name} sector attracting unusual volume",
-                explanation=f"Multiple {name} names are trading with expanded participation today, making the group worth a closer read.",
+                explanation=f"Multiple {name} names are trading with expanded participation in the recorded session, making the group worth a closer read.",
                 supporting_fact=f"{count} stocks in this sector are above {VOLUME_EXPANSION_RATIO}x prior-session median volume.",
                 tone="info",
             )
@@ -1018,7 +1074,7 @@ class MarketPulseService:
             return TodayInsightRead(
                 title=f"Multiple focus candidates emerging in {name}",
                 explanation=f"Several {name} stocks crossed the attention threshold together, showing group-level participation rather than an isolated move.",
-                supporting_fact=f"{count} stocks from this sector are in focus today.",
+                supporting_fact=f"{count} stocks from this sector are in focus for this session.",
                 tone="positive",
             )
 
@@ -1031,7 +1087,7 @@ class MarketPulseService:
             return TodayInsightRead(
                 title="Broad momentum improvement across the market",
                 explanation="Positive momentum is present beyond a handful of leaders while volume confirmation remains necessary.",
-                supporting_fact=f"{len(improving)} stocks are in uptrends with positive moves today.",
+                supporting_fact=f"{len(improving)} stocks are in uptrends with positive session moves.",
                 tone="positive",
             )
 
@@ -1082,7 +1138,7 @@ class MarketPulseService:
                         time_label=time_label,
                         change_type="exited-focus",
                         title=f"{row.stock.symbol} exited Focus List",
-                        description="Attention score fell below today's threshold.",
+                        description="Attention score fell below the session threshold.",
                         badge="Exited",
                         badge_tone="warning",
                         symbol=row.stock.symbol,
@@ -1120,7 +1176,7 @@ class MarketPulseService:
                         id=f"rec-{stock_id}",
                         time_label=time_label,
                         change_type="recommendation-shift",
-                        title=f"{row.stock.symbol} {previous_rec} → {current_rec}",
+                        title=f"{row.stock.symbol} {previous_rec} â†’ {current_rec}",
                         description=row.decision.reason,
                         badge=(
                             "Potential Buy"

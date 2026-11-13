@@ -7096,8 +7096,20 @@ button {
 .trader-decision-metrics {
   display: grid;
   gap: 8px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
+
+.trader-decision-metrics > div:first-child { grid-column: 1 / -1; }
+.trader-decision-subtle, .decision-source-detail, .entry-applicability { overflow-wrap: anywhere; line-height: 1.65; }
+.trader-decision-subtle { color: var(--muted); font-size: 0.78rem; margin: 0; }
+.entry-applicability { border: 1px solid var(--border); border-left: 3px solid var(--warning); border-radius: 10px; background: var(--subtle); padding: 12px; font-size: 0.82rem; }
+.entry-applicability p { margin: 6px 0 0; }
+.entry-applicability small { display: block; margin-top: 8px; color: var(--muted); font-size: 0.7rem; }
+.entry-applicability-applicable { border-left-color: var(--positive); }
+.entry-applicability-invalidated { border-left-color: var(--negative); }
+.decision-source-detail { border-top: 1px solid var(--border); padding-top: 10px; color: var(--muted); font-size: 0.75rem; }
+.decision-source-detail summary { cursor: pointer; }
+.decision-source-detail summary:focus-visible { outline: 2px solid var(--foreground); outline-offset: 4px; border-radius: 4px; }
 
 .trader-decision-metrics span {
   color: var(--muted);
@@ -7356,8 +7368,15 @@ button {
   align-items: center;
   display: grid;
   gap: 10px;
-  grid-template-columns: 92px 1fr auto;
+  grid-template-columns: minmax(90px, 0.7fr) minmax(80px, 2fr) minmax(105px, 0.8fr);
 }
+
+.trade-plan-row > strong { text-align: right; font-variant-numeric: tabular-nums; font-size: 0.82rem; }
+.trade-plan-date, .trade-plan-management { font-size: 0.75rem; color: var(--muted); line-height: 1.6; margin: 0 0 14px; }
+.trade-plan-management { margin: 14px 0 0; }
+.trade-plan-rr { font-size: 0.75rem; font-variant-numeric: tabular-nums; }
+.trade-plan-tick { position: absolute; top: -3px; width: 2px; height: 14px; background: var(--foreground); transform: translateX(-50%); }
+.trade-plan-target-band { background: var(--positive); }
 
 .trade-plan-row span {
   color: var(--muted);
@@ -31773,7 +31792,7 @@ button {
 }
 @media (max-width: 640px) {
   .portfolio-pulse-secondary {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .portfolio-header-v2 h1 {
     font-size: 24px;
@@ -32303,3 +32322,280 @@ button {
 @media (prefers-reduced-motion: reduce) {
   .terminal-sidebar-desktop { transition: none; }
 }
+
+/* Keep action provenance legible in the compact header tile. */
+.stock-workspace-header .stock-header-metric-action small {
+  overflow: visible;
+  white-space: normal;
+  text-overflow: clip;
+  line-height: 1.45;
+}
+
+.signal-controlling-reason, .signal-measured-support, .pulse-breadth-coverage { line-height: 1.65; overflow-wrap: anywhere; }
+.signal-measured-support { display: block; font-size: 0.78rem; color: var(--muted); }
+.pulse-focus-conviction .entry-applicability { margin-top: 10px; font-weight: 400; }
+.pulse-breadth-coverage { color: var(--muted); font-size: 0.74rem; margin: 8px 0; }
+
+.pulse-focus-score-row { display: flex; justify-content: flex-end; margin-top: 8px; }
+.pulse-score-insight-panel[hidden] { display: none !important; }
+.pulse-score-insight[data-open="true"] .pulse-score-insight-panel { visibility: visible; opacity: 1; transform: none; pointer-events: auto; }
+.pulse-score-insight-trigger:focus-visible, .pulse-focus-detail-link:focus-visible { outline: 2px solid var(--foreground); outline-offset: 4px; border-radius: 4px; }
+.pulse-focus-detail-link { white-space: nowrap; font-size: 0.78rem; color: var(--primary); }
+
+/* Account observations and audience-specific guidance share both layouts. */
+.portfolio-account-decision { gap: 5px; max-width: 290px; min-width: 190px; }
+.portfolio-account-decision small, .portfolio-account-decision p { font-size: 11px; font-weight: 450; line-height: 1.5; margin: 0; overflow-wrap: anywhere; white-space: normal; }
+.portfolio-account-decision .portfolio-audience { font-size: 10px; }
+.portfolio-account-decision .portfolio-status { white-space: normal; }
+.portfolio-account-decision .action-reduce, .portfolio-account-decision .action-review { background: color-mix(in srgb, var(--warning) 12%, var(--panel)); color: var(--warning); }
+.portfolio-mark-detail { color: var(--muted); font-size: 10px; line-height: 1.45; max-width: 180px; }
+.portfolio-mark-detail summary, .portfolio-comparison summary { cursor: pointer; }
+.portfolio-mark-detail div { display: grid; gap: 4px; padding-top: 6px; }
+.portfolio-mark-detail small, .portfolio-comparison small { line-height: 1.5; overflow-wrap: anywhere; white-space: normal; }
+.portfolio-comparison { color: var(--muted); font-size: 10px; line-height: 1.5; }
+.portfolio-detail-link { color: var(--accent); font-size: 11px; width: fit-content; }
+.portfolio-detail-link:focus-visible, .portfolio-mark-detail summary:focus-visible, .portfolio-comparison summary:focus-visible { border-radius: 3px; outline: 2px solid var(--accent); outline-offset: 3px; }
+.portfolio-partial-note { color: var(--muted); font-size: 11px; line-height: 1.5; margin: 5px 0; }
+.portfolio-mobile-card .portfolio-account-decision { border-bottom: 1px solid var(--border); margin: 12px 0; max-width: none; padding-bottom: 12px; }
+.portfolio-mobile-card .portfolio-mark-detail { max-width: 100%; }
+.portfolio-value-pl-row { flex-wrap: wrap; }
+.portfolio-guidance-cell .portfolio-account-decision { min-width: 220px; }
+@media (max-width: 767px) {
+  .portfolio-mobile-card .portfolio-account-decision { min-width: 0; }
+  .portfolio-mobile-card-metrics .portfolio-mobile-metric { min-width: 0; }
+}
+
+.holder-addition-context { border-top: 1px solid var(--border); display: grid; gap: 8px; margin-top: 12px; padding-top: 12px; }
+.holder-addition-context > strong { color: var(--muted); font-size: 12px; }
+
+.stock-header-metric .decision-publication-compact { display: flex; flex-wrap: wrap; gap: 2px 5px; line-height: 1.45; }
+.decision-publication-compact > [aria-hidden="true"] { white-space: nowrap; }
+
+/* Account summary: concise values and visible partial coverage; methods on demand. */
+.portfolio-summary-grid-v3 { align-items:stretch; grid-template-columns:minmax(0,1.45fr) minmax(250px,1.05fr) minmax(225px,.85fr); }
+.portfolio-summary-grid-v3 > .portfolio-panel { padding:18px; min-height:0; }
+.portfolio-summary-grid-v3 .portfolio-section-heading { margin-bottom:12px; }
+.portfolio-pulse-hero { gap:16px; }
+.portfolio-pulse-secondary .portfolio-pulse-stat > span { font-size:11px; line-height:1.4; }
+.portfolio-pulse-meta { margin-top:12px; gap:5px; }
+.portfolio-coverage-inline { color:var(--muted); font-size:11px; line-height:1.5; margin:0; }
+.portfolio-coverage-inline button { border:0; background:none; color:var(--accent); cursor:pointer; font:inherit; margin-left:5px; padding:0; }
+.portfolio-partial-flag { color:var(--warning); font-size:11px; font-weight:600; }
+.portfolio-email-summary { justify-content:flex-start; gap:12px; }
+.portfolio-email-summary .portfolio-section-heading { margin:0; }
+.portfolio-email-summary .portfolio-email-toggle { margin:0; }
+.portfolio-icon-rail .sw-info-trigger { display:grid; place-items:center; padding:0; }
+.quote-observation-times { display:grid; gap:4px; line-height:1.5; }
+.quote-timing-disclosure { font-size:10px; max-width:220px; color:var(--muted); }
+.quote-timing-disclosure summary { cursor:pointer; }
+@media(max-width:1100px) { .portfolio-summary-grid-v3 { grid-template-columns:repeat(2,minmax(0,1fr)); } .portfolio-summary-grid-v3 .portfolio-email-summary { grid-column:1/-1; } }
+@media(max-width:640px) { .portfolio-summary-grid-v3 { grid-template-columns:minmax(0,1fr); } .portfolio-summary-grid-v3 .portfolio-email-summary { grid-column:auto; } }
+
+.portfolio-summary-grid-v3 .portfolio-email-summary { align-content:start; justify-content:start; }
+.portfolio-email-timing { color:var(--muted); font-size:11px; line-height:1.5; }
+.portfolio-summary-grid-v3 .portfolio-pulse-value { font-size:clamp(1.7rem,2.4vw,2.25rem); }
+:root:not([data-theme="light"]) .portfolio-summary-grid-v3 .sw-info-trigger { color:var(--primary); }
+/* Trader review: concise checks, readable labels and page-friendly chart/rail. */
+.entry-applicability:not(.entry-check-alert) { border:0; background:transparent; padding:0; color:var(--muted); font-size:12px; line-height:1.5; }
+.entry-check-detail summary { cursor:pointer; width:fit-content; list-style:none; font-size:12px; }
+.entry-check-detail summary:focus-visible { outline:2px solid var(--primary); outline-offset:3px; border-radius:3px; }
+.entry-check-detail p { max-width:54ch; font-size:12px; color:var(--foreground); margin:8px 0; }
+.entry-check-alert { border-left-color:var(--warning); }
+.snapshot-price-note { margin:0; color:var(--muted); font-size:12px; line-height:1.5; }
+.signal-center-view .signal-center-item, .scanner-result-card { min-width:0; gap:8px; padding:16px; }
+.signal-center-view .signal-center-item > small, .scanner-result-card > small, .signal-center-item .signal-badge, .pulse-focus-card .signal-badge { font-size:12px; }
+.signal-center-view .signal-center-item > a, .scanner-result-card > a { color:var(--primary); font-size:12px; margin-top:auto; }
+.signal-center-topline > div { min-width:0; }
+.signal-center-topline span, .pulse-focus-identity > span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; }
+.pulse-focus-card-header { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
+.pulse-focus-card-head, .pulse-focus-identity { min-width:0; flex:1; }
+.pulse-focus-identity { max-width:none; }
+.pulse-focus-card small, .pulse-focus-card-footer small, .pulse-next-trigger strong { font-size:12px; }
+.pulse-next-trigger { display:grid; gap:4px; padding:10px 0; border-block:1px solid var(--border); }
+.pulse-focus-why-block { margin-top:8px; }
+.stock-workspace-header { flex-wrap:wrap; }
+.stock-workspace-header .stock-header-metrics { max-width:none; flex:1 1 650px; grid-template-columns:repeat(4,minmax(140px,1fr)); }
+.stock-workspace-header .stock-header-metrics small, .stock-workspace-header .stock-header-metrics span { white-space:normal; overflow:visible; text-overflow:clip; font-size:12px; }
+.stock-workspace-header .stock-header-metric-action .signal-badge { font-size:12px; white-space:normal; max-width:none; }
+.trade-plan-zone.entry { background:color-mix(in srgb,var(--primary) 55%,transparent); border:2px solid var(--primary); opacity:1; }
+.portfolio-sector-legend span, .portfolio-sector-legend strong { white-space:normal; text-overflow:clip; overflow:visible; }
+.portfolio-guidance-cell { padding-right:20px!important; }
+.portfolio-unified-table-v2 { min-width:960px; }
+@media(min-width:1024px) { .trader-decision-rail { max-height:calc(100dvh - 100px); overflow-y:auto; overscroll-behavior:contain; scrollbar-gutter:stable; } }
+@media(max-width:767px) { .stock-workspace-header .stock-header-metrics { flex-basis:100%; grid-template-columns:repeat(2,minmax(0,1fr)); } }
+.signal-center-topline { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; }
+.signal-center-topline > div { min-width:0; width:auto; overflow:hidden; }
+.signal-center-topline > div > span { display:block; width:100%; }
+.signal-center-topline > .signal-badge { flex-shrink:0; max-width:130px; min-width:0; white-space:normal; overflow:visible; text-overflow:clip; }
+.signal-center-view .explorer-hero { padding:16px 20px; gap:10px; }
+.signal-center-view .explorer-hero-head { margin-block:4px; }
+.signal-center-view .explorer-hero h1 { margin-block:2px; font-size:clamp(24px,2.7vw,32px); }
+.signal-center-view .explorer-hero-subtitle { font-size:12px; line-height:1.4; }
+.signal-center-view .explorer-hero-controls { margin-top:8px; gap:8px; }
+.portfolio-exposure-legend span, .portfolio-exposure-legend strong { white-space:normal; text-overflow:clip; overflow:visible; }
+.signal-center-view .signal-center-item { gap:6px; }
+.signal-center-view .signal-center-item { padding:14px; }
+.signal-center-view .signal-center-item { line-height:1.45; }
+.trader-decision-hero small, .trade-plan-date, .portfolio-market-cell small, .portfolio-account-decision small, .sw-signals td small { font-size:12px; }
+.scanner-result-card .signal-badge, .sw-signals .signal-badge { font-size:12px; white-space:normal; overflow:visible; text-overflow:clip; }
+@media(min-width:1100px) {
+  .signal-center-view { gap:6px; }
+  .signal-center-view .explorer-hero { grid-template-columns:minmax(0,1fr) auto; grid-template-areas:"head status" "controls controls"; gap:8px 18px; padding:12px 18px; }
+  .signal-center-view .explorer-hero-status-row { grid-area:status; width:auto; align-self:center; }
+  .signal-center-view .explorer-hero-head { grid-area:head; padding-right:0; margin:0; }
+  .signal-center-view .explorer-hero-copy > .eyebrow { display:none; }
+  .signal-center-view .explorer-hero h1 { margin:0; line-height:1.2; }
+  .signal-center-view .explorer-hero-controls { grid-area:controls; margin-top:0; }
+  .signal-center-view .explorer-hero-discovery { flex-basis:320px; min-width:280px; }
+}
+.sw-index-date { display:block; color:var(--muted); font-size:12px; margin:4px 0 0 16px; }
+
+/* Stock details: one cohesive hero with room for readable market facts. */
+.stock-workspace-topbar { background:var(--panel); border:1px solid var(--border); border-radius:18px; padding:14px; grid-template-columns:minmax(0,1fr) min(350px,32%); }
+.stock-workspace-topbar .stock-workspace-header { background:transparent; border:0; border-radius:0; padding:0; align-self:center; }
+.stock-workspace-topbar .stock-workspace-header > div:first-child { flex:0 1 36%; max-width:36%; }
+.stock-workspace-topbar .stock-header-metrics { flex:1 1 0; grid-template-columns:repeat(4,minmax(0,1fr)); }
+.stock-workspace-topbar .stock-header-metric { overflow:visible; }
+.stock-workspace-topbar .stock-header-metrics strong { white-space:normal; overflow:visible; text-overflow:clip; }
+.stock-workspace-topbar-search { opacity:1; transform:none; }
+@media (max-width:1023px) {
+  .stock-workspace-topbar { grid-template-columns:minmax(0,1fr); }
+  .stock-workspace-topbar .stock-workspace-header { align-items:stretch; }
+  .stock-workspace-topbar .stock-workspace-header > div:first-child { max-width:none; }
+  .stock-workspace-topbar .stock-header-metrics { flex:auto; }
+}
+@media (max-width:767px) {
+  .stock-workspace-topbar .stock-header-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+
+.related-stock-card .scanner-card-topline { flex-wrap:wrap; }
+.related-stock-card .scanner-card-topline strong { min-width:0; overflow-wrap:anywhere; }
+
+.stock-workspace-topbar .stock-header-title-row { flex-wrap:wrap; gap:4px 8px; }
+.stock-workspace-topbar .stock-header-title-row h1 { min-width:0; overflow-wrap:anywhere; }
+
+/* Trade plan: compact levels and a clearly dated, watch-only context. */
+.trade-plan-strip { background:linear-gradient(145deg,color-mix(in srgb,var(--primary) 5%,var(--panel)),var(--panel) 65%); border-color:color-mix(in srgb,var(--primary) 22%,var(--border)); padding:14px; }
+.trade-plan-heading { align-items:center; display:flex; flex-wrap:wrap; gap:8px 16px; justify-content:space-between; }
+.trade-plan-heading-title { align-items:center; display:flex; flex-wrap:wrap; gap:8px; }
+.trade-plan-title { color:var(--foreground); font-size:0.76rem; font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
+.trade-plan-status { background:color-mix(in srgb,var(--warning) 12%,var(--panel)); border:1px solid color-mix(in srgb,var(--warning) 30%,var(--border)); border-radius:999px; color:var(--warning); font-size:.7rem; font-weight:700; padding:3px 9px; }
+.trade-plan-rr { align-items:baseline; display:flex; gap:7px; }
+.trade-plan-rr span { color:var(--muted); font-size:.72rem; }
+.trade-plan-rr strong { color:var(--foreground); font-size:.94rem; }
+.trade-plan-strip .trade-plan-date { margin:7px 0 10px; }
+.trade-plan-timeline { gap:4px; }
+.trade-plan-row { border:1px solid transparent; border-radius:9px; gap:10px; grid-template-columns:minmax(105px,.85fr) minmax(80px,2fr) minmax(105px,.8fr); min-height:33px; padding:5px 9px; }
+.trade-plan-row > span { font-weight:650; line-height:1.3; }
+.trade-plan-row > strong { color:var(--foreground); font-size:.82rem; }
+.trade-plan-entry { background:color-mix(in srgb,var(--primary) 9%,var(--panel)); border-color:color-mix(in srgb,var(--primary) 18%,var(--border)); }
+.trade-plan-entry > span { color:var(--primary); }
+.trade-plan-current { background:color-mix(in srgb,var(--foreground) 3%,var(--panel)); }
+.trade-plan-stop, .trade-plan-target { background:color-mix(in srgb,var(--foreground) 2%,var(--panel)); }
+.trade-plan-track { height:6px; }
+.trade-plan-zone.entry { min-width:3px; }
+@media (max-width:520px) {
+  .trade-plan-row { grid-template-columns:minmax(0,1fr) auto; gap:5px 10px; }
+  .trade-plan-row > span { grid-column:1; grid-row:1; }
+  .trade-plan-row > strong { grid-column:2; grid-row:1; }
+  .trade-plan-row > .trade-plan-track { grid-column:1 / -1; grid-row:2; margin:2px 0 3px; }
+}
+
+.trade-plan-zone.trade-plan-target-band { background:color-mix(in srgb,var(--positive) 45%,transparent); }
+
+/* Trader follow-up: measured evidence and one page scroll owner. */
+.measured-decision-facts { display:block; color:var(--muted); font-size:0.74rem; line-height:1.55; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+.sw-signal-company { display:block; font-weight:400; font-size:0.7rem; color:var(--muted); white-space:normal; line-height:1.4; margin-top:3px; }
+.scanner-company-name { display:block; font-size:0.8rem; line-height:1.45; color:var(--muted); }
+.pulse-focus-identity > span { white-space:normal; overflow:visible; text-overflow:clip; }
+.signal-load-more { display:flex; justify-content:center; align-items:center; gap:16px; margin:20px 0; }
+.trader-decision-rail { position:static; max-height:none; overflow:visible; overscroll-behavior:auto; scrollbar-gutter:auto; }
+.trader-decision-hero .measured-decision-facts { padding-top:12px; border-top:1px solid var(--border); }
+@media(min-width:1024px) { .trader-decision-rail[data-sticky-fit="true"] { position:sticky; top:96px; } }
+
+.terminal-shell:not(.terminal-shell-collapsed) .terminal-sidebar nav a > span { white-space:normal; text-overflow:clip; overflow:visible; line-height:1.35; min-width:0; }
+.event-timeline-node strong { white-space:normal; overflow-wrap:anywhere; line-height:1.4; }
+.pulse-alert-title-row { display:flex; align-items:flex-start; gap:8px; }
+.pulse-alert-icon { flex:0 0 18px; display:flex; justify-content:center; padding-top:2px; }
+.pulse-alert-title-row strong { min-width:0; line-height:1.45; }
+
+.signal-center-topline { grid-template-columns:minmax(0,1fr); align-items:start; }
+.signal-center-topline > div { overflow:visible; }
+.signal-center-topline > div > span { white-space:normal; overflow:visible; text-overflow:clip; overflow-wrap:anywhere; }
+.signal-center-topline > .signal-badge { max-width:none; width:fit-content; white-space:nowrap; }
+.pulse-shared-date, .decision-rating-facts { color:var(--muted); font-variant-numeric:tabular-nums; }
+
+.pulse-focus-reasons li::before { content:"•"; }
+
+.trader-decision-action { font-size:1.35rem; letter-spacing:0.005em; line-height:1.15; }
+.published-setup-condition { display:block; color:var(--foreground); line-height:1.5; font-size:0.75rem; margin:4px 0; }
+.pulse-focus-why-block { flex:0 0 auto; min-height:0; align-content:start; grid-template-rows:auto auto; }
+.pulse-focus-reasons { margin:0; align-self:start; }
+.pulse-score-header-cluster { display:grid; grid-template-columns:auto auto; align-items:center; gap:4px; }
+.pulse-attention-score-label { grid-column:1 / -1; color:var(--muted); font-size:0.65rem; line-height:1.2; text-align:center; }
+.terminal-shell-collapsed .terminal-sidebar nav a:not(.wealth-workspace-nav-tile) { height:auto; min-height:54px; }
+.terminal-shell-collapsed .terminal-sidebar nav a:not(.wealth-workspace-nav-tile) > span { white-space:normal; text-overflow:clip; overflow:visible; line-height:1.15; }
+
+/* Readable dated price provenance in narrow stock summary tiles. */
+@media (max-width: 639px) {
+  .stock-workspace-header .stock-header-metric-price small {
+    white-space: normal;
+    overflow: visible;
+    line-height: 1.45;
+    font-size: 0.75rem;
+    font-weight: 500;
+    margin-top: 4px;
+  }
+  .stock-workspace-header .stock-header-metric-price { min-height: 108px; }
+  .price-position-labels { gap: 8px; flex-wrap: wrap; }
+}
+
+/* Compact Dashboard signal facts without changing other decision surfaces. */
+.sw-signals .measured-decision-facts {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 3px 7px;
+  border-radius: 6px;
+  background: var(--surface-muted, rgba(93, 125, 174, 0.1));
+  color: var(--text, inherit);
+  font-weight: 600;
+  line-height: 1.4;
+}
+.sw-signal-table tbody th, .sw-signal-table tbody td { padding-top: 8px; padding-bottom: 8px; }
+
+/* Pulse: clear hierarchy for decision, evidence and session alerts. */
+.pulse-focus-shell-card .pulse-focus-card {
+  background: linear-gradient(155deg, var(--panel), color-mix(in srgb, var(--panel) 94%, var(--primary) 6%));
+  gap: 10px;
+  padding: 16px;
+}
+.pulse-focus-conviction { border-radius: 10px; padding: 10px 12px; }
+.pulse-next-trigger { border-top: 0; border-radius: 10px; padding: 10px 12px; background: color-mix(in srgb, var(--primary) 6%, var(--panel)); }
+.pulse-next-trigger small { color: var(--muted); font-weight: 700; }
+.pulse-next-trigger strong { display: block; margin-top: 4px; line-height: 1.5; }
+.pulse-focus-evidence { display: grid; gap: 3px; padding: 9px 0; border-block: 1px solid var(--border); }
+.pulse-focus-evidence .measured-decision-facts { line-height: 1.5; }
+.pulse-focus-risk { color: var(--muted); }
+.pulse-focus-risk strong { color: var(--foreground); }
+.pulse-alerts-feed { gap: 8px; }
+.pulse-alerts-feed .pulse-alert-row, .pulse-alerts-feed .pulse-alert-row:first-child {
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--panel) 96%, var(--primary) 4%);
+  padding: 10px 12px;
+  transition: border-color .18s ease, background .18s ease;
+}
+.pulse-alerts-feed a.pulse-alert-row:hover, .pulse-alerts-feed a.pulse-alert-row:focus-visible {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--panel) 91%, var(--primary) 9%);
+}
+.pulse-alerts-feed .pulse-alert-content { gap: 5px; }
+.pulse-alerts-feed .pulse-alert-context { text-align: left; line-height: 1.45; }
+.pulse-alerts-feed .pulse-alert-priority { font-size: .65rem; padding: 4px 6px; }
+.pulse-alerts-feed .pulse-alert-time { font-size: .68rem; }
+
+/* The existing details link covers the card; disclosures stay independently interactive. */
+.pulse-focus-card { position: relative; }
+.pulse-focus-detail-link::after { content: ""; position: absolute; inset: 0; z-index: 1; }
+.pulse-focus-card .pulse-score-insight, .pulse-focus-card .entry-applicability-unverified { position: relative; z-index: 2; }
+.pulse-focus-card:has(.pulse-focus-detail-link:focus-visible) { outline: 2px solid var(--primary); outline-offset: 2px; }

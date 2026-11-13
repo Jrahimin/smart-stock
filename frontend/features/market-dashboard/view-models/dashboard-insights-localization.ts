@@ -67,17 +67,22 @@ function localizeInsightCategory(
   return categories[category] ?? category;
 }
 
+import { formatMarketInterpretation } from "@/lib/market/market-interpretation-presentation";
+import type { AppLocale } from "@/lib/locale/app-locale";
+
 function localizeDashboardInsight(
   insight: InsightBlockModel,
   copy: DashboardLanguage["insights"],
   narratives: DashboardLanguage["narratives"],
   context: {
+    locale?: AppLocale;
     marketMood: MarketMood;
     signalCount: number;
     turnover: TurnoverInsightContext;
   },
 ): InsightBlockModel {
   const categoryLabel = localizeInsightCategory(insight.category, copy.categories);
+  if (insight.interpretation) return { ...insight, ...formatMarketInterpretation(insight.interpretation, context.locale ?? "en"), categoryLabel };
 
   switch (insight.id) {
     case "market-mood": {
@@ -120,6 +125,7 @@ export function localizeDashboardInsights(
   copy: DashboardLanguage["insights"],
   narratives: DashboardLanguage["narratives"],
   context: {
+    locale?: AppLocale;
     marketMood: MarketMood;
     signalCount: number;
     turnover: TurnoverInsightContext;

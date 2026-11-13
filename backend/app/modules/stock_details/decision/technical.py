@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import cached_property
 from datetime import date
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
+from fractions import Fraction
 from math import isfinite
 from statistics import median
 
@@ -37,6 +39,23 @@ def _to_float(value: Decimal | float | int | None) -> float | None:
     if value is None:
         return None
     return float(value)
+
+
+def _price_fraction(value: Decimal | float | int) -> Fraction:
+    return Fraction(value if isinstance(value, Decimal) else Decimal(str(value)))
+
+
+def _exact_change_ratio(latest: DailyPrice, previous_close) -> Fraction | None:
+    try:
+        if latest.price_change_percent is not None:
+            return _price_fraction(latest.price_change_percent)
+        if previous_close is None or previous_close == 0:
+            return None
+        previous = _price_fraction(previous_close)
+        change = _price_fraction(latest.price_change) if latest.price_change is not None else _price_fraction(latest.close_price) - previous
+        return change / previous * 100
+    except (ValueError, OverflowError, ZeroDivisionError, InvalidOperation):
+        return None
 
 
 def average(values: list[float]) -> float | None:
@@ -398,6 +417,23 @@ def classify_structure(swings: list[SwingPoint]) -> str:
 
 
 @dataclass(frozen=True)
+class VolumeFacts:
+    prior_sample_count: int
+    baseline: float | None
+    current_volume: int
+    ratio: float | None
+    classification: VolumeBehavior
+
+
+def volume_facts(current_volume, baseline, prior_sample_count):
+    ratio = current_volume / baseline if baseline is not None and baseline > 0 else None
+    classification = (VolumeBehavior.UNKNOWN if ratio is None else
+                      VolumeBehavior.EXPANSION if ratio >= VOLUME_EXPANSION_RATIO else
+                      VolumeBehavior.THIN if ratio <= VOLUME_THIN_RATIO else VolumeBehavior.NORMAL)
+    return VolumeFacts(prior_sample_count, baseline, current_volume, ratio, classification)
+
+
+@dataclass(frozen=True)
 class TechnicalSnapshot:
     latest_price: float | None
     previous_close: float | None
@@ -441,6 +477,11 @@ class TechnicalSnapshot:
     observed_session_count: int = 0
     missing_session_count: int = 0
     calendar_status: str = "OBSERVED_ROWS_ONLY"
+    price_change_percent_ratio: Fraction | None = None
+
+    @cached_property
+    def volume_facts(self) -> VolumeFacts:
+        return volume_facts(self.volume, self.average_volume, self.volume_observation_count)
 
 
 def build_technical_snapshot(
@@ -448,6 +489,7 @@ def build_technical_snapshot(
     *,
     exchange_session_dates: tuple[date, ...] | list[date] | None = None,
     adjustment_coverage_verified: bool = False,
+    legacy_volume_baseline: bool = False,
 ) -> TechnicalSnapshot | None:
     if not prices:
         return None
@@ -501,6 +543,13 @@ def build_technical_snapshot(
     closes = [row[3] for row in analytical_rows]
 
     latest_price = _to_float(latest.close_price)
+    # Exact presentation basis is captured before the compatible float fields.
+    # History follows the same verified analytical basis as `closes` below.
+    exact_previous = latest.previous_close_price
+    if not exact_previous and len(valid_prices) >= 2:
+        prior = valid_prices[-2]
+        exact_previous = prior.adjusted_close_price if use_adjusted_close else prior.close_price
+    exact_percent = _exact_change_ratio(latest, exact_previous)
     previous_close = _to_float(latest.previous_close_price) or (
         closes[-2] if len(closes) >= 2 else None
     )
@@ -519,11 +568,12 @@ def build_technical_snapshot(
     # Average volume/turnover exclude the latest session so the current bar is
     # measured against its own baseline rather than being diluted into it.
     baseline_prices = valid_prices[-(ELIGIBILITY_ROBUST_BASELINE_WINDOW + 1) : -1]
-    if not baseline_prices:
+    if not baseline_prices and legacy_volume_baseline:
         baseline_prices = valid_prices[:-1] or valid_prices
     traded_baseline_prices = [price for price in baseline_prices if price.volume > 0]
     volume_window = [float(price.volume) for price in traded_baseline_prices]
     average_volume = median(volume_window) if volume_window else None
+    participation = volume_facts(latest.volume, average_volume, len(volume_window))
     turnover_window = [
         value
         for value in (_to_float(price.turnover) for price in traded_baseline_prices)
@@ -603,13 +653,15 @@ def build_technical_snapshot(
         and latest_price > levels.prior_swing_high
         and average_volume
         and average_volume > 0
-        and latest.volume / average_volume >= VOLUME_EXPANSION_RATIO
+        and participation.ratio is not None
+        and participation.ratio >= VOLUME_EXPANSION_RATIO
     ):
         is_breakout = True
 
     trend = infer_trend(latest_price, sma20, sma50, sma20_slope)
 
     return TechnicalSnapshot(
+        price_change_percent_ratio=exact_percent,
         latest_price=latest_price,
         previous_close=previous_close,
         price_change=price_change,
@@ -655,5 +707,5 @@ def build_technical_snapshot(
             "SOURCE_ADJUSTED_CLOSE" if use_adjusted_close else "RAW_UNADJUSTED"
         ),
         adjusted_close_coverage_ratio=adjusted_coverage,
-        volume_behavior=classify_volume_behavior(latest.volume, average_volume),
+        volume_behavior=participation.classification,
     )

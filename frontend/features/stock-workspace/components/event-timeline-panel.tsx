@@ -1,5 +1,7 @@
 "use client";
 
+import { shortTradeDate } from "@/lib/formatters/trader-formatters";
+
 import { useState } from "react";
 
 import { WorkspaceModal } from "@/components/ui/workspace-modal";
@@ -10,14 +12,6 @@ type EventTimelinePanelProps = {
   decision: StockDecisionViewModel;
   copy: StockWorkspaceLanguage["panels"];
 };
-
-function truncateEventTitle(title: string, maxLength = 20): string {
-  const trimmed = title.trim();
-  if (trimmed.length <= maxLength) {
-    return trimmed;
-  }
-  return `${trimmed.slice(0, maxLength)}...`;
-}
 
 export function EventTimelinePanel({ decision, copy }: EventTimelinePanelProps) {
   const [selectedEventIndex, setSelectedEventIndex] = useState<number | null>(null);
@@ -40,8 +34,8 @@ export function EventTimelinePanel({ decision, copy }: EventTimelinePanelProps) 
               type="button"
             >
               <span className="event-timeline-dot" />
-              <strong>{truncateEventTitle(event.title)}</strong>
-              <small>{event.event_date}</small>
+              <strong>{event.title}</strong>
+              <small>{shortTradeDate(event.event_date.split("T")[0], decision.locale)}</small>
               {index < decision.events.length - 1 ? <span aria-hidden="true" className="event-timeline-line" /> : null}
             </button>
           ))}

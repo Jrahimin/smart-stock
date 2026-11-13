@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from fractions import Fraction
 from typing import Any, Literal
 from uuid import UUID
 
@@ -7,8 +8,8 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from app.core.enums import (
     DataQualityFlag,
     DataReliabilityLabel,
-    DecisionDisplayAction,
     DecisionConstraintKind,
+    DecisionDisplayAction,
     EligibilityStatus,
     EntryReadiness,
     EntryTiming,
@@ -253,7 +254,17 @@ def canonical_decision_to_read(result: Any) -> CanonicalDecisionResultRead:
     )
 
 
+from app.modules.stock_details.decision.entry_applicability import EntryApplicabilityRead
+from app.modules.stock_details.decision.measured_facts import MeasuredDecisionFactsRead
+
+
 class TraderDecisionRead(BaseModel):
+    entry_applicability: EntryApplicabilityRead | None = None
+    measured_support: str | None = None
+    opposing_constraint: str | None = None
+    measured_support_component: ScoreComponentRead | None = Field(default=None, exclude_if=lambda value: value is None)
+    opposing_constraint_code: str | None = Field(default=None, exclude_if=lambda value: value is None)
+    opposing_component: ScoreComponentRead | None = Field(default=None, exclude_if=lambda value: value is None)
     recommendation: TraderRecommendation
     internal_action: TraderRecommendation | None = None
     display_action: DecisionDisplayAction = DecisionDisplayAction.WAIT
@@ -279,6 +290,14 @@ class TraderDecisionRead(BaseModel):
 
 
 class TraderDecisionSummaryRead(BaseModel):
+    entry_applicability: EntryApplicabilityRead | None = None
+    measured_support: str | None = None
+    opposing_constraint: str | None = None
+    # Preserve durable payload hashes when an older publication did not carry
+    # these additive presentation fields. Never rewrite its stored bytes.
+    measured_support_component: ScoreComponentRead | None = Field(default=None, exclude_if=lambda value: value is None)
+    opposing_constraint_code: str | None = Field(default=None, exclude_if=lambda value: value is None)
+    opposing_component: ScoreComponentRead | None = Field(default=None, exclude_if=lambda value: value is None)
     recommendation: TraderRecommendation
     internal_action: TraderRecommendation | None = None
     display_action: DecisionDisplayAction = DecisionDisplayAction.WAIT
@@ -287,6 +306,7 @@ class TraderDecisionSummaryRead(BaseModel):
     reason: str
     opportunity_score: int
     risk_label: RiskLevelLabel
+    legacy_composite_risk_label: RiskLevelLabel | None = None
     confidence_semantics: str = "HEURISTIC_EVIDENCE"
     evidence_status: str = "UNAVAILABLE"
     evidence_strength: int | None = None
@@ -307,7 +327,20 @@ class TraderDecisionSummaryRead(BaseModel):
     canonical: CanonicalDecisionResultRead | None = None
 
 
+class ExactPriceChangeRatioRead(BaseModel):
+    numerator: str = Field(pattern=r"^-?\d+$")
+    denominator: str = Field(pattern=r"^[1-9]\d*$")
+
+    @classmethod
+    def from_fraction(cls, value: Fraction | None):
+        return cls(numerator=str(value.numerator), denominator=str(value.denominator)) if value is not None else None
+
+    def as_fraction(self) -> Fraction:
+        return Fraction(int(self.numerator), int(self.denominator))
+
+
 class TechnicalSnapshotRead(BaseModel):
+    price_change_percent_ratio: ExactPriceChangeRatioRead | None = Field(default=None, exclude_if=lambda value: value is None)
     latest_price: float | None = None
     previous_close: float | None = None
     price_change: float | None = None
@@ -527,6 +560,10 @@ class EventTimelineItemRead(BaseModel):
 
 
 class StockDecisionSupportRead(BaseModel):
+    measured_facts: MeasuredDecisionFactsRead | None = None
+    quote_generation_id: str | None = None
+    decision_generation_id: str | None = None
+    entry_applicability: EntryApplicabilityRead | None = None
     stock_id: UUID
     symbol: str
     exchange: ExchangeCode
@@ -690,6 +727,7 @@ class StockDecisionSupportRead(BaseModel):
                 else None
             ),
             technical_snapshot=TechnicalSnapshotRead(
+                price_change_percent_ratio=ExactPriceChangeRatioRead.from_fraction(snapshot.price_change_percent_ratio),
                 latest_price=snapshot.latest_price,
                 previous_close=snapshot.previous_close,
                 price_change=snapshot.price_change,

@@ -1,5 +1,5 @@
 from dataclasses import replace
-from datetime import timedelta
+from datetime import date, timedelta
 from decimal import Decimal
 from uuid import UUID
 
@@ -231,7 +231,9 @@ def test_features_only_use_as_of_prices_and_trade_counts_and_action_clean_window
         )
         for i in range(30)
     )
-    history = replace(history, prices=prices)
+    history = replace(history, prices=prices, event_coverage_verified=True)
+    for price in prices:
+        price.turnover_provenance = "REPORTED"
     dataset = replace(
         dataset, histories=(history,), session_dates=tuple(row.trade_date for row in prices)
     )
@@ -279,3 +281,36 @@ def test_full_research_report_insufficient_history_is_explicit_unsupported():
     assert report.research["model"]["status"] == "NOT_FIT"
     assert report.research["production_changes"] is False
     assert report.manifest.research_revision
+
+
+@pytest.mark.parametrize("count", [60, 61, 79, 80])
+def test_block_bootstrap_keeps_every_paired_date(count):
+    start = date(2026, 1, 1)
+    values = [(start + timedelta(days=i), 1.0 if i < 60 else -2.0) for i in range(count)]
+    result = paired_block_interval(values)
+    assert result["sample_size"] == count
+    assert result["mean"] == pytest.approx(sum(value for _, value in values) / count)
+    assert result == paired_block_interval(values)
+    if count > 60:
+        assert result["lower"] < result["mean"] < result["upper"]
+        assert result["lower"] < 1.0
+
+
+@pytest.mark.parametrize("missing_arm", ["both", "baseline", "challenger", "partial"])
+def test_ranking_liquidity_requires_measured_turnover(missing_arm):
+    selected, base, other = gate_fixture()
+    missing = tuple(replace(row, median_turnover=None) for row in selected)
+    left = missing if missing_arm in {"both", "baseline"} else selected
+    right = missing if missing_arm in {"both", "challenger"} else (missing[:1] + selected[1:] if missing_arm == "partial" else selected)
+    result = ranking_gate(base, other, left, right, evidence(prospective_shadow_confirmed=True), feature_coverage={"available":600,"total":600})
+    assert result["status"] == "UNSUPPORTED"
+    assert "LIQUIDITY_CONCENTRATION_TURNOVER_UNVERIFIED" in result["reasons"]
+    assert result["baseline_safeguards"]["turnover_missing_count"] + result["challenger_safeguards"]["turnover_missing_count"] > 0
+
+
+def test_measured_zero_turnover_is_distinct_from_missing():
+    from app.modules.backtesting.backtesting_promotion import concentration_and_turnover
+    selected, _, _ = gate_fixture()
+    result = concentration_and_turnover(tuple(replace(row, median_turnover=0) for row in selected))
+    assert result["median_turnover_bdt"] == 0
+    assert result["turnover_missing_count"] == 0

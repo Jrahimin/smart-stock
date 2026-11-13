@@ -73,3 +73,21 @@ def test_build_dashboard_movers_only_includes_traded_session_rows() -> None:
     movers = _build_movers_from_rows(rows, session_trade_date=session_date)
 
     assert movers.gainers[0].symbol == "GAINER"
+
+
+def test_dashboard_movers_returns_ten_in_rank_order() -> None:
+    session_date = date(2026, 6, 17)
+    rows = []
+    for index in range(12):
+        stock = _stock(f"STOCK{index:02}")
+        price = DailyPrice(
+            stock_id=stock.id, trade_date=session_date, open_price=100,
+            high_price=120, low_price=95, close_price=100, volume=1000,
+            turnover=100000, source="TEST", data_quality_flag=DataQualityFlag.OK,
+        )
+        rows.append((stock, price, _snapshot(trade_date="2026-06-17", price_change_percent=float(index))))
+
+    movers = _build_movers_from_rows(rows, session_trade_date=session_date)
+
+    assert len(movers.gainers) == 10
+    assert [item.symbol for item in movers.gainers] == [f"STOCK{index:02}" for index in range(11, 1, -1)]

@@ -8,9 +8,12 @@ import {
 import Link from "next/link";
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, memo, type ReactNode, type RefObject } from "react";
 
+import { InfoPanel } from "@/components/ui/info-panel";
 import { MarketDataFreshnessBar } from "@/components/layout/market-data-freshness-bar";
 import { DecisionPublicationLabel, QuotePublicationLabel } from "@/components/ui/market-publication-label";
 import { DashboardLocaleSwitcher } from "@/features/market-dashboard/components/dashboard-locale-switcher";
+import { sectorName } from "@/features/market-dashboard/terminal-copy";
+import { AccountDecisionCell, AccountMarketCell } from "@/features/portfolio/components/account-row-context";
 import { AddHoldingModal } from "@/features/portfolio/components/add-holding-modal";
 import { PortfolioMutationsProvider, usePortfolioMutations } from "@/features/portfolio/hooks/portfolio-mutations-context";
 import { useAddHoldingModal } from "@/features/portfolio/hooks/use-add-holding-modal";
@@ -23,17 +26,16 @@ import {
 import { portfolioLanguage } from "@/features/portfolio/portfolio-language";
 import {
   attentionFilterForCode,
+  accountQuoteForPrice,
   countCompletedHoldings,
   countIncompleteHoldings,
   filterPortfolioHoldings,
   financialTone,
   formatPortfolioMoney,
   formatPortfolioPercent,
-  formatPortfolioPriceState,
   formatPortfolioQuantity,
   formatSignedPercent,
-  getPortfolioSignalMeta,
-  getPortfolioWhatNextCopy,
+  portfolioRowAction,
   isPortfolioReviewRow,
   sortPortfolioGroupRows,
   toQuantityInputValue,
@@ -103,6 +105,7 @@ function PortfolioHero({
           {reviewCount > 0 && <span className="portfolio-chip is-amber">{t.chipReview(reviewCount)}</span>}
           <span className={`portfolio-chip ${data.meta.is_provisional ? "is-live" : "is-positive"}`}>{dataStateLabel}</span>
         </div>
+        <DecisionPublicationLabel decision={data.meta} locale={locale} />
         {/* {incompleteCount > 0 && (
           <button className="portfolio-hero-cta" onClick={onCompleteHoldings} type="button">
             {t.completeHoldings}
@@ -176,30 +179,24 @@ function PortfolioPulse({
       </div>
 
       <div className="portfolio-pulse-meta">
-        <div className="portfolio-pulse-tertiary">
-          <span><em>{t.knownInvestment}</em> {formatPortfolioMoney(pulse.known_invested_amount, locale)}</span>
-          <span><em>{t.holdingCount}</em> {pulse.holding_count} · {data.meta.total_watchlisted} {t.watched.toLowerCase()}</span>
-        </div>
-        {needsSetup && (
-          <div className="portfolio-setup-progress">
-            <div className="portfolio-setup-progress-copy">
-              <span>{t.setupProgress(completedCount, pulse.holding_count)}</span>
-              <button onClick={onCompleteHoldings} type="button">{t.completeHoldings}</button>
-            </div>
-            <div className="portfolio-setup-progress-bar" role="presentation">
-              <i style={{ width: `${setupRatio}%` }} />
-            </div>
-          </div>
-        )}
-        {data.meta.is_provisional ? (
-          <p className="portfolio-pulse-provisional">{t.provisional}</p>
-        ) : null}
+        {(!pulse.current_value_is_complete || !pulse.unrealized_gain_is_complete || !pulse.daily_change_is_complete) && <strong className="portfolio-partial-flag">{t.partialAccount}</strong>}
+        <p className="portfolio-coverage-inline">{t.coverage(pulse.valued_holding_count, pulse.holding_count)} {needsSetup && <button onClick={onCompleteHoldings} type="button">{t.completeHoldings}</button>}</p>
+        {needsSetup && <small className="portfolio-coverage-inline">{t.setupProgress(completedCount, pulse.holding_count)}</small>}
+        <InfoPanel label={t.valueCoverage} title={t.valueCoverage} locale={locale}>
+          <p>{t.valueMethod}</p><p>{t.knownInvestment}: {formatPortfolioMoney(pulse.known_invested_amount, locale)}</p>
+          <p>{t.setupProgress(completedCount, pulse.holding_count)}</p>
+          {!pulse.invested_amount_is_complete && <p>{t.partialInvestment}</p>}
+          {!pulse.unrealized_gain_is_complete && <p>{t.partialPL}</p>}
+          {!pulse.daily_change_is_complete && <p>{t.partialDaily}</p>}
+          {data.meta.is_provisional && <p>{t.provisional}</p>}
+        </InfoPanel>
       </div>
     </section>
   );
 }
 
 const attentionIcons: Record<PortfolioAttentionCode, typeof AlertTriangle> = {
+  HOLDER_REVIEW: Eye,
   SUPPORT_BREAK: ShieldAlert,
   SELL_OR_REDUCE: TrendingDown,
   PRICE_QUALITY: CircleAlert,
@@ -224,7 +221,9 @@ function PortfolioAttention({
 }) {
   const t = portfolioLanguage[locale];
   const [expanded, setExpanded] = useState(false);
-  const visible = expanded ? data.attention : data.attention.slice(0, 3);
+  const priority = { HIGH: 0, MEDIUM: 1, LOW: 2, INFO: 3 };
+  const attention = [...data.attention, ...(data.holder_review_attention ? [data.holder_review_attention] : [])].sort((a, b) => priority[a.severity] - priority[b.severity]);
+  const visible = expanded ? attention : attention.slice(0, 2);
 
   return (
     <section className="portfolio-panel portfolio-attention portfolio-attention-v2" aria-labelledby="portfolio-attention-title">
@@ -232,7 +231,7 @@ function PortfolioAttention({
         <div className="portfolio-section-icon is-warning"><AlertTriangle size={17} /></div>
         <h2 id="portfolio-attention-title">{t.attention}</h2>
       </div>
-      {!data.attention.length ? (
+      {!attention.length ? (
         <div className="portfolio-positive-state">
           <CheckCircle2 size={24} />
           <strong>{t.noAttention}</strong>
@@ -264,7 +263,7 @@ function PortfolioAttention({
               );
             })}
           </div>
-          {data.attention.length > 3 && (
+          {attention.length > 2 && (
             <button className="portfolio-text-button" onClick={() => setExpanded((value) => !value)} type="button">
               {expanded ? t.showLess : t.viewAll}
               <ChevronDown className={expanded ? "is-rotated" : ""} size={14} />
@@ -324,7 +323,7 @@ function InlineNumber({
     ? null
     : field === "quantity"
       ? formatPortfolioQuantity(initial)
-      : formatPortfolioMoney(initial, locale);
+      : formatPortfolioMoney(initial, locale, 4);
 
   const save = useCallback(() => {
     const parsed = Number(draft);
@@ -461,15 +460,8 @@ function RowActions({ item, locale }: { item: BackendPortfolioHoldingDto; locale
 
   return (
     <div className="portfolio-row-actions portfolio-icon-rail">
-      <button
-        aria-label={t.removeWatchlist}
-        className="portfolio-action-icon is-watched"
-        onClick={() => { if (window.confirm(t.removeWatchlistConfirm)) remove.mutate(item.stock_id); }}
-        title={t.watched}
-        type="button"
-      >
-        <StarIcon />
-      </button>
+      <InfoPanel label={t.removeWatchlist} triggerContent={<StarIcon />} triggerClassName="portfolio-action-icon is-watched" disabled={remove.isPending}
+        confirmation={{ label: t.removeWatchlist, cancelLabel: t.cancel, onConfirm: () => remove.mutate(item.stock_id) }} locale={locale}><p>{t.removeWatchlistConfirm}</p></InfoPanel>
       <NoteAction item={item} locale={locale} />
     </div>
   );
@@ -479,29 +471,9 @@ function HoldToggle({ item, locale }: { item: BackendPortfolioHoldingDto; locale
   const t = portfolioLanguage[locale];
   const { update } = usePortfolioMutations();
 
-  const toggleHolding = () => {
-    if (item.is_holding) {
-      if (window.confirm(t.removeHoldingConfirm)) {
-        update.mutate({ stockId: item.stock_id, payload: { is_holding: false } });
-      }
-      return;
-    }
-    update.mutate({ stockId: item.stock_id, payload: { is_holding: true } });
-  };
-
-  return (
-    <button
-      aria-label={item.is_holding ? t.removeHolding : t.markAsHolding}
-      aria-pressed={item.is_holding}
-      className={`portfolio-hold-toggle ${item.is_holding ? "is-held" : "is-unheld"}`}
-      disabled={update.isPending}
-      onClick={toggleHolding}
-      title={item.is_holding ? t.holding : t.markAsHolding}
-      type="button"
-    >
-      <BriefcaseBusiness fill={item.is_holding ? "currentColor" : "none"} size={18} />
-    </button>
-  );
+  if (item.is_holding) return <InfoPanel label={t.removeHolding} triggerContent={<BriefcaseBusiness fill="currentColor" size={18} />} triggerClassName="portfolio-hold-toggle is-held" disabled={update.isPending} locale={locale}
+    confirmation={{ label: t.removeHolding, cancelLabel: t.cancel, onConfirm: () => update.mutate({ stockId: item.stock_id, payload: { is_holding: false } }) }}><p>{t.removeHoldingConfirm}</p></InfoPanel>;
+  return <button aria-label={t.markAsHolding} aria-pressed={false} className="portfolio-hold-toggle is-unheld" disabled={update.isPending} onClick={() => update.mutate({ stockId: item.stock_id, payload: { is_holding: true } })} type="button"><BriefcaseBusiness size={18} /></button>;
 }
 
 function StarIcon() {
@@ -522,23 +494,6 @@ function AveragePriceCell({ item, locale }: { item: BackendPortfolioHoldingDto; 
   return <InlineNumber compact field="average_buy_price" item={item} locale={locale} />;
 }
 
-function MarketCell({ item, locale }: { item: BackendPortfolioHoldingDto; locale: AppLocale }) {
-  const t = portfolioLanguage[locale];
-  const priceState = formatPortfolioPriceState(item.price_status, locale);
-  const hasChange = item.price_status === "FINALIZED" || item.price_status === "PROVISIONAL";
-
-  return (
-    <div className="portfolio-market-cell">
-      <strong>{formatPortfolioMoney(item.current_price, locale)}</strong>
-      {hasChange ? (
-        <small className={`is-${financialTone(item.price_change_percent)}`}>{formatSignedPercent(item.price_change_percent)}</small>
-      ) : (
-        <small className="portfolio-price-quality">{priceState ?? t.priceStatus[item.price_status]}</small>
-      )}
-    </div>
-  );
-}
-
 function ValuePlCell({ item, locale }: { item: BackendPortfolioHoldingDto; locale: AppLocale }) {
   if (!item.is_holding) return <span className="portfolio-muted-dash">—</span>;
   return (
@@ -546,26 +501,8 @@ function ValuePlCell({ item, locale }: { item: BackendPortfolioHoldingDto; local
       <strong>{formatPortfolioMoney(item.current_value, locale)}</strong>
       <span className="portfolio-value-pl-row">
         <Value locale={locale} value={item.unrealized_gain_amount} />
-        <small className={`is-${financialTone(item.unrealized_gain_percent)}`}>{formatSignedPercent(item.unrealized_gain_percent)}</small>
+        <small className={`is-${financialTone(item.unrealized_gain_percent)}`}>{formatSignedPercent(item.unrealized_gain_percent)} · {portfolioLanguage[locale].sinceCost}</small>
       </span>
-    </div>
-  );
-}
-
-function SignalCell({ item, locale }: { item: BackendPortfolioHoldingDto; locale: AppLocale }) {
-  const t = portfolioLanguage[locale];
-  const signal = getPortfolioSignalMeta(item, t);
-  const priceState = formatPortfolioPriceState(item.price_status, locale);
-
-  return (
-    <div className="portfolio-signal portfolio-signal-v2">
-      <span className={`portfolio-status ${item.action ? `action-${item.action.toLowerCase()}` : "action-updating"}`}>
-        {item.action ? item.action.replaceAll("_", " ") : "Updating"}
-      </span>
-      <small>{signal.summary}</small>
-      {priceState && (item.price_status === "STALE_LAST_KNOWN" || item.price_status === "SUSPICIOUS" || item.price_status === "SUSPENDED") && (
-        <small className="portfolio-price-flag">{priceState}</small>
-      )}
     </div>
   );
 }
@@ -580,10 +517,13 @@ function Row({
   highlighted: boolean;
 }) {
   const t = portfolioLanguage[locale];
-  const guidance = getPortfolioWhatNextCopy(item, t);
+  const { pendingStockIds, update, remove } = usePortfolioMutations();
+  const pending = pendingStockIds.has(item.stock_id);
+  const failed = (update.isError && update.variables?.stockId === item.stock_id) || (remove.isError && remove.variables === item.stock_id);
 
   return (
     <tr
+      aria-busy={pending}
       className={`${item.is_holding ? "is-holding" : "is-watching"} ${item.requires_attention ? "needs-review" : ""} ${highlighted ? "is-highlighted" : ""}`}
       data-stock-id={item.stock_id}
     >
@@ -592,10 +532,9 @@ function Row({
       <td className="portfolio-stock-col"><MemoStockSymbolTile exchange={item.exchange} name={item.name} symbol={item.symbol} /></td>
       <td><QuantityCell item={item} locale={locale} /></td>
       <td><AveragePriceCell item={item} locale={locale} /></td>
-      <td><MarketCell item={item} locale={locale} /></td>
+      <td><AccountMarketCell item={item} locale={locale} /></td>
       <td><ValuePlCell item={item} locale={locale} /></td>
-      <td><SignalCell item={item} locale={locale} /></td>
-      <td className="portfolio-guidance-cell">{guidance}</td>
+      <td className="portfolio-guidance-cell"><AccountDecisionCell item={item} locale={locale} />{pending && <p role="status">{t.pendingValues}</p>}{failed && <p role="alert">{t.editFailed}</p>}</td>
     </tr>
   );
 }
@@ -612,11 +551,11 @@ function MobileHoldingCard({
   highlighted: boolean;
 }) {
   const t = portfolioLanguage[locale];
-  const guidance = getPortfolioWhatNextCopy(item, t);
   const hasPositionValue = item.is_holding && item.quantity != null && item.average_buy_price != null;
-  const showGuidance = item.is_holding
-    ? hasPositionValue
-    : guidance !== t.watching;
+  const hasCurrentValue = item.is_holding && item.current_value != null;
+  const { pendingStockIds, update, remove } = usePortfolioMutations();
+  const pending = pendingStockIds.has(item.stock_id);
+  const failed = (update.isError && update.variables?.stockId === item.stock_id) || (remove.isError && remove.variables === item.stock_id);
 
   return (
     <article
@@ -626,27 +565,26 @@ function MobileHoldingCard({
       <div className="portfolio-mobile-card-header">
         <div className="portfolio-mobile-card-identity">
           <MemoStockSymbolTile exchange={item.exchange} name={item.name} symbol={item.symbol} />
-          <span className={`portfolio-status portfolio-mobile-status ${item.action ? `action-${item.action.toLowerCase()}` : "action-updating"}`}>
-            {item.action ? item.action.replaceAll("_", " ") : "Updating"}
-          </span>
+
         </div>
         <div className="portfolio-mobile-card-actions">
           <HoldToggle item={item} locale={locale} />
           <RowActions item={item} locale={locale} />
         </div>
       </div>
+      <AccountDecisionCell item={item} locale={locale} />
       {item.is_holding && (
         <div className="portfolio-mobile-position">
           <QuantityCell item={item} locale={locale} />
           <AveragePriceCell item={item} locale={locale} />
         </div>
       )}
-      <div className={`portfolio-mobile-card-metrics ${hasPositionValue ? "has-pl" : "is-compact"}`}>
+      <div className={`portfolio-mobile-card-metrics ${hasCurrentValue ? "has-pl" : "is-compact"}`}>
         <div className="portfolio-mobile-metric">
           <span>{t.market}</span>
-          <strong>{formatPortfolioMoney(item.current_price, locale)}</strong>
+          <AccountMarketCell item={item} locale={locale} />
         </div>
-        {item.is_holding && hasPositionValue && (
+        {hasCurrentValue && (
           <div className="portfolio-mobile-metric">
             <span>{t.valueAndPL}</span>
             <strong>{formatPortfolioMoney(item.current_value, locale)}</strong>
@@ -658,15 +596,14 @@ function MobileHoldingCard({
             <span className="portfolio-mobile-pl-value">
               <Value locale={locale} value={item.unrealized_gain_amount} />
               <small className={`is-${financialTone(item.unrealized_gain_percent)}`}>
-                {formatSignedPercent(item.unrealized_gain_percent)}
+                {formatSignedPercent(item.unrealized_gain_percent)} · {t.sinceCost}
               </small>
             </span>
           </div>
         )}
       </div>
-      {showGuidance && guidance ? (
-        <p className="portfolio-mobile-card-hint">{guidance}</p>
-      ) : null}
+      {pending && <p className="portfolio-mobile-card-hint" role="status">{t.pendingValues}</p>}
+      {failed && <p className="portfolio-mobile-card-hint" role="alert">{t.editFailed}</p>}
     </article>
   );
 }
@@ -716,7 +653,7 @@ function HoldingsWorkspace({
     [filtered],
   );
   const actions = useMemo(
-    () => [...new Set(items.map((item) => item.action).filter((value): value is NonNullable<typeof value> => value !== null))],
+    () => [...new Set(items.map((item) => portfolioRowAction(item)).filter((value): value is NonNullable<typeof value> => value !== null))],
     [items],
   );
   const trends = useMemo(() => [...new Set(items.map((item) => item.trend))], [items]);
@@ -754,7 +691,7 @@ function HoldingsWorkspace({
           ))}
         </div>
         <div className="portfolio-toolbar-filters">
-          <label className="portfolio-select">{t.action}<select onChange={(event) => setAction(event.target.value)} value={action}><option value="ALL">{t.all}</option>{actions.map((value) => <option key={value} value={value}>{value.replaceAll("_", " ")}</option>)}</select></label>
+          <label className="portfolio-select">{t.action}<select onChange={(event) => setAction(event.target.value)} value={action}><option value="ALL">{t.all}</option>{actions.map((value) => <option key={value} value={value}>{t.actionLabels[value] ?? value.replaceAll("_", " ")}</option>)}</select></label>
           <label className="portfolio-select">{t.trend}<select onChange={(event) => setTrend(event.target.value)} value={trend}><option value="ALL">{t.all}</option>{trends.map((value) => <option key={value} value={value}>{value.replaceAll("_", " ")}</option>)}</select></label>
         </div>
         {selectedStockIds && (
@@ -777,12 +714,11 @@ function HoldingsWorkspace({
                 <th>{t.averagePrice}</th>
                 <th>{t.market}</th>
                 <th>{t.valueAndPL}</th>
-                <th>{t.signal}</th>
                 <th>{t.whatNext}</th>
               </tr>
             </thead>
             <tbody>
-              {holdings.length > 0 && <tr className="portfolio-group-row"><td colSpan={9}>{t.groupHoldings(holdings.length)}</td></tr>}
+              {holdings.length > 0 && <tr className="portfolio-group-row"><td colSpan={8}>{t.groupHoldings(holdings.length)}</td></tr>}
               {holdings.map((item) => (
                 <MemoRow
                   highlighted={highlightedStockId === item.stock_id}
@@ -791,7 +727,7 @@ function HoldingsWorkspace({
                   locale={locale}
                 />
               ))}
-              {watching.length > 0 && <tr className="portfolio-group-row"><td colSpan={9}>{t.groupWatching(watching.length)}</td></tr>}
+              {watching.length > 0 && <tr className="portfolio-group-row"><td colSpan={8}>{t.groupWatching(watching.length)}</td></tr>}
               {watching.map((item) => (
                 <MemoRow
                   highlighted={highlightedStockId === item.stock_id}
@@ -866,9 +802,11 @@ function PositionExposureBars({
 function ActionGroupBadges({
   groups,
   title,
+  locale,
 }: {
-  groups: BackendPortfolioWorkspaceDto["shape"]["action_groups"];
+  groups: NonNullable<BackendPortfolioWorkspaceDto["shape"]["holder_action_groups"]>;
   title: string;
+  locale: AppLocale;
 }) {
   const items = groups.filter((group) => group.count > 0).slice(0, 5);
   if (!items.length) return null;
@@ -878,8 +816,8 @@ function ActionGroupBadges({
       <h3>{title}</h3>
       <div className="portfolio-action-group-list">
         {items.map((group) => (
-          <span className={`portfolio-action-group action-${group.action.toLowerCase()}`} key={group.action}>
-            <strong>{group.action.replaceAll("_", " ")}</strong>
+          <span className={`portfolio-action-group action-${group.holder_action?.toLowerCase() ?? "unavailable"}`} key={group.holder_action ?? "unavailable"}>
+            <strong>{group.holder_action ? portfolioLanguage[locale].actionLabels[group.holder_action] : portfolioLanguage[locale].signalUnavailable}</strong>
             <em>{group.count}</em>
           </span>
         ))}
@@ -897,11 +835,10 @@ function PortfolioEmailSummary({ locale }: { locale: AppLocale }) {
       <div className="portfolio-section-heading">
         <div className="portfolio-section-icon"><Mail size={17} /></div>
         <div>
-          <p>{t.emailSummary}</p>
-          <h2 id="portfolio-email-title">{enabled ? t.emailSummaryEnabled : t.emailSummaryDisabled}</h2>
+          <h2 id="portfolio-email-title">{t.emailSummary}</h2>
         </div>
       </div>
-      <p className="portfolio-email-copy">{t.emailSummaryDetail}</p>
+
       <label className="portfolio-email-toggle">
         <input
           checked={ready ? enabled : false}
@@ -912,7 +849,8 @@ function PortfolioEmailSummary({ locale }: { locale: AppLocale }) {
         <span className="portfolio-email-toggle-track" aria-hidden />
         <span className="portfolio-email-toggle-label">{enabled ? t.emailSummaryEnabled : t.emailSummaryDisabled}</span>
       </label>
-      <p className="portfolio-email-note">{t.emailSummaryNote}</p>
+      <small className="portfolio-email-timing">{locale === "bn" ? "সেশন শেষে হোল্ডিংয়ের দাম, পরিবর্তন ও পর্যালোচনার বিষয় ইমেইলে পান।" : "After the session closes: holding values, changes and items to review by email."}</small>
+      <InfoPanel label={locale === "bn" ? "সময় ও বিষয়বস্তু" : "Timing and contents"} title={t.emailSummary} locale={locale}><p>{t.emailSummaryDetail}</p><p>{t.emailSummaryNote}</p></InfoPanel>
     </section>
   );
 }
@@ -924,12 +862,14 @@ function PortfolioInsightTile({
   locale,
   signed,
   tone,
+  contribution = false,
 }: {
   icon: ReactNode;
   label: string;
   value: BackendPortfolioPositionReferenceDto | null;
   locale: AppLocale;
   signed?: boolean;
+  contribution?: boolean;
   tone?: "positive" | "negative" | "neutral";
 }) {
   if (!value) return null;
@@ -941,9 +881,10 @@ function PortfolioInsightTile({
         <strong>{value.symbol}</strong>
         <small>
           {value.percent != null
-            ? (signed ? formatSignedPercent(value.percent) : formatPortfolioPercent(value.percent))
+            ? (contribution ? `${formatSignedPercent(value.percent).replace("%", "")} ${portfolioLanguage[locale].percentagePoints}` : signed ? formatSignedPercent(value.percent) : formatPortfolioPercent(value.percent))
             : formatPortfolioMoney(value.amount, locale)}
         </small>
+        {contribution && <small>{portfolioLanguage[locale].dailyContributionBasis}</small>}
       </div>
     </article>
   );
@@ -951,12 +892,12 @@ function PortfolioInsightTile({
 
 function PortfolioInsights({ data, locale }: { data: BackendPortfolioWorkspaceDto; locale: AppLocale }) {
   const t = portfolioLanguage[locale];
-  const riskFocus = data.shape.worst_daily_contributor ?? data.shape.weakest_position;
+  const dailyFocus = data.shape.worst_daily_contributor?.percent != null ? data.shape.worst_daily_contributor : null;
   const tiles = [
     { icon: <WalletCards size={16} />, label: t.largest, value: data.shape.largest_holding, tone: "neutral" as const },
-    { icon: <TrendingUp size={16} />, label: t.strongest, value: data.shape.strongest_position, signed: true, tone: "positive" as const },
-    { icon: <TrendingDown size={16} />, label: t.weakest, value: data.shape.weakest_position, signed: true, tone: "negative" as const },
-    { icon: <ShieldAlert size={16} />, label: t.highestRisk, value: riskFocus, signed: true, tone: "negative" as const },
+    { icon: <TrendingUp size={16} />, label: t.strongest, value: data.shape.strongest_position, signed: true, tone: financialTone(data.shape.strongest_position?.percent ?? null) },
+    { icon: Number(data.shape.weakest_position?.percent) > 0 ? <TrendingUp size={16} /> : <TrendingDown size={16} />, label: Number(data.shape.weakest_position?.percent) > 0 ? (locale === "bn" ? "সবচেয়ে ছোট লাভ" : "Smallest gain") : t.weakest, value: data.shape.weakest_position, signed: true, tone: financialTone(data.shape.weakest_position?.percent ?? null) },
+    { icon: <TrendingDown size={16} />, label: t.lowestDailyContribution, value: dailyFocus, contribution: true, tone: financialTone(dailyFocus?.percent ?? null) },
   ].filter((tile) => tile.value);
 
   if (!tiles.length) return null;
@@ -971,6 +912,7 @@ function PortfolioInsights({ data, locale }: { data: BackendPortfolioWorkspaceDt
         {tiles.map((tile) => (
           <PortfolioInsightTile
             icon={tile.icon}
+            contribution={"contribution" in tile && tile.contribution}
             key={tile.label}
             label={tile.label}
             locale={locale}
@@ -1028,7 +970,7 @@ function ExposureRing({
         {segments.map((row, index) => (
           <li key={row.label}>
             <i style={{ background: colors[index % colors.length] }} />
-            <span>{row.label}</span>
+            <span>{sectorName(row.label, locale)}</span>
             <strong>{formatPortfolioPercent(row.weight_percent)}</strong>
           </li>
         ))}
@@ -1055,7 +997,7 @@ function PortfolioShape({ data, locale }: { data: BackendPortfolioWorkspaceDto; 
           totalLabel={exposureTitle}
         />
         <PositionExposureBars locale={locale} rows={data.shape.position_exposure} title={positionTitle} />
-        <ActionGroupBadges groups={data.shape.action_groups} title={t.actionGroups} />
+        <ActionGroupBadges groups={data.shape.holder_action_groups ?? []} title={t.actionGroups} locale={locale} />
       </div>
       {!data.pulse.current_value_is_complete && <p className="portfolio-partial-note">{t.partialExposure}</p>}
     </section>
@@ -1076,9 +1018,10 @@ export function WatchlistToReview({ data, locale }: { data: BackendPortfolioWork
       {items.length ? (
         <div className="portfolio-ideas portfolio-ideas-v2">
           {items.map((item) => {
-            const quote = item.display_quote;
-            const change = quote ? quote.price_change_percent ?? null : item.price_change_percent;
-            const price = quote ? quote.current_price : item.current_price;
+            const quote = accountQuoteForPrice(item);
+            const usableChange = quote && (item.price_status === "FINALIZED" || item.price_status === "PROVISIONAL");
+            const change = usableChange ? quote.price_change_percent ?? null : null;
+            const price = item.current_price;
             return (
             <Link className="portfolio-idea" href={buildStockDetailPath(item.exchange, item.symbol)} key={item.stock_id}>
               <div className="portfolio-idea-head">
@@ -1089,12 +1032,13 @@ export function WatchlistToReview({ data, locale }: { data: BackendPortfolioWork
               </div>
               <p>{t.reasonLabels[item.reason_code] ?? item.reason_code.replaceAll("_", " ")}</p>
               <footer>
-                <span className={`portfolio-status action-${item.action.toLowerCase()}`}>{item.action.replaceAll("_", " ")}</span>
-                <span className={`portfolio-idea-change is-${financialTone(change)}`}>{formatSignedPercent(change)}</span>
+                <span className={`portfolio-status action-${item.action.toLowerCase()}`}>{t.actionLabels[item.action]}</span>
+                {change != null && <span className={`portfolio-idea-change is-${financialTone(change)}`}>{formatSignedPercent(change)}</span>}
                 <span>{formatPortfolioMoney(price, locale)}</span>
                 <em>{t.viewStock}<ArrowRight size={13} /></em>
               </footer>
               <QuotePublicationLabel locale={locale} quote={quote} />
+              {item.price_status && <small>{t.priceStatus[item.price_status]}</small>}
             </Link>
             );
           })}

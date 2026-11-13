@@ -12,8 +12,8 @@ from app.modules.market_universe.market_universe_cache import (
     UNIVERSE_CACHE_KEY_NAMES,
     legacy_universe_cache_key,
     strategy_only_universe_cache_key,
-    universe_cache_pattern,
     universe_cache_key,
+    universe_cache_pattern,
     universe_prev_cache_key,
 )
 from app.modules.stock_details.stock_details_cache import (
@@ -45,7 +45,8 @@ def dashboard_cache_key(
     market_sync_id: str | None = None,
 ) -> str:
     generation_suffix = f":{market_sync_id}" if market_sync_id else ""
-    return f"dashboard:{section}:{exchange.value}:{DECISION_TAXONOMY_VERSION}{generation_suffix}"
+    section_version = {"sectors": ":eligible-v2", "overview": ":index-v3", "heatmap": ":measured-v3", "movers": ":top10-v1"}.get(section, "")
+    return f"dashboard:{section}:{exchange.value}:{DECISION_TAXONOMY_VERSION}{section_version}{generation_suffix}"
 
 
 def pulse_cache_key(

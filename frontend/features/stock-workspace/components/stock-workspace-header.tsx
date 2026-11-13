@@ -1,3 +1,4 @@
+import { QuoteObservationTimes } from "@/components/ui/quote-observation-times";
 import Link from "next/link";
 
 import { DecisionPublicationLabel, QuotePublicationLabel } from "@/components/ui/market-publication-label";
@@ -6,8 +7,8 @@ import { WatchlistStarToggle } from "@/features/watchlist/components/watchlist-s
 import type { StockDecisionViewModel } from "@/features/stock-workspace/view-models/stock-decision-view-model";
 import type { StockWorkspaceModel } from "@/features/stock-workspace/view-models/stock-workspace-view-model";
 import type { StockWorkspaceLanguage } from "@/features/stock-workspace/stock-workspace-language";
-import type { DecisionDisplayAction } from "@/lib/api/backend-api-types";
 import { DEFAULT_LOCALE, type AppLocale } from "@/lib/locale/app-locale";
+import { sectorName } from "@/features/market-dashboard/terminal-copy";
 
 type StockWorkspaceHeaderProps = {
   model: StockWorkspaceModel;
@@ -28,10 +29,7 @@ function getChangeTone(changePercent: string): "positive" | "negative" | "neutra
 }
 
 export function StockWorkspaceHeader({ model, decision, stockId, copy, locale = DEFAULT_LOCALE }: StockWorkspaceHeaderProps) {
-  const action: DecisionDisplayAction = decision?.available
-    ? decision.recommendation.replace(" ", "_") as DecisionDisplayAction
-    : model.header.chartContextSignal.replace(" ", "_") as DecisionDisplayAction;
-  const confidence = decision?.available ? decision.confidenceLabel : model.header.chartContextConfidence;
+  const action = decision?.displayAction ?? null;
   const sector = model.header.sector;
   const sectorHref =
     sector && sector !== "Unclassified" ? `/stocks?search=${encodeURIComponent(sector)}` : null;
@@ -43,16 +41,16 @@ export function StockWorkspaceHeader({ model, decision, stockId, copy, locale = 
           {model.header.exchange} /{" "}
           {sectorHref ? (
             <Link className="stock-header-sector-link" href={sectorHref}>
-              {sector}
+              {sectorName(sector, locale)}
             </Link>
           ) : (
-            sector
+            sector ? sectorName(sector, locale) : sector
           )}{" "}
           / {copy.categoryPrefix} {model.header.category}
         </p>
         <div className="stock-header-title-row">
           <h1>{model.header.symbol}</h1>
-          {stockId ? <WatchlistStarToggle stockId={stockId} /> : null}
+          {stockId ? <WatchlistStarToggle locale={locale} stockId={stockId} /> : null}
         </div>
         <span>{model.header.name}</span>
       </div>
@@ -61,6 +59,7 @@ export function StockWorkspaceHeader({ model, decision, stockId, copy, locale = 
           <span>{copy.last}</span>
           <strong>{model.header.latestPrice}</strong>
           <QuotePublicationLabel locale={locale} quote={model.header.quotePublication} />
+          <details className="quote-timing-disclosure"><summary>{locale === "bn" ? "দামের সময়" : "Quote timing"}</summary><QuoteObservationTimes quote={model.header.quotePublication ?? {}} locale={locale} /></details>
         </div>
         <div className={`stock-header-metric stock-header-metric-change stock-header-metric-change-${getChangeTone(model.header.changePercent)}`}>
           <span>{copy.change}</span>
@@ -71,10 +70,9 @@ export function StockWorkspaceHeader({ model, decision, stockId, copy, locale = 
           <strong>{model.header.marketCap}</strong>
         </div>
         <div className="stock-header-metric stock-header-metric-action">
-          <span>{copy.action}</span>
-          <SignalBadge signal={action} />
-          <small>{confidence}</small>
-          <DecisionPublicationLabel decision={model.header.decisionPublication} locale={locale} />
+          <span>{decision?.holderInstruction ? (locale === "bn" ? "সাধারণ অ্যাকশন" : "Public action") : copy.action}</span>
+          <SignalBadge signal={action} locale={action ? "en" : locale} />
+          <DecisionPublicationLabel compact decision={model.header.decisionPublication} locale={locale} />
         </div>
       </div>
     </section>

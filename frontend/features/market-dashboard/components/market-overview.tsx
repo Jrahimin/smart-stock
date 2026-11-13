@@ -9,7 +9,10 @@ import { sectorName, marketHeadline, breadthContrast, type TerminalCopy } from "
 import type { MarketDashboardModel } from "@/features/market-dashboard/types/market-dashboard-types";
 import type { BackendMarketFreshnessDto } from "@/lib/api/backend-api-types";
 import { formatPercent } from "@/lib/formatters/financial-formatters";
+import { shortTradeDate } from "@/lib/formatters/trader-formatters";
+import { isCurrentIntradaySession } from "@/lib/market/market-session-engine";
 import type { AppLocale } from "@/lib/locale/app-locale";
+import { getTraderJourneyLanguage } from "@/lib/market/trader-journey-language";
 
 const dhakaDate = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Dhaka" });
 const dhakaTime = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Dhaka" });
@@ -26,6 +29,7 @@ export function MarketOverview({ model, copy, locale, freshness, loading, leader
 }) {
   const { pulse, breadth, session, insights } = model;
   const premium = getPremiumCopy(locale);
+  const journeyCopy = getTraderJourneyLanguage(locale);
   const hasDate = pulse.tradeDateStatus === "available";
   const stale = session.state === "STALE" || freshness?.data_state === "STALE";
   const previousValue = useRef<string | null>(null);
@@ -44,20 +48,27 @@ export function MarketOverview({ model, copy, locale, freshness, loading, leader
     OPEN: copy.open, PRE_OPEN: copy.preOpen, POST_CLOSE: copy.postClose, HOLIDAY: copy.closed,
     STALE: copy.stale, PARTIAL: copy.partial, SYNCING: copy.syncing,
   }[session.state];
-  const hasMatchingFreshness = hasDate && freshness?.trade_date === pulse.latestTradeDate;
-  const observed = hasMatchingFreshness ? freshness.live_data_as_of : null;
-  const timestamp = hasMatchingFreshness ? observed ?? freshness.last_synced_at : null;
+  const publication = model.overviewPublication;
+  const hasMatchingFreshness = hasDate && freshness?.trade_date === pulse.latestTradeDate
+    && (!publication?.market_sync_id || !freshness?.market_sync_id || publication.market_sync_id === freshness.market_sync_id);
+  const observed = !publication?.last_synced_at && hasMatchingFreshness ? freshness.live_data_as_of : null;
+  const timestamp = publication?.last_synced_at ?? (hasMatchingFreshness ? observed ?? freshness.last_synced_at : null);
   const time = timestamp ? new Date(timestamp) : null;
   const tradeDate = hasDate ? new Date(`${pulse.latestTradeDate}T00:00:00+06:00`) : null;
   const leader = pulse.leadingSector;
   const turnover = pulse.turnoverContext;
   const volume = pulse.volumeContext;
   const partial = insights.find(({ id }) => id === "partial-data");
-  const count = new Intl.NumberFormat(locale === "bn" ? "bn-BD" : "en-BD");
+  const count = new Intl.NumberFormat("en-BD");
   const sessionSummary = breadth.total > 0 ? locale === "bn"
     ? `সর্বশেষ পাওয়া কার্যদিবসে ${count.format(breadth.advancing)}টি শেয়ার বেড়েছে, ${count.format(breadth.declining)}টি কমেছে।`
     : `In the latest recorded session, ${count.format(breadth.advancing)} stocks rose and ${count.format(breadth.declining)} fell.` : null;
-  const context = partial?.description ?? [sessionSummary, breadthContrast(model, locale)].filter(Boolean).join(" ");
+  const earlierSession = hasDate && freshness?.market_status === "OPEN" && !isCurrentIntradaySession("OPEN", pulse.latestTradeDate);
+  const indexDateDiffers = pulse.indexTradeDate && pulse.indexTradeDate !== pulse.latestTradeDate;
+  const activityDateDiffers = pulse.activityTradeDate && pulse.activityTradeDate !== pulse.latestTradeDate;
+  const context = earlierSession
+    ? (locale === "bn" ? `${shortTradeDate(pulse.latestTradeDate, locale)}-এর দাম দেখানো হচ্ছে। আজকের দাম এখনও আসেনি।` : `Showing the ${shortTradeDate(pulse.latestTradeDate, locale)} session. Today's prices are not in yet.`)
+    : partial?.description ?? [sessionSummary, breadthContrast(model, locale)].filter(Boolean).join(" ");
   const pulseDescription = locale === "bn"
     ? stale ? "ওই কার্যদিবসের খাতের অগ্রগতি দেখুন।" : "খাতের অগ্রগতি ও বাজারের চিত্র দেখুন।"
     : stale ? "Leaders from the recorded session." : "Sector leaders and session context.";
@@ -77,6 +88,7 @@ export function MarketOverview({ model, copy, locale, freshness, loading, leader
         <strong data-updated={valueUpdated} className={pulse.indexAvailable ? "sw-index-value" : "sw-index-value sw-index-missing"}>{loading ? "…" : pulse.indexAvailable ? pulse.indexValue : copy.indexMissing}</strong>
         {pulse.indexAvailable && pulse.indexChangePercent !== null ? <b className={`sw-${pulse.indexTone}`}>{pulse.indexChangeLabel}</b> : null}
       </div>
+      {indexDateDiffers ? <small className="sw-index-date">{locale === "bn" ? "সূচক" : "Index"} · {shortTradeDate(pulse.indexTradeDate, locale)}</small> : null}
       <div className="sw-index-details"><DashboardInfoPanel label={copy.indexDetails} locale={locale}>
         <div className="sw-detail-body">
           {pulse.indexAvailable ? <dl className="sw-detail-stats">
@@ -93,7 +105,7 @@ export function MarketOverview({ model, copy, locale, freshness, loading, leader
       <div className="sw-hero-story">
         <div className="sw-session">
           <span className={`sw-session-state${stale || session.state === "PARTIAL" ? " sw-session-caution" : ""}`}>
-            {loading ? copy.syncing : !hasDate ? copy.overview : `${locale === "bn" ? "এখন বাজার" : "Market now"}: ${stale ? copy.stale : status}`}
+            {loading ? copy.syncing : !hasDate ? copy.overview : earlierSession ? (locale === "bn" ? "আগের কার্যদিবসের দাম" : "Earlier session prices") : `${locale === "bn" ? "এখন বাজার" : "Market now"}: ${stale ? copy.stale : status}`}
           </span>
           {tradeDate && Number.isFinite(+tradeDate) ? <time dateTime={pulse.latestTradeDate}>{locale === "bn" ? "কার্যদিবস" : "Session"} · {dhakaDate.format(tradeDate)}</time> : null}
           {time && Number.isFinite(+time) && timestamp ? (
@@ -118,13 +130,16 @@ export function MarketOverview({ model, copy, locale, freshness, loading, leader
       </Metric>
       <Metric label={copy.turnover} note={turnover.vsYesterday !== "N/A" ? `${turnover.vsYesterday} ${copy.vsPrevious}` : null}>
         <strong>{loading ? "…" : turnover.primaryValue === "N/A" ? copy.missing : turnover.primaryValue}</strong>
+        {activityDateDiffers && <small>{shortTradeDate(pulse.activityTradeDate, locale)}</small>}
       </Metric>
-      <Metric label={copy.volume} note={!loading && volume.primaryValue !== "N/A" ? volume.ratioVsAvg === "N/A" ? copy.noAverage : `${volume.ratioVsAvg.replace("x", "×")} ${copy.versusAverage}` : null}>
+      <Metric label={copy.volume} note={!loading && volume.primaryValue !== "N/A" ? volume.ratioVsAvg === "N/A" ? copy.noAverage : `${volume.ratioVsAvg.replace("x", "×")} ${volume.priorAverageSessions === undefined ? copy.versusAverage : copy.priorAverage(volume.priorAverageSessions)}` : null}>
         <strong>{loading ? "…" : volume.primaryValue === "N/A" ? copy.missing : volume.primaryValue.replace(/shares/i, copy.shares)}</strong>
+        {activityDateDiffers && <small>{shortTradeDate(pulse.activityTradeDate, locale)}</small>}
       </Metric>
-      <Metric label={copy.sectorLeader} note={leader ? copy.sectorLeaderBasis : null}>
+      <Metric label={copy.sectorLeader}>
         {leader ? <strong>{sectorName(leader.name, locale)} <b className={`sw-${leader.changePercent > 0 ? "positive" : leader.changePercent < 0 ? "negative" : "neutral"}`}>{formatPercent(leader.changePercent)}</b></strong>
-          : <strong>{loading || leadersLoading ? "…" : copy.missing}</strong>}
+          : <strong>{loading || leadersLoading ? "…" : pulse.leadersContext.leadershipStatus === "NO_ADVANCING_SECTOR" ? journeyCopy.noAdvancingSector : journeyCopy.sectorUnavailable}</strong>}
+        {Boolean(pulse.leadersContext.excludedSectorCount) && <small>{journeyCopy.excludedSectors(pulse.leadersContext.excludedSectorCount!)}</small>}
       </Metric>
     </dl>
     <div className="sw-hero-actions" aria-label={locale === "bn" ? "আরও ঘুরে দেখুন" : "Explore workspaces"}>
@@ -138,13 +153,12 @@ export function MarketOverview({ model, copy, locale, freshness, loading, leader
       </Link>
       <Link className="sw-wealth-card" href="/wealth" prefetch={false} aria-labelledby="sw-wealth-title" aria-describedby="sw-wealth-preview">
         <div className="sw-wealth-content">
-          <span className="sw-wealth-label">Wealth Workspace</span>
+          <span className="sw-wealth-label">{locale === "bn" ? "সম্পদের পরিকল্পনা" : "Wealth Workspace"}</span>
           <strong id="sw-wealth-title">{locale === "bn" ? "সঞ্চয় ও সম্পদের পরিকল্পনা করুন" : "Plan savings. Estimate tax."} <span aria-hidden="true">↗</span></strong>
           <span id="sw-wealth-preview">{locale === "bn" ? "ট্যাক্স প্ল্যানার · সঞ্চয়পত্র · যাকাত · DPS · FDR" : "Tax Planner · Sanchayapatra · Zakat · DPS · FDR"}</span>
         </div>
         <Image className="sw-wealth-card-art" alt="" sizes="(max-width: 640px) 76px, 120px" height={320} width={480} src="/dashboard/wealth-workspace-trio-v2.webp" />
       </Link>
-
     </div>
   </section>;
 }

@@ -32,6 +32,12 @@ describe("stock explorer language", () => {
         visibleCount: 8,
         isTableFiltered: true,
       }),
-    ).toBe("Showing 8 of 413 session-backed stocks (428 listed).");
+    ).toBe("8 of 413 stocks · 8 shown · Prices for 413 of 428 listed stocks");
+  });
+  it.each(["en", "bn"] as const)("keeps the complete list subtitle compact and count-based (%s)", locale => {
+    const copy = getStockExplorerLanguage(locale).hero;
+    expect(copy.readySubtitle({ filteredCount: 426, listedStockCount: 426, loadedPriceCount: 426, visibleCount: 120, isTableFiltered: false }))
+      .toBe(locale === "en" ? "426 stocks · 120 shown" : "426টি শেয়ার · 120টি দেখানো");
+    expect(copy.loadingSubtitle).not.toMatch(/426|120/);
   });
 });

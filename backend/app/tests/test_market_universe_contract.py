@@ -8,6 +8,7 @@ import pytest
 
 from app.core.constants.trading_constants import (
     DECISION_TAXONOMY_VERSION,
+    SCANNER_CONDITION_VERSION,
     PULSE_SCORE_VERSION,
     TRADING_INPUT_SCHEMA_VERSION,
     TRADING_STRATEGY_VERSION,
@@ -141,7 +142,7 @@ def test_invalidation_key_lists_cover_presentation_and_foundation() -> None:
     assert universe_cache_key("scored", ExchangeCode.DSE, "G123") == (
         f"universe:scored:DSE:G123:{TRADING_STRATEGY_VERSION}:"
         f"{TRADING_THRESHOLD_VERSION}:{TRADING_INPUT_SCHEMA_VERSION}:"
-        f"{DECISION_TAXONOMY_VERSION}"
+        f"{DECISION_TAXONOMY_VERSION}:{SCANNER_CONDITION_VERSION}"
     )
     assert universe_cache_key(
         "scored", ExchangeCode.DSE, "G123", strategy_version="future-v2"
@@ -202,6 +203,7 @@ def test_scored_universe_row_serialization_has_only_allowed_keys() -> None:
         "previous_finalized_decision",
         "shortlist",
         "display_quote",
+        "entry_applicability",
         "decision",
         "analysis",
         "eligibility",
@@ -250,6 +252,9 @@ async def test_scored_universe_redis_cache_payload_is_lightweight() -> None:
     ]
 
     class FakeMarketRepository:
+        async def list_quote_price_observations(self, **kwargs):
+            return prices[-1:]
+
         async def list_market_price_windows(self, **kwargs):
             return [(stock, price) for price in prices]
 

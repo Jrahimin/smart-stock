@@ -119,6 +119,10 @@ def compute_trader_decision(
     snapshot: TechnicalSnapshot | None = None,
 ) -> TraderDecisionBundle | None:
     from app.core.enums import MarketDataState
+    from app.core.constants.trading_constants import SUPPORTED_TRADING_STRATEGY_VERSIONS
+    if strategy_input.strategy_version not in SUPPORTED_TRADING_STRATEGY_VERSIONS:
+        raise ValueError(f"Unsupported trading engine version: {strategy_input.strategy_version}")
+    legacy_policy = strategy_input.strategy_version == "trading-intelligence-v2"
     if strategy_input.finality != MarketDataState.FINALIZED:
         raise ValueError("Canonical engine rejects provisional sessions")
     sorted_prices = list(strategy_input.prices)
@@ -127,7 +131,8 @@ def compute_trader_decision(
     resolved_snapshot = (
         snapshot if snapshot is not None else build_technical_snapshot(
             decision_prices, exchange_session_dates=strategy_input.exchange_session_dates,
-            adjustment_coverage_verified=strategy_input.adjustment_coverage == "VERIFIED"
+            adjustment_coverage_verified=strategy_input.adjustment_coverage == "VERIFIED",
+            legacy_volume_baseline=legacy_policy,
         )
     )
     if resolved_snapshot is None:
@@ -253,7 +258,7 @@ def compute_trader_decision(
         entry_timing=trade_plan.entry_timing,
         entry_condition=trade_plan.condition_text,
         blocker_codes=blocker_codes,
-        risk_label=risk.label,
+        risk_label=risk.label if legacy_policy else trading_risk.label,
         trade_plan_status=trade_plan.status,
         eligibility_status=eligibility.status,
         primary_reason=decision.primary_reason,

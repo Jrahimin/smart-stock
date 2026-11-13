@@ -91,25 +91,6 @@ function computeReturnLabel(current: number, past: number | null) {
   return formatPercent(((current - past) / past) * 100);
 }
 
-function deriveDayStats(summary: BackendDailyMarketSummaryDto | null): IndexDayStats | null {
-  const close = toNumber(summary?.index_close);
-  const change = toNumber(summary?.index_change);
-
-  if (close === null || change === null) {
-    return null;
-  }
-
-  const open = close - change;
-  const high = Math.max(close, open);
-  const low = Math.min(close, open);
-
-  return {
-    open: formatNumber(open, { maximumFractionDigits: 2 }),
-    high: formatNumber(high, { maximumFractionDigits: 2 }),
-    low: formatNumber(low, { maximumFractionDigits: 2 }),
-  };
-}
-
 function deriveRangeContext(history: IndexHistoryPoint[], currentClose: number): IndexRangeContext | null {
   const window = history.slice(-TRADING_DAYS_1Y);
   if (window.length < 2) {
@@ -171,7 +152,7 @@ export function buildMarketIndexContextFromSnapshot(
     indexChangeLabel: formatIndexMovement(indexChange, indexChangePercent),
     indexTone: resolveIndexTone(indexChangePercent, true),
     marketStatus: snapshot.market_status,
-    dayStats: {
+    dayStats: snapshot.day_open == null || snapshot.day_high == null || snapshot.day_low == null ? null : {
       open: formatNumber(snapshot.day_open, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
       high: formatNumber(snapshot.day_high, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
       low: formatNumber(snapshot.day_low, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
@@ -200,7 +181,7 @@ export function buildMarketIndexContext(
   liveSnapshot: BackendDsexIndexSnapshotDto | null = null,
 ): MarketIndexContext {
   if (liveSnapshot) {
-    return buildMarketIndexContextFromSnapshot(liveSnapshot);
+    return buildMarketIndexContextFromSnapshot(normalizeIndexSnapshot(liveSnapshot, summaries));
   }
 
   const history = getIndexHistory(summaries);
@@ -223,7 +204,8 @@ export function buildMarketIndexContext(
     indexChangeLabel: hasRealIndexSummary ? formatIndexMovement(indexChange, indexChangePercent) : "—",
     indexTone: resolveIndexTone(indexChangePercent, hasRealIndexSummary),
     marketStatus: null,
-    dayStats: hasRealIndexSummary ? deriveDayStats(latestSummary) : null,
+    // Closing summaries carry no measured session open or intraday extremes.
+    dayStats: null,
     range: currentClose !== null ? deriveRangeContext(history, currentClose) : null,
     performance:
       currentClose !== null
@@ -235,4 +217,15 @@ export function buildMarketIndexContext(
           },
   };
 }
-
+
+/** Older cached DTOs substituted zero; the same response's dated summary owns missingness. */
+export function normalizeIndexSnapshot(snapshot: BackendDsexIndexSnapshotDto, summaries: BackendDailyMarketSummaryDto[]): BackendDsexIndexSnapshotDto {
+  const recorded = summaries.find(row => row.index_name === snapshot.index_name && row.trade_date === snapshot.trade_date);
+  if (!recorded) return snapshot;
+  return { ...snapshot,
+    index_change: recorded.index_change == null ? null : snapshot.index_change,
+    index_change_percent: recorded.index_change_percent == null ? null : snapshot.index_change_percent,
+    ...(recorded.index_change == null ? { day_open: null, day_high: null, day_low: null } : {}),
+  };
+}
+

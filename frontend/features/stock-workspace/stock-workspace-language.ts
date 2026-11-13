@@ -53,6 +53,16 @@ export type StockWorkspaceLanguage = {
   };
   panels: {
     tradePlan: string;
+    planAsOf: string;
+    entryStatus: Record<string, string>;
+    entryReason: Record<string, string>;
+    currentEntryUnverified: string;
+    entryApplicableAt: (time: string) => string;
+    quoteObservedAt: (time: string) => string;
+    markedQuote: string;
+    decisionReference: string;
+    plannedRewardRisk: string;
+    trailingManagement: string;
     watchOnly: string;
     entryZone: string;
     stopLoss: string;
@@ -267,6 +277,23 @@ const stockWorkspaceLanguage = {
     },
     panels: {
       tradePlan: "Trade Plan",
+      planAsOf: "Plan as of",
+      currentEntryUnverified: "Current entry unverified",
+      entryApplicableAt: (time) => `Quote meets the checked entry conditions as of ${time} (Dhaka).`,
+      quoteObservedAt: (time) => `Quote source observed ${time} (Dhaka).`,
+      markedQuote: "Marked quote",
+      decisionReference: "Decision reference",
+      plannedRewardRisk: "Planned reward / risk",
+      trailingManagement: "Trailing management",
+      entryStatus: { NOT_APPLICABLE: "No fresh entry", INVALIDATED: "Plan invalidated", EXPIRED: "Plan expired", UNVERIFIED: "Entry unverified", OUTSIDE_ZONE: "Outside entry terms", AWAITING_CONFIRMATION: "Awaiting confirmation", APPLICABLE: "Entry terms met" },
+      entryReason: {
+        ACTION_NOT_PERMITTED: "The dated action does not permit a fresh entry.", ELIGIBILITY_BLOCKED: "Published eligibility blocks entry.", NO_ENTRY_PLAN: "No permitted entry plan.",
+        PUBLICATION_INVALIDATED: "This publication was withdrawn.", STOP_BREACHED: "An observed traded low breached the published stop; a price recovery does not restore this plan.", PRICE_BASIS_CHANGED: "A corporate action changed the plan's price units.",
+        PLAN_EXPIRED: "The final permitted exchange session has ended.", COVERAGE_UNKNOWN: "We do not have enough verified price history to check this setup.", QUOTE_UNUSABLE: "We cannot confirm how recent this price is.", PATH_INCOMPLETE: "The price history since this setup is incomplete.", TERMS_UNKNOWN: "The entry setup is not fully defined.",
+        TARGET_REACHED: "Price has reached the fixed target.", BELOW_ENTRY_ZONE: "Current price is below the entry zone.", ABOVE_ENTRY_ZONE: "Current price is above the entry zone.",
+        MARKET_CLOSED: "Current entry checks resume when trading opens with a fresh quote. The dated decision remains available.", SESSION_SETTLING: "Trading has ended. Closing data is settling before the next entry review.",
+        COMPLETED_BREAKOUT_REQUIRED: "A completed close and volume confirmation are required.", ENTRY_SESSION_PENDING: "Wait for the next permitted entry session.", ENTRY_TERMS_MET: "Current evidence meets the published fresh-entry terms.",
+      },
       watchOnly: "Watch only",
       entryZone: "Entry Zone",
       stopLoss: "Stop Loss",
@@ -326,7 +353,7 @@ const stockWorkspaceLanguage = {
       },
       helpers: {
         trend:
-          "Canonical trend from the decision engine when available.",
+          "Direction of the recent price trend",
         rsi:
           "14-session momentum estimate from available closes.",
         volatility:
@@ -501,7 +528,7 @@ const stockWorkspaceLanguage = {
       decisionSupport:
         "Decision support",
       modelConfidence: (value) =>
-        `${value}/100 heuristic evidence`,
+        `${value}/100 signal strength`,
       data: "Decision data",
       asOf: (date) =>
         ` · as of ${date}`,
@@ -612,6 +639,23 @@ const stockWorkspaceLanguage = {
 
     panels: {
       tradePlan: "Trade Plan",
+      planAsOf: "পরিকল্পনার তারিখ",
+      currentEntryUnverified: "বর্তমান entry যাচাই করা হয়নি",
+      entryApplicableAt: (time) => `${time} (ঢাকা) সময়ের যাচাইয়ে দর entry-এর পরীক্ষিত শর্ত পূরণ করে।`,
+      quoteObservedAt: (time) => `দরের উৎসে পর্যবেক্ষণের সময় ${time} (ঢাকা)।`,
+      markedQuote: "সর্বশেষ পর্যবেক্ষিত দর",
+      decisionReference: "সিদ্ধান্তের ভিত্তিদর",
+      plannedRewardRisk: "পরিকল্পিত লাভ / ঝুঁকি",
+      trailingManagement: "Trailing ব্যবস্থাপনা",
+      entryStatus: { NOT_APPLICABLE: "নতুন entry প্রযোজ্য নয়", INVALIDATED: "পরিকল্পনা বাতিল", EXPIRED: "পরিকল্পনার মেয়াদ শেষ", UNVERIFIED: "entry যাচাই হয়নি", OUTSIDE_ZONE: "entry-এর শর্তের বাইরে", AWAITING_CONFIRMATION: "নিশ্চিতকরণের অপেক্ষায়", APPLICABLE: "entry-এর শর্ত পূরণ হয়েছে" },
+      entryReason: {
+        ACTION_NOT_PERMITTED: "প্রকাশিত সিদ্ধান্ত নতুন entry-এর অনুমতি দেয় না।", ELIGIBILITY_BLOCKED: "প্রকাশিত যোগ্যতা entry আটকে দিয়েছে।", NO_ENTRY_PLAN: "অনুমোদিত entry পরিকল্পনা নেই।",
+        PUBLICATION_INVALIDATED: "এই প্রকাশনা প্রত্যাহার করা হয়েছে।", STOP_BREACHED: "পর্যবেক্ষিত লেনদেনের সর্বনিম্ন দর প্রকাশিত স্টপ ছুঁয়েছে; দর ফিরে এলেও পরিকল্পনা বহাল হয় না।", PRICE_BASIS_CHANGED: "কর্পোরেট অ্যাকশনে পরিকল্পনার দরের ভিত্তি বদলেছে।",
+        PLAN_EXPIRED: "অনুমোদিত শেষ লেনদেন সেশন শেষ হয়েছে।", COVERAGE_UNKNOWN: "সেটআপ যাচাইয়ের জন্য যথেষ্ট নির্ভরযোগ্য দামের ইতিহাস নেই।", QUOTE_UNUSABLE: "এই দাম কতটা সাম্প্রতিক, তা নিশ্চিত করা যাচ্ছে না।", PATH_INCOMPLETE: "সেটআপের পরের দামের ইতিহাস অসম্পূর্ণ।", TERMS_UNKNOWN: "entry-এর শর্ত পুরোপুরি নির্ধারিত হয়নি।",
+        TARGET_REACHED: "দর নির্ধারিত লক্ষ্যে পৌঁছেছে।", BELOW_ENTRY_ZONE: "বর্তমান দর entry সীমার নিচে।", ABOVE_ENTRY_ZONE: "বর্তমান দর entry সীমার উপরে।",
+        MARKET_CLOSED: "বাজার খুললে নতুন দামের তথ্য দিয়ে entry আবার যাচাই হবে। প্রকাশিত সিদ্ধান্ত দেখা যাবে।", SESSION_SETTLING: "লেনদেন শেষ হয়েছে। সমাপনী তথ্য হালনাগাদ হচ্ছে; এরপর entry আবার পর্যালোচনা করা হবে।",
+        COMPLETED_BREAKOUT_REQUIRED: "সম্পূর্ণ সেশনের সমাপনী দর ও volume-এর নিশ্চিতকরণ প্রয়োজন।", ENTRY_SESSION_PENDING: "পরবর্তী অনুমোদিত entry সেশনের অপেক্ষা করুন।", ENTRY_TERMS_MET: "বর্তমান তথ্য নতুন entry-এর প্রকাশিত শর্ত পূরণ করে।",
+      },
       watchOnly: "শুধু নজরে রাখুন",
       entryZone: "Entry Zone",
       stopLoss: "Stop Loss",

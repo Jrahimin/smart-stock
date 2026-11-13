@@ -17,6 +17,11 @@ export type PulseScoreBreakdownModel = {
 };
 
 export type FocusStockModel = {
+  displayQuote?: import("@/lib/api/backend-api-types").BackendScoredUniverseRowDto["display_quote"];
+  measuredFacts?: import("@/lib/api/stock-decision-support-types").MeasuredDecisionFactsDto | null;
+  locale?: import("@/lib/locale/app-locale").AppLocale;
+  entryApplicability?: import("@/lib/api/stock-decision-support-types").EntryApplicabilityDto | null;
+  entryRiskLabel?: string | null;
   recommendation?: string;
   readiness?: string;
   controllingReasonCode?: string | null;
@@ -128,6 +133,8 @@ export type MarketStoryMetricModel = {
 };
 
 export type MarketStoryModel = {
+  headlineCode?: import("@/lib/api/backend-api-types").PulseStoryHeadlineCode | null;
+  sectorCount?: number | null;
   headline: string;
   explanation: string;
   tone: "positive" | "negative" | "neutral" | "info" | "warning";
@@ -142,6 +149,7 @@ export type MarketStateDimensionModel = {
 };
 
 export type MarketStateModel = {
+  excludedSectorCount?: number;
   dimensions: MarketStateDimensionModel[];
   overallLabel: string;
   overallTone: "positive" | "negative" | "neutral" | "info" | "warning";
@@ -212,6 +220,7 @@ export type MarketSummaryHighlightModel = {
 };
 
 export type MarketLeadershipModel = {
+  decisionDate?: string | null;
   cards: LeadershipCardModel[];
   freshBuySignals: string[];
   narrative: string;
@@ -238,6 +247,10 @@ export type MarketSummaryModel = {
 };
 
 export type MarketBriefingModel = {
+  breadthDefinition?: string;
+  breadth?: import("@/lib/api/backend-api-types").BackendBreadthDto | null;
+  breadthNote?: string | null;
+  sectorBasis?: string;
   story: MarketStoryModel;
   state: MarketStateModel;
   moneyFlow: MoneyFlowModel;

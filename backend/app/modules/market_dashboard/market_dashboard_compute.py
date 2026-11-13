@@ -12,7 +12,7 @@ from app.core.enums import DataQualityFlag, DecisionDisplayAction, TrendDirectio
 from app.models import DailyMarketSummary, Stock
 from app.modules.market_data.market_mover_rules import is_eligible_session_mover
 from app.modules.market_universe.market_universe_compute import technical_snapshot_from_read
-from app.modules.market_dashboard.market_snapshot import DashboardSnapshotRow
+from app.modules.market_dashboard.market_snapshot import DashboardSnapshotRow, dated_breadth_changes
 from app.modules.market_universe.market_universe_schemas import ScoredUniverseRow
 from app.modules.stock_details.decision.technical import TechnicalSnapshot, build_technical_snapshot
 
@@ -27,11 +27,11 @@ def _average(values: list[float]) -> float | None:
     return sum(values) / len(values)
 
 
-def derive_market_breadth_from_snapshot(rows: list[DashboardSnapshotRow]) -> tuple[int, int, int, int]:
-    advancing = sum(1 for row in rows if (row.technical.price_change_percent or 0) > 0)
-    declining = sum(1 for row in rows if (row.technical.price_change_percent or 0) < 0)
-    unchanged = sum(1 for row in rows if (row.technical.price_change_percent or 0) == 0)
-    return advancing, declining, unchanged, len(rows)
+def derive_market_breadth_from_snapshot(rows: list[DashboardSnapshotRow], session_trade_date=None) -> tuple[int, int, int, int]:
+    from app.modules.market_data.breadth import breadth_facts
+    changes = dated_breadth_changes(rows, session_trade_date) if session_trade_date else [row.technical.price_change_percent for row in rows]
+    facts = breadth_facts(changes, cohort="ACTIVE_VALID_OHLC", as_of_date=session_trade_date)
+    return facts.advancing, facts.declining, facts.unchanged, facts.denominator
 
 
 def derive_market_mood_from_snapshot(
@@ -40,10 +40,11 @@ def derive_market_mood_from_snapshot(
     advancing: int,
     declining: int,
 ) -> str:
-    if not rows:
+    if not rows or not any(row.technical.ohlcv_row_count > 1 for row in rows):
+        # The lightweight HTTP snapshot is one bar; it cannot establish history-dependent mood.
         return "Unknown"
 
-    average_move = _average([row.technical.price_change_percent or 0 for row in rows]) or 0
+    average_move = _average([row.technical.price_change_percent for row in rows if row.technical.price_change_percent is not None]) or 0
     average_volatility = _average([row.technical.volatility or 0 for row in rows]) or 0
     volume_expansion = sum(
         1
@@ -365,7 +366,7 @@ def build_sector_snapshots(
     return sectors, top_gainer
 
 
-def build_heatmap_tiles(rows: list[tuple[Stock, TechnicalSnapshot]]) -> list[dict[str, object]]:
+def build_heatmap_tiles(rows: list[tuple[Stock, TechnicalSnapshot]], *, session_trade_date: date | None = None) -> list[dict[str, object]]:
     if not rows:
         return []
 
@@ -378,27 +379,47 @@ def build_heatmap_tiles(rows: list[tuple[Stock, TechnicalSnapshot]]) -> list[dic
 
     tiles: list[dict[str, object]] = []
     for stock, snapshot in sorted_rows:
-        change = snapshot.price_change_percent or 0
+        measured = (session_trade_date is not None
+            and snapshot.latest_trade_date == session_trade_date.isoformat()
+            and snapshot.data_quality != DataQualityFlag.SUSPICIOUS)
+        change = snapshot.price_change_percent if measured else None
         size_source = float(stock.market_cap or snapshot.turnover or 1)
         weight = max(1.0, min(8.0, math.log10(size_source + 10) / 1.8))
         turnover_value = snapshot.turnover or 0
         sector = (stock.sector or stock.category or "Unclassified").strip() or "Unclassified"
-        tone = "positive" if change > 0 else "negative" if change < 0 else "neutral"
+        tone = "positive" if change is not None and change > 0 else "negative" if change is not None and change < 0 else "neutral"
         tiles.append(
             {
                 "stock_id": stock.id,
                 "symbol": stock.symbol,
                 "sector": sector,
-                "change_percent": Decimal(str(change)),
+                "trade_date": snapshot.latest_trade_date,
+                "change_percent": Decimal(str(change)) if change is not None else None,
                 "weight": Decimal(str(round(weight, 4))),
                 "tone": tone,
-                "latest_price": Decimal(str(snapshot.latest_price or 0)),
-                "turnover": Decimal(str(turnover_value)),
+                "latest_price": Decimal(str(snapshot.latest_price)) if snapshot.latest_price is not None else None,
+                "turnover": Decimal(str(snapshot.turnover)) if snapshot.turnover is not None else None,
                 "turnover_value": Decimal(str(turnover_value)),
                 "liquidity_score": int(round((turnover_value / max_turnover) * 100)),
             }
         )
     return tiles
+
+
+def build_heatmap_sectors(tiles: list[dict[str, object]]) -> list[dict[str, object]]:
+    groups: dict[str, list[dict[str, object]]] = {}
+    for tile in tiles:
+        groups.setdefault(tile["sector"], []).append(tile)
+    sectors = []
+    for name, members in groups.items():
+        measured = [tile for tile in members if tile["change_percent"] is not None]
+        weighted = bool(measured) and all(tile["turnover_value"] > 0 for tile in measured)
+        weights = [tile["turnover_value"] if weighted else Decimal(1) for tile in measured]
+        change = (sum(tile["change_percent"] * weight for tile, weight in zip(measured, weights))
+            / sum(weights)) if measured else None
+        sectors.append({"name": name, "change_percent": change, "measured_count": len(measured),
+            "total_count": len(members), "weighting": "TURNOVER" if weighted else "EQUAL" if measured else "UNAVAILABLE"})
+    return sectors
 
 
 def build_market_insights(
@@ -484,3 +505,38 @@ def build_market_insights(
         )
 
     return insights
+
+
+def measured_market_interpretation(*, breadth, index, summaries, session_date):
+    """Describe same-session signs and measured participation, without a mood/history claim."""
+    from app.modules.market_dashboard.market_dashboard_schemas import MarketInterpretationRead
+    move = index.index_change_percent if index and index.index_close is not None and index.index_close > 0 and index.trade_date == session_date else None
+    known = breadth.known_count > 0
+    net = breadth.advancing - breadth.declining
+    if move is None:
+        code = "BREADTH_ONLY" if known else "UNAVAILABLE"
+    elif not known:
+        code = "INDEX_ONLY"
+    elif move > 0 and net > 0:
+        code = "ALIGNED_UP"
+    elif move < 0 and net < 0:
+        code = "ALIGNED_DOWN"
+    elif move * net < 0:
+        code = "DIVERGENT"
+    else:
+        code = "MIXED"
+    index_name = index.index_name if index else "DSEX"
+    previous = {row.trade_date: row.total_volume for row in summaries
+        if session_date and row.trade_date < session_date and row.index_name == index_name
+        and row.total_volume is not None and row.total_volume >= 0 and row.data_quality_flag != DataQualityFlag.SUSPICIOUS}
+    values = [Decimal(str(previous[day])) for day in sorted(previous, reverse=True)[:30]]
+    average = sum(values) / len(values) if values else None
+    current = index.total_volume if index and index.trade_date == session_date else None
+    if current is None:
+        current = next((row.total_volume for row in summaries
+            if row.trade_date == session_date and row.index_name == index_name
+            and row.total_volume is not None and row.total_volume >= 0
+            and row.data_quality_flag != DataQualityFlag.SUSPICIOUS), None)
+    ratio = Decimal(str(current)) / average if current is not None and current >= 0 and average is not None and average > 0 else None
+    return MarketInterpretationRead(code=code, as_of_date=session_date, index_change_percent=move,
+        breadth=breadth, volume_vs_average=ratio, volume_average_sessions=len(values))

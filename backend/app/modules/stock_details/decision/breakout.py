@@ -86,7 +86,7 @@ def analyze_breakout(snapshot: TechnicalSnapshot, patterns: list[PatternDetectio
     volume_increasing = bool(
         snapshot.average_volume
         and snapshot.average_volume > 0
-        and snapshot.volume / snapshot.average_volume >= VOLUME_EXPANSION_RATIO
+        and snapshot.volume_facts.ratio >= VOLUME_EXPANSION_RATIO
     )
     factors.append(
         BreakoutFactor(

@@ -1,5 +1,12 @@
-import { evidenceLabel, controllingReasonLabel } from "@/lib/market/decision-presentation";
-import type { PatternDetectionDto, StockDecisionSupportDto } from "@/lib/api/stock-decision-support-types";
+import { holderReasonLabel, evidenceLabel, controllingReasonLabel, selectedDecisionExplanation, isDatedPlanGuidance } from "@/lib/market/decision-presentation";
+import { publishedSetupCondition } from "@/lib/market/published-setup-condition";
+import type { DisplayMetricsDto, PatternDetectionDto, StockDecisionSupportDto } from "@/lib/api/stock-decision-support-types";
+import { holderActionLabels, getSignalActionLabel } from "@/lib/market/signal-action-labels";
+import { shortTradeDate } from "@/lib/formatters/trader-formatters";
+import type { DecisionDisplayAction, HolderAction } from "@/lib/api/backend-api-types";
+import { compatibleDisplayAction } from "@/lib/market/decision-action-compatibility";
+import { getStockDecisionLanguage } from "@/features/stock-workspace/stock-decision-language";
+import { localizeEntryCondition } from "@/features/stock-workspace/stock-decision-language";
 import {
   formatFinancialDisplay,
   formatMarketCapBdt,
@@ -21,7 +28,7 @@ export type DecisionSignalKey =
 
 export type DecisionSignal = {
   tone: "positive" | "warning";
-  key: DecisionSignalKey;
+  key: DecisionSignalKey | "selected_support" | "selected_limitation";
   text: string;
   warningCode?: string;
 };
@@ -37,15 +44,28 @@ export type TradePlanVisual = {
   entryLow: number | null;
   entryHigh: number | null;
   current: number | null;
+  reference: number | null;
   stopLoss: number | null;
   target: number | null;
+  targetLow: number | null;
+  targetHigh: number | null;
+  trailingRule: string | null;
   riskReward: number | null;
   status: "VALID_ENTRY_PLAN" | "WATCH_ONLY" | "UNAVAILABLE";
+  asOfDate?: string | null;
+  entryApplicability?: StockDecisionSupportDto["entry_applicability"];
 };
 
 export type StockDecisionViewModel = {
+  measuredFacts?: import("@/lib/api/stock-decision-support-types").MeasuredDecisionFactsDto | null;
+  holderInstruction?: { action: HolderAction; label: string; reason: string };
   available: boolean;
   recommendation: string;
+  displayAction: DecisionDisplayAction | null;
+  locale: AppLocale;
+  audience: string;
+  datedActionLabel: string;
+  sourceDetail: string[];
   confidence: number;
   confidenceLabel: string;
   controllingReason?: string;
@@ -56,11 +76,12 @@ export type StockDecisionViewModel = {
   opportunityComponents: Array<{ key: string; label: string; score: number; explanation: string }>;
   riskScore: number;
   riskLabel: string;
+  riskBasisLabel: string;
   riskComponents: Array<{ key: string; label: string; score: number; explanation: string }>;
   pricePositionVisual: PricePositionVisual;
   tradePlanVisual: TradePlanVisual;
   liquidity: { label: string; explanation: string; volumeRatio: string };
-  warnings: Array<{ title: string; message: string; severity: string; code: string }>;
+  warnings: Array<{ title: string; message: string; severity: string; code: string; parameters?: Record<string, string | number | boolean> }>;
   topWarnings: Array<{ title: string; message: string; severity: string; code: string }>;
   freshness: { label: string; helper: string; isStale: boolean };
   chartPatterns: PatternDetectionDto[];
@@ -88,48 +109,15 @@ const SIGNAL_TEXT: Record<Exclude<DecisionSignalKey, "warning_ref">, string> = {
   momentum_healthy: "Momentum healthy",
   momentum_fading: "Momentum fading",
   volume_above_average: "Volume above average",
-  weak_volume_confirmation: "Weak volume confirmation",
+  weak_volume_confirmation: "Volume below average",
 };
 
-function buildDecisionSignals(decision: StockDecisionSupportDto): DecisionSignal[] {
-  const signals: DecisionSignal[] = [];
-  const trend = decision.opportunity.components.find((component) => component.key === "trend");
-  const momentum = decision.opportunity.components.find((component) => component.key === "momentum");
-  const volume = decision.opportunity.components.find((component) => component.key === "volume");
-
-  if (decision.trend === "UPTREND" || (trend && trend.score >= 60)) {
-    signals.push({ tone: "positive", key: "uptrend_intact", text: SIGNAL_TEXT.uptrend_intact });
-  } else if (decision.trend === "DOWNTREND" || (trend && trend.score <= 40)) {
-    signals.push({ tone: "warning", key: "trend_under_pressure", text: SIGNAL_TEXT.trend_under_pressure });
-  }
-
-  if (momentum && momentum.score >= 55) {
-    signals.push({ tone: "positive", key: "momentum_healthy", text: SIGNAL_TEXT.momentum_healthy });
-  } else if (momentum && momentum.score <= 40) {
-    signals.push({ tone: "warning", key: "momentum_fading", text: SIGNAL_TEXT.momentum_fading });
-  }
-
-  if (volume && volume.score >= 55) {
-    signals.push({ tone: "positive", key: "volume_above_average", text: SIGNAL_TEXT.volume_above_average });
-  } else if (volume && volume.score <= 45) {
-    signals.push({ tone: "warning", key: "weak_volume_confirmation", text: SIGNAL_TEXT.weak_volume_confirmation });
-  }
-
-  const warningSignal = decision.warnings.find((warning) =>
-    ["near_resistance", "below_support", "rsi_overheated", "thin_liquidity", "category_z", "high_volatility"].includes(
-      warning.code,
-    ),
-  );
-  if (warningSignal) {
-    signals.push({
-      tone: "warning",
-      key: "warning_ref",
-      warningCode: warningSignal.code,
-      text: warningSignal.title,
-    });
-  }
-
-  return signals.slice(0, 4);
+function buildDecisionSignals(decision: StockDecisionSupportDto, locale: AppLocale): DecisionSignal[] {
+  const selected = selectedDecisionExplanation(decision.decision, locale);
+  return [
+    ...(selected.limitation ? [{ key: "selected_limitation" as const, tone: "warning" as const, text: selected.limitation }] : []),
+    ...(selected.support ? [{ key: "selected_support" as const, tone: "positive" as const, text: selected.support }] : []),
+  ];
 }
 
 function computePercentTowardResistance(support: number | null, resistance: number | null, current: number | null) {
@@ -142,11 +130,17 @@ function computePercentTowardResistance(support: number | null, resistance: numb
 export function buildStockDecisionViewModel(
   decision: StockDecisionSupportDto | null | undefined,
   locale: AppLocale = DEFAULT_LOCALE,
+  displayMetrics?: DisplayMetricsDto | null,
 ): StockDecisionViewModel {
   if (!decision) {
     return applyStockDecisionLocalization(
       {
         available: false,
+        displayAction: null,
+        locale,
+        audience: "",
+        datedActionLabel: "",
+        sourceDetail: [],
         recommendation: "—",
         confidence: 0,
         confidenceLabel: "N/A",
@@ -157,14 +151,19 @@ export function buildStockDecisionViewModel(
         opportunityComponents: [],
         riskScore: 0,
         riskLabel: "N/A",
+        riskBasisLabel: locale === "bn" ? "ঝুঁকির তথ্য নেই" : "Risk unavailable",
         riskComponents: [],
         pricePositionVisual: { support: null, current: null, resistance: null, percentTowardResistance: null },
         tradePlanVisual: {
           entryLow: null,
           entryHigh: null,
           current: null,
+          reference: null,
           stopLoss: null,
           target: null,
+          targetLow: null,
+          targetHigh: null,
+          trailingRule: null,
           riskReward: null,
           status: "UNAVAILABLE",
         },
@@ -192,44 +191,65 @@ export function buildStockDecisionViewModel(
     message: warning.message,
     severity: warning.severity,
     code: warning.code,
+    parameters: {
+      ...(decision.technical_snapshot?.rsi != null ? { rsi: decision.technical_snapshot.rsi } : {}),
+      ...(decision.technical_snapshot?.volatility != null ? { volatility: decision.technical_snapshot.volatility } : {}),
+      ...(warning.code === "elevated_risk" && decision.risk?.label ? { riskLabel: decision.risk.label } : {}),
+      ...(decision.primary_pattern ? { patternName: decision.primary_pattern.name, confirmed: decision.primary_pattern.status === "Confirmed" } : {}),
+    },
   }));
   const risk = decision.trading_risk ?? decision.risk;
-  const displayAction =
-    decision.decision.display_action ??
-    (decision.decision.recommendation === "SELL" ? "SELL" : "WAIT");
+  const displayAction = compatibleDisplayAction(decision.decision);
+  const asOfDate = decision.decision_session_date ?? decision.data_freshness.latest_trade_date;
+  const condition = decision.decision.entry_condition ?? decision.trade_plan.condition_text;
+  const reasonCode = decision.decision.primary_reason_code ?? decision.canonical_decision?.primary_reason_code;
+  const setupCondition = publishedSetupCondition(decision.measured_facts, decision.entry_applicability, locale, reasonCode);
 
   return applyStockDecisionLocalization(
     {
       available: true,
-      recommendation: displayAction.replace("_", " "),
+      displayAction,
+      locale,
+      audience: locale === "bn" ? "নতুন অবস্থান বিবেচনায়" : "For a prospective entry",
+      datedActionLabel: `${locale === "bn" ? "সিদ্ধান্ত" : "Decision"} · ${shortTradeDate(asOfDate, locale)}`,
+      sourceDetail: [decision.decision.primary_reason, decision.decision.measured_support, decision.decision.opposing_constraint, decision.trade_plan.trailing_rule].filter((text): text is string => !!text),
+      recommendation: displayAction ? getSignalActionLabel(displayAction, "en") : (locale === "bn" ? "সিদ্ধান্ত অনুপলব্ধ" : "Decision unavailable"),
       confidence: decision.decision.confidence,
       confidenceLabel: evidenceLabel(decision.decision.evidence_status, locale),
       controllingReason: [
         decision.decision_status === "UPDATING" ? (locale === "bn" ? "সিদ্ধান্ত আপডেট হচ্ছে; আগের চূড়ান্ত ফল।" : "Updating; previous finalized result.") : null,
-        controllingReasonLabel(decision.decision.primary_reason_code, decision.decision.primary_reason ?? "", locale),
+        setupCondition && isDatedPlanGuidance(reasonCode) ? null : controllingReasonLabel(reasonCode, "", locale),
         decision.decision.non_holder_action === "AVOID" ? (locale === "bn" ? "নতুন long entry এড়িয়ে চলুন।" : "Avoid a new long entry.") : null,
       ].filter(Boolean).join(" "),
       recommendationTone:
-        recommendationToneMap[displayAction] ?? "neutral",
+        (displayAction ? recommendationToneMap[displayAction] : null) ?? "neutral",
       entryCondition:
-        displayAction === "POTENTIAL_BUY"
-          ? decision.decision.entry_condition ?? decision.trade_plan.condition_text ?? null
-          : null,
-      decisionSignals: buildDecisionSignals(decision),
+        setupCondition ?? (displayAction === "POTENTIAL_BUY" && decision.entry_applicability?.status === "APPLICABLE"
+          ? decision.entry_applicability.price_basis === "LAST_CLOSE"
+            ? (locale === "bn" ? "নথিভুক্ত সমাপনী দাম প্রকাশিত এন্ট্রির শর্তের সঙ্গে মিলে।" : "The recorded closing quote meets the published entry conditions.")
+            : decision.trade_plan.entry_timing === "PULLBACK"
+            ? (locale === "bn" ? "দর pullback সীমার মধ্যে আছে; support টিকে থাকে কি না দেখুন।" : "Quote is in the pullback zone; watch whether support holds.")
+            : decision.trade_plan.entry_timing === "BREAKOUT"
+              ? (locale === "bn" ? "সম্পূর্ণ সেশনের close ও volume নিশ্চিত হয়েছে এবং অনুমোদিত entry session এসেছে; প্রকাশিত ব্যবস্থাপনার শর্ত অনুসরণ করুন।" : "Completed-session close and volume are confirmed and the permitted entry session has arrived; follow the dated management conditions.")
+            : condition ? `${locale === "bn" ? "প্রকাশিত শর্ত: " : "Dated condition: "}${localizeEntryCondition(condition, locale)}` : null
+          : null),
+      decisionSignals: buildDecisionSignals(decision, locale),
+      measuredFacts: decision.measured_facts,
       opportunityScore: decision.opportunity.score,
       opportunityComponents: decision.opportunity.components.map((component) => ({
         key: component.key,
-        label: component.label,
+        label: component.key === "risk_adjustment" ? "Legacy composite risk adjustment" : component.label,
         score: component.score,
-        explanation: component.explanation,
+        explanation: component.key === "risk_adjustment" ? `${component.explanation} This uses the legacy composite score, separately from trading risk.` : component.explanation,
       })),
       riskScore: risk.score,
       riskLabel: risk.label,
+      riskBasisLabel: decision.trading_risk ? (locale === "bn" ? "এন্ট্রির ঝুঁকি" : "Entry risk") : (locale === "bn" ? "পুরোনো composite ঝুঁকি" : "Legacy composite risk"),
       riskComponents: risk.components.map((component) => ({
         key: component.key,
-        label: component.label,
+        label: component.key === "risk_adjustment" ? "Legacy composite risk adjustment" : component.label,
         score: component.score,
-        explanation: component.explanation,
+        explanation: component.key === "risk_adjustment" ? `${component.explanation} This uses the legacy composite score, separately from trading risk.` : component.explanation,
       })),
       pricePositionVisual: {
         support: decision.support,
@@ -242,13 +262,19 @@ export function buildStockDecisionViewModel(
         ),
       },
       tradePlanVisual: {
-        entryLow: decision.trade_plan.entry_zone_low,
-        entryHigh: decision.trade_plan.entry_zone_high,
-        current: decision.price_position.current_price,
-        stopLoss: decision.trade_plan.stop_loss,
+        entryLow: decision.trade_plan.preferred_entry_zone_low ?? decision.trade_plan.entry_zone_low,
+        entryHigh: decision.trade_plan.preferred_entry_zone_high ?? decision.trade_plan.entry_zone_high,
+        current: displayMetrics?.current_price ?? null,
+        reference: decision.price_position.current_price,
+        stopLoss: decision.trade_plan.invalidation_price ?? decision.trade_plan.stop_loss,
         target: decision.trade_plan.target_high,
+        targetLow: decision.trade_plan.target_low,
+        targetHigh: decision.trade_plan.target_high,
+        trailingRule: decision.trade_plan.management_mode === "TRAILING" ? locale === "bn" ? "সম্পূর্ণ সেশনের সর্বশেষ দামের গঠন অথবা প্রকাশিত ATR-ভিত্তিক সীমা—যেটি উঁচু—তার নিচে trailing invalidation অনুসরণ করুন।" : decision.trade_plan.trailing_rule ?? null : null,
         riskReward: decision.trade_plan.risk_reward_ratio,
-        status: decision.trade_plan.status ?? "UNAVAILABLE",
+        status: decision.trade_plan.status ?? (decision.trade_plan.entry_zone_low !== null && decision.trade_plan.entry_zone_high !== null ? "WATCH_ONLY" : "UNAVAILABLE"),
+        asOfDate: decision.decision_session_date ?? decision.data_freshness.latest_trade_date,
+        entryApplicability: decision.entry_applicability,
       },
       liquidity: {
         label: decision.liquidity.label,
@@ -300,4 +326,15 @@ export function patternDirectionClass(direction: string) {
     return "pattern-chip-bearish";
   }
   return "pattern-chip-neutral";
+}
+
+/** Account membership changes the audience, never the dated public thesis or entry evaluator. */
+export function withStockHolderInstruction(model: StockDecisionViewModel, decision: StockDecisionSupportDto | null | undefined, isHolding: boolean): StockDecisionViewModel {
+  const action = decision?.decision.holder_action ?? decision?.canonical_decision?.holder_action;
+  if (!isHolding || !model.displayAction || !action || !["HOLD", "REVIEW", "REDUCE", "SELL"].includes(action)) return model;
+  const code = decision?.decision.primary_reason_code ?? decision?.canonical_decision?.primary_reason_code;
+  const fallback = (model.locale === "en" ? decision?.decision.primary_reason ?? decision?.canonical_decision?.primary_reason : null)
+    ?? (model.locale === "bn" ? "প্রকাশিত নির্দেশনার কারণ উৎসের বিস্তারিত অংশে দেখুন।" : "See the published source detail for the holder instruction's reason.");
+  const reason = holderReasonLabel(code, fallback, model.locale);
+  return { ...model, holderInstruction: { action, label: holderActionLabels[model.locale][action], reason } };
 }

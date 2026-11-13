@@ -26,6 +26,7 @@ from app.jobs.market_session_schedule import (
     next_snapshot_sync_at,
     resolve_cache_ttl_seconds,
     resolve_market_status,
+    session_open_time,
 )
 from app.models import DailyMarketSummary, DailyPrice, Stock
 from app.modules.market_data.dsex_metrics import build_dsex_performance_snapshot
@@ -598,28 +599,25 @@ class MarketDataService:
         if index_close is None:
             raise NotFoundError("DSEX index snapshot is not available")
 
-        index_change = latest.index_change if latest.index_change is not None else Decimal("0")
-        index_change_percent = (
-            latest.index_change_percent if latest.index_change_percent is not None else Decimal("0")
-        )
-        day_open = index_close - index_change
-        day_high = max(index_close, day_open)
-        day_low = min(index_close, day_open)
+        index_change = latest.index_change
+        index_change_percent = latest.index_change_percent
+        # These stored summaries contain closes and changes, not observed index OHLC.
+        day_open = day_high = day_low = None
 
         async with async_perf_stage(perf, "metrics.local"):
             performance = await build_dsex_performance_snapshot(
                 summaries,
                 index_close=index_close,
-                day_low=day_low,
-                day_high=day_high,
+                day_low=day_low if day_low is not None else index_close,
+                day_high=day_high if day_high is not None else index_close,
                 exchange=exchange,
                 settings=settings,
             )
 
         range_position_percent = self._compute_range_position_percent(
             index_close,
-            performance.range_52w_low or day_low,
-            performance.range_52w_high or day_high,
+            performance.range_52w_low,
+            performance.range_52w_high,
         )
 
         perf.log_summary()
@@ -632,8 +630,8 @@ class MarketDataService:
             day_open=day_open,
             day_high=day_high,
             day_low=day_low,
-            range_52w_low=performance.range_52w_low or day_low,
-            range_52w_high=performance.range_52w_high or day_high,
+            range_52w_low=performance.range_52w_low,
+            range_52w_high=performance.range_52w_high,
             range_position_percent=range_position_percent,
             return_1m_percent=performance.return_1m_percent,
             return_6m_percent=performance.return_6m_percent,
@@ -641,9 +639,9 @@ class MarketDataService:
             total_volume=latest.total_volume,
             total_turnover=latest.total_turnover,
             total_trades=latest.total_trades,
-            advancing_issues=latest.advancing_issues or 0,
-            declining_issues=latest.declining_issues or 0,
-            unchanged_issues=latest.unchanged_issues or 0,
+            advancing_issues=latest.advancing_issues,
+            declining_issues=latest.declining_issues,
+            unchanged_issues=latest.unchanged_issues,
             source=latest.source,
         )
 
@@ -700,9 +698,11 @@ class MarketDataService:
     def _compute_range_position_percent(
         self,
         current_close: Decimal,
-        range_low: Decimal,
-        range_high: Decimal,
-    ) -> Decimal:
+        range_low: Decimal | None,
+        range_high: Decimal | None,
+    ) -> Decimal | None:
+        if range_low is None or range_high is None:
+            return None
         if range_high <= range_low:
             return Decimal("50")
 
@@ -793,6 +793,8 @@ class MarketDataService:
                 else TurnoverProvenance.ESTIMATED
             ),
             source=price.source,
+            source_observed_at=price.source_observed_at,
+            batch_fetched_at=price.batch_fetched_at,
             data_quality_flag=price.data_quality_flag,
         )
 
@@ -905,7 +907,7 @@ class MarketDataService:
             market_sync_interval_seconds=settings.market_sync_interval_seconds,
             dashboard_cache_ttl_seconds=resolve_cache_ttl_seconds(status, settings),
             expected_delay_minutes=interval,
-            market_open_time=settings.market_open_time,
+            market_open_time=session_open_time(now.date(), settings).strftime("%H:%M"),
             market_close_time=settings.market_close_time,
             market_status=status,
             freshness_label=build_freshness_label(settings, status),
@@ -938,6 +940,7 @@ class MarketDataService:
             fetched_count=fetched_count,
             accepted_count=accepted_count,
             suspicious_count=suspicious_count,
+            capture_price_versions=True,
         )
         await self.repository.commit()
         return sync_id
@@ -987,6 +990,7 @@ class MarketDataService:
             fetched_count=current.fetched_count,
             accepted_count=current.accepted_count,
             suspicious_count=current.suspicious_count,
+            parent_price_generation_id=current.sync_id,
         )
         await self.repository.commit()
         return sync_id
@@ -997,36 +1001,36 @@ class MarketDataService:
         exchange: ExchangeCode,
         trade_date: date,
     ) -> str:
+        await self.repository.lock_session_publication(exchange=exchange, trade_date=trade_date)
         existing = await self.repository.get_latest_market_data_generation(
             exchange=exchange,
             state=MarketDataState.FINALIZED,
             trade_date=trade_date,
         )
         if existing is not None:
+            if getattr(existing, "accepted_count", 0) <= 0:
+                await self.rollback_transaction()
+                raise MarketSnapshotCoverageError("Existing finalized manifest has no verified accepted coverage")
+            await self.repository.commit()
             return existing.sync_id
+        if not await self.repository.is_market_session_finalized(exchange=exchange, trade_date=trade_date):
+            await self.rollback_transaction()
+            raise MarketSnapshotCoverageError("Finalized DSEX session is required for publication")
         live = await self.repository.get_latest_market_data_generation(
             exchange=exchange,
             state=MarketDataState.LIVE,
             trade_date=trade_date,
         )
         if live is None:
-            # Safe deployment/retry fallback: the finalizer already verified the
-            # price and DSEX inputs.  Older deployments have no LIVE manifest to
-            # promote, but must not leave a verified session permanently hidden.
-            logger.warning(
-                "Finalizing %s %s without a prior LIVE generation; publishing a verified fallback",
-                exchange.value,
-                trade_date,
-            )
+            active, accepted, suspicious = await self._verified_session_coverage(exchange=exchange, trade_date=trade_date)
             return await self.publish_market_generation(
-                exchange=exchange,
-                trade_date=trade_date,
-                state=MarketDataState.FINALIZED,
-                source="verified-finalization-fallback",
-                fetched_count=0,
-                accepted_count=0,
-                suspicious_count=0,
+                exchange=exchange, trade_date=trade_date, state=MarketDataState.FINALIZED,
+                source="verified-finalization-fallback", fetched_count=accepted,
+                accepted_count=accepted, suspicious_count=suspicious,
             )
+        if live.accepted_count <= 0:
+            await self.rollback_transaction()
+            raise MarketSnapshotCoverageError("Cannot finalize a zero-accepted generation")
         await self.repository.update_market_data_generation_state(
             live,
             state=MarketDataState.FINALIZED,
@@ -1065,12 +1069,29 @@ class MarketDataService:
             limit=limit,
         )
 
+    async def _verified_session_coverage(self, *, exchange, trade_date):
+        active, accepted, suspicious = await self.repository.session_symbol_coverage(exchange=exchange, trade_date=trade_date)
+        settings = get_settings()
+        if (active <= 0 or accepted <= 0 or accepted < settings.market_snapshot_min_source_symbols
+            or accepted / active * 100 < settings.market_snapshot_min_active_coverage_percent):
+            await self.rollback_transaction()
+            raise MarketSnapshotCoverageError(
+                f"Session coverage insufficient: active={active}, accepted={accepted}; finalization pending"
+            )
+        return active, accepted, suspicious
+
     async def finalize_market_session(
         self,
         *,
         exchange: ExchangeCode,
         trade_date: date,
     ) -> bool:
+        await self.repository.lock_session_publication(exchange=exchange, trade_date=trade_date)
+        try:
+            await self._verified_session_coverage(exchange=exchange, trade_date=trade_date)
+        except MarketSnapshotCoverageError:
+            logger.warning("Finalization pending: incomplete %s session %s", exchange.value, trade_date)
+            return False
         finalized = await self.repository.finalize_market_session(
             exchange=exchange,
             trade_date=trade_date,

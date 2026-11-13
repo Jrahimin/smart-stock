@@ -188,6 +188,8 @@ async def test_universe_cache_and_snapshot_share_decision_session_date() -> None
 
         async def publish_generation(self, **kwargs):
             self.publication = kwargs
+            from types import SimpleNamespace
+            return SimpleNamespace(result_payload=kwargs["payload"])
 
         async def persist_missing(self, rows):
             self.rows = rows

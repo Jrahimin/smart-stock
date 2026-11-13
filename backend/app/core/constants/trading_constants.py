@@ -4,7 +4,8 @@ DEFAULT_LONG_MOVING_AVERAGE_PERIOD = 50
 
 # Canonical live decision identity. Threshold-only changes must increment the
 # threshold version even when the API shape and strategy family stay stable.
-TRADING_STRATEGY_VERSION = "trading-intelligence-v2"
+TRADING_STRATEGY_VERSION = "trading-intelligence-v3"
+SUPPORTED_TRADING_STRATEGY_VERSIONS = ("trading-intelligence-v2", TRADING_STRATEGY_VERSION)
 TRADING_THRESHOLD_VERSION = "trading-thresholds-v3"
 LEGACY_TRADING_ACTION_TAXONOMY = "TRADER_RECOMMENDATION_V1"
 TRADING_ACTION_TAXONOMY = "TRADER_DECISION_V2"
@@ -13,6 +14,7 @@ DECISION_TAXONOMY_VERSION = "v2"
 # immutable decision snapshots, and replay manifests. Bump this whenever the
 # hashed input contract changes even if strategy thresholds do not.
 TRADING_INPUT_SCHEMA_VERSION = "trading-input-v3"
+DECISION_CAPTURE_VERSION = "decision-capture-v2"
 SHORTLIST_RANKING_VERSION = "entry-shortlist-v1"
 TRADING_REPLAY_MANIFEST_VERSION = "trading-replay-manifest-v2"
 
@@ -225,7 +227,7 @@ PULSE_MARKET_MOVERS_LIMIT = 4
 PULSE_FOCUS_SECTOR_LIMIT = 2
 PULSE_FOCUS_SECTOR_EXCEPTION_LIMIT = 3
 PULSE_FOCUS_SECTOR_EXCEPTION_SCORE_GAP = 10
-DASHBOARD_MARKET_MOVERS_LIMIT = 5
+DASHBOARD_MARKET_MOVERS_LIMIT = 10
 DASHBOARD_OVERVIEW_SUMMARIES_LIMIT = 30
 DASHBOARD_PRICE_WINDOW_LIMIT = 90
 DASHBOARD_SIGNAL_UNIVERSE_LIMIT = 500

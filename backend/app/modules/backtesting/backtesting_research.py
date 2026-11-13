@@ -24,7 +24,7 @@ from app.modules.backtesting.backtesting_promotion import (
 
 
 def evaluate_challengers(dataset, config, observations, markouts, folds, frozen):
-    rows = enrich_features(observations, dataset)
+    rows = enrich_features(observations, dataset, config)
     partitions = {"all_descriptive": rows}
     for fold in folds:
         partitions[f"fold_{fold.fold}_train"] = tuple(
@@ -37,7 +37,7 @@ def evaluate_challengers(dataset, config, observations, markouts, folds, frozen)
         row for row in rows if frozen and frozen.start <= row.as_of_date <= frozen.end
     )
     evidence = coverage_evidence(dataset, partitions["frozen_test"], config)
-    evidence["comparison_invariants_verified"] = True
+    evidence["comparison_invariants_verified"] = len({(row.stock_id, row.as_of_date) for row in rows}) == len(rows)
     report = {
         "experiment_id": EXPERIMENT_ID,
         "predeclared_protocol": EXPERIMENT,
@@ -95,7 +95,8 @@ def evaluate_challengers(dataset, config, observations, markouts, folds, frozen)
         )
         other_selected = tuple(row for row in selected if observation_key(row) in heldout_keys)
         _, _, heldout_coverage = challenger_ranking(heldout, families)
-        gate_evidence = dict(evidence)
+        gate_evidence = coverage_evidence(dataset, heldout, config, families=families)
+        gate_evidence["comparison_invariants_verified"] = evidence["comparison_invariants_verified"]
         if 10 not in config.horizons:
             gate_evidence["coverage_gaps"] = [
                 *evidence["coverage_gaps"],

@@ -4,15 +4,20 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.core.enums import ExchangeCode
 from app.core.response_handler import ApiResponse, success_response
-from app.modules.market_pulse.market_pulse_schemas import MarketBriefingRead, MarketPulseRead, MarketPulseSummaryRead
+from app.modules.market_pulse.market_pulse_schemas import (
+    MarketBriefingRead,
+    MarketPulseRead,
+    MarketPulseSummaryRead,
+)
 from app.modules.market_pulse.market_pulse_service import (
     MarketPulseService,
     get_market_pulse_service,
     parse_previous_snapshot,
 )
 from app.modules.market_universe.market_universe_service import UniverseCacheUnavailableError
+from app.modules.stock_details.decision.entry_contract import use_entry_contract
 
-router = APIRouter(tags=["market pulse"])
+router = APIRouter(dependencies=[Depends(use_entry_contract)], tags=["market pulse"])
 
 
 async def _run_pulse_request(handler):

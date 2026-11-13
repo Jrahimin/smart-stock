@@ -53,7 +53,7 @@ const dashboardGuideDialogsBn = {
   },
   map: {
     eyebrow: "খাতের মানচিত্র",
-    message: "বাজারমূল্য বা তারল্য অনুযায়ী খাত ও শেয়ার সাজান। সব খাত দেখতে পুরো মানচিত্র খুলুন। দাম ও লেনদেনের মূল্য জানতে শেয়ারের তথ্য দেখুন।",
+    message: "এটি sector map-এর preview। সম্পূর্ণ map খুলে সব sector ও শেয়ার দেখুন; কোনো tile খুললে শেয়ারের বিস্তারিত পাবেন।",
   },
   tiles: {
     eyebrow: "শেয়ারের দামের পরিবর্তন",
@@ -61,7 +61,7 @@ const dashboardGuideDialogsBn = {
   },
   discovery: {
     eyebrow: "নজরকাড়া শেয়ার",
-    message: "দাম বেড়েছে, কমেছে বা লেনদেনে শীর্ষে—যে তালিকাটি দরকার সেটি খুলুন। মানচিত্রের সাজানোর পদ্ধতি এই তালিকাগুলো বদলায় না।",
+    message: "দাম বেড়েছে, কমেছে বা লেনদেনে শীর্ষে—যে তালিকাটি দরকার সেটি খুলুন। তালিকার প্রতিটি শেয়ার থেকে বিস্তারিত খুলতে পারবেন।",
   },
   signals: {
     eyebrow: "চূড়ান্ত সিগন্যাল",
@@ -92,7 +92,7 @@ const dashboardGuideDialogsEn = {
   },
   map: {
     eyebrow: "Explore the sector map",
-    message: "Market cap and liquidity reorder the sectors and their tiles. Open the full map to see every sector, or use Inspect a stock to check price and turnover.",
+    message: "This sector-map preview shows the current snapshot. Open the full map to explore all sectors and stocks; open a tile for stock details.",
   },
   tiles: {
     eyebrow: "Read the stock tiles",
@@ -100,7 +100,7 @@ const dashboardGuideDialogsEn = {
   },
   discovery: {
     eyebrow: "Switch between mover lists",
-    message: "See gainers, losers, or the stocks with the highest turnover. Changing the map’s sort order leaves these lists as they are.",
+    message: "See gainers, losers, or the stocks with the highest turnover. Open any listed stock for its detailed workspace.",
   },
   signals: {
     eyebrow: "Read the finalized signals",

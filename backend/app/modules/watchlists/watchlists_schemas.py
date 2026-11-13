@@ -5,7 +5,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.enums import DecisionDisplayAction
-from app.modules.market_universe.market_universe_schemas import TechnicalSnapshotRead
+from app.modules.market_universe.market_universe_schemas import DisplayQuoteRead, TechnicalSnapshotRead
 from app.modules.stock_details.stock_details_schemas import TraderDecisionSummaryRead
 
 
@@ -38,6 +38,7 @@ class UserWatchlistRead(BaseModel):
     watching_days: int = 0
     watching_label: str = "Added today"
     current_price: Decimal | None = None
+    display_quote: DisplayQuoteRead | None = None
     trader_decision: TraderDecisionSummaryRead | None = None
     technical_snapshot: TechnicalSnapshotRead | None = None
     decision_source: str = "UNAVAILABLE"

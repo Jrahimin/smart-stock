@@ -10,6 +10,7 @@ import type {
   ExchangeCode,
 } from "@/lib/api/backend-api-types";
 import { fetchServerMarketApiNoStore, getServerApiBaseUrl } from "@/lib/api/server-market-api";
+import { dashboardSectorsMatchFreshness } from "@/lib/market/dashboard-sector-generation";
 
 /** Bounded wait for core SSR — must exceed typical cold backend latency (~2–4s locally). */
 const parsedCoreLoaderTimeoutMs = Number(process.env.DASHBOARD_CORE_LOADER_TIMEOUT_MS);
@@ -166,7 +167,7 @@ async function loadDashboardCoreInternal(exchange: ExchangeCode = "DSE"): Promis
     const overview = reconcileOverviewWithFreshness(freshness, overviewRaw);
     const sectorsRaw =
       sectorsResult.status === "fulfilled" ? sectorsResult.value : null;
-    const sectors = reconcileDashboardSessionSection(overview, sectorsRaw);
+    const sectors = dashboardSectorsMatchFreshness(sectorsRaw, freshness) ? reconcileDashboardSessionSection(overview, sectorsRaw) : null;
     const moversRaw =
       moversResult.status === "fulfilled" ? moversResult.value : null;
     const movers = reconcileDashboardSessionSection(overview, moversRaw);

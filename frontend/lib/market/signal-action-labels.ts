@@ -1,4 +1,4 @@
-import type { DecisionDisplayAction } from "@/lib/api/backend-api-types";
+import type { DecisionDisplayAction, HolderAction } from "@/lib/api/backend-api-types";
 import type { AppLocale } from "@/lib/locale/app-locale";
 import { DEFAULT_LOCALE } from "@/lib/locale/app-locale";
 
@@ -21,13 +21,13 @@ const signalActionLabels: Record<AppLocale, SignalActionLabelCopy> = {
   },
   bn: {
     default: {
-      POTENTIAL_BUY: "Potential Buy",
-      WAIT: "Wait",
-      SELL: "Sell",
-      HOLD: "Hold",
+      POTENTIAL_BUY: "POTENTIAL BUY",
+      WAIT: "WAIT",
+      SELL: "SELL",
+      HOLD: "HOLD",
     },
     compact: {
-      POTENTIAL_BUY: "P. BUY",
+      POTENTIAL_BUY: "POTENTIAL BUY",
     },
   },
 };
@@ -45,3 +45,8 @@ export function getSignalActionLabel(
 
   return copy.default[signal];
 }
+
+export const holderActionLabels: Record<AppLocale, Record<HolderAction, string>> = {
+  en: { HOLD: "Hold", REVIEW: "Review", REDUCE: "Reduce", SELL: "Sell" },
+  bn: { HOLD: "Hold", REVIEW: "Review", REDUCE: "Reduce", SELL: "Sell" },
+};

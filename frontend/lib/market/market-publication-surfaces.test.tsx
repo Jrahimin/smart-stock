@@ -4,6 +4,7 @@ import { cleanup, render } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, expect, it, vi } from "vitest";
+import { shortTradeDate } from "@/lib/formatters/trader-formatters";
 
 import { SmartSignalFeed } from "@/features/market-dashboard/components/smart-signal-feed";
 import { getTerminalCopy } from "@/features/market-dashboard/terminal-copy";
@@ -23,6 +24,7 @@ const state = vi.hoisted(() => ({ universe: [] as unknown[], decisionPublication
 vi.mock("@/features/market-dashboard/hooks/use-market-universe", () => ({
   useMarketUniverse: () => ({ ...state, listedStockCount: 1, loadedPriceCount: 1 }),
 }));
+vi.mock("@/features/auth/context/auth-context", () => ({ useAuth: () => ({ isAuthenticated: false }) }));
 vi.mock("@/features/watchlist/hooks/use-user-watchlist", () => ({
   useUserWatchlist: () => ({ watchedStockIds: new Set(), holdingStockIds: new Set() }),
 }));
@@ -44,7 +46,7 @@ const stock = { id: "1", symbol: "TEST", name: "Test stock", exchange: "DSE", se
 afterEach(cleanup);
 
 it.each([
-  ["en", "PROVISIONAL", "Provisional quote", "Finalized decision", "CURRENT"],
+  ["en", "PROVISIONAL", "Snapshot price", "Finalized decision", "CURRENT"],
   ["bn", "PROVISIONAL", "সাময়িক দাম", "চূড়ান্ত সিদ্ধান্ত", "CURRENT"],
   ["en", "NO_TRADE", "No trade", "Previous finalized decision", "UPDATING"],
   ["bn", "NO_TRADE", "লেনদেন হয়নি", "আগের চূড়ান্ত সিদ্ধান্ত", "UPDATING"],
@@ -71,7 +73,7 @@ it.each([
   const portfolio = { meta: decision, watchlist_to_review: [{
     stock_id: stock.id, symbol: stock.symbol, name: stock.name, exchange: stock.exchange,
     action: "WAIT", reason_code: "IMPORTANT_EVENT", display_quote: display,
-    current_price: "100", price_change_percent: "1",
+    current_price: "110", price_change_percent: "1",
   }] } as unknown as BackendPortfolioWorkspaceDto;
   state.universe = [mapUniverseRowToListRow(row)];
   state.decisionPublication = decision;
@@ -92,23 +94,23 @@ it.each([
   for (const markup of summaries) {
     expect(markup).toContain(`data-quote-status="${quoteStatus}"`);
     expect(markup).toContain(quoteCopy);
-    expect(markup).toContain(quoteDate);
-    expect(markup).toContain(liveDate);
+    expect(markup.includes(quoteDate) || markup.includes(shortTradeDate(quoteDate, locale))).toBe(true);
+    expect(markup.includes(liveDate) || markup.includes(shortTradeDate(liveDate, locale))).toBe(true);
     expect(markup).toContain(`data-decision-status="${decisionStatus}"`);
     expect(markup).toContain(decisionCopy);
-    expect(markup).toContain(finalDate);
+    expect(markup.includes(finalDate) || markup.includes(shortTradeDate(finalDate, locale))).toBe(true);
     expect(markup).toContain("110");
   }
   const smartSignals = renderToStaticMarkup(<SmartSignalFeed
     decision={decision} locale={locale} signals={[]}
   />);
   expect(smartSignals).toContain(decisionCopy);
-  expect(smartSignals).toContain(finalDate);
+  expect(smartSignals).toContain(shortTradeDate(finalDate, locale));
 });
 
-it.each(["en", "bn"] as const)("shows three finalized signals in source order with the full entry condition (%s)", (locale) => {
+it.each(["en", "bn"] as const)("shows five finalized signals in source order with the full entry condition (%s)", (locale) => {
   const finalDate = "2026-11-02";
-  const symbols = ["ZZZ", "AAA", "BBB", "CCC"];
+  const symbols = ["ZZZ", "AAA", "BBB", "CCC", "DDD", "EEE"];
   const signals = mapDashboardSignalsDto({
     session_trade_date: finalDate,
     evaluated_count: symbols.length,
@@ -122,8 +124,8 @@ it.each(["en", "bn"] as const)("shows three finalized signals in source order wi
     signals={signals.map((signal) => ({ ...signal, technicalContext: { rsi: 52.6, volumeRatio: 1.4 } }))}
     decision={{ decision_status: "CURRENT", decision_session_date: finalDate }} />);
 
-  expect(markup.match(/\/stocks\/DSE\/\w+/g)).toEqual(["/stocks/DSE/ZZZ", "/stocks/DSE/AAA", "/stocks/DSE/BBB"]);
-  expect(markup.match(new RegExp(finalDate, "g"))).toHaveLength(1);
+  expect(markup.match(/\/stocks\/DSE\/\w+/g)).toEqual(["/stocks/DSE/ZZZ", "/stocks/DSE/AAA", "/stocks/DSE/BBB", "/stocks/DSE/CCC", "/stocks/DSE/DDD"]);
+  expect(markup.split(shortTradeDate(finalDate, locale))).toHaveLength(2);
   expect(markup).toContain(locale === "bn" ? "দাম এমন সীমা পেরোলে যাতে শর্ত আর খাটে না" : "price crosses the level that invalidates the setup");
   expect(markup).toMatch(/sw-signal-evidence">[^<]*52\.6[^<]*1\.4/);
 });
@@ -136,7 +138,7 @@ it.each(["en", "bn"] as const)("shares a data eligibility explanation without dr
     evaluated_count: 2,
     signals: ["AAA", "BBB"].map((symbol, index) => ({
       symbol, exchange: "DSE", signal: "WAIT", confidence: 0,
-      risk: index === 0 ? "HIGH" : "MEDIUM", priority: "low",
+      risk: index === 0 ? "HIGH" : "MEDIUM", priority: "low", primary_reason_code: "data_not_eligible",
       reason, generated_at: priorQuoteDate, supporting_context: [],
     })),
   }).map((signal, index) => ({
@@ -148,7 +150,7 @@ it.each(["en", "bn"] as const)("shares a data eligibility explanation without dr
   expect(markup).not.toContain(reason);
   for (const evidence of ["52.6", "53.6", copy.risks.HIGH, copy.risks.MEDIUM]) expect(markup).toContain(evidence);
 
-  const mixed = [{ ...signals[0], signal: "HOLD" as const, reason: "Stock-specific condition" }, signals[1]];
+  const mixed = [{ ...signals[0], signal: "HOLD" as const, reasonCode: null, reason: "Stock-specific condition" }, signals[1]];
   const mixedMarkup = renderToStaticMarkup(<SmartSignalFeed locale={locale} signals={mixed} />);
   expect(mixedMarkup).not.toContain(copy.sharedWait);
   expect(mixedMarkup).toContain("Stock-specific condition");

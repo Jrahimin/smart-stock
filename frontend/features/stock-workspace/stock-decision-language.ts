@@ -66,7 +66,7 @@ const stockDecisionLanguage = {
       momentum_healthy: "Momentum healthy",
       momentum_fading: "Momentum fading",
       volume_above_average: "Volume above average",
-      weak_volume_confirmation: "Weak volume confirmation",
+      weak_volume_confirmation: "Volume below average",
     },
     entryConditions: {
       breakout_continuation:
@@ -98,7 +98,7 @@ const stockDecisionLanguage = {
       },
       rsi_overheated: {
         title: "RSI overheated",
-        message: ({ rsi }) => `RSI at ${rsi} suggests extended momentum.`,
+        message: ({ rsi }) => rsi !== undefined ? `RSI at ${rsi} suggests extended momentum.` : "The published RSI warning indicates extended momentum.",
       },
       weak_momentum: {
         title: "Weak momentum",
@@ -109,8 +109,8 @@ const stockDecisionLanguage = {
         message: "Latest volume is well below the recent average.",
       },
       volume_not_confirming: {
-        title: "Volume not confirming",
-        message: "Opportunity is present but volume has not expanded enough to confirm.",
+        title: "Volume expansion not confirmed",
+        message: "Volume may exceed its average without reaching the expansion threshold; this is separate from completed-close entry confirmation.",
       },
       overextended: {
         title: "Overextended price",
@@ -118,11 +118,11 @@ const stockDecisionLanguage = {
       },
       high_volatility: {
         title: "High volatility",
-        message: ({ volatility }) => `Recent daily volatility is ${volatility}%; reduce position size.`,
+        message: ({ volatility }) => volatility !== undefined ? `Recent daily volatility is ${volatility}%; reduce position size.` : "The published warning identifies elevated daily volatility.",
       },
       thin_liquidity: {
         title: "Thin liquidity",
-        message: ({ explanation }) => String(explanation),
+        message: "Low traded value may constrain execution.",
       },
       category_z: {
         title: "Category Z stock",
@@ -141,15 +141,15 @@ const stockDecisionLanguage = {
         message: "Insufficient price history reduces confidence in technical conclusions.",
       },
       elevated_risk: {
-        title: "Elevated risk profile",
-        message: ({ riskLabel }) => `Risk level is ${riskLabel}; use conservative sizing.`,
+        title: "Elevated legacy composite risk",
+        message: ({ riskLabel }) => riskLabel ? `Legacy composite risk is ${riskLabel}; this is separate from entry risk.` : "The published legacy composite risk warning is separate from entry risk.",
       },
       bearish_pattern: {
         title: ({ confirmed }) => (confirmed ? "Bearish pattern confirmed" : "Bearish pattern forming"),
         message: ({ patternName, confirmed }) =>
           confirmed
-            ? `${patternName} has confirmed; downside risk is elevated until invalidated.`
-            : `${patternName} suggests downside risk until invalidated.`,
+            ? `${patternName ?? "Bearish pattern"} has confirmed; downside risk is elevated until invalidated.`
+            : `${patternName ?? "Bearish pattern"} suggests downside risk until invalidated.`,
       },
       near_support: {
         title: "Near support",
@@ -197,7 +197,7 @@ const stockDecisionLanguage = {
       momentum_healthy: "Momentum ভালো",
       momentum_fading: "Momentum দুর্বল হচ্ছে",
       volume_above_average: "Volume গড়ের চেয়ে বেশি",
-      weak_volume_confirmation: "Volume এখনো নিশ্চিত করছে না",
+      weak_volume_confirmation: "Volume গড়ের নিচে",
     },
     entryConditions: {
       breakout_continuation:
@@ -237,7 +237,7 @@ const stockDecisionLanguage = {
       },
       rsi_overheated: {
         title: "RSI বেশি উঁচু",
-        message: ({ rsi }) => `RSI ${rsi}-এ আছে; momentum বেশি বেড়ে গেছে।`,
+        message: ({ rsi }) => rsi !== undefined ? `RSI ${rsi}-এ আছে; momentum বেশি বেড়ে গেছে।` : "প্রকাশিত RSI সতর্কতায় অতিরিক্ত momentum চিহ্নিত হয়েছে।",
       },
       weak_momentum: {
         title: "Momentum দুর্বল",
@@ -248,8 +248,8 @@ const stockDecisionLanguage = {
         message: "সর্বশেষ Volume সাম্প্রতিক গড়ের চেয়ে অনেক কম।",
       },
       volume_not_confirming: {
-        title: "Volume এখনো সঙ্গ দিচ্ছে না",
-        message: "সুযোগ আছে, কিন্তু Volume এখনো যথেষ্ট বাড়েনি।",
+        title: "Volume expansion নিশ্চিত হয়নি",
+        message: "Volume গড়ের বেশি হলেও expansion threshold নাও ছুঁতে পারে; এটি completed-close entry confirmation থেকে আলাদা।",
       },
       overextended: {
         title: "দাম বেশি বেড়ে গেছে",
@@ -258,7 +258,7 @@ const stockDecisionLanguage = {
       high_volatility: {
         title: "দামের ওঠানামা বেশি",
         message: ({ volatility }) =>
-          `সাম্প্রতিক daily volatility ${volatility}%; position size কম রাখা ভালো।`,
+          volatility !== undefined ? `সাম্প্রতিক daily volatility ${volatility}%; position size কম রাখা ভালো।` : "প্রকাশিত সতর্কতায় দামের বেশি ওঠানামা চিহ্নিত হয়েছে।",
       },
       thin_liquidity: {
         title: "Liquidity কম",
@@ -281,15 +281,15 @@ const stockDecisionLanguage = {
         message: "যথেষ্ট price history নেই; technical সিদ্ধান্তে confidence কম।",
       },
       elevated_risk: {
-        title: "ঝুঁকি বেশি",
-        message: ({ riskLabel }) => `ঝুঁকির মাত্রা ${riskLabel}; position size ছোট রাখুন।`,
+        title: "পুরোনো composite ঝুঁকি বেশি",
+        message: ({ riskLabel }) => riskLabel ? `পুরোনো composite ঝুঁকির মাত্রা ${riskLabel}; এটি entry-এর ঝুঁকি থেকে আলাদা।` : "প্রকাশিত পুরোনো composite ঝুঁকির সতর্কতা entry-এর ঝুঁকি থেকে আলাদা।",
       },
       bearish_pattern: {
         title: ({ confirmed }) => (confirmed ? "Bearish pattern নিশ্চিত" : "Bearish pattern তৈরি হচ্ছে"),
         message: ({ patternName, confirmed }) =>
           confirmed
-            ? `${patternName} confirm হয়েছে; নিচের দিকে ঝুঁকি বেশি।`
-            : `${patternName} নিচের দিকে ঝুঁকির ইঙ্গিত দিচ্ছে।`,
+            ? `${patternName ?? "Bearish pattern"} confirm হয়েছে; নিচের দিকে ঝুঁকি বেশি।`
+            : `${patternName ?? "Bearish pattern"} নিচের দিকে ঝুঁকির ইঙ্গিত দিচ্ছে।`,
       },
       near_support: {
         title: "Support-এর কাছে",
@@ -419,48 +419,17 @@ function resolveTemplate(template: WarningTemplate | EntryConditionTemplate, par
   return typeof template === "function" ? template(params) : template;
 }
 
-function extractWarningParams(
-  code: SmartWarningCode,
-  warning: { title: string; message: string },
-): Record<string, string | number | boolean> {
-  if (code === "rsi_overheated") {
-    const rsi = warning.message.match(/RSI at ([\d.]+)/i)?.[1] ?? warning.message.match(/([\d.]+)/)?.[1];
-    return { rsi: rsi ?? "" };
-  }
-  if (code === "high_volatility") {
-    const volatility = warning.message.match(/([\d.]+)%/)?.[1];
-    return { volatility: volatility ?? "" };
-  }
-  if (code === "elevated_risk") {
-    const riskLabel = warning.message.match(/Risk level is ([A-Z]+)/i)?.[1] ?? "HIGH";
-    return { riskLabel };
-  }
-  if (code === "bearish_pattern") {
-    const confirmed = warning.title.toLowerCase().includes("confirmed");
-    const patternName = warning.message.split(" has confirmed")[0]?.split(" suggests")[0] ?? warning.title;
-    return { patternName, confirmed };
-  }
-  if (code === "thin_liquidity") {
-    return { explanation: warning.message };
-  }
-  return {};
-}
-
 export function localizeSmartWarning(
-  warning: { code: string; title: string; message: string; severity: string },
+  warning: { code: string; title: string; message: string; severity: string; parameters?: TemplateParams },
   locale: AppLocale,
 ): { title: string; message: string; severity: string; code: string } {
-  if (locale === "en") {
-    return warning as { title: string; message: string; severity: string; code: string };
-  }
-
   const language = getStockDecisionLanguage(locale);
   const copy = language.warnings[warning.code as SmartWarningCode];
   if (!copy) {
     return warning as { title: string; message: string; severity: string; code: string };
   }
 
-  const params = extractWarningParams(warning.code as SmartWarningCode, warning);
+  const params = warning.parameters ?? {};
   return {
     ...warning,
     title: resolveTemplate(copy.title, params),
@@ -472,15 +441,17 @@ export function applyStockDecisionLocalization(
   model: StockDecisionViewModel,
   locale: AppLocale,
 ): StockDecisionViewModel {
-  if (!model.available || locale === "en") {
-    return model;
+  if (!model.available) return model;
+  if (locale === "en") {
+    const warnings = model.warnings.map((warning) => localizeSmartWarning(warning, locale));
+    return { ...model, warnings, topWarnings: model.topWarnings.map((warning) => warnings.find((item) => item.code === warning.code) ?? warning) };
   }
 
   const language = getStockDecisionLanguage(locale);
 
   const localizeComponent = (component: { key: string; label: string; score: number; explanation: string }) => ({
     ...component,
-    label: language.scoreLabels[component.key] ?? component.label,
+    label: component.key === "risk_adjustment" ? "পুরোনো composite risk অনুযায়ী সমন্বয়" : language.scoreLabels[component.key] ?? component.label,
   });
 
   const localizedWarnings = model.warnings.map((warning) => localizeSmartWarning(warning, locale));
@@ -488,7 +459,7 @@ export function applyStockDecisionLocalization(
 
   return {
     ...model,
-    entryCondition: localizeEntryCondition(model.entryCondition, locale),
+    entryCondition: model.entryCondition,
     decisionSignals: model.decisionSignals.map((signal) => ({
       ...signal,
       text:

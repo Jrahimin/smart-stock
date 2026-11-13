@@ -1,3 +1,4 @@
+from app.modules.stock_details.decision.display_metrics import resolve_account_mark
 from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID
@@ -224,8 +225,8 @@ class WatchlistsService:
                 canonical_row.technical_snapshot if canonical_row is not None else None
             )
             trader_decision = canonical_row.decision if canonical_row is not None else None
-            if canonical_row is not None:
-                current_price = canonical_row.session.close_price
+            mark = resolve_account_mark(row=canonical_row, fallback_price=latest_price)
+            current_price = Decimal(str(mark.current_price)) if mark.current_price is not None else None
             contextual_action = None
             if trader_decision is not None:
                 if entry.is_holding and trader_decision.holder_action is not None:
@@ -263,6 +264,7 @@ class WatchlistsService:
                     watching_days=watching_days,
                     watching_label=_build_watching_label(watching_days),
                     current_price=current_price,
+                    display_quote=mark,
                     trader_decision=trader_decision,
                     technical_snapshot=technical_snapshot,
                     decision_source=(

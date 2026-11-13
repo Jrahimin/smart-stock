@@ -18,6 +18,7 @@ import type {
 } from "@/lib/api/backend-api-types";
 
 const freshnessFixture = {
+  decision_generation_id: "plan-1", decision_status: "CURRENT",
   exchange: "DSE",
   trade_date: "2026-07-09",
   market_status: "OPEN",
@@ -81,6 +82,7 @@ const overviewFixture = {
 } as unknown as BackendDashboardOverviewDto;
 
 const sectorsFixture = {
+  market_sync_id: "2026-07-09T10:00:00Z", decision_generation_id: "plan-1",
   session_trade_date: "2026-07-09",
   sectors: [
     { name: "Insurance", change_percent: "3.6", stock_count: 12 },
@@ -207,7 +209,7 @@ describe("dashboard SSR dehydrated state", () => {
         "dashboard",
         "sectors",
         "DSE",
-        freshnessFixture.last_synced_at,
+        `${freshnessFixture.last_synced_at}|plan-1|CURRENT`,
       ]),
     );
     const moversEntry = dehydrated.queries.find((query) =>

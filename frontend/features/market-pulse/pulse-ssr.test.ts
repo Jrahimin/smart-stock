@@ -541,10 +541,11 @@ describe("market pulse query orchestration", () => {
 
 describe("pulse query keys", () => {
   it("builds anonymous summary and briefing keys", () => {
-    expect(PULSE_ANONYMOUS_SUMMARY_QUERY_KEY).toEqual(["market-pulse-summary", "DSE", null, null]);
-    expect(PULSE_ANONYMOUS_BRIEFING_QUERY_KEY).toEqual(["market-pulse-briefing", "DSE", null]);
+    expect(PULSE_ANONYMOUS_SUMMARY_QUERY_KEY).toEqual(["market-pulse-summary", "price-basis-v2", "DSE", null, null]);
+    expect(PULSE_ANONYMOUS_BRIEFING_QUERY_KEY).toEqual(["market-pulse-briefing", "price-basis-v2", "DSE", null]);
     expect(buildPulseBriefingQueryKey({ displayName: "Alex" })).toEqual([
       "market-pulse-briefing",
+      "price-basis-v2",
       "DSE",
       "Alex",
     ]);
@@ -557,7 +558,7 @@ describe("pulse query keys", () => {
       alert_ids: ["x"],
     };
     expect(buildPreviousSnapshotFingerprint(snapshot)).toContain("2026-07-08T10:00:00Z");
-    expect(buildPulseSummaryQueryKey({ previousSnapshot: snapshot })[3]).toBe(
+    expect(buildPulseSummaryQueryKey({ previousSnapshot: snapshot })[4]).toBe(
       buildPreviousSnapshotFingerprint(snapshot),
     );
   });

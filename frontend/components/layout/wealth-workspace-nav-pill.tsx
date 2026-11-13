@@ -7,12 +7,13 @@ import { WealthWorkspaceNavIcon } from "@/components/layout/wealth-workspace-nav
 import { useWealthWorkspaceInsightIndicator } from "@/features/wealth/hooks/use-wealth-workspace-insight-indicator";
 
 type WealthWorkspaceNavPillProps = {
+  locale?: string;
   collapsed: boolean;
   isActive: boolean;
   onNavigate?: () => void;
 };
 
-export function WealthWorkspaceNavPill({ collapsed, isActive, onNavigate }: WealthWorkspaceNavPillProps) {
+export function WealthWorkspaceNavPill({ collapsed, isActive, onNavigate, locale = "en" }: WealthWorkspaceNavPillProps) {
   const hasInsight = useWealthWorkspaceInsightIndicator();
   const showInsightDot = isActive && hasInsight;
 
@@ -20,7 +21,7 @@ export function WealthWorkspaceNavPill({ collapsed, isActive, onNavigate }: Weal
     <div className="terminal-nav-wealth-module">
       <Link
         aria-current={isActive ? "page" : undefined}
-        aria-label="Open Wealth Workspace"
+        aria-label={locale === "bn" ? "সম্পদের পরিকল্পনা খুলুন" : "Open Wealth Workspace"}
         className={isActive ? "wealth-workspace-nav-tile is-active" : "wealth-workspace-nav-tile"}
         data-guide="nav-wealth-workspace"
         href="/wealth"
@@ -32,12 +33,12 @@ export function WealthWorkspaceNavPill({ collapsed, isActive, onNavigate }: Weal
             <WealthWorkspaceNavIcon className="wealth-workspace-nav-tile-icon" />
           </span>
         </span>
-        <span className="wealth-workspace-nav-compact-label">Wealth</span>
+        <span className="wealth-workspace-nav-compact-label">{locale === "bn" ? "সম্পদ" : "Wealth"}</span>
         <span className="wealth-workspace-nav-tile-body">
-          <span className="wealth-workspace-nav-tile-title">Wealth Workspace</span>
-          <span className="wealth-workspace-nav-tile-subtitle">Goals • Income • Future</span>
+          <span className="wealth-workspace-nav-tile-title">{locale === "bn" ? "সম্পদের পরিকল্পনা" : "Wealth Workspace"}</span>
+          <span className="wealth-workspace-nav-tile-subtitle">{locale === "bn" ? "লক্ষ্য • আয় • ভবিষ্যৎ" : "Goals • Income • Future"}</span>
           <span className="wealth-workspace-nav-tile-action">
-            <span>Open workspace</span>
+            <span>{locale === "bn" ? "পরিকল্পনা দেখুন" : "Open workspace"}</span>
             <ChevronRight aria-hidden="true" className="wealth-workspace-nav-tile-chevron" size={13} strokeWidth={2.25} />
           </span>
         </span>

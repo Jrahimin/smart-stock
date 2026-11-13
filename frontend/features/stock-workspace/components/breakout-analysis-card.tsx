@@ -46,7 +46,7 @@ export function BreakoutAnalysisCard({ decision, copy }: BreakoutAnalysisCardPro
               <span>
                 {triggerLabel} {formatNumber(breakout.breakout_level)}
               </span>
-              <span>{copy.target} {formatNumber(breakout.projected_target)}</span>
+              <span>Pattern projection {formatNumber(breakout.projected_target)}</span>
             </div>
           </div>
           <CircularProgressRing
@@ -75,7 +75,7 @@ export function BreakoutAnalysisCard({ decision, copy }: BreakoutAnalysisCardPro
             <strong>{copy.confirmationLevel}:</strong> {breakout.confirmation_level ?? "N/A"}
           </p>
           <p>
-            <strong>{copy.projectedTarget}:</strong> {breakout.projected_target ?? "N/A"}
+            <strong>Pattern projection:</strong> {breakout.projected_target ?? "N/A"}
           </p>
           <ul>
             {breakout.factors.map((factor) => (

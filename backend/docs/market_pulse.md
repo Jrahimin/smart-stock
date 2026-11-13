@@ -190,3 +190,28 @@ Component layers:
 - Market data: `backend/docs/market_data.md`
 - Decision support: `backend/docs/stock_decision_support.md`
 - API reference: `backend/docs/api_collection.md`
+
+
+### Current status and breadth provenance
+
+Focus and monitor stocks add `entry_applicability` and `entry_risk_label`.
+`actionable_trigger` is true only when the current projection is `APPLICABLE`,
+including on cached response/summary hits. Finalized recommendations and Pulse
+ranking weights are preserved. `score_breakdown.risk_penalty_semantics` is
+`ATTENTION_SCORE_POINTS`; the deduction continues using legacy composite risk.
+
+`coverage.market_status` and the hero session label come from current freshness,
+separately from `coverage.decision_session_date` and generation. `coverage.breadth`
+and `briefing.breadth` describe the canonical eligible same-session cohort, a
+±0.05% neutral band and completed-session source. They include `advancing`,
+`declining`, `unchanged`, `known_count`, `unknown_count`, `cohort_count`,
+`denominator` and `as_of_date`. Unknown changes are never unchanged; the
+percentage denominator is the known-change population (possibly zero).
+
+### Decision clarity (Order 4, increment 2)
+
+Both focus and monitor entries now project the existing fenced `display_quote` (source time, age bound, observation/price dates) and decision taxonomy, with the actual owning `quote_generation_id` at response/coverage level. `market_sync_id` remains the decision-generation identity for compatibility. These current fields are refreshed after cache reads. The displayed price remains the explicitly dated finalized-session close; the quote overlay supplies current-entry checks, not a replacement historical price.
+
+The client applies the shared current-entry source-age/exchange-close bound to the resolved summary and both card lists. Current exchange state comes from coverage; the analysis date is shown separately. Attention points and risk-penalty points remain distinct from entry risk. Watch levels and trigger prose do not grant entry permission. Client cache refresh remains available outside trading hours and makes no ingestion call.
+
+Signal-upgrade/new-publication claims use the universe's verified public comparison. Browser-local last-visit context is labeled separately. Legacy responses without comparison lineage omit transition claims. Sector leadership is labeled as mean price change in the eligible same-session cohort, with its date, rather than money flow. Missing sector changes are excluded from averages. Breadth shows known/cohort and unknown counts, band and date; zero known has no directional distribution, percentage or mood claim. No denominator floor is reported as a measured count.

@@ -16,7 +16,7 @@ import {
   type LeadersPulseContext,
 } from "@/lib/market/market-pulse-metrics";
 import { buildMarketIndexContext } from "@/lib/market/market-index-context";
-import { getMarketSession } from "@/lib/market/market-session-engine";
+import { getMarketSession, isCurrentIntradaySession } from "@/lib/market/market-session-engine";
 import {
   buildLocalizedSignalReason,
   buildLocalizedSignalSupportingContext,
@@ -110,7 +110,8 @@ function deriveMarketDirection(
   breadth: BreadthModel,
   indexChangePercent: number | null,
 ): { direction: MarketDirection; label: string } {
-  const indexMove = indexChangePercent ?? 0;
+  if (indexChangePercent === null) return { direction: "mixed", label: "Index movement unavailable" };
+  const indexMove = indexChangePercent;
   const buyersAhead = breadth.advancing > breadth.declining * 1.12;
   const sellersAhead = breadth.declining > breadth.advancing * 1.12;
 
@@ -131,7 +132,8 @@ export function resolveMarketNarrativeKey(input: {
   advancing: number;
   declining: number;
 }): MarketNarrativeKey {
-  const indexMove = input.indexChangePercent ?? 0;
+  if (input.indexChangePercent === null) return input.advancing > input.declining ? "buyers_active" : input.declining > input.advancing ? "sellers_dominant" : "sideways_waiting";
+  const indexMove = input.indexChangePercent;
   const indexStable = Math.abs(indexMove) < 0.3;
 
   if (indexStable && input.declining > input.advancing * 1.1) {
@@ -250,15 +252,6 @@ function resolveVolumeNarrativeKey(pricesRising: boolean, ratio: number | null):
   return resolveParticipationNarrativeKey(ratio);
 }
 
-function parseRatioFromLabel(label: string): number | null {
-  if (label === "N/A") {
-    return null;
-  }
-
-  const numeric = Number.parseFloat(label.replace("x", ""));
-  return Number.isNaN(numeric) ? null : numeric;
-}
-
 function applyDashboardLocalization(
   model: MarketDashboardModel,
   locale: AppLocale,
@@ -277,12 +270,13 @@ function applyDashboardLocalization(
     language.insights,
     language.narratives,
     {
+      locale,
       marketMood: model.marketMood,
       signalCount: model.signals.length,
       turnover: buildTurnoverInsightContext(
         pulse,
         resolveTurnoverLiquidityInsightKey(context.turnoverRatio),
-        model.session.state === "OPEN",
+        model.activityIsIntraday ?? model.isIntraday,
       ),
     },
   );
@@ -398,6 +392,7 @@ function applyDashboardLocalization(
 }
 
 function toBreadthFromSnapshot(snapshot: BackendDsexIndexSnapshotDto): BreadthModel {
+  if (snapshot.advancing_issues == null || snapshot.declining_issues == null || snapshot.unchanged_issues == null) return { advancing: 0, declining: 0, unchanged: 0, total: 0 };
   return {
     advancing: snapshot.advancing_issues,
     declining: snapshot.declining_issues,
@@ -417,21 +412,30 @@ function buildMarketPulseModel(input: {
 }): MarketPulseModel {
   const { summaries, latestSummary, breadth, marketMood, dsexSnapshot, sessionTradeDate, leadersContext } = input;
   const indexContext = buildMarketIndexContext(summaries, latestSummary, dsexSnapshot);
-  const turnoverValue = toNumber(dsexSnapshot?.total_turnover) ?? toNumber(latestSummary?.total_turnover);
-  const volumeValue = dsexSnapshot?.total_volume ?? latestSummary?.total_volume ?? null;
-  const { direction, label } = deriveMarketDirection(breadth, indexContext.indexChangePercent);
+  const indexTradeDate = dsexSnapshot?.trade_date ?? latestSummary?.trade_date;
+  const activitySummary = summaries.filter(row => row.index_name === indexContext.indexName && (!sessionTradeDate || row.trade_date <= sessionTradeDate)
+    && (row.total_volume != null || row.total_turnover != null)).sort((a,b) => b.trade_date.localeCompare(a.trade_date))[0];
+  const useSummaryActivity = activitySummary && (!dsexSnapshot || activitySummary.trade_date > dsexSnapshot.trade_date);
+  const activityTradeDate = useSummaryActivity ? activitySummary.trade_date : dsexSnapshot?.trade_date ?? activitySummary?.trade_date;
+  const sameDateActivity = activitySummary?.trade_date === activityTradeDate ? activitySummary : null;
+  const turnoverValue = useSummaryActivity ? toNumber(activitySummary.total_turnover) : toNumber(dsexSnapshot?.total_turnover) ?? toNumber(sameDateActivity?.total_turnover);
+  const volumeValue = useSummaryActivity ? activitySummary.total_volume : dsexSnapshot?.total_volume ?? sameDateActivity?.total_volume ?? null;
+  const activitySummaries = summaries.filter(row => row.index_name === indexContext.indexName && (!activityTradeDate || row.trade_date <= activityTradeDate));
+  const { direction, label } = deriveMarketDirection(breadth, indexTradeDate === sessionTradeDate ? indexContext.indexChangePercent : null);
   const turnoverLabel = turnoverValue !== null ? `BDT ${formatCompactNumber(turnoverValue)}` : "N/A";
   const volumeLabel = volumeValue !== null ? `${formatCompactNumber(volumeValue)} Shares` : "N/A";
   const leaders = leadersContext ?? buildLeadersPulseContext([], sessionTradeDate);
   const leadingSector = leaders.primary;
-  const hasExchangeTurnover = Boolean(dsexSnapshot?.total_turnover ?? latestSummary?.total_turnover);
-  const hasExchangeVolume = Boolean(dsexSnapshot?.total_volume ?? latestSummary?.total_volume);
+  const hasExchangeTurnover = turnoverValue !== null;
+  const hasExchangeVolume = volumeValue !== null;
   const turnoverSource: ExchangeMetricSource = hasExchangeTurnover ? "exchange" : "snapshot";
   const volumeSource: ExchangeMetricSource = hasExchangeVolume ? "exchange" : "snapshot";
-  const resolvedTradeDate = dsexSnapshot?.trade_date ?? latestSummary?.trade_date;
+  const resolvedTradeDate = sessionTradeDate;
   const tradeDateStatus: TradeDateStatus = resolvedTradeDate ? "available" : "awaiting";
 
   return {
+    indexTradeDate,
+    activityTradeDate,
     indexName: indexContext.indexName,
     indexAvailable: indexContext.indexAvailable,
     indexValue: indexContext.indexValue,
@@ -463,8 +467,8 @@ function buildMarketPulseModel(input: {
     marketMood,
     latestTradeDate: resolvedTradeDate ?? "Awaiting market summary",
     tradeDateStatus,
-    turnoverContext: buildTurnoverPulseContext(summaries, turnoverValue, turnoverLabel),
-    volumeContext: buildVolumePulseContext(summaries, volumeValue, volumeLabel),
+    turnoverContext: buildTurnoverPulseContext(activitySummaries, turnoverValue, turnoverLabel),
+    volumeContext: buildVolumePulseContext(activitySummaries, volumeValue, volumeLabel),
     breadthContext: buildBreadthPulseContext(breadth, direction),
     leadersContext: leaders,
   };
@@ -475,6 +479,8 @@ export function buildMarketDashboardModel(
   dsexSnapshot: BackendDsexIndexSnapshotDto | null = null,
   freshness: BackendMarketFreshnessDto | null = null,
   options?: {
+    overview?: Pick<import("@/lib/api/backend-api-types").BackendDashboardOverviewDto, "market_sync_id" | "last_synced_at" | "session_trade_date">;
+    breadth?: import("@/lib/api/backend-api-types").BackendBreadthDto | null;
     listedStockCount?: number;
     movers?: MarketDashboardModel["movers"];
     heatmapTiles?: HeatmapTileModel[];
@@ -491,19 +497,24 @@ export function buildMarketDashboardModel(
   const latestSummary = getLatestSummary(summaries);
   const listedStockCount = options?.listedStockCount ?? 0;
   const priceBackedCount = options?.priceBackedCount ?? 0;
-  const breadth = dsexSnapshot
+  const suppliedBreadth = options?.breadth;
+  const sessionTradeDate = options?.overview?.session_trade_date ?? dsexSnapshot?.trade_date ?? latestSummary?.trade_date ?? suppliedBreadth?.as_of_date ?? freshness?.trade_date;
+  const breadth = suppliedBreadth && suppliedBreadth.as_of_date === sessionTradeDate
+    ? { advancing: suppliedBreadth.advancing, declining: suppliedBreadth.declining, unchanged: suppliedBreadth.unchanged, total: suppliedBreadth.denominator, provenance: suppliedBreadth }
+    : dsexSnapshot && dsexSnapshot.trade_date === sessionTradeDate
     ? toBreadthFromSnapshot(dsexSnapshot)
-    : toBreadthModel(latestSummary, listedStockCount);
+    : toBreadthModel(latestSummary?.trade_date === sessionTradeDate ? latestSummary : null, listedStockCount);
   const fallbackBreadth = { advancing: breadth.advancing, declining: breadth.declining, unchanged: breadth.unchanged, total: breadth.total };
   const marketMood = options?.marketMood ?? deriveMarketCondition([], fallbackBreadth);
   const dataQuality: DataQualityFlag | "UNKNOWN" = latestSummary?.data_quality_flag ?? "UNKNOWN";
+  const now = new Date();
   const session = getMarketSession({
-    latestTradeDate: latestSummary?.trade_date ?? freshness?.trade_date,
-    dataQualityFlag: latestSummary?.data_quality_flag,
+    now,
+    latestTradeDate: sessionTradeDate,
+    dataQualityFlag: latestSummary && latestSummary.trade_date === sessionTradeDate ? latestSummary.data_quality_flag : undefined,
     freshness,
   });
   const turnoverLabel = options?.turnoverLabel ?? formatCompactNumber(latestSummary?.total_turnover ?? null);
-  const sessionTradeDate = dsexSnapshot?.trade_date ?? latestSummary?.trade_date ?? freshness?.trade_date;
   const pulse = buildMarketPulseModel({
     summaries,
     latestSummary,
@@ -513,11 +524,27 @@ export function buildMarketDashboardModel(
     sessionTradeDate,
     leadersContext: options?.leadersContext,
   });
+  // Independent section requests can straddle publications. Only this hero's
+  // dated interpretation may supply its direction, index move or participation.
+  const insights = (options?.insights ?? []).filter((item) => !item.interpretation || Boolean(sessionTradeDate && item.interpretation.as_of_date === sessionTradeDate));
+  const interpretation = insights.find((item) => item.interpretation)?.interpretation;
+  if (interpretation && interpretation.as_of_date === pulse.activityTradeDate) {
+    const ratio = toNumber(interpretation.volume_vs_average);
+    pulse.volumeContext = {
+      ...pulse.volumeContext,
+      ratioVsAvg: ratio === null ? "N/A" : `${ratio.toFixed(2)}x`,
+      ratioValue: ratio,
+      priorAverageSessions: interpretation.volume_average_sessions,
+    };
+  }
 
   const baseModel: MarketDashboardModel = {
+    overviewPublication: options?.overview,
+    isIntraday: isCurrentIntradaySession(session.state, pulse.latestTradeDate, now),
+    activityIsIntraday: isCurrentIntradaySession(session.state, pulse.activityTradeDate, now),
     exchange: latestSummary?.exchange ?? "DSE",
     marketMood,
-    latestTradeDate: latestSummary?.trade_date ?? "Awaiting market summary",
+    latestTradeDate: sessionTradeDate ?? "Awaiting market summary",
     dataQuality,
     session,
     pulse,
@@ -560,7 +587,7 @@ export function buildMarketDashboardModel(
     heatmapTiles: options?.heatmapTiles ?? [],
     signals: options?.signals ?? [],
     timeline: options?.timeline ?? [],
-    insights: options?.insights ?? [],
+    insights,
     movers: options?.movers ?? buildDashboardMovers([], sessionTradeDate),
   };
 
@@ -572,9 +599,9 @@ export function buildMarketDashboardModel(
 
   return applyDashboardLocalization(baseModel, locale, {
     breadth,
-    indexChangePercent: pulse.indexChangePercent,
+    indexChangePercent: pulse.indexTradeDate === pulse.latestTradeDate ? pulse.indexChangePercent : null,
     turnoverRatio,
-    volumeRatio: parseRatioFromLabel(pulse.volumeContext.ratioVsAvg),
+    volumeRatio: pulse.volumeContext.ratioValue ?? null,
     priceBackedCount,
   });
 }

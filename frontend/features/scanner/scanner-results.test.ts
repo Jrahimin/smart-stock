@@ -33,6 +33,7 @@ function scannerStock(
     ],
     traderDecision: {
       recommendation,
+      display_action: recommendation === "BUY" ? "POTENTIAL_BUY" : recommendation,
       confidence: 70,
       reason: "Canonical decision",
       opportunity_score: 60,
@@ -59,7 +60,8 @@ describe("scanner results", () => {
     const stock = scannerStock("CANONICAL", "SUPPORT_REBOUND", 1, "SELL");
     const [result] = buildScannerCategoryItems([stock], "support_rebound");
 
-    expect(result).toBe(stock);
+    expect(result.stock).toBe(stock.stock);
+    expect(result.scannerMatch).toBe(stock.scannerConditions![0]);
     expect(resolveTraderDecision(result).recommendation).toBe("SELL");
     expect(resolveTraderDecision(result).source).toBe("decision-engine");
   });

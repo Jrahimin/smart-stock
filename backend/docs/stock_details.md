@@ -295,3 +295,34 @@ Manual trigger parameters:
 * `scope`: `full` (default) or `stocks` (see **Sync scope** above).
 
 **Typical gap-fill workflow:** run `python -m app.jobs.backfill_daily_prices --date YYYY-MM-DD` for a missing session day (DSE archive, insert-only by default). For a date range, use `--from` / `--to`. Use `sync_stock_details` only when you also need fundamentals or per-symbol AmarStock historical gaps.
+
+
+### Dated plan and current entry status
+
+Decision support and workspace decision support add optional `entry_applicability`
+(top level and nested `decision`). Status is recomputed after cache reads; the
+workspace action block displays its dated audience, then the current status/reason before supporting evidence. The plan panel retains fixed levels and its reference date.
+Only `APPLICABLE` permits present-tense entry guidance. Older responses still
+render the dated levels with current entry marked unverified. See
+[the universe contract](market_universe.md#current-entry-applicability-release-a-november-2026)
+for precedence, quote usability, low-path invalidation and provenance.
+
+Workspace cache hits bind current applicability and display metrics to the same
+freshly selected quote observation, including raw quote revisions that retain a
+generation ID. Withdrawn plans remain dated and visible with explicit withdrawal;
+missing quotes do not replace that withdrawal with an older actionable plan.
+
+
+Increment 1 presentation additions (November 2026):
+
+- Summary and Detail decisions expose optional `measured_support_component`, `opposing_constraint_code` and `opposing_component`, selected by the existing summary. The component uses the existing `ScoreComponentRead` fields. Detail also carries the summary's existing source text. New optional fields are omitted when null so loading an older durable publication preserves its exact row hash; stored publications are never rewritten.
+- Workspace `display_metrics` and universe `display_quote` source time, `max_age_seconds`, observation/price dates and both generation IDs are mapped by the client. `MarketFreshnessRead.market_sync_id` is the quote identity. A positive assessment requires the current publication, aligned identities and coherent timezone-bearing source/assessment/session evidence. Reuse ends at the earlier of source time plus delivered max age or the configured Dhaka exchange close.
+- The owning workspace/universe request schedules one deadline (earliest visible positive for lists), refetches on focus/resume and suppresses positive guidance during rechecks or failure. Refetches with existing data bypass IndexedDB; first reads retain bounded IDB reuse. Cache schema 5 rejects expired positives with unchanged IDs. An older response delivered last cannot restore current permission. This changes current-entry claims only; dated actions and plan terms remain available.
+- The plan scale shows the preferred entry band (ordinary bounds as fallback), independent marked quote, published stop/invalidation and target range. Equal bounds are ticks; missing values have no synthetic markers. The displayed reward/risk is the supplied conservative ratio, without a client color threshold. Missing marked quote does not hide the dated plan.
+- Detail displays the summary's selected support/opposition and typed technical-warning values, without local trend/momentum cutoffs or English numeric extraction. Legacy reasons use translated code-level copy; complete English source prose stays secondary. Trading entry risk is distinguished from the legacy composite score.
+
+Invalidation is based on observed traded OHLC lows, including retained revisions, after the actual publication day. The journal's earliest timestamp is table-wide; it does not establish uninterrupted ticks or per-stock observation. An observed supported breach takes precedence over incomplete continuity. Provisional lows can invalidate, while breakout confirmation requires a completed finalized exchange session.
+
+For a signed-in user whose saved membership confirms a holding, the interactive Detail card leads with the delivered precise holder instruction and its dated reason. The public action remains separately labeled in the header, card and durable accessible summary. Current-entry context is scoped to adding to the position; a blocked or invalidated entry never creates a sell instruction. Unknown membership keeps the public audience.
+
+Quote projections optionally expose `batch_fetched_at` alongside `source_observed_at`. Null additive receipt fields are omitted from serialized publication models, preserving old immutable publication identity. A `QUOTE_UNUSABLE` assessment with absent source time adds `quote_timing_status` (`FETCH_ONLY` or `UNKNOWN`) and the available batch receipt. The UI explains verified timing is unavailable and separates source observation from retrieval in its timing disclosure. Neither retrieval time nor a database update can renew current entry. Existing dated action, plan and applicability precedence remain unchanged.

@@ -4,10 +4,15 @@ from fastapi import APIRouter, Depends, Query, Response
 
 from app.core.enums import ExchangeCode
 from app.core.response_handler import ApiResponse, success_response
-from app.modules.portfolios.portfolios_schemas import PortfolioEmailPreferenceRead, PortfolioEmailPreferenceWrite, PortfolioWorkspaceRead
+from app.modules.portfolios.portfolios_schemas import (
+    PortfolioEmailPreferenceRead,
+    PortfolioEmailPreferenceWrite,
+    PortfolioWorkspaceRead,
+)
 from app.modules.portfolios.portfolios_service import PortfoliosService, get_portfolios_service
+from app.modules.stock_details.decision.entry_contract import use_entry_contract
 
-router = APIRouter(prefix="/portfolio", tags=["portfolio"])
+router = APIRouter(dependencies=[Depends(use_entry_contract)], prefix="/portfolio", tags=["portfolio"])
 
 
 @router.get("/workspace", response_model=ApiResponse[PortfolioWorkspaceRead])

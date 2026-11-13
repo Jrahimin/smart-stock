@@ -12,7 +12,7 @@ import type {
 
 export type TrendDirection = "UPTREND" | "DOWNTREND" | "SIDEWAYS" | "UNKNOWN";
 
-export type RiskLevel = "LOW" | "MEDIUM" | "HIGH";
+export type RiskLevel = "LOW" | "MEDIUM" | "HIGH" | "SPECULATIVE" | "UNKNOWN";
 
 export type MarketCondition =
   | "Bullish"
@@ -85,6 +85,10 @@ export type PersistedSignalContext = {
 };
 
 export type StockIntelligenceModel = {
+  measuredFacts?: import("@/lib/api/stock-decision-support-types").MeasuredDecisionFactsDto | null;
+  decisionDate?: string | null;
+  publicComparison?: import("@/lib/api/backend-api-types").BackendPublicDecisionComparisonDto | null;
+  latestVolumeRatio?: number | null;
   displayQuote?: BackendScoredUniverseRowDto["display_quote"];
   shortlist?: import("@/lib/api/backend-api-types").BackendShortlistDto | null;
   previousFinalizedDecision?: import("@/lib/api/backend-api-types").BackendCanonicalDecisionResultDto | null;

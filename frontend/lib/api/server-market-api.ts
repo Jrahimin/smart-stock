@@ -1,4 +1,5 @@
 import "server-only";
+import { entryContractParams } from "@/lib/market/entry-contract-capability";
 
 import type { ApiResponse } from "@/lib/api/backend-api-types";
 
@@ -27,8 +28,9 @@ function buildServerMarketUrl(path: string, params?: Record<string, string>): st
   const base = getServerApiBaseUrl();
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
   const url = new URL(`${base}${normalizedPath}`);
-  if (params) {
-    for (const [key, value] of Object.entries(params)) {
+  const contractParams = entryContractParams(normalizedPath, params);
+  if (contractParams) {
+    for (const [key, value] of Object.entries(contractParams)) {
       url.searchParams.set(key, value);
     }
   }

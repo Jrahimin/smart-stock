@@ -50,6 +50,13 @@ function isLikelyStale(latestTradeDate: string | null | undefined, now: Date) {
   return ageMs > 1000 * 60 * 60 * 24 * 5;
 }
 
+/** Partial-session copy describes today's dated facts, not just the current exchange status. */
+export function isCurrentIntradaySession(state: MarketSessionState, tradeDate: string | null | undefined, now = new Date()): boolean {
+  if (state !== "OPEN" || !tradeDate) return false;
+  const dayStart = new Date(`${tradeDate}T00:00:00+06:00`).getTime();
+  return Number.isFinite(dayStart) && now.getTime() >= dayStart && now.getTime() < dayStart + 24 * 60 * 60 * 1000;
+}
+
 function sessionFromFreshness(freshness: BackendMarketFreshnessDto): MarketSessionModel {
   const status = freshness.market_status;
   const pollingMs = freshness.snapshot_interval_minutes * 60 * 1000;
@@ -58,7 +65,7 @@ function sessionFromFreshness(freshness: BackendMarketFreshnessDto): MarketSessi
   return {
     state: status,
     label: SESSION_LABELS[status],
-    description: freshness.freshness_label || SESSION_DESCRIPTIONS[status],
+    description: status === "HOLIDAY" ? "Market closed; showing the latest stored session." : freshness.freshness_label || SESSION_DESCRIPTIONS[status],
     shouldPoll,
     pollingIntervalMs: shouldPoll ? pollingMs : false,
     disablesFreshDataActions: status === "PRE_OPEN" || status === "HOLIDAY",
@@ -79,7 +86,7 @@ export function getMarketSession(input: MarketSessionInput = {}): MarketSessionM
     };
   }
 
-  if (input.dataQualityFlag === "PARTIAL" || input.dataQualityFlag === "SUSPICIOUS") {
+  if (!input.freshness && (input.dataQualityFlag === "PARTIAL" || input.dataQualityFlag === "SUSPICIOUS")) {
     return {
       state: "PARTIAL",
       label: input.dataQualityFlag === "SUSPICIOUS" ? "Source Check" : "Partial",
@@ -91,10 +98,7 @@ export function getMarketSession(input: MarketSessionInput = {}): MarketSessionM
   }
 
   if (input.freshness) {
-    const fromApi = sessionFromFreshness(input.freshness);
-    if (!isLikelyStale(input.latestTradeDate ?? input.freshness.trade_date, now)) {
-      return fromApi;
-    }
+    return sessionFromFreshness(input.freshness);
   }
 
   if (isLikelyStale(input.latestTradeDate, now)) {

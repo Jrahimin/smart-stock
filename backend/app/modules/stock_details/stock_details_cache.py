@@ -7,6 +7,7 @@ from app.core.constants.trading_constants import (
     TRADING_THRESHOLD_VERSION,
 )
 from app.core.enums import ExchangeCode
+from app.modules.stock_details.decision.entry_contract import entry_contract_cache_token
 
 
 def stock_workspace_cache_key(
@@ -26,7 +27,7 @@ def stock_workspace_cache_key(
         f"stock-workspace:{section}:{exchange.value}:{symbol.upper()}:"
         f"live-{latest_trade_date}:generation-{generation_token}:decision-{decision_session_date}:"
         f"{strategy_version}:{threshold_version}:{input_schema_version}:"
-        f"{decision_taxonomy_version}"
+        f"{decision_taxonomy_version}:{entry_contract_cache_token()}"
     )
 
 

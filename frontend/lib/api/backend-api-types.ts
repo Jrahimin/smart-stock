@@ -115,6 +115,12 @@ export type BackendLatestMarketPriceDto = {
 };
 
 export type BackendTraderDecisionSummaryDto = {
+  measured_support_component?: import("./stock-decision-support-types").ScoreComponentDto | null;
+  opposing_constraint_code?: string | null;
+  opposing_component?: import("./stock-decision-support-types").ScoreComponentDto | null;
+  entry_applicability?: import("./stock-decision-support-types").EntryApplicabilityDto | null;
+  measured_support?: string | null;
+  opposing_constraint?: string | null;
   recommendation: TraderRecommendation;
   internal_action?: TraderRecommendation | null;
   display_action?: DecisionDisplayAction;
@@ -222,6 +228,7 @@ export type BackendStockTraderDecisionDto = {
 };
 
 export type BackendTechnicalSnapshotDto = {
+  price_change_percent_ratio?: { numerator: string; denominator: string } | null;
   latest_price: number | null;
   previous_close: number | null;
   price_change: number | null;
@@ -317,8 +324,14 @@ export type BackendScannerResultDto = {
 
 export type BackendShortlistDto = { version: string; entry_rank: number; holder_exit_rank: number; risk_rank: number; volume_rank: number };
 
+export type BackendDisplayQuoteDto = NonNullable<BackendScoredUniverseRowDto["display_quote"]> & { previous_close?: number | null };
+
 export type BackendScoredUniverseRowDto = {
-  display_quote?: { current_price: number | null; price_change?: number | null; price_change_percent?: number | null; as_of_trade_date?: string | null; observation_session_date?: string | null; observation_status: string } | null;
+  measured_facts?: import("./stock-decision-support-types").MeasuredDecisionFactsDto | null;
+  public_comparison?: BackendPublicDecisionComparisonDto | null;
+  analysis?: { liquidity?: { latest_volume_ratio?: number | null } } | null;
+  entry_applicability?: import("./stock-decision-support-types").EntryApplicabilityDto | null;
+  display_quote?: { volume?: number | null; session_date_verified?: boolean | null; current_price: number | null; price_change?: number | null; price_change_percent?: number | null; as_of_trade_date?: string | null; observation_session_date?: string | null; observation_status: string; source_observed_at?: string | null; batch_fetched_at?: string | null; max_age_seconds?: number; data_quality?: string | null; source?: string | null; ingested_at?: string | null } | null;
   shortlist?: BackendShortlistDto | null;
   previous_finalized_decision?: BackendCanonicalDecisionResultDto | null;
   stock: BackendStockDto;
@@ -328,6 +341,8 @@ export type BackendScoredUniverseRowDto = {
   scanner?: BackendScannerResultDto | null;
   session: BackendUniverseSessionDto;
 };
+
+export type BackendPublicDecisionComparisonDto = { status: "CHANGED" | "UNCHANGED" | "UNCOMPARABLE"; previous_action?: DecisionDisplayAction | null; current_action?: DecisionDisplayAction | null; previous_session_date?: string | null };
 
 export type BackendUniverseRowsMetaDto = {
   decision_generation_id?: string | null;
@@ -355,11 +370,11 @@ export type BackendDsexIndexSnapshotDto = {
   trade_date: string;
   market_status: string;
   index_close: string | number;
-  index_change: string | number;
-  index_change_percent: string | number;
-  day_open: string | number;
-  day_high: string | number;
-  day_low: string | number;
+  index_change: string | number | null;
+  index_change_percent: string | number | null;
+  day_open: string | number | null;
+  day_high: string | number | null;
+  day_low: string | number | null;
   range_52w_low: string | number;
   range_52w_high: string | number;
   range_position_percent: string | number;
@@ -369,9 +384,9 @@ export type BackendDsexIndexSnapshotDto = {
   total_volume: number | null;
   total_turnover: string | number | null;
   total_trades: number | null;
-  advancing_issues: number;
-  declining_issues: number;
-  unchanged_issues: number;
+  advancing_issues: number | null;
+  declining_issues: number | null;
+  unchanged_issues: number | null;
   source: string;
 };
 
@@ -421,7 +436,14 @@ export type BackendDashboardMoversDto = {
   volume_leaders: BackendDashboardMoverDto[];
 };
 
+export type BackendBreadthDto = {
+  cohort: string; source: string; as_of_date: string | null; neutral_band_percent: number;
+  advancing: number; declining: number; unchanged: number; known_count: number; unknown_count: number; cohort_count: number; denominator: number;
+};
+
 export type BackendDashboardOverviewDto = {
+  index_snapshot_version?: number;
+  breadth?: BackendBreadthDto | null;
   exchange: ExchangeCode;
   session_trade_date: string | null;
   last_synced_at: string | null;
@@ -441,6 +463,8 @@ export type BackendDashboardSectorDto = {
 };
 
 export type BackendDashboardSectorsDto = {
+  leadership_status?: "MEASURED" | "NO_ADVANCING_SECTOR" | "UNAVAILABLE";
+  excluded_sector_count?: number;
   session_trade_date: string | null;
   decision_generation_id?: string | null;
   decision_status?: "CURRENT" | "UPDATING" | "UNAVAILABLE";
@@ -495,11 +519,12 @@ export type BackendDashboardHeatmapTileDto = {
   stock_id: string;
   symbol: string;
   sector: string;
-  change_percent: string | number;
+  trade_date?: string | null;
+  change_percent: string | number | null;
   weight: string | number;
   tone: string;
-  latest_price: string | number;
-  turnover: string | number;
+  latest_price: string | number | null;
+  turnover: string | number | null;
   turnover_value: string | number;
   liquidity_score: number;
 };
@@ -511,6 +536,15 @@ export type BackendDashboardHeatmapDto = {
   quote_generation_id?: string | null;
   market_sync_id?: string | null;
   tiles: BackendDashboardHeatmapTileDto[];
+  sectors?: BackendDashboardHeatmapSectorDto[];
+};
+
+export type BackendDashboardHeatmapSectorDto = {
+  name: string;
+  change_percent: string | number | null;
+  measured_count: number;
+  total_count: number;
+  weighting: "TURNOVER" | "EQUAL" | "UNAVAILABLE";
 };
 
 export type BackendDashboardInsightDto = {
@@ -522,7 +556,14 @@ export type BackendDashboardInsightDto = {
   source: string;
 };
 
+export type BackendMarketInterpretationDto = {
+  code: "ALIGNED_UP" | "ALIGNED_DOWN" | "DIVERGENT" | "MIXED" | "INDEX_ONLY" | "BREADTH_ONLY" | "UNAVAILABLE";
+  as_of_date: string | null; index_change_percent: string | null; breadth: BackendBreadthDto;
+  volume_vs_average: string | null; volume_average_sessions: number;
+};
+
 export type BackendDashboardMarketSentimentDto = {
+  interpretation?: BackendMarketInterpretationDto | null;
   exchange: ExchangeCode;
   session_trade_date: string | null;
   decision_generation_id?: string | null;
@@ -609,6 +650,7 @@ export type BackendUserWatchlistDto = {
   watching_days: number;
   watching_label: string;
   current_price: string | number | null;
+  display_quote?: BackendDisplayQuoteDto | null;
   trader_decision: BackendTraderDecisionSummaryDto | null;
   technical_snapshot: BackendTechnicalSnapshotDto | null;
   decision_source?: "CANONICAL_UNIVERSE" | "UNAVAILABLE";
@@ -625,6 +667,7 @@ export type PortfolioPriceStatus =
   | "UNAVAILABLE";
 
 export type PortfolioWhatNextCode =
+  | "REVIEW_HOLDER_GUIDANCE"
   | "DATA_INCOMPLETE"
   | "PRICE_STALE_OR_SUSPENDED"
   | "REVIEW_SUPPORT_BREAK"
@@ -636,6 +679,7 @@ export type PortfolioWhatNextCode =
   | "NO_ACTION_NEEDED";
 
 export type PortfolioAttentionCode =
+  | "HOLDER_REVIEW"
   | "SUPPORT_BREAK"
   | "SELL_OR_REDUCE"
   | "PRICE_QUALITY"
@@ -652,6 +696,8 @@ export type BackendPortfolioEventDto = {
   title: string;
   summary: string | null;
 };
+
+export type BackendHolderDecisionComparisonDto = Omit<BackendPublicDecisionComparisonDto, "previous_action" | "current_action"> & { previous_action?: HolderAction | null; current_action?: HolderAction | null };
 
 export type BackendPortfolioHoldingDto = {
   watchlist_item_id: string;
@@ -670,6 +716,12 @@ export type BackendPortfolioHoldingDto = {
   price_change_percent: string | null;
   price_status: PortfolioPriceStatus;
   latest_trade_date: string | null;
+  display_quote?: BackendDisplayQuoteDto | null;
+  decision_session_date?: string | null;
+  decision_taxonomy_version?: string | null;
+  primary_reason_code?: string | null;
+  public_comparison?: BackendPublicDecisionComparisonDto | null;
+  holder_comparison?: BackendHolderDecisionComparisonDto | null;
   invested_amount: string | null;
   current_value: string | null;
   unrealized_gain_amount: string | null;
@@ -693,6 +745,8 @@ export type BackendPortfolioHoldingDto = {
 
 export type BackendPortfolioWorkspaceDto = {
   meta: {
+    quote_generation_id?: string | null;
+    decision_generation_id?: string | null;
     exchange: ExchangeCode;
     market_sync_id: string | null;
     decision_session_date?: string | null;
@@ -727,12 +781,14 @@ export type BackendPortfolioWorkspaceDto = {
     symbols: string[];
     count: number;
   }>;
+  holder_review_attention?: BackendPortfolioWorkspaceDto["attention"][number] | null;
   holdings: BackendPortfolioHoldingDto[];
   watchlist_items: BackendPortfolioHoldingDto[];
   shape: {
     position_exposure: Array<{ label: string; current_value: string; weight_percent: string }>;
     sector_exposure: Array<{ label: string; current_value: string; weight_percent: string }>;
     action_groups: Array<{ action: DecisionDisplayAction; count: number; current_value: string }>;
+    holder_action_groups?: Array<{ holder_action: HolderAction | null; count: number; current_value: string }>;
     largest_holding: BackendPortfolioPositionReferenceDto | null;
     strongest_position: BackendPortfolioPositionReferenceDto | null;
     weakest_position: BackendPortfolioPositionReferenceDto | null;
@@ -751,6 +807,7 @@ export type BackendPortfolioPositionReferenceDto = {
 };
 
 export type BackendPortfolioWatchlistSuggestionDto = {
+  price_status?: PortfolioPriceStatus | null;
   stock_id: string;
   symbol: string;
   name: string;
@@ -815,6 +872,12 @@ export type BackendPulseScoreBreakdownDto = {
 };
 
 export type BackendFocusStockDto = {
+  measured_facts?: import("./stock-decision-support-types").MeasuredDecisionFactsDto | null;
+  entry_applicability?: import("./stock-decision-support-types").EntryApplicabilityDto | null;
+  display_quote?: BackendScoredUniverseRowDto["display_quote"];
+  decision_taxonomy_version?: string | null;
+  public_comparison?: BackendPublicDecisionComparisonDto | null;
+  entry_risk_label?: string | null;
   entry_readiness?: string;
   controlling_reason_code?: string | null;
   controlling_reason?: string | null;
@@ -916,7 +979,11 @@ export type BackendMarketStoryMetricDto = {
   tone: string;
 };
 
+export type PulseStoryHeadlineCode = "STRENGTH_SECTORS" | "STRENGTH_STOCKS" | "WEAKNESS_SECTORS" | "WEAKNESS_STOCKS" | "MIXED_SECTORS" | "NO_POSITIVE_SECTOR" | "SECTOR_UNAVAILABLE" | "BREADTH_UNAVAILABLE";
+
 export type BackendMarketStoryDto = {
+  headline_code?: PulseStoryHeadlineCode | null;
+  sector_count?: number | null;
   headline: string;
   explanation: string;
   tone: string;
@@ -931,6 +998,7 @@ export type BackendMarketStateDimensionDto = {
 };
 
 export type BackendMarketStateDto = {
+  excluded_sector_count?: number;
   dimensions: BackendMarketStateDimensionDto[];
   overall_label: string;
   overall_tone: string;
@@ -960,6 +1028,13 @@ export type BackendOpportunityScoreDto = {
 };
 
 export type BackendPulseCoverageDto = {
+  quote_session_date?: string | null;
+  market_status?: MarketSessionStatus | null;
+  breadth?: BackendBreadthDto | null;
+  quote_generation_id?: string | null;
+  decision_session_date?: string | null;
+  decision_generation_id?: string | null;
+  decision_status?: string;
   score_version: string;
   decision_taxonomy_version: string;
   session_trade_date: string | null;
@@ -1037,6 +1112,7 @@ export type BackendMarketSummaryDto = {
 };
 
 export type BackendMarketBriefingDto = {
+  breadth?: BackendBreadthDto | null;
   decision_generation_id?: string | null;
   market_sync_id?: string | null;
   decision_status?: string;
