@@ -34,7 +34,7 @@ it.each(sections.flatMap(section => ["en", "bn"].flatMap(locale => ["overview", 
   }));
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
   const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
-  const { result, unmount } = renderHook(() => useMarketDashboard({ locale }), { wrapper });
+  const { result, unmount, rerender } = renderHook(() => useMarketDashboard({ locale }), { wrapper });
   const slice = () => {
     const model = result.current.model;
     return section === "movers" ? model.movers : section === "sectors" ? model.pulse.leadersContext : section === "heatmap" ? model.heatmapTiles : model.timeline;
@@ -48,7 +48,13 @@ it.each(sections.flatMap(section => ["en", "bn"].flatMap(locale => ["overview", 
   const secondName: DashboardSection = first === "overview" ? section : "overview";
   responses[secondName] = { ...responses[secondName], market_sync_id: "gB" };
   await act(async () => { await client.refetchQueries({ queryKey: dashboardQueryKey(secondName, "DSE", secondName === "sectors" ? "gA|plan-A|CURRENT" : "gA"), exact: true }); });
-  if (section === "sectors") { current.market_sync_id = "gB"; await act(async () => { await client.refetchQueries(); }); }
+  if (section === "sectors") {
+    await act(async () => {
+      current.market_sync_id = "gB";
+      rerender(); // Deliver the mocked external freshness update to its consumer.
+      await client.refetchQueries();
+    });
+  }
   await waitFor(() => expect(JSON.stringify(slice())).toContain("VISIBLE-MARKER"));
   if (section === "market-alerts") expect(JSON.stringify(slice())).toContain("2026-11-09");
   unmount(); client.clear();

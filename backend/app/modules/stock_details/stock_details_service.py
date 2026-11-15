@@ -784,7 +784,21 @@ class StockDetailsService:
 
     async def _persist_events(self, stock: Stock, payload: ApiStockDetailsPayload) -> int:
         count = 0
+        groups = {}
+        receipt = datetime.now(UTC).isoformat()
         for event in payload.market_events:
+            groups.setdefault((event.event_date, event.title), []).append(event)
+        from app.modules.market_data.publication_lock import market_event_delivery_order
+        for key in sorted(groups, key=lambda key: market_event_delivery_order(
+            stock_id=stock.id, event_date=key[0], title=key[1], source=payload.source)):
+            group = groups[key]
+            # Keep source-slot precedence for indistinguishable date-only
+            # corrections. The repository alone normalizes, deduplicates and
+            # chooses the newest parent and bounded archive from every slot.
+            event = min(group, key=lambda item: int(item.metadata.get("news_index", 0)))
+            versions = [{**item.metadata, "ingested_at": receipt, "title": item.title, "summary": item.summary, "source_url": item.source_url,
+                "event_type": item.event_type.value} for item in group if item is not event]
+            metadata = {**event.metadata, "ingested_at": receipt, "source_versions": versions}
             await self.repository.create_or_update_market_event(
                 {
                     "stock_id": stock.id,
@@ -796,7 +810,7 @@ class StockDetailsService:
                     "source": payload.source,
                     "source_url": event.source_url,
                     "sentiment_score": None,
-                    "metadata_json": event.metadata,
+                    "metadata_json": metadata,
                 }
             )
             count += 1

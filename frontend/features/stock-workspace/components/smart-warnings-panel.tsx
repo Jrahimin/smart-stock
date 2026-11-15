@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { isInternalFreshnessReason } from "@/lib/market/market-presentation-policy";
 
 import { WorkspaceModal } from "@/components/ui/workspace-modal";
 import type { StockDecisionViewModel } from "@/features/stock-workspace/view-models/stock-decision-view-model";
@@ -13,7 +14,8 @@ type SmartWarningsPanelProps = {
 
 export function SmartWarningsPanel({ decision, copy }: SmartWarningsPanelProps) {
   const [selectedWarning, setSelectedWarning] = useState<(typeof decision.topWarnings)[number] | null>(null);
-  if (!decision.available || decision.topWarnings.length === 0) {
+  const visible=decision.topWarnings.filter(warning=>!isInternalFreshnessReason(warning.code));
+  if (!decision.available || visible.length === 0) {
     return null;
   }
 
@@ -24,7 +26,7 @@ export function SmartWarningsPanel({ decision, copy }: SmartWarningsPanelProps) 
           <span>{copy.warningsSection}</span>
         </div>
         <div className="warning-chip-row">
-          {decision.topWarnings.map((warning) => (
+          {visible.map((warning) => (
             <button
               className={`warning-chip warning-chip-${warning.severity.toLowerCase()}`}
               key={warning.code}

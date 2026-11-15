@@ -1,3 +1,4 @@
+import { topSetupFixture } from "./top-setup-fixture";
 import type { BackendMarketFreshnessDto } from "@/lib/api/backend-api-types";
 
 export const ENTRY_NOW = Date.parse("2026-11-11T05:00:00Z"); // 11:00 Dhaka
@@ -9,5 +10,5 @@ export function entryWorkspace(source = "2026-11-11T05:00:00Z", age = 60) {
 }
 export function entryUniverse() {
   const workspace = entryWorkspace();
-  return { meta: { quote_generation_id: workspace.quote_generation_id, decision_generation_id: workspace.decision_generation_id, decision_status: workspace.decision_status }, rows: [{ stock: workspace.stock, display_quote: workspace.display_metrics, entry_applicability: workspace.decision_support.entry_applicability, decision: { ...workspace.decision_support.decision, entry_applicability: workspace.decision_support.entry_applicability } }] };
+  return { meta: { quote_generation_id: workspace.quote_generation_id, decision_generation_id: workspace.decision_generation_id, decision_status: workspace.decision_status }, rows: [{ top_setup: topSetupFixture(), stock: workspace.stock, display_quote: workspace.display_metrics, entry_applicability: workspace.decision_support.entry_applicability, decision: { ...workspace.decision_support.decision, entry_applicability: workspace.decision_support.entry_applicability } }] };
 }

@@ -9,6 +9,7 @@ from app.core.constants.trading_constants import (
     TRADING_ACTION_TAXONOMY,
     TRADING_STRATEGY_VERSION,
     TRADING_THRESHOLD_VERSION,
+    trading_threshold_version,
 )
 from app.core.enums import (
     DecisionDisplayAction,
@@ -143,6 +144,7 @@ class CanonicalDecisionResult:
     regime_label: str
     regime_phase: MarketRegimePhase
     regime_confidence: int
+    regime_permission: str | None = None
 
     def semantics_dict(self) -> dict[str, str]:
         return dict(self.result_semantics)
@@ -277,6 +279,7 @@ def build_canonical_decision_result(
     stance: TraderStance,
     non_holder_action: NonHolderAction,
     holder_action: HolderAction,
+    regime_permission: str | None = None,
 ) -> CanonicalDecisionResult:
     lineage = build_decision_input_lineage(strategy_input)
     display = resolve_display_decision(
@@ -291,7 +294,7 @@ def build_canonical_decision_result(
         stock_id=strategy_input.stock_id,
         exchange=strategy_input.exchange,
         strategy_version=strategy_input.strategy_version,
-        threshold_version=TRADING_THRESHOLD_VERSION,
+        threshold_version=trading_threshold_version(strategy_input.strategy_version),
         action_taxonomy=TRADING_ACTION_TAXONOMY,
         decision_taxonomy_version=DECISION_TAXONOMY_VERSION,
         as_of_date=strategy_input.as_of_date,
@@ -333,4 +336,6 @@ def build_canonical_decision_result(
         regime_label=strategy_input.market_regime.label,
         regime_phase=strategy_input.market_regime.phase,
         regime_confidence=strategy_input.market_regime.confidence,
+        regime_permission=(regime_permission or strategy_input.market_regime.permission_state or (
+            "UNKNOWN" if strategy_input.strategy_version.startswith("trading-intelligence-v4") and strategy_input.market_regime.confidence < 100 else None)),
     )

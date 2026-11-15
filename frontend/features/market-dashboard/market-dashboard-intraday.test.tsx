@@ -29,7 +29,7 @@ const cases = [
   { label: "new date at Dhaka midnight", now: "2026-11-11T18:00:00Z", date: "2026-11-12", status: "OPEN", intraday: true },
 ] as const;
 
-it.each(cases.flatMap(testCase => ["en", "bn"].map(locale => ({ ...testCase, locale: locale as "en" | "bn" }))))("shares dated partial-session copy across model and actual view: $label ($locale)", ({ now, date, status, intraday, locale }) => {
+it.each(cases.flatMap(testCase => ["en", "bn"].map(locale => ({ ...testCase, locale: locale as "en" | "bn" }))))("keeps session provenance internal while rendering business facts: $label ($locale)", ({ now, date, status, intraday, locale }) => {
   vi.useFakeTimers(); vi.setSystemTime(new Date(now));
   const freshness = { exchange: "DSE", trade_date: date, market_sync_id: "gA", market_status: status, data_state: "LIVE", snapshot_interval_minutes: 15, freshness_label: "Recorded snapshot" } as BackendMarketFreshnessDto;
   const breadth = { cohort: "ACTIVE_VALID_OHLC", source: "daily_prices", as_of_date: date, neutral_band_percent: 0, advancing: 2, declining: 1, unchanged: 0,
@@ -49,14 +49,12 @@ it.each(cases.flatMap(testCase => ["en", "bn"].map(locale => ({ ...testCase, loc
   state.model = model; state.freshness = freshness;
   const view = document.createElement("div"); view.innerHTML = renderToStaticMarkup(<MarketDashboardView locale={locale} />);
   const copy = getTerminalCopy(locale), premium = getPremiumCopy(locale), insightText = view.querySelector(".sw-insights")!.textContent!;
-  if (status === "OPEN" && intraday) expect(view.querySelector(".sw-session-state")?.textContent).toContain(copy.open);
-  if (status === "OPEN" && !intraday) expect(view.querySelector(".sw-session-state")?.textContent).toContain(locale === "bn" ? "আগের কার্যদিবসের দাম" : "Earlier session prices");
-  if (intraday) {
-    expect(insightText).toContain(copy.intradayInterpretation); expect(insightText).toContain(premium.partial); expect(insightText).toContain(premium.partialNote);
-  } else {
-    expect(insightText).not.toContain(copy.intradayInterpretation); expect(insightText).not.toContain(premium.partial); expect(insightText).not.toContain(premium.partialNote);
-    expect(insightText).toContain(premium.current);
-  }
+  expect(view.querySelector(".sw-session-state")).toBeNull();
+  expect(insightText).not.toContain(copy.intradayInterpretation);
+  expect(insightText).not.toContain(premium.partialNote);
+  expect(view.querySelector(".sw-index-value")?.textContent).toBe("5,000.00");
+  expect(view.querySelector(".sw-breadth-labels .sw-positive b")?.textContent).toBe("2");
+  expect(view.querySelector(".sw-session time")?.getAttribute("datetime")).toBe(date);
 });
 
 it("does not label missing or invalid dated facts as intraday", () => {

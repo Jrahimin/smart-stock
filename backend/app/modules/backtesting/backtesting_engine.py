@@ -37,12 +37,17 @@ from app.modules.trading_intelligence.input_capture import restore_strategy_inpu
 def replay_canonical_engine(
     dataset: BacktestDataset,
     config: BacktestConfig,
-    *, audit: dict | None = None,
+    *, audit: dict | None = None, decision_audit: list[dict] | None = None,
+    counterfactual_market_regimes: dict | None = None,
 ) -> tuple[tuple[ReplayObservation, ...], tuple[ForwardOutcome, ...]]:
     """Replay each stock with only bars, events, sessions and summaries known as of that date."""
     observations: list[ReplayObservation] = []
     outcomes: list[ForwardOutcome] = []
     session_dates = dataset.session_dates
+    if counterfactual_market_regimes is not None:
+        from app.modules.stock_details.decision.policy import decision_policy
+        if config.replay_mode != "reconstructed" or not decision_policy(config.strategy_version).market:
+            raise ValueError("Market counterfactuals require an explicit reconstructed shadow-market policy; captured replay keeps its owner")
 
     exclusions = []
     classifications = []
@@ -113,7 +118,10 @@ def replay_canonical_engine(
                 window = list(history.prices[max(0, prefix_end-DECISION_RECOMMENDATION_LOOKBACK):prefix_end])
                 end = bisect_right(session_dates, day)
                 sessions = session_dates[max(0, end-ELIGIBILITY_SESSION_LOOKBACK):end]
-                regime = resolve_regime_result_from_summaries([summary for summary in dataset.market_summaries if summary.trade_date <= day], decision_session_date=day)
+                regime = resolve_regime_result_from_summaries([summary for summary in dataset.market_summaries if summary.trade_date <= day],
+                    decision_session_date=day, exchange_session_dates=sessions)
+                if counterfactual_market_regimes is not None:
+                    regime = counterfactual_market_regimes.get(day, regime)
                 value = build_strategy_input(history.stock, window, reference_date=day,
                     event_observations=history.event_observations, exchange_session_dates=sessions,
                     market_regime=regime, calculated_at=datetime.combine(day, time.fromisoformat(config.session_close_time), tzinfo=ZoneInfo("Asia/Dhaka")))
@@ -132,6 +140,10 @@ def replay_canonical_engine(
         ):
             continue
         decision_read = build_trader_decision_summary(bundle)
+        if decision_audit is not None:
+            from app.modules.trading_intelligence.practicality_audit import plan_diagnostics
+            decision_audit.append({"stock_id": str(strategy_input.stock_id), "symbol": strategy_input.symbol,
+                "session_date": as_of_date.isoformat(), "plan": plan_diagnostics(bundle, strategy_input)})
         pulse = compute_pulse_score(bundle.snapshot, decision_read)
         latest_bar = strategy_input.prices[-1]
         observation = ReplayObservation(
@@ -166,6 +178,7 @@ def replay_canonical_engine(
             regime_score=bundle.canonical_result.regime_score,
             regime_phase=bundle.canonical_result.regime_phase,
             regime_confidence=bundle.canonical_result.regime_confidence,
+            regime_permission=bundle.canonical_result.regime_permission,
             internal_action=bundle.canonical_result.internal_action,
             display_action=bundle.canonical_result.display_action,
             decision_taxonomy_version=(bundle.canonical_result.decision_taxonomy_version),
@@ -175,6 +188,10 @@ def replay_canonical_engine(
             trigger_price=bundle.trade_plan.trigger_price,
             invalidation_price=bundle.trade_plan.invalidation_price,
             expiry_sessions=bundle.trade_plan.expiry_sessions,
+            non_holder_action=bundle.canonical_result.non_holder_action.value,
+            trade_plan_status=bundle.trade_plan.status.value,
+            confirmation_rule=bundle.trade_plan.confirmation_rule,
+            confirmation_support=bundle.trade_plan.confirmation_support,
             average_volume=bundle.snapshot.average_volume,
             target_price=bundle.trade_plan.target_low,
             controlling_reason=bundle.canonical_result.primary_reason_code,

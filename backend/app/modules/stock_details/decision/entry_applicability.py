@@ -28,6 +28,7 @@ EntryApplicabilityReasonCode = Literal[
     "BELOW_ENTRY_ZONE",
     "ABOVE_ENTRY_ZONE",
     "COMPLETED_BREAKOUT_REQUIRED",
+    "COMPLETED_PULLBACK_HOLD_REQUIRED",
     "ENTRY_SESSION_PENDING",
     "ENTRY_TERMS_MET",
     "MARKET_CLOSED",
@@ -35,10 +36,47 @@ EntryApplicabilityReasonCode = Literal[
 ]
 
 
+class EntryPriceContextRead(BaseModel):
+    comparison_price: float
+    price_session_date: str | None = None
+    price_basis: Literal["RECORDED", "CURRENT", "SNAPSHOT", "LAST_CLOSE"] = "RECORDED"
+    zone_relation: Literal["ABOVE_ENTRY_ZONE", "IN_ENTRY_ZONE", "BELOW_ENTRY_ZONE"] | None = None
+    first_target_reward_risk: float | None = None
+    reward_risk_status: Literal["AVAILABLE", "INVALID_GEOMETRY", "TARGET_REACHED", "TRAILING_TARGET", "TERMS_UNKNOWN"]
+    planned_basis: str = "ENTRY_ZONE_HIGH_TO_FIRST_TARGET_BEFORE_COSTS"
+
+
+def entry_price_context(plan, quote) -> EntryPriceContextRead | None:
+    """Dated arithmetic only; this can never grant entry permission."""
+    price = getattr(quote, "current_price", None)
+    if price is None or not isfinite(price) or price <= 0 or plan is None:
+        return None
+    low, high = plan.entry_zone_low, plan.entry_zone_high
+    stop, target = plan.stop_loss, plan.target_low
+    relation = None
+    if low is not None and high is not None and all(isfinite(value) and value > 0 for value in (low, high)) and low <= high:
+        relation = "BELOW_ENTRY_ZONE" if price < low else "ABOVE_ENTRY_ZONE" if price > high else "IN_ENTRY_ZONE"
+    ratio = None
+    status = "TERMS_UNKNOWN"
+    if getattr(plan, "management_mode", None) == "TRAILING":
+        status = "TRAILING_TARGET"
+    elif stop is not None and target is not None and all(isfinite(value) and value > 0 for value in (stop, target)):
+        if price >= target:
+            status = "TARGET_REACHED"
+        elif not stop < price < target or low is None or high is None or not stop < low <= high < target:
+            status = "INVALID_GEOMETRY"
+        else:
+            ratio = round((target - price) / (price - stop), 4)
+            status = "AVAILABLE"
+    return EntryPriceContextRead(comparison_price=price, price_session_date=getattr(quote, "as_of_trade_date", None),
+        zone_relation=relation, first_target_reward_risk=ratio, reward_risk_status=status)
+
+
 class EntryApplicabilityRead(BaseModel):
     status: Literal["NOT_APPLICABLE", "INVALIDATED", "EXPIRED", "UNVERIFIED", "OUTSIDE_ZONE", "AWAITING_CONFIRMATION", "APPLICABLE"]
     reason_code: EntryApplicabilityReasonCode
     controlling_blocker: str | None = None
+    price_context: EntryPriceContextRead | None = Field(default=None, exclude_if=lambda value: value is None)
     quote_timing_status: Literal["FETCH_ONLY", "UNKNOWN"] | None = Field(default=None, exclude_if=lambda value: value is None)
     batch_fetched_at: datetime | None = Field(default=None, exclude_if=lambda value: value is None)
     assessed_at: datetime
@@ -71,12 +109,48 @@ class EntryPathFacts:
     ended_sessions: frozenset[date] | None = None
 
 
+def plan_path_termination(plan, path, reference_date):
+    """One lifetime/breach predicate for executable and watch-only plans."""
+    sessions = tuple(sorted(day for day in path.sessions if day > reference_date))
+    expiry = plan.expiry_sessions
+    permitted = sessions[:expiry] if expiry and expiry > 0 else sessions
+    stop = plan.invalidation_price if plan.invalidation_price is not None else plan.stop_loss
+    if stop is not None and any(day in permitted and low <= stop for day, low in path.reliable_lows):
+        return "INVALIDATED", "STOP_BREACHED"
+    if path.basis_changed:
+        return "INVALIDATED", "PRICE_BASIS_CHANGED"
+    if expiry and (len(sessions) > expiry or (len(sessions) == expiry and sessions[-1] in (
+        path.ended_sessions if path.ended_sessions is not None else path.completed_sessions))):
+        return "EXPIRED", "PLAN_EXPIRED"
+    return None
+
+
+def pullback_hold_confirmed(plan, bar) -> bool:
+    low = getattr(plan, "preferred_entry_zone_low", None)
+    high = getattr(plan, "preferred_entry_zone_high", None)
+    support = getattr(plan, "confirmation_support", None)
+    stop = getattr(plan, "invalidation_price", None)
+    return bool(low is not None and high is not None and support is not None and stop is not None
+        and float(bar.low_price) <= high and float(bar.high_price) >= low
+        and float(bar.low_price) > stop and float(bar.close_price) >= support and bar.volume > 0)
+
+
 def is_current_entry_trigger(assessment) -> bool:
     """Historic omission must not acquire CURRENT through model hydration."""
     return bool(assessment and assessment.status == "APPLICABLE" and assessment.price_basis == "CURRENT")
 
 
-def evaluate_entry_applicability(
+def evaluate_entry_applicability(**kwargs) -> EntryApplicabilityRead:
+    """Entry authority retains its permission-first precedence."""
+    return _evaluate_plan_conditions(**kwargs)
+
+
+def evaluate_watch_setup_applicability(**kwargs) -> EntryApplicabilityRead:
+    """Observation evidence for a statically qualified watch plan, NOT entry permission."""
+    return _evaluate_plan_conditions(**kwargs, _watch_only=True)
+
+
+def _evaluate_plan_conditions(
     *, decision, plan, eligibility, quote, reference_date: date,
     now: datetime, market_open: bool, coverage_verified: bool,
     path: EntryPathFacts = EntryPathFacts(), withdrawn: bool = False,
@@ -87,6 +161,7 @@ def evaluate_entry_applicability(
     price_basis_v2: bool = False,
     finalized_session_date: date | None = None,
     session_settling: bool = False,
+    _watch_only: bool = False,
 ) -> EntryApplicabilityRead:
     """Stable precedence: withdrawal; permission; invalidation; expiry; evidence; zone; timing."""
     closing_basis = not market_open and session_close_at is not None
@@ -103,6 +178,7 @@ def evaluate_entry_applicability(
     def result(status, code):
         return EntryApplicabilityRead(
             status=status, reason_code=code, assessed_at=now,
+            price_context=entry_price_context(plan, quote),
             quote_timing_status=(("FETCH_ONLY" if getattr(quote, "batch_fetched_at", None) else "UNKNOWN") if code == "QUOTE_UNUSABLE" and not getattr(quote, "source_observed_at", None) else None),
             batch_fetched_at=getattr(quote, "batch_fetched_at", None),
             controlling_blocker=(decision.blocker_codes[0] if decision and decision.blocker_codes else None),
@@ -115,25 +191,21 @@ def evaluate_entry_applicability(
 
     if withdrawn:
         return result("INVALIDATED", "PUBLICATION_INVALIDATED")
-    if decision is None or decision.display_action != "POTENTIAL_BUY":
+    if decision is None or not _watch_only and decision.display_action != "POTENTIAL_BUY":
         return result("NOT_APPLICABLE", "ACTION_NOT_PERMITTED")
     if eligibility is None or eligibility.status != "ELIGIBLE":
         return result("NOT_APPLICABLE", "ELIGIBILITY_BLOCKED")
-    if plan is None or plan.status != "VALID_ENTRY_PLAN":
+    if plan is None or plan.status not in ({"VALID_ENTRY_PLAN", "WATCH_ONLY"} if _watch_only else {"VALID_ENTRY_PLAN"}):
         return result("NOT_APPLICABLE", "NO_ENTRY_PLAN")
+    timing = plan.entry_timing or (getattr(plan, "scenario_entry_timing", None) if _watch_only else None)
 
+    termination = plan_path_termination(plan, path, reference_date)
+    if termination:
+        return result(*termination)
     sessions = tuple(sorted(day for day in path.sessions if day > reference_date))
     expiry = plan.expiry_sessions
     permitted = sessions[:expiry] if expiry and expiry > 0 else sessions
     stop = plan.invalidation_price if plan.invalidation_price is not None else plan.stop_loss
-    if stop is not None and any(day in permitted and low <= stop for day, low in path.reliable_lows):
-        return result("INVALIDATED", "STOP_BREACHED")
-    if path.basis_changed:
-        return result("INVALIDATED", "PRICE_BASIS_CHANGED")
-    if expiry and (len(sessions) > expiry or (
-        len(sessions) == expiry and sessions[-1] in (path.ended_sessions if path.ended_sessions is not None else path.completed_sessions)
-    )):
-        return result("EXPIRED", "PLAN_EXPIRED")
     if not coverage_verified:
         return result("UNVERIFIED", "COVERAGE_UNKNOWN")
     if price_basis_v2 and session_settling:
@@ -172,7 +244,7 @@ def evaluate_entry_applicability(
     if (low is None or high is None or stop is None or expiry is None or expiry <= 0
         or not all(isfinite(value) and value > 0 for value in (low, high, stop))
         or not stop < low <= high
-        or plan.entry_timing == "BREAKOUT" and (plan.trigger_price is None or plan.trigger_price <= 0)):
+        or timing == "BREAKOUT" and (plan.trigger_price is None or plan.trigger_price <= 0)):
         return result("UNVERIFIED", "TERMS_UNKNOWN")
     if plan.target_low is not None and price >= plan.target_low:
         return result("OUTSIDE_ZONE", "TARGET_REACHED")
@@ -180,8 +252,10 @@ def evaluate_entry_applicability(
         return result("OUTSIDE_ZONE", "BELOW_ENTRY_ZONE")
     if price > high:
         return result("OUTSIDE_ZONE", "ABOVE_ENTRY_ZONE")
-    if plan.entry_timing == "BREAKOUT" and path.confirmed_on is None:
+    if timing == "BREAKOUT" and path.confirmed_on is None:
         return result("AWAITING_CONFIRMATION", "COMPLETED_BREAKOUT_REQUIRED")
+    if getattr(plan, "confirmation_rule", None) == "COMPLETED_PULLBACK_HOLD" and path.confirmed_on is None:
+        return result("AWAITING_CONFIRMATION", "COMPLETED_PULLBACK_HOLD_REQUIRED")
     if not closing_basis and (not market_open or not sessions or now.date() not in permitted
         or now.date() <= reference_date
         or path.confirmed_on is not None and now.date() <= path.confirmed_on):
@@ -251,6 +325,10 @@ def build_entry_path_facts(*, prices, revisions, sessions, completed_sessions,
             and plan and plan.entry_timing == "BREAKOUT" and plan.trigger_price is not None
             and float(row.close_price) > plan.trigger_price and average_volume
             and row.volume >= average_volume and confirmed is None):
+            confirmed = day
+        if (row is not None and day in completed_sessions and finalized_current and plan
+            and getattr(plan, "confirmation_rule", None) == "COMPLETED_PULLBACK_HOLD"
+            and pullback_hold_confirmed(plan, row) and confirmed is None):
             confirmed = day
     if not price_basis_v2:
         # Legacy semantics remain unchanged for clients which have not opted in.

@@ -1,14 +1,15 @@
 "use client";
 
+import { decisionConditionLabel } from "@/lib/market/decision-presentation";
+
 import { evidenceLabel } from "@/lib/market/decision-presentation";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   createColumnHelper,
   flexRender,
   getCoreRowModel,
-  getFilteredRowModel,
   getSortedRowModel,
   useReactTable,
   type SortingState,
@@ -68,7 +69,6 @@ export function StockExplorerView({ locale = DEFAULT_LOCALE }: StockExplorerView
     setFilters((current) => ({ ...current, tableSearch }));
   }, []);
 
-  const deferredTableSearch = useDeferredValue(filters.tableSearch);
 
   const scopedUniverse = useMemo(
     () =>
@@ -77,7 +77,7 @@ export function StockExplorerView({ locale = DEFAULT_LOCALE }: StockExplorerView
         decisionByStockId,
         searchTextByStockId,
         filters: {
-          tableSearch: "",
+          tableSearch: filters.tableSearch,
           signalFilter: filters.signalFilter,
           volumeFilter: filters.volumeFilter,
           portfolioScope: filters.portfolioScope,
@@ -87,6 +87,7 @@ export function StockExplorerView({ locale = DEFAULT_LOCALE }: StockExplorerView
       }),
     [
       decisionByStockId,
+      filters.tableSearch,
       filters.portfolioScope,
       filters.signalFilter,
       filters.volumeFilter,
@@ -118,7 +119,7 @@ export function StockExplorerView({ locale = DEFAULT_LOCALE }: StockExplorerView
   useEffect(() => {
     setVisibleCount(120);
     tableContainerRef.current?.scrollTo({ top: 0 });
-  }, [deferredTableSearch, filters.portfolioScope, filters.signalFilter, filters.volumeFilter]);
+  }, [filters.tableSearch, filters.portfolioScope, filters.signalFilter, filters.volumeFilter]);
 
   useEffect(() => {
     return () => {
@@ -213,6 +214,7 @@ export function StockExplorerView({ locale = DEFAULT_LOCALE }: StockExplorerView
           return (
             <span className="stock-explorer-action-badge" title={decision.reason || undefined}>
               <SignalBadge density="compact" signal={decision.recommendation} />
+              <small>{decisionConditionLabel(decision.reasonCode, decision.entryApplicability, locale, decision.eligibilityReasons)}</small>
             </span>
           );
         },
@@ -245,23 +247,11 @@ export function StockExplorerView({ locale = DEFAULT_LOCALE }: StockExplorerView
     columns,
     state: {
       sorting,
-      globalFilter: deferredTableSearch,
     },
     onSortingChange: setSorting,
-    onGlobalFilterChange: (updater) => {
-      const next = typeof updater === "function" ? updater(filters.tableSearch) : updater;
-      setTableSearch(typeof next === "string" ? next : String(next ?? ""));
-    },
-    globalFilterFn: (row, _columnId, filterValue) => {
-      const query = String(filterValue ?? "").trim().toLowerCase();
-      if (!query) {
-        return true;
-      }
-      const searchText = searchTextByStockId.get(row.original.stock.id) ?? "";
-      return searchText.includes(query);
-    },
     getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
+    getRowId: (row) => row.stock.id,
+    autoResetPageIndex: false,
     getSortedRowModel: getSortedRowModel(),
   });
 
@@ -333,6 +323,7 @@ export function StockExplorerView({ locale = DEFAULT_LOCALE }: StockExplorerView
               <option value="POTENTIAL_BUY">POTENTIAL BUY</option>
               <option value="WAIT">WAIT</option>
               <option value="HOLD">HOLD</option>
+              <option value="AVOID">AVOID</option>
               <option value="SELL">SELL</option>
             </select>
             <select

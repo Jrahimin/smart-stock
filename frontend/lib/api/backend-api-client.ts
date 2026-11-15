@@ -637,7 +637,8 @@ export function backendApiGetFresh<T>(
   path: string,
   params?: Record<string, QueryValue>,
   init?: RequestInit,
+  expectedMarketGeneration?: string | null,
 ): Promise<T> {
-  return backendApiGet<T>(path, params, { ...init, cache: "no-store" }, "off");
+  return backendApiGet<T>(path, params, { ...init, cache: "no-store" }, "off", expectedMarketGeneration);
 }
 

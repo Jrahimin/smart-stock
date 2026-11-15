@@ -4,7 +4,7 @@ from datetime import UTC, date, datetime
 from uuid import UUID
 
 from app.core.audit_hashing import canonicalize_audit_value, stable_audit_hash
-from app.core.constants.trading_constants import TRADING_STRATEGY_VERSION
+from app.core.constants.trading_constants import RESEARCH_STRATEGY_VERSION
 from app.core.enums import ExchangeCode
 from app.models import Stock
 from app.modules.backtesting.backtesting_availability import next_verified_open, capture_availability
@@ -50,14 +50,14 @@ async def record_shadow_selection(session, capture, settings):
     repository = TradingShadowRepository(session)
     if not await repository.available():
         return None
-    if capture.invalidated_at or capture.result_payload.get("strategy_version") != TRADING_STRATEGY_VERSION:
+    if capture.invalidated_at or capture.result_payload.get("strategy_version") != RESEARCH_STRATEGY_VERSION:
         return None
     ids = [str(row["stock"]["id"]) for row in capture.result_payload.get("rows", [])]
     if not verify_capture_coverage(capture.input_payload, ids)["verified"]:
         return None
     selected_at = datetime.now(UTC)
     config = BacktestConfig(capture.exchange, capture.session_date, capture.session_date,
-        horizons=(10,), replay_mode="capture_diagnostic", session_open_time=settings.market_open_time,
+        horizons=(10,), strategy_version=RESEARCH_STRATEGY_VERSION, replay_mode="capture_diagnostic", session_open_time=settings.market_open_time,
         session_close_time=settings.market_close_time,
         session_open_overrides=tuple(sorted(settings.market_session_open_overrides.items())))
     dataset = capture_dataset(capture)
@@ -183,7 +183,9 @@ async def mature_shadow_outcomes(session, dataset, config):
     repository = TradingShadowRepository(session)
     if not await repository.available() or not dataset.session_dates:
         return []
-    selections = await repository.selections(exchange=config.exchange, experiment_id=EXPERIMENT_ID, strategy_version=config.strategy_version)
+    # Outcome clocks follow the sealed selection's restored config, never the
+    # production engine currently supplying later raw price bars.
+    selections = await repository.selections(exchange=config.exchange, experiment_id=EXPERIMENT_ID, strategy_version=RESEARCH_STRATEGY_VERSION)
     selections = sorted({row.session_date: row for row in reversed(selections)}.values(), key=lambda row:row.session_date)
     timely = [row for row in selections if receipt_timely(row, dataset)[1]][:EXPERIMENT["forward_cohort"]["selection_sessions"]]
     if len(timely) == EXPERIMENT["forward_cohort"]["selection_sessions"]:
@@ -319,7 +321,9 @@ async def assessment_valid(repository, assessment, selections, latest):
         and all(row.id in latest and not latest[row.id].invalidated_at for row in selections if str(row.id) in required))
 
 
-async def shadow_progress(session, *, exchange, strategy_version=TRADING_STRATEGY_VERSION):
+async def shadow_progress(session, *, exchange, strategy_version=RESEARCH_STRATEGY_VERSION):
+    if strategy_version != RESEARCH_STRATEGY_VERSION:
+        return {"status": "UNSUPPORTED_POLICY_FOR_FROZEN_EXPERIMENT", "strategy_version": RESEARCH_STRATEGY_VERSION, "requested_strategy_version": strategy_version, "promoted": False}
     repository = TradingShadowRepository(session)
     if not await repository.available():
         return {"status": "SCHEMA_UNAVAILABLE", "promoted": False}
@@ -348,7 +352,11 @@ async def shadow_progress(session, *, exchange, strategy_version=TRADING_STRATEG
         valid = await assessment_valid(repository, assessment, selections, latest)
         formal_status = assessment.payload["status"] if valid else "ASSESSMENT_INVALIDATED_OR_SUPERSEDED"
     valid_outcomes = [row for row in latest.values() if not row.invalidated_at]
-    return {"status": "RECORDING" if selections else "NO_SELECTION_RECEIPTS", "experiment_id": EXPERIMENT_ID,
+    from app.core.constants.trading_constants import TRADING_STRATEGY_VERSION
+    return {"status": "RECORDING_UNSUPPORTED_PRODUCTION_POLICY" if TRADING_STRATEGY_VERSION != RESEARCH_STRATEGY_VERSION else "RECORDING" if selections else "NO_SELECTION_RECEIPTS", "experiment_id": EXPERIMENT_ID,
+        "receipt_status": "EXISTING_RECEIPTS_RETAINED" if selections else "NO_SELECTION_RECEIPTS",
+        "recording_policy": RESEARCH_STRATEGY_VERSION,
+        "production_policy_recording": "UNSUPPORTED_AFTER_PRODUCTION_POLICY_CHANGE",
         "strategy_version": strategy_version, "selection_dates": len({row.session_date for row in selections}),
         "withdrawn_receipts": len(all_rows)-len(selections), "eligible_cohort_dates": len(cohort),
         "recorded_selection_counts": {kind: {arm: sum(len(row.payload[kind][arm]) for row in selections) for arm in ("baseline", "challenger")} for kind in counts},
@@ -365,11 +373,14 @@ async def shadow_progress(session, *, exchange, strategy_version=TRADING_STRATEG
 async def publish_shadow_receipts(session, capture, settings):
     selection = await record_shadow_selection(session, capture, settings)
     if selection is None:
-        return None
+        repository = TradingShadowRepository(session)
+        if not await repository.available() or not await repository.selections(exchange=capture.exchange,
+            experiment_id=EXPERIMENT_ID, strategy_version=RESEARCH_STRATEGY_VERSION, summary_only=True):
+            return None
     from datetime import timedelta
     from app.modules.backtesting.backtesting_repository import BacktestingRepository
     config = BacktestConfig(capture.exchange, capture.session_date-timedelta(days=365), capture.session_date,
-        horizons=(10,), session_open_time=settings.market_open_time, session_close_time=settings.market_close_time,
+        horizons=(10,), strategy_version=RESEARCH_STRATEGY_VERSION, session_open_time=settings.market_open_time, session_close_time=settings.market_close_time,
         session_open_overrides=tuple(sorted(settings.market_session_open_overrides.items())))
     dataset = await BacktestingRepository(session).load_dataset(config)
     await mature_shadow_outcomes(session, dataset, config)

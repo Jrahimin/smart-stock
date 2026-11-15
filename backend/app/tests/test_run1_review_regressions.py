@@ -89,9 +89,9 @@ async def test_withdrawn_head_remains_visible_on_all_public_plan_reads(warm):
         universe_service=universe, redis=pulse_redis, settings=Settings())
     pulse = await pulse_service.get_market_pulse(exchange=stock.exchange, previous=None)
     projections = [rows.rows[0].entry_applicability, signals[0].decision.entry_applicability,
-        support.entry_applicability, workspace.decision_support.entry_applicability, pulse.focus_stocks[0].entry_applicability]
+        support.entry_applicability, workspace.decision_support.entry_applicability, (pulse.focus_stocks + pulse.monitor_candidates)[0].entry_applicability]
     assert all(item.reason_code == "PUBLICATION_INVALIDATED" for item in projections)
-    assert not pulse.focus_stocks[0].actionable_trigger
+    assert not (pulse.focus_stocks + pulse.monitor_candidates)[0].actionable_trigger
     assert rows.meta.decision_generation_id == support.decision_generation_id == snapshot.generation.sync_id
     assert await universe.is_generation_current(snapshot.generation, exchange=stock.exchange)
     assert all(call.kwargs["generation_id"] == snapshot.generation.sync_id for call in durable.get_publication.await_args_list)
@@ -322,8 +322,8 @@ async def test_missing_required_winner_keeps_old_plan_visible_but_never_current_
         universe_service=universe, redis=redis, settings=Settings())
     result = await service.get_market_pulse(exchange=stock.exchange, previous=None)
     assert result.decision_status == "UPDATING"
-    assert result.focus_stocks[0].entry_applicability.reason_code == "COVERAGE_UNKNOWN"
-    assert not result.focus_stocks[0].actionable_trigger
+    assert (result.focus_stocks + result.monitor_candidates)[0].entry_applicability.reason_code == "COVERAGE_UNKNOWN"
+    assert not (result.focus_stocks + result.monitor_candidates)[0].actionable_trigger
 
 
 @pytest.mark.parametrize("verified,reason", [(True, "PRICE_BASIS_CHANGED"), (False, "PATH_INCOMPLETE")])

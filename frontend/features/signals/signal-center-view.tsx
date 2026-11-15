@@ -1,5 +1,7 @@
 "use client";
 
+import { decisionConditionLabel } from "@/lib/market/decision-presentation";
+
 import { MeasuredDecisionFacts } from "@/components/market/measured-decision-facts";
 import { PublishedSetupCondition } from "@/components/market/published-setup-condition";
 
@@ -95,7 +97,7 @@ export function SignalCenterView({ locale = DEFAULT_LOCALE }: SignalCenterViewPr
         <div className="explorer-controls">
           <select aria-label="Decision filter" value={filter} onChange={(event) => setFilter(event.target.value)}>
             <option value="ALL">{language.filters.allActions}</option>
-            {(["POTENTIAL_BUY", "WAIT", "HOLD", "SELL"] as const).map(action => <option key={action} value={action}>{getSignalActionLabel(action, locale)}</option>)}
+            {(["POTENTIAL_BUY", "WAIT", "HOLD", "AVOID", "SELL"] as const).map(action => <option key={action} value={action}>{getSignalActionLabel(action, locale)}</option>)}
           </select>
           <select aria-label="Risk filter" value={riskFilter} onChange={(event) => setRiskFilter(event.target.value)}>
             <option value="ALL">{language.filters.allRisk}</option>
@@ -113,7 +115,6 @@ export function SignalCenterView({ locale = DEFAULT_LOCALE }: SignalCenterViewPr
           </select>
         </div>
       </WorkspacePageHero>
-      <p className="snapshot-price-note">{locale === "bn" ? "দাম স্ন্যাপশট থেকে নেওয়া। সিদ্ধান্তের আগে ব্রোকারের লাইভ দাম মিলিয়ে নিন।" : "Prices are snapshots. Check your broker's live price before acting."}</p>
       {isUpdating ? <div className="data-warning">{locale === "bn" ? "সিদ্ধান্ত আপডেট হচ্ছে; আগের চূড়ান্ত তথ্য:" : "Updating decisions; previous finalized result:"} {decisionDate}</div> : null}
       {isWarmingUp ? <div className="data-warning">Market view is warming up.</div> : null}
       {isError ? <div className="data-warning">{language.states.loadError}</div> : null}
@@ -124,7 +125,7 @@ export function SignalCenterView({ locale = DEFAULT_LOCALE }: SignalCenterViewPr
             signalRows.slice(0, visibleCount).map((stock) => {
               const decision = resolveTraderDecision(stock);
               const selected = selectedDecisionExplanation(stock.traderDecision, locale, stock.measuredFacts);
-              const policy = controllingReasonLabel(decision.reasonCode, "", locale);
+              const policy = decisionConditionLabel(decision.reasonCode, decision.entryApplicability, locale, decision.eligibilityReasons);
 
               return (
                 <article
@@ -140,9 +141,9 @@ export function SignalCenterView({ locale = DEFAULT_LOCALE }: SignalCenterViewPr
                     <SignalBadge signal={decision.recommendation} locale={locale} />
                   </div>
                   <small>{locale === "bn" ? "নতুন ক্রেতার জন্য" : "For new buyers"}{!sharedDate ? ` · ${shortTradeDate(stock.decisionDate, locale)}` : ""}</small>
+                  {policy && (!decision.entryApplicability || decision.entryApplicability.status === "NOT_APPLICABLE") ? <p className="signal-controlling-reason">{policy}</p> : null}
                   <EntryApplicabilityLabel assessment={decision.entryApplicability} locale={locale} policyReason={policy} />
                   <PublishedSetupCondition facts={stock.measuredFacts} assessment={decision.entryApplicability} locale={locale} reasonCode={decision.reasonCode} />
-                  {policy && !isDatedPlanGuidance(decision.reasonCode) ? <p className="signal-controlling-reason">{policy}</p> : null}
                   {selected.limitation && selected.limitation !== policy ? <p className="signal-controlling-reason">{selected.limitation}</p> : null}
                   <MeasuredDecisionFacts facts={stock.measuredFacts} locale={locale} ratings />
                   {!stock.measuredFacts && selected.support ? <small className="signal-measured-support">{selected.support}</small> : null}

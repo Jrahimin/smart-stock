@@ -128,7 +128,7 @@ export function TerminalAppShell({ children, dashboardLocale = DEFAULT_LOCALE }:
         </div>
         <div aria-hidden="true" className="terminal-sidebar-spacer" />
         <div className="terminal-sidebar-utilities">
-          <SidebarThemeToggle locale={dashboardLocale} collapsed={isSidebarCollapsed} ready={storeHydrated} />
+          <SidebarThemeToggle collapsed={isSidebarCollapsed} ready={storeHydrated} />
           <div className="terminal-sidebar-footer">
           {!storeHydrated || isLoading ? null : isAuthenticated && user ? (
             <>

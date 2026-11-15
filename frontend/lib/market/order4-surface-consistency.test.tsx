@@ -48,7 +48,7 @@ describe("increment2 common-fixture journey", () => {
     const monitor = renderToStaticMarkup(<FocusStockCard stock={pulse.monitorCandidates[0]} copy={copy.focus} scoreCopy={copy.score} />);
     const outside = locale === "bn" ? "Entry zone-এর উপরে" : "Above entry zone";
     for (const html of [signals, scanner, dashboard, detail, focus, monitor]) {
-      expect(html).toContain(outside);
+      expect(html).toMatch(locale === "bn" ? /Entry zone-এর (উপরে|ওপরে)/ : /Above entry zone/);
       if (html !== detail) expect(html).toContain("/stocks/DSE/TEST");
       expect(html).not.toContain("Do not treat this legacy trigger");
     }
@@ -56,10 +56,10 @@ describe("increment2 common-fixture journey", () => {
     const genericPlan = controllingReasonLabel("bullish_setup_breakout", "", locale);
     expect(signals).not.toContain(genericPlan);
     expect(dashboard).not.toContain(genericPlan);
-    expect(dashboard).toContain(locale === "bn" ? "সবচেয়ে শক্ত দিক" : "Strongest factor");
+    expect(dashboard).toContain("setup-reference-columns");
     expect(scanner.indexOf(outside)).toBeLessThan(scanner.indexOf(locale === "bn" ? "খোঁজের কারণ" : "Discovery"));
-    expect(focus.indexOf(outside)).toBeLessThan(focus.indexOf("pulse-focus-evidence"));
-    expect(pulse.focusStocks[0].latestPrice).toBe("103"); expect(focus).toContain(shortTradeDate("2026-11-11", locale));
+    expect(focus).toContain("top-setup-condition");
+    expect(pulse.focusStocks[0].latestPrice).toBe("103"); expect(focus).not.toContain(shortTradeDate("2026-11-11", locale));
     expect(pulse.hero.sessionLabel).toContain(locale === "bn" ? "লেনদেন শুরুর আগে" : "Pre-open"); expect(pulse.hero.sessionLabel).toContain(shortTradeDate("2026-11-10", locale));
     expect(pulse.sessionDisablesRefresh).toBe(false);
   });
@@ -98,9 +98,12 @@ describe("increment2 common-fixture journey", () => {
     const { row } = order4SurfaceFixture();
     row.measured_facts = { rsi: 58.4, trend: "UPTREND", opportunity_score: 72, trigger_price: 110, resistance: 112,
       volume_ratio: 1.8, volume_baseline: "PRIOR_20_SESSION_MEDIAN", volume_sample_count: 20 };
-    const html = renderToStaticMarkup(<SmartSignalFeed locale={locale} signals={mapUniverseRowsToSignalFeed([row])} />);
+    row.top_setup = {...row.top_setup!, supporting_fact:"MOMENTUM", supporting_value:58.4};
+    const view = render(<SmartSignalFeed locale={locale} signals={mapUniverseRowsToSignalFeed([row])} />);
+    fireEvent.click(view.getByRole("button", {name: locale === "bn" ? "TEST setup-এর বিস্তারিত" : "TEST setup details"}));
+    const html = document.body.innerHTML;
     expect(html.match(/RSI 58.4/g)).toHaveLength(1);
-    expect(html).toContain(locale === "bn" ? "1.8 গুণ" : "1.8×"); expect(html).toContain(locale === "bn" ? "20 কার্যদিবস" : "20-session median");
+    expect(html).not.toContain("1.8×"); // Only the server-selected strongest fact belongs on this compact card.
     expect(html).not.toContain("RSI 55"); expect(html).not.toContain("average");
   });
   it.each(["en", "bn"].flatMap(locale => [true, false].map(hasLevel => ({ locale: locale as "en" | "bn", hasLevel }))))("retains one precise published trigger condition across the full journey ($locale, level=$hasLevel)", ({ locale, hasLevel }) => {
@@ -108,6 +111,9 @@ describe("increment2 common-fixture journey", () => {
     const facts = { rsi: 58, trend: "UPTREND", opportunity_score: 70, trigger_price: hasLevel ? 96.54 : null, resistance: null,
       volume_ratio: 1.6, volume_baseline: "PRIOR_20_SESSION_MEDIAN" as const, volume_sample_count: 20 };
     fixture.row.measured_facts = fixture.support.measured_facts = facts;
+    const delivered = {...fixture.row.top_setup!, trigger_price: hasLevel ? 96.54 : null, condition: hasLevel ? "Enter only after a completed close above 96.54 with confirming volume." : "Enter only after a completed close above the trigger with confirming volume."};
+    fixture.row.top_setup = delivered;
+    for (const stock of fixture.pulse.focus_stocks) stock.top_setup = delivered;
     for (const stock of [...fixture.pulse.focus_stocks, ...fixture.pulse.monitor_candidates]) { stock.measured_facts = facts; stock.controlling_reason_code = "bullish_setup_breakout"; }
     state.universe = [mapUniverseRowToListRow(fixture.row)];
     const client = new QueryClient(); const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
@@ -120,11 +126,13 @@ describe("increment2 common-fixture journey", () => {
     const focus = renderToStaticMarkup(<FocusStockCard stock={pulse.focusStocks[0]} copy={copy.focus} scoreCopy={copy.score} />);
     for (const html of [signals, scanner, dashboard, detail, focus]) {
       expect(html.includes("96.54")).toBe(hasLevel);
-      if (hasLevel) expect(html).toContain(locale === "en" ? "Trade Plan: close above 96.54 with volume confirmation" : "Trade Plan: দিনশেষে 96.54-এর ওপরে দর ও পর্যাপ্ত লেনদেনের নিশ্চয়তা প্রয়োজন");
+      if (hasLevel && !html.includes("top-setup-summary") && !html.includes("setup-reference-row")) expect(html).toContain(locale === "en" ? "Trade Plan: close above 96.54 with volume confirmation" : "Trade Plan: দিনশেষে 96.54-এর ওপরে দর ও পর্যাপ্ত লেনদেনের নিশ্চয়তা প্রয়োজন");
+      if (hasLevel && html.includes("top-setup-summary")) expect(html).toContain(locale === "en" ? "session closes above 96.54" : "96.54-এর ওপরে দিন শেষ");
+      if (hasLevel && html.includes("setup-reference-row")) { expect(html).toContain("Close"); expect(html).toContain("96.54"); expect(html).toContain(locale === "bn" ? "setup-এর বিস্তারিত" : "setup details"); }
       expect(html).not.toContain("Inside entry zone");
     }
     if (hasLevel) { expect(detail).toContain("Trigger 96.54"); expect(model.controllingReason).not.toContain("breakout"); }
-    expect(focus).toContain("Attention"); expect(focus).toContain(locale === "bn" ? "সম্ভাবনার স্কোর 70/100" : "Opportunity 70/100");
+    expect(focus).not.toContain("Attention"); expect(focus).toContain("Opportunity"); expect(focus).toContain("70/100");
   });
   it("shows measured breadth populations and does not turn absent sector moves or one-bar mood into observations", () => {
     const facts = order4SurfaceFixture().pulse.coverage!.breadth!;
@@ -174,7 +182,8 @@ it.each(["en", "bn"] as const)("keeps the canonical decision date separate from 
     expect((card === signalCard ? signals.container : scanner.container).textContent).toContain(shortTradeDate("2026-11-10", locale));
     expect(card.textContent).not.toMatch(/Decision[^·<]*2026-11-05/);
   }
-  expect(scannerCard.textContent).toContain(shortTradeDate("2026-11-05", locale));
+  expect(scannerCard.textContent).not.toContain(shortTradeDate("2026-11-05", locale));
+  expect(mapUniverseRowToListRow(row).displayQuote?.as_of_trade_date).toBe("2026-11-05");
   expect(scannerCard.textContent).toContain(locale === "bn" ? "নতুন ক্রেতার জন্য" : "For new buyers");
   const selects = signals.container.querySelectorAll("select");
   fireEvent.change(selects[2], { target: { value: "VOLUME_CONFIRMED" } });
@@ -235,7 +244,7 @@ it.each(["en", "bn"] as const)("labels filters and distinguishes signed-out list
 it.each(["en", "bn"] as const)("hides only the requested unverified message on the Dashboard, retaining a price-zone blocker (%s)", locale => {
   const { row } = order4SurfaceFixture();
   const outside = renderToStaticMarkup(<SmartSignalFeed locale={locale} signals={mapUniverseRowsToSignalFeed([row])} />);
-  expect(outside).toContain(locale === "bn" ? "Entry zone-এর উপরে" : "Above entry zone");
+  expect(outside).toMatch(locale === "bn" ? /Entry zone-এর (উপরে|ওপরে)/ : /Above entry zone/);
   const unverified = { ...row, entry_applicability: { status: "UNVERIFIED" as const, reason_code: "QUOTE_UNUSABLE" as const },
     decision: { ...row.decision!, entry_applicability: { status: "UNVERIFIED" as const, reason_code: "QUOTE_UNUSABLE" as const } } };
   const html = renderToStaticMarkup(<SmartSignalFeed locale={locale} signals={mapUniverseRowsToSignalFeed([unverified])} />);

@@ -85,6 +85,8 @@ class TradePlanResult:
     trailing_rule: str | None = None
     reassessment_sessions: int | None = None
     partial_profit_price: float | None = None
+    scenario_entry_timing: EntryTiming | None = None
+    confirmation_support: float | None = None
 
 
 @dataclass(frozen=True)
@@ -246,9 +248,15 @@ def _build_plan(
     trailing_rule: str | None = None,
     reassessment_sessions: int | None = None,
     partial_profit_price: float | None = None,
+    preserve_rejected_levels: bool = False,
 ) -> TradePlanResult:
+    def rejected(explanation, reason):
+        plan = _unavailable_plan(explanation, reason)
+        return replace(plan, entry_zone_low=entry_low, entry_zone_high=entry_high, stop_loss=stop,
+            target_low=target_low, target_high=target_high, entry_timing=timing,
+            preferred_entry_zone_low=entry_low, preferred_entry_zone_high=entry_high) if preserve_rejected_levels else plan
     if not (0 < stop < entry_low <= entry_high):
-        return _unavailable_plan(
+        return rejected(
             "Trade plan unavailable because structural stop and entry ordering is invalid.",
             "invalid_stop_entry_ordering",
         )
@@ -266,7 +274,7 @@ def _build_plan(
             and target_high is not None
             and entry_high < target_low <= target_high
         ):
-            return _unavailable_plan(
+            return rejected(
                 "Trade plan unavailable because stop, entry, and target ordering is invalid.",
                 "invalid_price_ordering",
             )
@@ -314,6 +322,10 @@ def compute_trade_plan(
     *,
     opportunity_quality: OpportunityQuality | None = None,
     market_regime: MarketRegimeResult | None = None,
+    corrections: bool = False,
+    pullback_confirmation: bool = False,
+    target_discount: float = 0.97,
+    preserve_rejected_levels: bool = False,
 ) -> TradePlanResult:
     price = snapshot.latest_price
     support = snapshot.support
@@ -352,6 +364,7 @@ def compute_trade_plan(
             "reassess if participation fades or the invalidation is breached."
         )
         plan = _build_plan(
+            preserve_rejected_levels=preserve_rejected_levels,
             entry_low=entry_low,
             entry_high=entry_high,
             stop=stop,
@@ -369,6 +382,7 @@ def compute_trade_plan(
                 f"{TRADE_PLAN_TRAILING_ATR_MULTIPLIER:.1f} ATR, whichever is higher."
             ),
             reassessment_sessions=TRADE_PLAN_CONTINUATION_REASSESS_SESSIONS,
+            expiry_sessions=TRADE_PLAN_CONTINUATION_REASSESS_SESSIONS if corrections else None,
         )
         if market_regime is not None and not market_regime.permits_plan(plan.entry_timing):
             return replace(
@@ -431,6 +445,7 @@ def compute_trade_plan(
             else TradePlanManagementMode.MEASURED_MOVE
         )
         plan = _build_plan(
+            preserve_rejected_levels=preserve_rejected_levels,
             entry_low=entry_low,
             entry_high=entry_high,
             stop=stop,
@@ -486,16 +501,20 @@ def compute_trade_plan(
     ):
         entry_low = pullback_reference
         entry_high = pullback_reference * (1 + TRADE_PLAN_ENTRY_ZONE_PERCENT / 100)
-        return _build_plan(
+        plan = _build_plan(
+            preserve_rejected_levels=preserve_rejected_levels,
             entry_low=entry_low,
             entry_high=entry_high,
             stop=structural_stop,
-            target_low=resolved_resistance * 0.97,
+            target_low=resolved_resistance * target_discount,
             target_high=resolved_resistance,
             timing=EntryTiming.PULLBACK,
             condition_text=(
-                "Enter only if price revisits and holds the preferred support or "
-                "moving-average zone."
+                "Await a completed-session zone touch and close at/above support; enter only in a subsequent eligible session."
+                if pullback_confirmation else
+                "Planned pullback zone; holding confirmation not assessed."
+                if corrections else
+                "Enter only if price revisits and holds the preferred support or moving-average zone."
             ),
             management_mode=TradePlanManagementMode.STRUCTURAL,
             explanation=(
@@ -504,6 +523,8 @@ def compute_trade_plan(
             ),
             expiry_sessions=TRADE_PLAN_EXPIRY_SESSIONS,
         )
+        return replace(plan, confirmation_rule="COMPLETED_PULLBACK_HOLD" if pullback_confirmation else None,
+                       confirmation_support=pullback_reference if pullback_confirmation else None)
 
     entry_low = price * 0.99
     entry_high = price * 1.005
@@ -511,10 +532,11 @@ def compute_trade_plan(
         entry_low = support
         entry_high = support * 1.015
     return _build_plan(
+        preserve_rejected_levels=preserve_rejected_levels,
         entry_low=entry_low,
         entry_high=entry_high,
         stop=structural_stop,
-        target_low=resolved_resistance * 0.97,
+        target_low=resolved_resistance * target_discount,
         target_high=resolved_resistance,
         timing=EntryTiming.READY,
         condition_text="Entry setup is currently available near the shown range.",
@@ -530,6 +552,7 @@ def align_trade_plan_with_decision(
     *,
     is_stale: bool,
     is_sparse: bool,
+    preserve_scenario: bool = False,
 ) -> TradePlanResult:
     """Prevent a long-entry plan from contradicting the final action or data state."""
     if is_stale or is_sparse or recommendation == TraderRecommendation.SELL:
@@ -557,6 +580,7 @@ def align_trade_plan_with_decision(
             status=TradePlanStatus.WATCH_ONLY,
             entry_readiness=EntryReadiness.NOT_READY,
             entry_timing=None,
+            scenario_entry_timing=plan.entry_timing if preserve_scenario else plan.scenario_entry_timing,
             reasons=(*plan.reasons, "current_action_does_not_support_fresh_entry"),
             explanation="Scenario levels are watch-only for the current decision.",
         )

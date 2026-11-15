@@ -4,7 +4,7 @@ from datetime import date, datetime
 from uuid import UUID
 
 from app.core.audit_hashing import canonicalize_audit_value, stable_audit_hash
-from app.core.constants.trading_constants import TRADING_STRATEGY_VERSION
+from app.core.constants.trading_constants import RESEARCH_STRATEGY_VERSION
 from app.modules.backtesting.backtesting_challengers import EXPERIMENT, EXPERIMENT_ID
 from app.modules.backtesting.backtesting_evaluation import rank_metrics, observation_key
 from app.modules.backtesting.backtesting_models import ForwardOutcome, ExecutionResult
@@ -44,7 +44,9 @@ def endpoint_mature(cohort, latest, dataset):
     return True
 
 
-async def assess_shadow_receipts(session, dataset, *, exchange, strategy_version=TRADING_STRATEGY_VERSION):
+async def assess_shadow_receipts(session, dataset, *, exchange, strategy_version=RESEARCH_STRATEGY_VERSION):
+    if strategy_version != RESEARCH_STRATEGY_VERSION:
+        return {"status": "UNSUPPORTED_POLICY_FOR_FROZEN_EXPERIMENT", "promoted": False}
     from app.modules.backtesting.backtesting_shadow import active_receipt_cohort, assessment_valid, receipt_rows, restore_shadow_config
     repository = TradingShadowRepository(session)
     if not await repository.available():

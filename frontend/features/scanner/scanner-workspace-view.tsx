@@ -1,5 +1,7 @@
 "use client";
 
+import { decisionConditionLabel } from "@/lib/market/decision-presentation";
+
 import { MeasuredDecisionFacts } from "@/components/market/measured-decision-facts";
 import { PublishedSetupCondition } from "@/components/market/published-setup-condition";
 
@@ -146,7 +148,6 @@ export function ScannerWorkspaceView({ locale = DEFAULT_LOCALE }: ScannerWorkspa
           </div>
         </div>
       </WorkspacePageHero>
-      <p className="snapshot-price-note">{locale === "bn" ? "দাম স্ন্যাপশট থেকে নেওয়া। সিদ্ধান্তের আগে ব্রোকারের লাইভ দাম মিলিয়ে নিন।" : "Prices are snapshots. Check your broker's live price before acting."}</p>
       {isWarmingUp ? <div className="data-warning">Market view is warming up.</div> : null}
       <DecisionPublicationLabel decision={sharedDate ? { ...decisionPublication, decision_session_date: sharedDate } : decisionPublication} locale={locale} />
       {isError ? <div className="data-warning">{language.states.loadError}</div> : null}
@@ -173,7 +174,7 @@ export function ScannerWorkspaceView({ locale = DEFAULT_LOCALE }: ScannerWorkspa
                     category.items.map((stock) => {
                       const decision = resolveTraderDecision(stock);
                       const selected = selectedDecisionExplanation(stock.traderDecision, locale, stock.measuredFacts);
-                      const policy = controllingReasonLabel(decision.reasonCode, "", locale);
+                      const policy = decisionConditionLabel(decision.reasonCode, decision.entryApplicability, locale, decision.eligibilityReasons);
 
                       return (
                         <article className="scanner-result-card" key={stock.stock.id}>
@@ -190,10 +191,11 @@ export function ScannerWorkspaceView({ locale = DEFAULT_LOCALE }: ScannerWorkspa
                           </span>
                           {!sharedDate || stock.displayQuote?.as_of_trade_date !== sharedDate || stock.displayQuote?.observation_session_date !== sharedDate || stock.displayQuote?.observation_status !== "FINALIZED" ? <QuotePublicationLabel locale={locale} quote={stock.displayQuote} /> : null}
                           <small>{locale === "bn" ? "নতুন ক্রেতার জন্য" : "For new buyers"}{!sharedDate ? ` · ${shortTradeDate(stock.decisionDate, locale)}` : ""}</small>
+                          {policy && (!decision.entryApplicability || decision.entryApplicability.status === "NOT_APPLICABLE") ? <p className="scanner-entry-condition">{policy}</p> : null}
                           <EntryApplicabilityLabel assessment={decision.entryApplicability} locale={locale} policyReason={policy} />
                           <PublishedSetupCondition facts={stock.measuredFacts} assessment={decision.entryApplicability} locale={locale} reasonCode={decision.reasonCode} />
                           <MeasuredDecisionFacts facts={stock.measuredFacts} locale={locale} ratings />
-                          {(policy || selected.limitation) ? <p className="scanner-entry-condition">{policy || selected.limitation}</p> : null}
+                          {selected.limitation && selected.limitation !== policy ? <p className="scanner-entry-condition">{selected.limitation}</p> : null}
                           <small>{scannerMatchReason(stock.scannerMatch.reason_code, locale)}</small>
                           <Link href={buildStockDetailPath(stock.stock.exchange, stock.stock.symbol)}>{locale === "bn" ? "বিস্তারিত দেখুন" : "View details"} →</Link>
                         </article>

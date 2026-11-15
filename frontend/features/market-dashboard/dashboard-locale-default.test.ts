@@ -1,3 +1,4 @@
+import { topSetupFixture } from "@/test-fixtures/top-setup-fixture";
 import { describe, expect, it } from "vitest";
 
 import { buildMarketDashboardModel } from "@/features/market-dashboard/view-models/market-dashboard-view-model";
@@ -8,6 +9,7 @@ describe("useMarketDashboard locale alignment", () => {
   it("localizes signals when locale is omitted and defaults to bn", () => {
     const signals = mapUniverseRowsToSignalFeed([
       {
+        top_setup: topSetupFixture(),
         stock: {
           id: "walton-id",
           symbol: "WALTONHIL",

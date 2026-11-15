@@ -28,7 +28,7 @@ describe("increment2 repair card clarity", () => {
       expect(stock.whyHere.join(" ")).not.toContain("উন্নীত");
       expect(stock.measuredFacts?.volume_ratio).toBe(2);
       const copy = getMarketPulseLanguage(locale);
-      const html = renderToStaticMarkup(<FocusStockCard stock={stock} copy={copy.focus} scoreCopy={copy.score} />);
+      const html = renderToStaticMarkup(<FocusStockCard stock={{...stock,topSetup:undefined}} copy={copy.focus} scoreCopy={copy.score} />);
       expect(html).toContain(locale === "bn" ? "2 গুণ" : "Volume 2×"); expect(html).toContain(locale === "bn" ? "20 কার্যদিবস" : "20-session median");
     }
     for (const stock of [...pulse.focus_stocks, ...pulse.monitor_candidates]) stock.public_comparison = { status: "CHANGED", previous_action: "WAIT", current_action: "POTENTIAL_BUY", previous_session_date: "2026-11-09" };
@@ -45,7 +45,7 @@ describe("increment2 repair card clarity", () => {
   it.each(["en", "bn"] as const)("puts action/limiter before score and makes help independently operable on focus and monitor (%s)", (locale) => {
     const model = buildMarketPulseViewModel(order4SurfaceFixture().pulse, locale); const copy = getMarketPulseLanguage(locale);
     const stocks = [model.focusStocks[0], model.monitorCandidates[0]];
-    const view = render(<>{stocks.map((stock, index) => <FocusStockCard stock={stock} copy={copy.focus} scoreCopy={copy.score} key={index} />)}</>);
+    const view = render(<>{stocks.map((stock, index) => <FocusStockCard stock={{...stock,topSetup:undefined}} copy={copy.focus} scoreCopy={copy.score} key={index} />)}</>);
     for (const card of view.container.querySelectorAll(".pulse-focus-card")) {
       expect(card.innerHTML.indexOf("signal-badge")).toBeLessThan(card.innerHTML.indexOf("pulse-score-header-cluster"));
       const controls = card.querySelectorAll("button, a"); const button = controls[0] as HTMLButtonElement; const link = controls[1] as HTMLAnchorElement;
@@ -71,7 +71,7 @@ describe("increment2 repair card clarity", () => {
         volume_ratio: ratio, volume_baseline: "PRIOR_20_SESSION_MEDIAN", volume_sample_count: 20 } }));
     const stocks = buildMarketPulseViewModel(pulse, locale).focusStocks;
     const copy = getMarketPulseLanguage(locale);
-    const html = stocks.map(stock => renderToStaticMarkup(<FocusStockCard stock={stock} copy={copy.focus} scoreCopy={copy.score} />));
+    const html = stocks.map(stock => renderToStaticMarkup(<FocusStockCard stock={{...stock,topSetup:undefined}} copy={copy.focus} scoreCopy={copy.score} />));
     expect(html[0]).toContain(locale === "bn" ? "1.6 গুণ" : "1.6×"); expect(html[1]).toContain(locale === "bn" ? "0.7 গুণ" : "0.7×");
     expect(html[0]).toContain(locale === "bn" ? "ঊর্ধ্বমুখী" : "uptrend"); expect(html[1]).toContain(locale === "bn" ? "নিম্নমুখী" : "downtrend");
     for (const markup of html) expect(markup).not.toContain("pulse-focus-why-block");

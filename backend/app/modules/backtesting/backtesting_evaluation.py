@@ -22,7 +22,7 @@ from app.modules.backtesting.backtesting_metrics import (
     build_decision_metrics,
     select_pulse_top_k,
 )
-from app.modules.market_universe.shortlist import entry_sort_key
+from app.modules.market_universe.shortlist import entry_sort_key, legacy_entry_sort_key, entry_sort_field_names
 
 
 def observation_key(item):
@@ -31,7 +31,9 @@ def observation_key(item):
 
 def shortlist_key(item):
     # Adapt to the existing backend owner; do not maintain an independent ranking formula.
-    return entry_sort_key(
+    legacy = item.engine_version in {"trading-intelligence-v2", "trading-intelligence-v3"}
+    key = legacy_entry_sort_key if legacy else lambda row: entry_sort_key(row, quality_factor=item.engine_version.endswith(("-ranking", "-combined")))
+    return key(
         SimpleNamespace(
             stock=SimpleNamespace(id=item.stock_id, symbol=item.symbol),
             decision=SimpleNamespace(canonical=item),
@@ -527,11 +529,15 @@ def ranking_tie_diagnostics(observations):
             continue
         compared += 1
         left, right = shortlist_key(ranked[4]), shortlist_key(ranked[5])
-        equal_quality += left[:3] == right[:3]
-        equal_liquidity += left[:4] == right[:4]
-        stable_ties += left[:5] == right[:5]
-        index = next((index for index, pair in enumerate(zip(left, right)) if pair[0] != pair[1]), 6)
-        deciding[("eligibility", "readiness", "opportunity_quality", "liquidity_tier", "median_turnover", "symbol", "stock_id")[index]] += 1
+        version = ranked[4].engine_version
+        names = entry_sort_field_names(legacy=version in {"trading-intelligence-v2", "trading-intelligence-v3"},
+            quality_factor=version.endswith(("-ranking", "-combined")))
+        quality_end, liquidity_end, stable_start = names.index("opportunity_quality")+1, names.index("liquidity_tier")+1, names.index("symbol")
+        equal_quality += left[:quality_end] == right[:quality_end]
+        equal_liquidity += left[:liquidity_end] == right[:liquidity_end]
+        stable_ties += left[:stable_start] == right[:stable_start]
+        index = next((index for index, pair in enumerate(zip(left, right)) if pair[0] != pair[1]), len(names)-1)
+        deciding[names[index]] += 1
     return {"eligible_dates": len(groups), "cutoff_comparison_dates": compared,
         "same_readiness_and_quality_at_cutoff": equal_quality, "same_liquidity_tier_at_cutoff": equal_liquidity,
         "stable_name_tiebreak_dates": stable_ties, "deciding_field": dict(deciding)}

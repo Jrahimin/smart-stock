@@ -66,13 +66,5 @@ type DataFreshnessIndicatorProps = {
 };
 
 export function DataFreshnessIndicator({ decision }: DataFreshnessIndicatorProps) {
-  if (!decision.available) {
-    return null;
-  }
-
-  return (
-    <div className={`data-freshness-compact ${decision.freshness.isStale ? "data-freshness-stale" : ""}`} title={decision.freshness.helper}>
-      {decision.freshness.label}
-    </div>
-  );
+  return null;
 }

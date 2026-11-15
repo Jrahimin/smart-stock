@@ -212,6 +212,14 @@ def simulate_next_session_execution(
                 trigger = round_tick(trigger, rule.tick_size, up=True)
                 touched = float(bar.high_price) >= trigger
             invalidated = rounded_stop is not None and float(bar.low_price) <= rounded_stop
+            if observation.entry_timing == EntryTiming.PULLBACK and observation.confirmation_rule == "COMPLETED_PULLBACK_HOLD":
+                from app.modules.stock_details.decision.entry_applicability import pullback_hold_confirmed
+                if invalidated:
+                    return result("AMBIGUOUS_PRE_ENTRY" if touched else "INVALIDATED_BEFORE_ENTRY", day)
+                if pullback_hold_confirmed(observation, bar):
+                    activation = day
+                    events.append({"state": "ACTIVATED", "date": day, "reason": "COMPLETED_PULLBACK_HOLD"})
+                continue
             # A resting pullback order can already fill at an in-zone open.
             opened_in_zone = (
                 observation.entry_timing == EntryTiming.PULLBACK and fill_timing == "OPEN"
@@ -236,6 +244,23 @@ def simulate_next_session_execution(
             activation = day
         elif activation is None:
             activation = observation.as_of_date
+        if canonical and observation.engine_version.startswith("trading-intelligence-v4") and observation.entry_timing is not None:
+            low, high = observation.preferred_entry_zone_low, observation.preferred_entry_zone_high
+            if low is None or high is None or not 0 < low <= high:
+                return result("INVALID_PLAN", day)
+            low, high = round_tick(low, rule.tick_size, up=True), round_tick(high, rule.tick_size, up=False)
+            resting_pullback = observation.entry_timing == EntryTiming.PULLBACK and observation.confirmation_rule != "COMPLETED_PULLBACK_HOLD"
+            close_attempt = config.execution_price == "close" and not resting_pullback
+            touched = low <= float(bar.close_price) <= high if close_attempt else float(bar.low_price) <= high and float(bar.high_price) >= low
+            opened_in_zone = not close_attempt and low <= opening <= high
+            if rounded_stop is not None and float(bar.low_price) <= rounded_stop and not opened_in_zone:
+                return result("AMBIGUOUS_PRE_ENTRY" if touched else "INVALIDATED_BEFORE_ENTRY", day)
+            if not touched:
+                events.append({"state": "AWAITING_ZONE", "date": day})
+                continue
+            raw = float(bar.close_price) if close_attempt else min(max(opening, low), high)
+            fill_timing = "CLOSE" if close_attempt else "OPEN" if opened_in_zone else "INTRADAY"
+            zone_high = high
         if not any(event["state"] == "ACTIVATED" for event in events):
             events.append({"state": "ACTIVATED", "date": activation})
         attempts.append(day)

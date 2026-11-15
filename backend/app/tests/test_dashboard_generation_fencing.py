@@ -23,7 +23,7 @@ class _Redis:
         self.values[key] = payload
 
 
-def _freshness(sync_id: str) -> SimpleNamespace:
+def _freshness(sync_id: str | None) -> SimpleNamespace:
     return SimpleNamespace(
         market_sync_id=sync_id,
         last_synced_at=datetime(2026, 8, 9, 6, 30, tzinfo=UTC),
@@ -74,3 +74,26 @@ async def test_dashboard_cache_miss_retries_on_one_resolved_generation() -> None
     assert response.market_sync_id == "G124"
     assert dashboard_cache_key("movers", ExchangeCode.DSE, "G123") not in redis.values
     assert dashboard_cache_key("movers", ExchangeCode.DSE, "G124") in redis.values
+
+
+@pytest.mark.asyncio
+async def test_unpublished_snapshot_does_not_read_or_relabel_shared_cache() -> None:
+    from unittest.mock import AsyncMock
+
+    redis = _Redis()
+    legacy_key = dashboard_cache_key("movers", ExchangeCode.DSE)
+    redis.values[legacy_key] = {"unusable_old_entry": True}
+    freshness = _freshness(None)
+    market_data = SimpleNamespace(get_market_freshness=AsyncMock(return_value=freshness))
+    service = MarketDashboardService(
+        market_repository=object(), market_data_service=market_data,
+        stocks_repository=object(), redis=redis, settings=Settings(),
+    )
+    payload = DashboardMoversRead(
+        session_trade_date=freshness.trade_date, gainers=[], losers=[], turnover_leaders=[], volume_leaders=[],
+    )
+    result = await service._get_cached("movers", ExchangeCode.DSE, DashboardMoversRead, AsyncMock(return_value=payload))
+    assert result == payload
+    market_data.get_market_freshness.return_value = _freshness("newly-published")
+    await service.cache_dashboard_payload("movers", ExchangeCode.DSE, result)
+    assert redis.values == {legacy_key: {"unusable_old_entry": True}}

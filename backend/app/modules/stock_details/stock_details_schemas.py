@@ -207,6 +207,7 @@ class CanonicalDecisionResultRead(BaseModel):
     regime_label: str = "NEUTRAL"
     regime_phase: MarketRegimePhase = MarketRegimePhase.HEALTHY
     regime_confidence: int = 0
+    regime_permission: str | None = Field(default=None, exclude_if=lambda value: value is None)
 
 
 def canonical_decision_to_read(result: Any) -> CanonicalDecisionResultRead:
@@ -251,6 +252,7 @@ def canonical_decision_to_read(result: Any) -> CanonicalDecisionResultRead:
         regime_label=result.regime_label,
         regime_phase=result.regime_phase,
         regime_confidence=result.regime_confidence,
+        regime_permission=result.regime_permission,
     )
 
 
@@ -259,6 +261,7 @@ from app.modules.stock_details.decision.measured_facts import MeasuredDecisionFa
 
 
 class TraderDecisionRead(BaseModel):
+    eligibility_reason_codes: list[str] | None = Field(default=None, exclude_if=lambda value: value is None)
     entry_applicability: EntryApplicabilityRead | None = None
     measured_support: str | None = None
     opposing_constraint: str | None = None
@@ -290,6 +293,7 @@ class TraderDecisionRead(BaseModel):
 
 
 class TraderDecisionSummaryRead(BaseModel):
+    eligibility_reason_codes: list[str] | None = Field(default=None, exclude_if=lambda value: value is None)
     entry_applicability: EntryApplicabilityRead | None = None
     measured_support: str | None = None
     opposing_constraint: str | None = None
@@ -325,6 +329,16 @@ class TraderDecisionSummaryRead(BaseModel):
     entry_condition: str | None = None
     blocker_codes: list[str] = Field(default_factory=list)
     canonical: CanonicalDecisionResultRead | None = None
+
+
+def trader_decision_from_summary(summary: TraderDecisionSummaryRead) -> TraderDecisionRead:
+    """Project the delivered authoritative summary without selecting facts again.
+
+    The detail contract names its primary explanation ``reasoning``; all other
+    shared fields, including optional legacy omissions, retain their values.
+    """
+    shared = set(TraderDecisionRead.model_fields) & set(TraderDecisionSummaryRead.model_fields)
+    return TraderDecisionRead.model_validate({**summary.model_dump(include=shared), "reasoning": [summary.reason]})
 
 
 class ExactPriceChangeRatioRead(BaseModel):
@@ -394,6 +408,8 @@ class PricePositionRead(BaseModel):
 
 
 class TradePlanRead(BaseModel):
+    scenario_entry_timing: EntryTiming | None = Field(default=None, exclude_if=lambda value: value is None)
+    confirmation_support: float | None = Field(default=None, exclude_if=lambda value: value is None)
     entry_zone_low: float | None
     entry_zone_high: float | None
     stop_loss: float | None
@@ -663,6 +679,7 @@ class StockDecisionSupportRead(BaseModel):
             live_data_as_of=live_data_as_of,
             is_live_session=is_live_session,
             decision=TraderDecisionRead(
+                eligibility_reason_codes=list(eligibility.reason_codes) if canonical_result and canonical_result.strategy_version.startswith("trading-intelligence-v4") else None,
                 recommendation=decision.recommendation,
                 internal_action=(
                     canonical_result.internal_action
@@ -844,6 +861,8 @@ class StockDecisionSupportRead(BaseModel):
                 above_ema20_percent=price_position.above_ema20_percent,
             ),
             trade_plan=TradePlanRead(
+                scenario_entry_timing=trade_plan.scenario_entry_timing,
+                confirmation_support=trade_plan.confirmation_support,
                 entry_zone_low=trade_plan.entry_zone_low,
                 entry_zone_high=trade_plan.entry_zone_high,
                 stop_loss=trade_plan.stop_loss,

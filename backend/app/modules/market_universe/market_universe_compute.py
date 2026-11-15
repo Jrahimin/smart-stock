@@ -5,7 +5,6 @@ from datetime import date
 
 from app.models import DailyPrice, Stock
 from app.modules.market_scanner.scanner_conditions import (
-    ScannerConditionMatch,
     ScannerRankCandidate,
     build_scanner_rankings,
     evaluate_scanner_conditions,
@@ -237,6 +236,8 @@ def canonical_analysis_to_read(
             above_ema20_percent=position.above_ema20_percent,
         ),
         trade_plan=TradePlanRead(
+            scenario_entry_timing=plan.scenario_entry_timing,
+            confirmation_support=plan.confirmation_support,
             entry_zone_low=plan.entry_zone_low,
             entry_zone_high=plan.entry_zone_high,
             stop_loss=plan.stop_loss,
@@ -294,8 +295,6 @@ def build_scored_universe_rows(
         for session_date in exchange_session_dates or ()
         if decision_session_date is None or session_date <= decision_session_date
     ]
-    scanner_matches_by_stock: dict[str, tuple[ScannerConditionMatch, ...]] = {}
-    scanner_rank_candidates: list[ScannerRankCandidate] = []
     for entry in grouped.values():
         stock = entry["stock"]
         prices = entry["prices"]
@@ -362,19 +361,6 @@ def build_scored_universe_rows(
             if bundle is not None and bundle.eligibility is not None
             else None
         )
-        stock_id = str(stock.id)
-        if decision is not None and eligibility_read is not None:
-            matches = evaluate_scanner_conditions(snapshot, decision, eligibility_read)
-            scanner_matches_by_stock[stock_id] = matches
-            scanner_rank_candidates.extend(
-                ScannerRankCandidate(
-                    stock_id=stock_id,
-                    symbol=stock.symbol,
-                    match=match,
-                )
-                for match in matches
-            )
-
         scored.append(
             ScoredUniverseRow(
                 stock=StockRead.model_validate(stock),
@@ -386,29 +372,20 @@ def build_scored_universe_rows(
             )
         )
 
-    rankings = build_scanner_rankings(scanner_rank_candidates)
-    ranked_rows: list[ScoredUniverseRow] = []
-    for row in scored:
-        stock_id = str(row.stock.id)
-        matches = scanner_matches_by_stock.get(stock_id, ())
-        ranked_rows.append(
-            row.model_copy(
-                update={
-                    "scanner": ScannerResultRead(
-                        matches=[
-                            ScannerConditionMatchRead(
-                                condition_id=match.condition_id,
-                                reason_code=match.reason_code,
-                                reason=match.reason,
-                                rank_score=match.rank_score,
-                                capacity_score=match.capacity_score,
-                                rank=rankings[(stock_id, match.condition_id)],
-                            )
-                            for match in matches
-                        ]
-                    )
-                }
-            )
-        )
     from app.modules.market_universe.shortlist import apply_shortlist_ranks
-    return apply_shortlist_ranks(ranked_rows)
+    return apply_shortlist_ranks(project_scanner_rows(scored))
+
+
+def project_scanner_rows(rows: list[ScoredUniverseRow]) -> list[ScoredUniverseRow]:
+    """One projection for published and offline counterfactual universes."""
+    matches_by_stock, candidates = {}, []
+    for row in rows:
+        stock_id = str(row.stock.id)
+        matches = evaluate_scanner_conditions(technical_snapshot_from_read(row.technical_snapshot), row.decision, row.eligibility) if row.decision and row.eligibility else ()
+        matches_by_stock[stock_id] = matches
+        candidates.extend(ScannerRankCandidate(stock_id=stock_id, symbol=row.stock.symbol, match=match) for match in matches)
+    ranks = build_scanner_rankings(candidates)
+    return [row.model_copy(update={"scanner": ScannerResultRead(matches=[ScannerConditionMatchRead(
+        condition_id=match.condition_id, reason_code=match.reason_code, reason=match.reason,
+        rank_score=match.rank_score, capacity_score=match.capacity_score,
+        rank=ranks[(str(row.stock.id), match.condition_id)]) for match in matches_by_stock[str(row.stock.id)]])}) for row in rows]

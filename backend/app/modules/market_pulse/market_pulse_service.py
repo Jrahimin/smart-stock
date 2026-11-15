@@ -279,8 +279,11 @@ def _to_focus_stock_read(row: PulsePresentationRow, rank: int) -> FocusStockRead
     change = float(row.measured_change_percent) if row.measured_change_percent is not None else row.snapshot.price_change_percent
     breakdown = row.score
     return FocusStockRead(
+        eligibility_reason_codes=row.decision.eligibility_reason_codes,
         entry_readiness=row.decision.entry_readiness or "NOT_READY",
         controlling_reason_code=row.decision.primary_reason_code,
+        non_holder_action=row.decision.non_holder_action,
+        holder_action=row.decision.holder_action,
         controlling_reason=row.decision.primary_reason,
         decision_session_date=row.decision.canonical.as_of_date if row.decision.canonical else None,
         watch_level=row.snapshot.resistance,
@@ -789,10 +792,14 @@ class MarketPulseService:
                     "display_quote": row.display_quote if row else None,
                     "measured_facts": row.measured_facts if row else None,
                     "decision_taxonomy_version": row.decision.decision_taxonomy_version if row and row.decision else None,
+                    "non_holder_action": row.decision.non_holder_action if row and row.decision else None,
+                    "holder_action": row.decision.holder_action if row and row.decision else None,
+                    "eligibility_reason_codes": row.decision.eligibility_reason_codes if row and row.decision else None,
                     "public_comparison": comparison,
                     "entry_applicability": applicability,
                     "actionable_trigger": is_current_entry_trigger(applicability),
                     "entry_risk_label": row.decision.trading_risk.label if row and row.decision and row.decision.trading_risk else None,
+                    "top_setup": row.top_setup if row else None,
                 }))
             return result
         eligible = [row for row in snapshot.rows if is_eligible_pulse_candidate(row, snapshot.generation.trade_date)]
@@ -805,7 +812,21 @@ class MarketPulseService:
             "market_status": freshness.market_status.value, "breadth": breadth,
             "quote_generation_id": projected.quote_generation.sync_id if projected.quote_generation else None,
         })
-        update = {"focus_stocks": refresh(payload.focus_stocks), "monitor_candidates": refresh(payload.monitor_candidates),
+        setup_rows = sorted((row for row in projected.rows if row.top_setup), key=lambda row: row.top_setup.rank)
+        setup_items = []
+        for row in setup_rows:
+            technical = technical_snapshot_from_read(row.technical_snapshot)
+            score = compute_pulse_score(technical, row.decision)
+            presentation = PulsePresentationRow(stock=row.stock, snapshot=technical, decision=row.decision,
+                score=score, label=derive_pulse_focus_label(technical, row.decision, score),
+                measured_change_percent=measured_price_change(row.technical_snapshot, row.session))
+            setup_items.append(_to_focus_stock_read(presentation, row.top_setup.rank))
+        selected_ids = {item.stock_id for item in setup_items}
+        # Keep dated legacy activity readable without filling the watch shortlist
+        # with expired, invalidated or withdrawn plans.
+        monitor_by_id = {item.stock_id: item for item in [*payload.monitor_candidates, *payload.focus_stocks]
+            if item.stock_id not in selected_ids}
+        update = {"focus_stocks": refresh(setup_items), "monitor_candidates": refresh(list(monitor_by_id.values())[:3]),
             "coverage": coverage, "quote_generation_id": projected.quote_generation.sync_id if projected.quote_generation else None,
             "hero": payload.hero.model_copy(update={"session_label": freshness.market_status.value.replace("_", " ")})}
         if isinstance(payload, MarketPulseRead) and payload.briefing:
@@ -827,6 +848,10 @@ class MarketPulseService:
                 "fresh_new_count": len(changed) - len(upgraded), "fresh_upgraded_count": len(upgraded),
             })
             update["briefing"] = payload.briefing.model_copy(update={"breadth": breadth, "leadership": leadership})
+        if getattr(payload, "hero", None):
+            update["hero"] = update.get("hero", payload.hero).model_copy(update={"focus_count": len(setup_items), "recent_focus_count": min(payload.hero.recent_focus_count, len(setup_items))})
+        if getattr(payload, "since_last_visit", None):
+            update["since_last_visit"] = payload.since_last_visit.model_copy(update={"new_focus_count": min(payload.since_last_visit.new_focus_count, len(setup_items))})
         return payload.model_copy(update=update)
 
     async def _compute_market_pulse(
@@ -888,8 +913,9 @@ class MarketPulseService:
                 )
             )
 
-        focus_candidates = [row for row in scored_rows if meets_focus_threshold(row.score.total)]
-        selected = _diversify_focus_list(focus_candidates, PULSE_FOCUS_STOCK_LIMIT)
+        from app.modules.market_universe.top_setups import project_top_setups
+        setup_order = {row.stock.id: row.top_setup.rank for row in project_top_setups(universe_rows) if row.top_setup}
+        selected = sorted((row for row in scored_rows if row.stock.id in setup_order), key=lambda row: setup_order[row.stock.id])
         focus_reads = [_to_focus_stock_read(row, index + 1) for index, row in enumerate(selected)]
 
         monitor_rows = _select_monitor_rows(scored_rows, selected)

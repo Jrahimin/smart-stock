@@ -23,6 +23,7 @@ const language = {
     outcomes: {
       ENTRY_TERMS_MET: "Inside entry zone", ABOVE_ENTRY_ZONE: "Above entry zone", BELOW_ENTRY_ZONE: "Below entry zone",
       TARGET_REACHED: "Trade Plan target reached", COMPLETED_BREAKOUT_REQUIRED: "Breakout confirmation pending",
+      COMPLETED_PULLBACK_HOLD_REQUIRED: "Awaiting pullback hold",
       ENTRY_SESSION_PENDING: "Next entry session pending", STOP_BREACHED: "Trade Plan invalidated · stop breached",
       PRICE_BASIS_CHANGED: "Trade Plan invalidated · price basis changed", PUBLICATION_INVALIDATED: "Published Trade Plan withdrawn", PLAN_EXPIRED: "Trade Plan expired",
     },
@@ -49,6 +50,7 @@ const language = {
     outcomes: {
       ENTRY_TERMS_MET: "Entry zone-এর মধ্যে", ABOVE_ENTRY_ZONE: "Entry zone-এর উপরে", BELOW_ENTRY_ZONE: "Entry zone-এর নিচে",
       TARGET_REACHED: "Trade Plan target ছুঁয়েছে", COMPLETED_BREAKOUT_REQUIRED: "Breakout confirmation-এর অপেক্ষায়",
+      COMPLETED_PULLBACK_HOLD_REQUIRED: "Pullback hold-এর অপেক্ষায়",
       ENTRY_SESSION_PENDING: "পরের entry session-এর অপেক্ষায়", STOP_BREACHED: "Trade Plan বাতিল · stop ভেঙেছে",
       PRICE_BASIS_CHANGED: "Trade Plan বাতিল · price basis বদলেছে", PUBLICATION_INVALIDATED: "প্রকাশিত Trade Plan প্রত্যাহার হয়েছে", PLAN_EXPIRED: "Trade Plan-এর মেয়াদ শেষ",
     },

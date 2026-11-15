@@ -40,6 +40,7 @@ def build_trader_decision_summary(bundle: TraderDecisionBundle) -> TraderDecisio
         if bundle.data_reliability and bundle.data_reliability.score < 100:
             counterargument += " Input limitations: " + ", ".join(bundle.data_reliability.reason_codes) + "."
     return TraderDecisionSummaryRead(
+        eligibility_reason_codes=list(bundle.eligibility.reason_codes) if bundle.eligibility and canonical and canonical.strategy_version.startswith("trading-intelligence-v4") else None,
         recommendation=bundle.decision.recommendation,
         internal_action=(canonical.internal_action if canonical else bundle.decision.recommendation),
         display_action=(canonical.display_action if canonical else DecisionDisplayAction.WAIT),

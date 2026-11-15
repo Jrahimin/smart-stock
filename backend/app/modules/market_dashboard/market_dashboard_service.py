@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
+from zoneinfo import ZoneInfo
 from decimal import Decimal
 from typing import Annotated, TypeVar
 
@@ -175,10 +176,8 @@ class MarketDashboardService:
         market_sync_id: str | None = None,
     ) -> None:
         if market_sync_id is None:
-            freshness = await self.market_data_service.get_market_freshness(exchange=exchange)
-            market_sync_id = freshness.market_sync_id
-        if market_sync_id is not None:
-            payload = payload.model_copy(update={"market_sync_id": market_sync_id})
+            return  # Only the publication fenced around computation can authorize a write.
+        payload = payload.model_copy(update={"market_sync_id": market_sync_id})
         cache_key = dashboard_cache_key(section, exchange, market_sync_id)
         await self._cache_set(cache_key, payload.model_dump(mode="json"))
 
@@ -188,19 +187,28 @@ class MarketDashboardService:
         after_id = after.market_sync_id or after.last_synced_at
         return before_id is not None and before_id == after_id
 
-    async def _get_cached(self, section: str, exchange: ExchangeCode, model: type[T], compute) -> T:
+    async def _get_cached(self, section: str, exchange: ExchangeCode, model: type[T], compute, *, news_contract: str = "verified-v1") -> T:
         """Serve or compute one dashboard response fenced to one publication id."""
 
         for _ in range(2):
             freshness = await self.market_data_service.get_market_freshness(exchange=exchange)
             cache_key = dashboard_cache_key(section, exchange, freshness.market_sync_id)
-            cached = await self._cache_get(cache_key)
+            if section == "market-alerts" and news_contract == "recorded-date-v1":
+                cache_key += ":recorded-date-v1"
+            cached = await self._cache_get(cache_key) if freshness.market_sync_id else None
             # This section gained measured interpretation without changing the
             # quote generation. Upgrade just this old cached projection on read.
+            if section == "market-alerts" and cached is not None and any(
+                item.get("highlight_type") and "metric_value" not in item for item in cached.get("items", [])):
+                cached = None  # Upgrade this generation's pre-metric highlight cache once.
             if section == "market-sentiment" and cached is not None and not cached.get("interpretation"):
                 cached = None
             if cached is not None:
                 data = model.model_validate(cached)
+                if section == "market-alerts":
+                    # Price highlights are generation-scoped; announcements
+                    # have their own arrival clock and only need a small read.
+                    data = await self._with_session_news(data, exchange, allow_recorded=news_contract=="recorded-date-v1")
                 after = await self.market_data_service.get_market_freshness(exchange=exchange)
                 if self._same_generation(freshness, after):
                     return data.model_copy(update={"market_status": after.market_status.value}) if "market_status" in model.model_fields else data
@@ -215,7 +223,8 @@ class MarketDashboardService:
             data = data.model_copy(update={"market_sync_id": freshness.market_sync_id, **({"market_status": after.market_status.value} if "market_status" in model.model_fields else {})})
             perf.log_summary()
             self._last_compute_ms = perf.total_ms
-            await self._cache_set(cache_key, data.model_dump(mode="json"))
+            if freshness.market_sync_id:
+                await self._cache_set(cache_key, data.model_dump(mode="json"))
             return data
         raise RuntimeError(f"Published market generation changed while loading dashboard {section}")
 
@@ -309,14 +318,15 @@ class MarketDashboardService:
             return empty
         return DashboardSectorsRead.model_validate({**payload.model_dump(), **compact})
 
-    async def get_market_alerts(self, *, exchange: ExchangeCode) -> DashboardMarketAlertsRead:
+    async def get_market_alerts(self, *, exchange: ExchangeCode, news_contract: str = "verified-v1") -> DashboardMarketAlertsRead:
         return await self._get_cached(
             "market-alerts",
             exchange,
             DashboardMarketAlertsRead,
             lambda perf, freshness: self.compute_market_alerts(
-                exchange, report=perf, freshness=freshness
+                exchange, report=perf, freshness=freshness, allow_recorded=news_contract=="recorded-date-v1"
             ),
+            news_contract=news_contract,
         )
 
     async def get_stocks_in_focus(self, *, exchange: ExchangeCode) -> DashboardStocksInFocusRead:
@@ -443,6 +453,7 @@ class MarketDashboardService:
         *,
         report: PerfReport | None = None,
         freshness: MarketFreshnessRead | None = None,
+        allow_recorded: bool = False,
     ) -> DashboardMarketAlertsRead:
         perf = report or PerfReport("dashboard.market-alerts")
         if freshness is None:
@@ -461,10 +472,31 @@ class MarketDashboardService:
             perf.log_summary()
             self._last_compute_ms = perf.total_ms
 
-        return DashboardMarketAlertsRead(
+        return await self._with_session_news(DashboardMarketAlertsRead(
             session_trade_date=snapshot.session_trade_date,
             items=[DashboardTimelineItemRead.model_validate(item) for item in items],
-        )
+        ), exchange, allow_recorded=allow_recorded)
+
+    async def _with_session_news(self, payload, exchange, *, allow_recorded=False):
+        from app.modules.market_dashboard.session_news import session_news_items
+        now = datetime.now(ZoneInfo("Asia/Dhaka"))
+        session_reader = getattr(self.market_repository, "previous_completed_market_session", None)
+        prior = await session_reader(exchange=exchange, session_date=now.date()) if session_reader else None
+        start = prior or (payload.session_trade_date if payload.session_trade_date and payload.session_trade_date < now.date() else now.date())
+        reader = getattr(self.market_repository, "list_session_news", None)
+        latest_reader=getattr(self.market_repository,"latest_verified_news_day",None)
+        latest=await latest_reader(exchange=exchange,known_at=now) if latest_reader else None
+        if latest_reader and latest is None:
+            recorded_reader=getattr(self.market_repository,"list_latest_recorded_news",None)
+            records=await recorded_reader(exchange=exchange,known_at=now) if allow_recorded and recorded_reader else []
+            if records: start=min(item.recorded_date for item,_ in records)
+        else:
+            end=now.date()
+            if latest is not None and latest < start: start=end=latest
+            records = await reader(exchange=exchange, start_date=start, end_date=end, known_at=now) if reader else []
+        highlights = [item.model_dump(mode="json") for item in payload.items if item.kind == "HIGHLIGHT"]
+        items = session_news_items(records, highlights, start_date=start, now=now, exchange=exchange)
+        return payload.model_copy(update={"items": [DashboardTimelineItemRead.model_validate(item) for item in items]})
 
     async def compute_heatmap(
         self,

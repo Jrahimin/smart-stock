@@ -9,6 +9,7 @@ async def run(args):
     from sqlalchemy import text
     from app.core.database_session import AsyncSessionLocal
     from app.core.enums import ExchangeCode
+    from app.core.constants.trading_constants import RESEARCH_STRATEGY_VERSION
     from app.modules.backtesting.backtesting_shadow import mature_shadow_outcomes, shadow_progress
     from app.modules.backtesting.backtesting_models import BacktestConfig
     from app.modules.backtesting.backtesting_repository import BacktestingRepository
@@ -19,7 +20,7 @@ async def run(args):
             await session.execute(text("SET TRANSACTION READ ONLY"))
         end = await MarketDataRepository(session).get_latest_finalized_session_date(exchange=exchange)
         if (args.mature or args.assess) and end:
-            config = BacktestConfig(exchange, end-timedelta(days=365), end, horizons=(10,))
+            config = BacktestConfig(exchange, end-timedelta(days=365), end, horizons=(10,), strategy_version=RESEARCH_STRATEGY_VERSION)
             dataset = await BacktestingRepository(session).load_dataset(config)
             await mature_shadow_outcomes(session, dataset, config)
         if args.assess and end:

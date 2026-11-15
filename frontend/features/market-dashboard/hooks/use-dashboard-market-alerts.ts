@@ -24,8 +24,8 @@ export function useDashboardMarketAlerts({
   return useQuery({
     queryKey: dashboardQueryKey("market-alerts", exchange, generation),
     queryFn: () => getDashboardMarketAlerts(exchange, generation),
-    staleTime: staleTimeMs,
-    refetchInterval: refetchIntervalMs,
+    staleTime: Math.min(staleTimeMs, 60_000),
+    refetchInterval: typeof refetchIntervalMs === "number" && refetchIntervalMs > 0 ? Math.min(refetchIntervalMs,60_000) : 60_000,
     enabled,
   });
 }

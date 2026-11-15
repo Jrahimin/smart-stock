@@ -42,7 +42,7 @@ export function MarketDashboardView({ initialCore = null, locale = DEFAULT_LOCAL
       <div className="sw-session-grid">
       <SmartSignalFeed decision={signalsPublication} locale={locale} signals={model.signals}
         loading={coreLoading || sectionLoading.signals} warmingUp={signalsSectionWarmingUp} error={signalsSectionError} />
-      <MarketTimeline copy={copy} items={model.timeline} loading={coreLoading || sectionLoading.timeline} error={timelineError} />
+      <MarketTimeline copy={copy} sessionDate={model.overviewPublication?.session_trade_date} items={model.timeline} loading={coreLoading || sectionLoading.timeline} error={timelineError} />
       </div>
     </div>
   );

@@ -24,6 +24,18 @@ def empty_eligible_capture():
     inputs = {}
     rows = build_scored_universe_rows({str(stock.id): {"stock": stock, "prices": prices}},
         exchange_session_dates=[price.trade_date for price in prices], decision_session_date=day, input_captures=inputs)
+    # This suite exercises the existing sealed v3 research experiment. The
+    # production v4 default belongs to a different, inactive operational audit.
+    from app.modules.trading_intelligence.input_capture import restore_strategy_input
+    from app.modules.stock_details.decision.engine import compute_trader_decision
+    from app.modules.stock_details.decision.summary import build_trader_decision_summary
+    from app.modules.market_universe.market_universe_compute import canonical_analysis_to_read
+    for row in rows:
+        payload = inputs[str(row.stock.id)]
+        payload["strategy_version"] = "trading-intelligence-v3"
+        bundle = compute_trader_decision(restore_strategy_input(payload))
+        row.decision = build_trader_decision_summary(bundle)
+        row.analysis = canonical_analysis_to_read(bundle)
     observed = datetime.now(UTC)
     return SimpleNamespace(id=uuid4(), generation_id="shadow-test-"+uuid4().hex, session_date=day,
         exchange=stock.exchange, observed_at=observed, invalidated_at=None,
@@ -69,8 +81,16 @@ async def test_paired_empty_session_sealed_once_and_outcomes_append_idempotently
             await mature_shadow_outcomes(session, dataset, config)
             assert await session.scalar(select(func.count()).select_from(TradingShadowOutcome)) == 1
             progress = await shadow_progress(session, exchange=capture.exchange)
+            assert progress["status"] == "RECORDING_UNSUPPORTED_PRODUCTION_POLICY"
+            assert progress["experiment_id"] == first.experiment_id
             assert progress["empty_dates"] == 1 and progress["unknown_next_open_receipts"] == 1
             assert progress["eligible_cohort_dates"] == 0 and progress["promoted"] is False
+            # New production policy must neither record into nor hide the sealed
+            # cohort. Existing outcomes above still mature under stored v3 config.
+            candidate=SimpleNamespace(**{**vars(capture),"result_payload":{**capture.result_payload,"strategy_version":"trading-intelligence-v4"}})
+            assert await record_shadow_selection(session,candidate,Settings()) is None
+            assert await session.scalar(select(func.count()).select_from(TradingShadowSelection)) == 1
+            assert (await shadow_progress(session,exchange=capture.exchange,strategy_version="trading-intelligence-v4"))["status"] == "UNSUPPORTED_POLICY_FOR_FROZEN_EXPERIMENT"
             # A correction and exact reversion must adopt a new immutable head.
             from app.modules.backtesting.backtesting_shadow_repository import TradingShadowRepository
             repo = TradingShadowRepository(session)

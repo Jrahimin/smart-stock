@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.schema import CreateSchema, DropSchema
 
 from app.core.audit_hashing import canonicalize_audit_value
-from app.core.constants.trading_constants import TRADING_STRATEGY_VERSION
+from app.core.constants.trading_constants import TRADING_STRATEGY_VERSION, RESEARCH_STRATEGY_VERSION, RESEARCH_THRESHOLD_VERSION
 from app.core.core_config import Settings
 from app.models import DecisionGenerationCapture, TradingShadowSelection, TradingShadowOutcome, DailyPrice, Stock, DailyMarketSummary
 from app.modules.backtesting.backtesting_availability import next_verified_open
@@ -118,7 +118,12 @@ async def receipt_session():
         await engine.dispose()
 
 
-def engineering_selection(session, day, config, rows=(), version=TRADING_STRATEGY_VERSION):
+def engineering_selection(session, day, config, rows=(), version=RESEARCH_STRATEGY_VERSION):
+    # These rows model a sealed research receipt, whose owning baseline remains
+    # v3 even after the application default changes.
+    if version == RESEARCH_STRATEGY_VERSION:
+        config = replace(config, strategy_version=RESEARCH_STRATEGY_VERSION, threshold_version=RESEARCH_THRESHOLD_VERSION)
+        rows = tuple(replace(row, engine_version=RESEARCH_STRATEGY_VERSION) for row in rows)
     stamp = datetime.combine(day, datetime.min.time(), tzinfo=UTC).replace(hour=10)
     source = DecisionGenerationCapture(id=uuid4(), exchange=config.exchange, generation_id=uuid4().hex,
         session_date=day, observed_at=stamp, input_payload={}, result_payload={})

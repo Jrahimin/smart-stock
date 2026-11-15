@@ -53,6 +53,17 @@ it("attention click displays server-selected names even with no row-level review
   const { container } = mount("en"); fireEvent.click(screen.getByRole("button", { name: /High position concentration/ }));
   expect([...container.querySelectorAll("tr[data-stock-id]")].map(row => row.getAttribute("data-stock-id"))).toEqual(["a", "b"]);
 });
+it.each(["en","bn"] as const)("hides freshness-only attention without replacing it with a positive health claim (%s)",locale=>{
+  const row=accountRow({price_status:"STALE_LAST_KNOWN",what_next_code:"PRICE_STALE_OR_SUSPENDED"});
+  const data=accountWorkspace(row);data.meta.is_provisional=true;
+  data.attention=[{code:"PRICE_QUALITY",severity:"HIGH",stock_ids:[row.stock_id],symbols:[row.symbol],count:1}];state.data=data;
+  const {container}=mount(locale);
+  expect(container.querySelector(".portfolio-attention")).toBeNull();
+  expect(container.textContent).not.toContain(portfolioLanguage[locale].provisional);
+  expect(container.textContent).not.toContain(portfolioLanguage[locale].recordedPrice);
+  expect(container.textContent).toContain("৳103");
+  expect(container.textContent).toContain(portfolioLanguage[locale].actionLabels.REDUCE);
+});
 it("fractional average-cost edit preserves four-decimal input and keeps money confirmed while pending", async () => {
   const row = accountRow({ average_buy_price: "20.1760", quantity: "50", current_price: "20.8", current_value: "1040", unrealized_gain_amount: "31.20", unrealized_gain_percent: "3.09" }); state.data = accountWorkspace(row);
   let finish!: (value: unknown) => void; state.update.mockReturnValue(new Promise(resolve => { finish = resolve; }));
@@ -120,10 +131,20 @@ it("a legacy mismatched suggestion quote cannot relabel the account mark with it
   expect(card.textContent).toContain("৳100"); expect(card.textContent).not.toContain("2026-12-31"); expect(card.textContent).not.toContain("10.00%"); expect(card.textContent).not.toContain("99.00%");
 });
 
-it.each(["en", "bn"] as const)("suggestion action shares the localized account action label (%s)", (locale) => {
+it.each(["en", "bn"] as const)("suggestion retains familiar English decision terms in either locale (%s)", (locale) => {
   const data = accountWorkspace(); data.watchlist_to_review = [{ stock_id: "localized", symbol: "LOCALE", name: "Fixture", exchange: "DSE", sector: null, current_price: "103", price_change_percent: "1.98", display_quote: accountRow().display_quote, price_status: "FINALIZED", action: "WAIT", trend: "UNKNOWN", risk: null, reason_code: "SUPPORT_REBOUND", scanner_condition: "SUPPORT_REBOUND", relevant_event: null }]; state.data = data;
   const { container } = mount(locale); expect(container.querySelector(".portfolio-idea .portfolio-status")?.textContent).toBe(portfolioLanguage[locale].actionLabels.WAIT);
-  if (locale === "bn") expect(container.querySelector(".portfolio-idea .portfolio-status")?.textContent).toBe("অপেক্ষা করুন");
+  expect(container.querySelector(".portfolio-idea .portfolio-status")?.textContent).toBe("WAIT");
+  expect(portfolioLanguage[locale].actionLabels.POTENTIAL_BUY).toBe("Potential Buy");
+});
+
+it.each(["en", "bn"] as const)("watch-only suggestion uses contextual AVOID and recorded authority in %s", (locale) => {
+  const data=accountWorkspace();data.watchlist_to_review=[{ stock_id:"avoid",symbol:"ETL",name:"Fixture",exchange:"DSE",sector:null,current_price:"103",price_change_percent:"1.98",
+    display_quote:accountRow().display_quote,price_status:"FINALIZED",mark_authority:"RECORDED",action:"WAIT",non_holder_action:"AVOID",trend:"UNKNOWN",risk:"HIGH",reason_code:"ELEVATED_RISK",scanner_condition:null,relevant_event:null }];
+  state.data=data;const {container}=mount(locale);
+  expect(container.querySelector(".portfolio-idea .portfolio-status")?.textContent).toBe("AVOID");
+  expect(container.querySelector(".portfolio-idea")?.textContent).not.toContain(portfolioLanguage[locale].recordedPrice);
+  expect(container.querySelector(".portfolio-idea")?.textContent).toContain("৳103");
 });
 
 it.each(["en", "bn"] as const)("compact priority preview preserves every attention drilldown and visible partial coverage (%s)", (locale) => {

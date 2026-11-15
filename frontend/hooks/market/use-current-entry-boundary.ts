@@ -20,7 +20,7 @@ export function useCurrentEntryBoundary<T>(data: T, freshness: BackendMarketFres
     watermark.current = { key, time: 0 };
     attempted.current.clear();
   }
-  const evidenceTime = currentEntryEvidenceTime(data);
+  const evidenceTime = currentEntryEvidenceTime(data, freshness, Date.now(), instrument);
   const outOfOrder = evidenceTime > 0 && evidenceTime < watermark.current.time;
   watermark.current.time = Math.max(watermark.current.time, evidenceTime);
   const deadline = earliestCurrentEntryDeadline(data, freshness);

@@ -79,6 +79,7 @@ export type HeatmapTileModel = {
 };
 
 export type SignalFeedItemModel = {
+  topSetup?: import("@/lib/api/backend-api-types").BackendTopSetupDto | null;
   decisionDate?: string | null;
   name?: string;
   measuredFacts?: import("@/lib/api/stock-decision-support-types").MeasuredDecisionFactsDto | null;
@@ -116,7 +117,13 @@ export type MarketMoverModel = {
 };
 
 export type MarketTimelineItemModel = {
-  kind?: "snapshot" | "mover" | "alert";
+  dateBasis?: "PUBLICATION" | "RECORDED_DATE";
+  dateLabel?: "TODAY" | "DATE" | "RECORDED_DATE";
+  dateLabelAsOf?: string;
+  highlightType?: string;
+  metricValue?: number; metricUnit?: "PERCENT" | "BDT";
+  kind?: "snapshot" | "mover" | "alert" | "NEWS" | "DISCLOSURE" | "HIGHLIGHT";
+  id?: string; publicationDate?: string; publishedAt?: string; effectiveDate?: string; source?: string; href?: string; symbol?: string; priority?: string;
   sourceUrl?: string;
   time: string;
   title: string;

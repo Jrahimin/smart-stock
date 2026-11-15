@@ -4,7 +4,7 @@ from sqlalchemy.dialects.postgresql import insert
 from types import SimpleNamespace
 
 from app.models import TradingShadowOutcome, TradingShadowSelection, DecisionGenerationCapture
-from app.core.constants.trading_constants import TRADING_STRATEGY_VERSION
+from app.core.constants.trading_constants import RESEARCH_STRATEGY_VERSION
 from app.core.audit_hashing import stable_audit_hash
 
 
@@ -51,7 +51,7 @@ class TradingShadowRepository:
         return await self.session.scalar(select(TradingShadowOutcome).where(
             TradingShadowOutcome.selection_id == selection.id, TradingShadowOutcome.outcome_revision == revision))
 
-    async def selections(self, *, exchange, experiment_id=None, strategy_version=TRADING_STRATEGY_VERSION, valid_only=True, summary_only=False):
+    async def selections(self, *, exchange, experiment_id=None, strategy_version=RESEARCH_STRATEGY_VERSION, valid_only=True, summary_only=False):
         query = select(TradingShadowSelection).join(DecisionGenerationCapture,
             TradingShadowSelection.source_capture_id == DecisionGenerationCapture.id).where(
             TradingShadowSelection.exchange == exchange, TradingShadowSelection.strategy_version == strategy_version)
@@ -88,12 +88,12 @@ class TradingShadowRepository:
         rows = list((await self.session.scalars(query)).all()) if selection_ids else []
         return {row.selection_id: row for row in rows}
 
-    async def selection_for_session(self, *, exchange, session_date, experiment_id, strategy_version=TRADING_STRATEGY_VERSION):
+    async def selection_for_session(self, *, exchange, session_date, experiment_id, strategy_version=RESEARCH_STRATEGY_VERSION):
         return await self.session.scalar(select(TradingShadowSelection.id).where(
             TradingShadowSelection.exchange == exchange, TradingShadowSelection.session_date == session_date,
             TradingShadowSelection.experiment_id == experiment_id, TradingShadowSelection.strategy_version == strategy_version))
 
-    async def assessment(self, *, exchange, experiment_id, strategy_version=TRADING_STRATEGY_VERSION):
+    async def assessment(self, *, exchange, experiment_id, strategy_version=RESEARCH_STRATEGY_VERSION):
         return await self.session.scalar(select(TradingShadowOutcome).join(TradingShadowSelection).where(
             TradingShadowSelection.exchange == exchange, TradingShadowSelection.experiment_id == experiment_id,
             TradingShadowSelection.strategy_version == strategy_version,

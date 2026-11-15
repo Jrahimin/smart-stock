@@ -19,6 +19,13 @@ import { buildStockWorkspaceModel } from "@/features/stock-workspace/view-models
 import type { BackendPortfolioWorkspaceDto, BackendScoredUniverseRowDto } from "@/lib/api/backend-api-types";
 import type { StockWorkspaceDto } from "@/lib/api/stock-decision-support-types";
 import { mapUniverseRowToListRow } from "./universe-row-mapper";
+import { order4SurfaceFixture } from "@/test-fixtures/order4-surface-fixtures";
+import { accountWatchItem } from "@/test-fixtures/account-fixtures";
+import { buildWatchlistRowViewModel } from "@/features/watchlist/view-models/watchlist-view-model";
+import { WatchlistPriceCell } from "@/features/watchlist/components/watchlist-price-cell";
+import { buildMarketPulseViewModel } from "@/features/market-pulse/view-models/market-pulse-view-model";
+import { FocusStockCard } from "@/features/market-pulse/components/stocks-in-focus-section";
+import { getMarketPulseLanguage } from "@/features/market-pulse/market-pulse-language";
 
 const state = vi.hoisted(() => ({ universe: [] as unknown[], decisionPublication: {} }));
 vi.mock("@/features/market-dashboard/hooks/use-market-universe", () => ({
@@ -44,6 +51,17 @@ const priorQuoteDate = "2026-11-03";
 const stock = { id: "1", symbol: "TEST", name: "Test stock", exchange: "DSE", sector: "Textile" } as const;
 
 afterEach(cleanup);
+
+it.each(["en","bn"] as const)("Pulse and legacy Watchlist preserve no-trade activity without quote age (%s)",locale=>{
+  const {pulse}=order4SurfaceFixture();
+  pulse.focus_stocks[0].display_quote!.observation_status="NO_TRADE";
+  const model=buildMarketPulseViewModel(pulse,locale),copy=getMarketPulseLanguage(locale);
+  const item=accountWatchItem();item.display_quote={...item.display_quote!,observation_status:"NO_TRADE"};
+  const row=buildWatchlistRowViewModel(item,null);
+  const markups=[renderToStaticMarkup(<FocusStockCard stock={model.focusStocks[0]} copy={copy.focus} scoreCopy={copy.score}/>),
+    renderToStaticMarkup(<WatchlistPriceCell row={row} locale={locale} isEditingBuyPrice={false} buyPriceDraft="" onBuyPriceDraftChange={()=>{}} onStartEditBuyPrice={()=>{}} onSaveBuyPrice={()=>{}} onCancelBuyPrice={()=>{}}/>)];
+  for(const markup of markups){expect(markup).toContain(locale==="en"?"No trade":"লেনদেন হয়নি");expect(markup).toContain("103");expect(markup).not.toMatch(/recorded price|last valid|entry unverified|নথিভুক্ত দাম/i);}
+});
 
 it.each([
   ["en", "PROVISIONAL", "Snapshot price", "Finalized decision", "CURRENT"],
@@ -91,20 +109,18 @@ it.each([
     render(<ScannerWorkspaceView locale={locale} />, { wrapper }).container.innerHTML,
     renderToStaticMarkup(<WatchlistToReview data={portfolio} locale={locale} />),
   ];
-  for (const markup of summaries) {
-    expect(markup).toContain(`data-quote-status="${quoteStatus}"`);
-    expect(markup).toContain(quoteCopy);
-    expect(markup.includes(quoteDate) || markup.includes(shortTradeDate(quoteDate, locale))).toBe(true);
-    expect(markup.includes(liveDate) || markup.includes(shortTradeDate(liveDate, locale))).toBe(true);
-    expect(markup).toContain(`data-decision-status="${decisionStatus}"`);
-    expect(markup).toContain(decisionCopy);
+  for (const [index,markup] of summaries.entries()) {
+    expect(markup).not.toContain(`data-quote-status="${quoteStatus}"`);
+    if (quoteStatus === "NO_TRADE") expect(markup).toContain(index === 4 ? locale === "bn" ? "এই সেশনে লেনদেন হয়নি" : "No trade in this session" : quoteCopy);
+    else expect(markup).not.toContain(quoteCopy);
+    expect(markup).not.toContain(decisionCopy);
     expect(markup.includes(finalDate) || markup.includes(shortTradeDate(finalDate, locale))).toBe(true);
     expect(markup).toContain("110");
   }
   const smartSignals = renderToStaticMarkup(<SmartSignalFeed
     decision={decision} locale={locale} signals={[]}
   />);
-  expect(smartSignals).toContain(decisionCopy);
+  expect(smartSignals).not.toContain(decisionCopy);
   expect(smartSignals).toContain(shortTradeDate(finalDate, locale));
 });
 

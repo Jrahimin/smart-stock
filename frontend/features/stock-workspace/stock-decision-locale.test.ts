@@ -184,7 +184,7 @@ describe("dated plan current-entry projection", () => {
     const model = buildStockDecisionViewModel(old, "en");
     expect(model.entryCondition).toBeNull();
     const rendered = renderToStaticMarkup(createElement(TraderDecisionCard, { decision: model, copy: getStockWorkspaceLanguage("en").decision }));
-    expect(rendered).toContain("Entry unverified");
+    expect(rendered).not.toContain("Entry unverified");
     expect(rendered).toContain(shortTradeDate("2026-07-10", "en"));
   });
   it("changes panel guidance after a recorded breach without replacing the dated action", () => {
@@ -311,11 +311,9 @@ describe("repair1 publication reading order and measured basis", () => {
       const header = renderToStaticMarkup(createElement(StockWorkspaceHeader, { model, decision, locale, copy: language.header }));
       const card = renderToStaticMarkup(createElement(TraderDecisionCard, { decision, copy: language.decision }));
       expect(durable).not.toContain("WAIT"); expect(card).not.toContain("WAIT");
-      expect(header).toContain(`data-decision-status="${status}"`);
-      expect(header).toContain("2026-11-10"); expect(header).toContain(shortTradeDate("2026-11-11", locale));
-      const current = durable.indexOf(locale === "bn" ? "Entry যাচাই হয়নি" : "Entry unverified");
-      expect(current).toBeGreaterThan(0);
-      expect(current).toBeLessThan(durable.indexOf(decision.confidenceLabel));
+      expect(header).toContain("2026-11-10"); expect(header).not.toContain(shortTradeDate("2026-11-11", locale));
+      expect(durable).not.toContain(locale === "bn" ? "Entry যাচাই হয়নি" : "Entry unverified");
+      expect(durable).toContain(decision.confidenceLabel);
       expect(durable).toContain(locale === "bn" ? "সিদ্ধান্ত অনুপলব্ধ" : "Decision unavailable");
       expect(card).toContain(locale === "bn" ? "সিদ্ধান্ত অনুপলব্ধ" : "Decision unavailable");
     });

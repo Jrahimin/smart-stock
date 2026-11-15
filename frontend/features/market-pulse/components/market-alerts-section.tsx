@@ -82,10 +82,6 @@ export function MarketAlertsSection({ alerts, isLoading = false, copy }: MarketA
                     </div>
                   ) : null}
                     {alert.eventExplanation ? <p className="pulse-alert-context">{alert.eventExplanation}</p> : null}
-                    <div className="pulse-alert-footline">
-                      <p className="pulse-alert-why">{alert.whyItMatters}</p>
-                      {alert.timeLabel ? <time className="pulse-alert-time">{alert.timeLabel}</time> : null}
-                    </div>
                 </div>
               );
 

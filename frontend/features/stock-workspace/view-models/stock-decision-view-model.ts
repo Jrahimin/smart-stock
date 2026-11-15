@@ -1,10 +1,11 @@
 import { holderReasonLabel, evidenceLabel, controllingReasonLabel, selectedDecisionExplanation, isDatedPlanGuidance } from "@/lib/market/decision-presentation";
+import { isInternalFreshnessReason } from "@/lib/market/market-presentation-policy";
 import { publishedSetupCondition } from "@/lib/market/published-setup-condition";
 import type { DisplayMetricsDto, PatternDetectionDto, StockDecisionSupportDto } from "@/lib/api/stock-decision-support-types";
 import { holderActionLabels, getSignalActionLabel } from "@/lib/market/signal-action-labels";
 import { shortTradeDate } from "@/lib/formatters/trader-formatters";
 import type { DecisionDisplayAction, HolderAction } from "@/lib/api/backend-api-types";
-import { compatibleDisplayAction } from "@/lib/market/decision-action-compatibility";
+import { prospectiveDisplayAction } from "@/lib/market/decision-action-compatibility";
 import { getStockDecisionLanguage } from "@/features/stock-workspace/stock-decision-language";
 import { localizeEntryCondition } from "@/features/stock-workspace/stock-decision-language";
 import {
@@ -101,6 +102,7 @@ const recommendationToneMap = {
   HOLD: "hold",
   WAIT: "wait",
   SELL: "sell",
+  AVOID: "sell",
 } as const;
 
 const SIGNAL_TEXT: Record<Exclude<DecisionSignalKey, "warning_ref">, string> = {
@@ -186,7 +188,7 @@ export function buildStockDecisionViewModel(
     );
   }
 
-  const warnings = decision.warnings.map((warning) => ({
+  const warnings = decision.warnings.filter((warning)=>!isInternalFreshnessReason(warning.code)).map((warning) => ({
     title: warning.title,
     message: warning.message,
     severity: warning.severity,
@@ -199,7 +201,7 @@ export function buildStockDecisionViewModel(
     },
   }));
   const risk = decision.trading_risk ?? decision.risk;
-  const displayAction = compatibleDisplayAction(decision.decision);
+  const displayAction = prospectiveDisplayAction(decision.decision);
   const asOfDate = decision.decision_session_date ?? decision.data_freshness.latest_trade_date;
   const condition = decision.decision.entry_condition ?? decision.trade_plan.condition_text;
   const reasonCode = decision.decision.primary_reason_code ?? decision.canonical_decision?.primary_reason_code;
@@ -212,13 +214,13 @@ export function buildStockDecisionViewModel(
       locale,
       audience: locale === "bn" ? "নতুন অবস্থান বিবেচনায়" : "For a prospective entry",
       datedActionLabel: `${locale === "bn" ? "সিদ্ধান্ত" : "Decision"} · ${shortTradeDate(asOfDate, locale)}`,
-      sourceDetail: [decision.decision.primary_reason, decision.decision.measured_support, decision.decision.opposing_constraint, decision.trade_plan.trailing_rule].filter((text): text is string => !!text),
+      sourceDetail: [!isInternalFreshnessReason(decision.decision.primary_reason_code)?decision.decision.primary_reason:null, decision.decision.measured_support,
+        !isInternalFreshnessReason(decision.decision.opposing_constraint_code)?decision.decision.opposing_constraint:null, decision.trade_plan.trailing_rule].filter((text): text is string => !!text),
       recommendation: displayAction ? getSignalActionLabel(displayAction, "en") : (locale === "bn" ? "সিদ্ধান্ত অনুপলব্ধ" : "Decision unavailable"),
       confidence: decision.decision.confidence,
       confidenceLabel: evidenceLabel(decision.decision.evidence_status, locale),
       controllingReason: [
-        decision.decision_status === "UPDATING" ? (locale === "bn" ? "সিদ্ধান্ত আপডেট হচ্ছে; আগের চূড়ান্ত ফল।" : "Updating; previous finalized result.") : null,
-        setupCondition && isDatedPlanGuidance(reasonCode) ? null : controllingReasonLabel(reasonCode, "", locale),
+        setupCondition && isDatedPlanGuidance(reasonCode) ? null : controllingReasonLabel(reasonCode, "", locale, decision.decision.eligibility_reason_codes),
         decision.decision.non_holder_action === "AVOID" ? (locale === "bn" ? "নতুন long entry এড়িয়ে চলুন।" : "Avoid a new long entry.") : null,
       ].filter(Boolean).join(" "),
       recommendationTone:
@@ -226,7 +228,7 @@ export function buildStockDecisionViewModel(
       entryCondition:
         setupCondition ?? (displayAction === "POTENTIAL_BUY" && decision.entry_applicability?.status === "APPLICABLE"
           ? decision.entry_applicability.price_basis === "LAST_CLOSE"
-            ? (locale === "bn" ? "নথিভুক্ত সমাপনী দাম প্রকাশিত এন্ট্রির শর্তের সঙ্গে মিলে।" : "The recorded closing quote meets the published entry conditions.")
+            ? (condition ? localizeEntryCondition(condition, locale) : null)
             : decision.trade_plan.entry_timing === "PULLBACK"
             ? (locale === "bn" ? "দর pullback সীমার মধ্যে আছে; support টিকে থাকে কি না দেখুন।" : "Quote is in the pullback zone; watch whether support holds.")
             : decision.trade_plan.entry_timing === "BREAKOUT"

@@ -102,8 +102,21 @@ def build_market_alerts_from_snapshot(
                 "time": leader.technical.latest_trade_date or "Latest",
                 "title": f"{leader.stock.symbol} {change:+.2f}%",
                 "description": f"Top session mover in the latest snapshot ({leader.stock.name}).",
+                "highlight_type": "PRICE_LEADER", "symbol": leader.stock.symbol, "metric_value": change, "metric_unit": "PERCENT",
             }
         )
+        weakest = min(eligible, key=lambda row: row.technical.price_change_percent or 0)
+        if weakest.stock.id != leader.stock.id:
+            items.append({"time": weakest.technical.latest_trade_date or "Latest",
+                "title": f"{weakest.stock.symbol} {(weakest.technical.price_change_percent or 0):+.2f}%",
+                "description": "Weakest recorded session price change.", "highlight_type": "PRICE_LAGGARD",
+                "symbol": weakest.stock.symbol, "metric_value": weakest.technical.price_change_percent, "metric_unit": "PERCENT"})
+        liquid = max(eligible, key=lambda row: row.technical.turnover or 0)
+        if liquid.technical.turnover and liquid.technical.turnover > 0:
+            items.append({"time": liquid.technical.latest_trade_date or "Latest",
+                "title": f"{liquid.stock.symbol} · BDT {liquid.technical.turnover / 1_000_000:.1f}M",
+                "description": "Highest recorded session trading value.", "highlight_type": "TURNOVER_LEADER",
+                "symbol": liquid.stock.symbol, "metric_value": liquid.technical.turnover, "metric_unit": "BDT"})
 
     trade_date_label = (
         latest_summary.trade_date.isoformat()

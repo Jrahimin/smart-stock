@@ -18,10 +18,12 @@ describe("turnover comparison", () => {
     expect(html).toContain('width:66.66666666666666%');
     expect(html).toContain("9-session average");
   });
-  it("labels partial sessions without suggesting a closing forecast", () => {
+  it("keeps partial-session metadata internal without inventing a closing forecast", () => {
     const html = render(1, 2, true);
-    expect(html).toContain("So far · partial session");
-    expect(html).toContain("not a closing projection");
+    expect(html).toContain("Session turnover");
+    expect(html).toContain("50%");
+    expect(html).not.toContain("partial session");
+    expect(html).not.toContain("closing projection");
   });
   it("distinguishes zero turnover from missing or unusable comparisons", () => {
     expect(render(0, 2)).toContain('width:0%');
@@ -38,5 +40,11 @@ describe("turnover comparison", () => {
     expect(view(false, true)).toContain(copy.insightsError);
     expect(view(false, true)).not.toContain(copy.insightsEmpty);
     expect(view(false, false)).toContain(copy.insightsEmpty);
+  });
+  it.each(["en","bn"] as const)("omits the ingestion-only insight without an empty card in %s", locale => {
+    const html=renderToStaticMarkup(<InsightSidebar locale={locale} copy={getTerminalCopy(locale)} insights={[{...insight,id:"partial-data",description:"Freshness warning sentinel"}]}/>);
+    expect(html).not.toContain("Freshness warning sentinel");
+    expect(html).not.toContain("sw-insight-grid");
+    expect(html).toContain(getTerminalCopy(locale).insightsEmpty);
   });
 });

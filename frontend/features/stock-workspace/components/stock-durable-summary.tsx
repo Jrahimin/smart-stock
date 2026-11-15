@@ -1,12 +1,12 @@
 import { buildStockDecisionViewModel, withStockHolderInstruction } from "@/features/stock-workspace/view-models/stock-decision-view-model";
-import { evidenceLabel } from "@/lib/market/decision-presentation";
+import { evidenceLabel, controllingReasonLabel } from "@/lib/market/decision-presentation";
 import { DecisionPublicationLabel, QuotePublicationLabel } from "@/components/ui/market-publication-label";
 import { formatNumber, formatPercent, formatMarketCapBdt } from "@/lib/formatters/financial-formatters";
 import type { StockWorkspaceDto } from "@/lib/api/stock-decision-support-types";
 import { getStockWorkspaceLanguage } from "@/features/stock-workspace/stock-workspace-language";
 import type { AppLocale } from "@/lib/locale/app-locale";
 import { DEFAULT_LOCALE } from "@/lib/locale/app-locale";
-import { compatibleDisplayAction } from "@/lib/market/decision-action-compatibility";
+import { prospectiveDisplayAction } from "@/lib/market/decision-action-compatibility";
 import { EntryApplicabilityLabel } from "@/components/market/entry-applicability-label";
 
 type StockDurableSummaryProps = {
@@ -23,27 +23,15 @@ export function StockDurableSummary({ workspace, locale = DEFAULT_LOCALE, isHold
   const copy = getStockWorkspaceLanguage(locale);
   const stock = workspace.stock;
   const decision = workspace.decision_support;
-  const action = compatibleDisplayAction(decision.decision);
+  const action = prospectiveDisplayAction(decision.decision);
   const holder = isHolding ? withStockHolderInstruction(buildStockDecisionViewModel(decision, locale, workspace.display_metrics), decision, true).holderInstruction : undefined;
   const display = workspace.display_metrics;
-  const freshness = decision.data_freshness;
   const latestPrice = display?.current_price ?? null;
   const changePercent = display?.price_change_percent ?? null;
   const marketCap =
     display?.market_cap ??
     decision.valuation?.market_cap ??
     (stock.market_cap != null ? Number(stock.market_cap) : null);
-
-  const freshnessLabel = freshness.is_stale
-    ? copy.durableSummary.freshness.stale
-    : freshness.is_sparse
-      ? copy.durableSummary.freshness.sparse
-      : copy.durableSummary.freshness.fresh;
-  const uncertaintyBits = [
-    freshness.is_stale ? copy.durableSummary.uncertaintyStale : null,
-    freshness.is_sparse ? copy.durableSummary.uncertaintySparse : null,
-    ...(freshness.missing_fields ?? []).slice(0, 3).map((field) => copy.durableSummary.missingField(field)),
-  ].filter(Boolean);
 
   return (
     <section aria-label={copy.durableSummary.ariaLabel} className="sr-only" data-testid="stock-durable-summary">
@@ -64,6 +52,7 @@ export function StockDurableSummary({ workspace, locale = DEFAULT_LOCALE, isHold
           <dd>
             {action?.replace("_", " ") ?? (locale === "bn" ? "সিদ্ধান্ত অনুপলব্ধ" : "Decision unavailable")}
             <DecisionPublicationLabel decision={decision} locale={locale} />
+            <p>{controllingReasonLabel(decision.decision.primary_reason_code, "", locale, decision.decision.eligibility_reason_codes)}</p>
             <EntryApplicabilityLabel assessment={decision.entry_applicability} locale={locale} announce={false} />
             <span className="stock-durable-summary-confidence">{evidenceLabel(decision.decision.evidence_status, locale)}</span>
           </dd>
@@ -84,18 +73,10 @@ export function StockDurableSummary({ workspace, locale = DEFAULT_LOCALE, isHold
           <dt>{copy.decision.risk}</dt>
           <dd>{decision.trading_risk?.label ?? decision.risk.label}</dd>
         </div>
-        <div>
-          <dt>{copy.durableSummary.data}</dt>
-          <dd>
-            {freshnessLabel}
-            {" "}<DecisionPublicationLabel decision={decision} locale={locale} />
-          </dd>
-        </div>
       </dl>
 
       <p className="stock-durable-summary-disclaimer">
         {copy.durableSummary.disclaimer}
-        {uncertaintyBits.length > 0 ? ` Uncertainty: ${uncertaintyBits.join("; ")}.` : ""}
       </p>
     </section>
   );

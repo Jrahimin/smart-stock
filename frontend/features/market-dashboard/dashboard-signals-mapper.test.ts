@@ -1,3 +1,4 @@
+import { topSetupFixture } from "@/test-fixtures/top-setup-fixture";
 import { describe, expect, it } from "vitest";
 
 import { mapUniverseRowsToSignalFeed } from "@/features/market-dashboard/view-models/dashboard-sections-mapper";
@@ -7,6 +8,7 @@ import { mapUniverseRowToListRow } from "@/lib/market/universe-row-mapper";
 
 function buildRow(symbol: string, rsi: number, opportunity: number): BackendScoredUniverseRowDto {
   return {
+    top_setup: topSetupFixture({rank: symbol === "EIL" ? 2 : 1}),
     stock: {
       id: `${symbol}-id`,
       symbol,

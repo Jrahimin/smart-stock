@@ -1,6 +1,7 @@
 from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -8,6 +9,7 @@ from app.core.enums import (
     DecisionDisplayAction,
     ExchangeCode,
     HolderAction,
+    NonHolderAction,
     MarketDataState,
     PortfolioAttentionCode,
     PortfolioAttentionSeverity,
@@ -76,6 +78,7 @@ class PortfolioHoldingRead(BaseModel):
     price_change: Decimal | None = None
     price_change_percent: Decimal | None = None
     price_status: PortfolioPriceStatus = PortfolioPriceStatus.UNAVAILABLE
+    mark_authority: Literal["RECORDED", "FINALIZED", "PROVISIONAL", "NO_TRADE"] | None = Field(default=None, exclude_if=lambda value: value is None)
     latest_trade_date: date | None = None
     display_quote: DisplayQuoteRead | None = None
     decision_session_date: date | None = None
@@ -92,6 +95,7 @@ class PortfolioHoldingRead(BaseModel):
     estimated_daily_contribution_percent: Decimal | None = None
     action: DecisionDisplayAction | None = None
     holder_action: HolderAction | None = None
+    non_holder_action: NonHolderAction | None = None
     trend: TrendDirection = TrendDirection.UNKNOWN
     risk: RiskLevelLabel | None = None
     rsi: Decimal | None = None
@@ -152,6 +156,7 @@ class PortfolioShapeRead(BaseModel):
 
 class PortfolioWatchlistSuggestionRead(BaseModel):
     price_status: PortfolioPriceStatus | None = None
+    mark_authority: Literal["RECORDED", "FINALIZED", "PROVISIONAL", "NO_TRADE"] | None = Field(default=None, exclude_if=lambda value: value is None)
     stock_id: UUID
     symbol: str
     name: str
@@ -161,6 +166,7 @@ class PortfolioWatchlistSuggestionRead(BaseModel):
     price_change_percent: Decimal | None = None
     display_quote: DisplayQuoteRead | None = None
     action: DecisionDisplayAction = DecisionDisplayAction.WAIT
+    non_holder_action: NonHolderAction | None = None
     trend: TrendDirection = TrendDirection.UNKNOWN
     risk: RiskLevelLabel | None = None
     reason_code: str

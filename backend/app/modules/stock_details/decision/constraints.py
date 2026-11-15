@@ -77,6 +77,9 @@ def build_decision_constraints(
     near_resistance: bool,
     market_regime: MarketRegimeResult | str | None,
     entry_timing: EntryTiming | None = None,
+    risk_exception: bool = False,
+    allow_extended_rsi: bool = False,
+    market_permission: str | None = None,
 ) -> ConstraintResult:
     constraints: list[DecisionConstraint] = []
 
@@ -126,7 +129,9 @@ def build_decision_constraints(
             "Current eligible price has failed the structural support threshold.",
             critical=True,
         )
-    if trading_risk_label in {RiskLevelLabel.HIGH, RiskLevelLabel.SPECULATIVE}:
+    if trading_risk_label in {RiskLevelLabel.HIGH, RiskLevelLabel.SPECULATIVE} and not (
+        trading_risk_label == RiskLevelLabel.HIGH and risk_exception
+    ):
         add(
             "elevated_trading_risk",
             "Elevated trading risk",
@@ -155,7 +160,12 @@ def build_decision_constraints(
             "The current structural plan is not valid for a fresh entry.",
         )
     regime = normalize_market_regime(market_regime)
-    if entry_timing is not None and not regime.permits_plan(entry_timing):
+    if market_permission in {"UNKNOWN", "RESTRICTED", "CAUTION_BLOCKED"}:
+        add("market_evidence_unknown" if market_permission == "UNKNOWN" else "regime_plan_not_permitted",
+            "Market permission", DecisionConstraintKind.BLOCK,
+            "Required market evidence is incomplete; fresh entry remains restricted." if market_permission == "UNKNOWN"
+            else "Market permission does not pass the frozen conditional-entry guards.")
+    if market_permission is None and entry_timing is not None and not regime.permits_plan(entry_timing):
         add(
             "regime_plan_not_permitted",
             "Regime blocks conditional plan",
@@ -165,7 +175,7 @@ def build_decision_constraints(
                 f"permit a {entry_timing.value.lower()} entry."
             ),
         )
-    if regime.label == MARKET_REGIME_BEARISH and not snapshot.is_breakout:
+    if market_permission is None and regime.label == MARKET_REGIME_BEARISH and not snapshot.is_breakout:
         add(
             "bearish_market_regime",
             "Bearish market regime",
@@ -183,7 +193,7 @@ def build_decision_constraints(
             DecisionConstraintKind.DOWNGRADE,
             "Price is near resistance without a current break event.",
         )
-    if snapshot.rsi is not None and snapshot.rsi > 78:
+    if snapshot.rsi is not None and snapshot.rsi > 78 and not allow_extended_rsi:
         add(
             "extended_momentum",
             "Extended momentum",

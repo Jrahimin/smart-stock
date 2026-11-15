@@ -1,5 +1,7 @@
 # Project Plan – Stock Intelligence System
 
+Trader practicality: correction v4 and inactive shadow candidates implemented; consolidated review repair and final independent verification/review pending. See [implementation and frozen shadow decision](trader_practicality_release.md) and [evidence contract](trader_practicality_evidence_contract.md). Production activation, an independently authenticated twenty-session window, named human operational ownership and weekly human chart reviews remain pending. Existing sealed v3 research receipts are retained; production-v4 recording into that experiment is unsupported.
+
 ---
 
 # 🧠 Core Principles

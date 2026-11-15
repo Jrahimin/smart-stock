@@ -10,10 +10,11 @@ import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, me
 
 import { InfoPanel } from "@/components/ui/info-panel";
 import { MarketDataFreshnessBar } from "@/components/layout/market-data-freshness-bar";
-import { DecisionPublicationLabel, QuotePublicationLabel } from "@/components/ui/market-publication-label";
+import { DecisionPublicationLabel } from "@/components/ui/market-publication-label";
 import { DashboardLocaleSwitcher } from "@/features/market-dashboard/components/dashboard-locale-switcher";
 import { sectorName } from "@/features/market-dashboard/terminal-copy";
 import { AccountDecisionCell, AccountMarketCell } from "@/features/portfolio/components/account-row-context";
+import { PortfolioPricePublication } from "@/features/portfolio/components/portfolio-price-publication";
 import { AddHoldingModal } from "@/features/portfolio/components/add-holding-modal";
 import { PortfolioMutationsProvider, usePortfolioMutations } from "@/features/portfolio/hooks/portfolio-mutations-context";
 import { useAddHoldingModal } from "@/features/portfolio/hooks/use-add-holding-modal";
@@ -36,6 +37,7 @@ import {
   formatPortfolioQuantity,
   formatSignedPercent,
   portfolioRowAction,
+  visiblePortfolioAttention,
   isPortfolioReviewRow,
   sortPortfolioGroupRows,
   toQuantityInputValue,
@@ -90,7 +92,6 @@ function PortfolioHero({
   onCompleteHoldings: () => void;
 }) {
   const t = portfolioLanguage[locale];
-  const dataStateLabel = data.pulse.current_value_is_complete ? t.chipDataState : t.estimated;
 
   return (
     <header className="portfolio-header portfolio-header-v2">
@@ -103,7 +104,6 @@ function PortfolioHero({
           <span className="portfolio-chip">{t.chipWatched(data.meta.total_watchlisted)}</span>
           {incompleteCount > 0 && <span className="portfolio-chip is-warning">{t.chipIncomplete(incompleteCount)}</span>}
           {reviewCount > 0 && <span className="portfolio-chip is-amber">{t.chipReview(reviewCount)}</span>}
-          <span className={`portfolio-chip ${data.meta.is_provisional ? "is-live" : "is-positive"}`}>{dataStateLabel}</span>
         </div>
         <DecisionPublicationLabel decision={data.meta} locale={locale} />
         {/* {incompleteCount > 0 && (
@@ -188,7 +188,6 @@ function PortfolioPulse({
           {!pulse.invested_amount_is_complete && <p>{t.partialInvestment}</p>}
           {!pulse.unrealized_gain_is_complete && <p>{t.partialPL}</p>}
           {!pulse.daily_change_is_complete && <p>{t.partialDaily}</p>}
-          {data.meta.is_provisional && <p>{t.provisional}</p>}
         </InfoPanel>
       </div>
     </section>
@@ -222,8 +221,9 @@ function PortfolioAttention({
   const t = portfolioLanguage[locale];
   const [expanded, setExpanded] = useState(false);
   const priority = { HIGH: 0, MEDIUM: 1, LOW: 2, INFO: 3 };
-  const attention = [...data.attention, ...(data.holder_review_attention ? [data.holder_review_attention] : [])].sort((a, b) => priority[a.severity] - priority[b.severity]);
+  const attention = [...visiblePortfolioAttention(data), ...(data.holder_review_attention ? [data.holder_review_attention] : [])].sort((a, b) => priority[a.severity] - priority[b.severity]);
   const visible = expanded ? attention : attention.slice(0, 2);
+  if (data.attention.length > 0 && attention.length === 0) return null;
 
   return (
     <section className="portfolio-panel portfolio-attention portfolio-attention-v2" aria-labelledby="portfolio-attention-title">
@@ -1018,6 +1018,7 @@ export function WatchlistToReview({ data, locale }: { data: BackendPortfolioWork
       {items.length ? (
         <div className="portfolio-ideas portfolio-ideas-v2">
           {items.map((item) => {
+            const action = item.non_holder_action === "AVOID" ? "AVOID" : item.action;
             const quote = accountQuoteForPrice(item);
             const usableChange = quote && (item.price_status === "FINALIZED" || item.price_status === "PROVISIONAL");
             const change = usableChange ? quote.price_change_percent ?? null : null;
@@ -1032,13 +1033,12 @@ export function WatchlistToReview({ data, locale }: { data: BackendPortfolioWork
               </div>
               <p>{t.reasonLabels[item.reason_code] ?? item.reason_code.replaceAll("_", " ")}</p>
               <footer>
-                <span className={`portfolio-status action-${item.action.toLowerCase()}`}>{t.actionLabels[item.action]}</span>
+                <span className={`portfolio-status action-${action.toLowerCase()}`}>{t.actionLabels[action]}</span>
                 {change != null && <span className={`portfolio-idea-change is-${financialTone(change)}`}>{formatSignedPercent(change)}</span>}
                 <span>{formatPortfolioMoney(price, locale)}</span>
                 <em>{t.viewStock}<ArrowRight size={13} /></em>
               </footer>
-              <QuotePublicationLabel locale={locale} quote={quote} />
-              {item.price_status && <small>{t.priceStatus[item.price_status]}</small>}
+              <PortfolioPricePublication item={item} locale={locale} />
             </Link>
             );
           })}

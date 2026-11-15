@@ -31,18 +31,22 @@ export type ScoreComponentDto = {
 };
 
 export type MeasuredDecisionFactsDto = {
+  entry_timing?: string | null; confirmation_rule?: string | null;
   rsi: number | null; trend: string | null; opportunity_score: number | null;
   trigger_price: number | null; resistance: number | null; volume_ratio: number | null;
   volume_baseline: "PRIOR_20_SESSION_MEDIAN"; volume_sample_count: number;
 };
 
 export type EntryApplicabilityDto = {
+  price_context?: { comparison_price: number; price_session_date: string | null; price_basis: string;
+    zone_relation: "ABOVE_ENTRY_ZONE" | "IN_ENTRY_ZONE" | "BELOW_ENTRY_ZONE" | null;
+    first_target_reward_risk: number | null; reward_risk_status: string; planned_basis: string } | null;
   price_basis?: "CURRENT" | "SNAPSHOT" | "LAST_CLOSE" | string | null;
   recheck_at?: string | null;
   quote_timing_status?: "FETCH_ONLY" | "UNKNOWN" | null;
   batch_fetched_at?: string | null;
   status: "NOT_APPLICABLE" | "INVALIDATED" | "EXPIRED" | "UNVERIFIED" | "OUTSIDE_ZONE" | "AWAITING_CONFIRMATION" | "APPLICABLE";
-  reason_code: "PUBLICATION_INVALIDATED" | "ACTION_NOT_PERMITTED" | "ELIGIBILITY_BLOCKED" | "NO_ENTRY_PLAN" | "STOP_BREACHED" | "PRICE_BASIS_CHANGED" | "PLAN_EXPIRED" | "COVERAGE_UNKNOWN" | "QUOTE_UNUSABLE" | "PATH_INCOMPLETE" | "TERMS_UNKNOWN" | "TARGET_REACHED" | "BELOW_ENTRY_ZONE" | "ABOVE_ENTRY_ZONE" | "COMPLETED_BREAKOUT_REQUIRED" | "ENTRY_SESSION_PENDING" | "ENTRY_TERMS_MET" | "MARKET_CLOSED" | "SESSION_SETTLING";
+  reason_code: "PUBLICATION_INVALIDATED" | "ACTION_NOT_PERMITTED" | "ELIGIBILITY_BLOCKED" | "NO_ENTRY_PLAN" | "STOP_BREACHED" | "PRICE_BASIS_CHANGED" | "PLAN_EXPIRED" | "COVERAGE_UNKNOWN" | "QUOTE_UNUSABLE" | "PATH_INCOMPLETE" | "TERMS_UNKNOWN" | "TARGET_REACHED" | "BELOW_ENTRY_ZONE" | "ABOVE_ENTRY_ZONE" | "COMPLETED_BREAKOUT_REQUIRED" | "COMPLETED_PULLBACK_HOLD_REQUIRED" | "ENTRY_SESSION_PENDING" | "ENTRY_TERMS_MET" | "MARKET_CLOSED" | "SESSION_SETTLING";
   controlling_blocker?: string | null;
   assessed_at?: string;
   source_observed_at?: string | null;
@@ -65,6 +69,7 @@ export type StockDecisionSupportDto = {
   live_data_as_of?: string | null;
   is_live_session?: boolean;
   decision: {
+    eligibility_reason_codes?: string[] | null;
     measured_support?: string | null;
     opposing_constraint?: string | null;
     measured_support_component?: ScoreComponentDto | null;
@@ -132,6 +137,8 @@ export type StockDecisionSupportDto = {
     above_ema20_percent: number | null;
   };
   trade_plan: {
+    scenario_entry_timing?: EntryTiming | null;
+    confirmation_support?: number | null;
     entry_zone_low: number | null;
     entry_zone_high: number | null;
     stop_loss: number | null;

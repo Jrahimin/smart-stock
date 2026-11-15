@@ -80,8 +80,6 @@ function localizeTimelineDescription(
   if (suspiciousMatch) {
     return templates.suspiciousDescription(suspiciousMatch[1] ?? "Some");
   }
-  const mover = /^Top session mover in the latest snapshot \((.+)\)\.?$/i.exec(description);
-  if (mover) return `দেখানো কার্যদিবসে দামের পরিবর্তনে শীর্ষে ছিল ${mover[1]}।`;
 
   const resolvedReason = resolveTraderDecisionReason(description);
   if (resolvedReason.key !== "unknown") {
@@ -96,7 +94,14 @@ export function localizeTimelineItem(
   locale: AppLocale,
   language: DashboardLanguage,
 ): MarketTimelineItemModel {
+  if (item.kind === "NEWS" || item.kind === "DISCLOSURE") return item;
+  if (locale === "bn" && item.highlightType === "PRICE_LAGGARD") return {...item, description:"এই কার্যদিবসে দামের পরিবর্তনে সবচেয়ে পিছিয়ে ছিল।"};
+  if (locale === "bn" && item.highlightType === "TURNOVER_LEADER") return {...item, description:"এই কার্যদিবসে লেনদেনের মূল্যে শীর্ষে ছিল।"};
   const { templates } = language.timeline;
+  const mover = /^Top session mover in the latest snapshot \((.+)\)\.?$/i.exec(item.description);
+  if (mover) return { ...item, description: locale === "bn"
+    ? `এই কার্যদিবসে দামের পরিবর্তনে শীর্ষে ছিল ${mover[1]}।`
+    : `Session’s leading price mover (${mover[1]}).` };
   if (locale === "en") {
     return item;
   }

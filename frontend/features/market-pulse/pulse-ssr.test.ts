@@ -541,7 +541,7 @@ describe("market pulse query orchestration", () => {
 
 describe("pulse query keys", () => {
   it("builds anonymous summary and briefing keys", () => {
-    expect(PULSE_ANONYMOUS_SUMMARY_QUERY_KEY).toEqual(["market-pulse-summary", "price-basis-v2", "DSE", null, null]);
+    expect(PULSE_ANONYMOUS_SUMMARY_QUERY_KEY).toEqual(["market-pulse-summary", "price-basis-v2", "DSE", null, null, "setups-v1"]);
     expect(PULSE_ANONYMOUS_BRIEFING_QUERY_KEY).toEqual(["market-pulse-briefing", "price-basis-v2", "DSE", null]);
     expect(buildPulseBriefingQueryKey({ displayName: "Alex" })).toEqual([
       "market-pulse-briefing",

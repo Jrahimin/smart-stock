@@ -1,4 +1,3 @@
-import { QuoteObservationTimes } from "@/components/ui/quote-observation-times";
 import Link from "next/link";
 
 import { DecisionPublicationLabel, QuotePublicationLabel } from "@/components/ui/market-publication-label";
@@ -59,7 +58,6 @@ export function StockWorkspaceHeader({ model, decision, stockId, copy, locale = 
           <span>{copy.last}</span>
           <strong>{model.header.latestPrice}</strong>
           <QuotePublicationLabel locale={locale} quote={model.header.quotePublication} />
-          <details className="quote-timing-disclosure"><summary>{locale === "bn" ? "দামের সময়" : "Quote timing"}</summary><QuoteObservationTimes quote={model.header.quotePublication ?? {}} locale={locale} /></details>
         </div>
         <div className={`stock-header-metric stock-header-metric-change stock-header-metric-change-${getChangeTone(model.header.changePercent)}`}>
           <span>{copy.change}</span>

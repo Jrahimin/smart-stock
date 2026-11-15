@@ -23,7 +23,7 @@ it.each(["en", "bn"] as const)("keeps precise holder action/reason before compar
 it.each(["en", "bn"] as const)("renders one dated mark and day change in %s, omits unattributable legacy change", (locale) => {
   const { rerender, container } = render(<AccountMarketCell item={accountRow()} locale={locale} />);
   expect(container.textContent).toContain("৳103"); expect(container.textContent).toContain("+1.98%");
-  expect(container.textContent).toContain(shortTradeDate("2026-11-10", locale)); expect(container.textContent).toContain("Dhaka");
+  expect(container.textContent).not.toContain("Dhaka"); expect(container.querySelector("details")).toBeNull();
   expect(screen.getByText(portfolioLanguage[locale].previousClose + ": ৳101")).toBeTruthy();
   rerender(<AccountMarketCell item={accountRow({ display_quote: null })} locale={locale} />);
   expect(container.textContent).not.toContain("1.98%"); expect(container.textContent).toContain("৳103");
@@ -57,7 +57,19 @@ it("keeps supported legacy mapper price/gain on the account mark and suppresses 
   expect(buildWatchlistRowViewModel({ ...item, display_quote: null }, null).changePercentLabel).toBe("N/A");
 });
 
-it.each([["FINALIZED", "চূড়ান্ত দাম"], ["PROVISIONAL", "সাময়িক দাম"], ["SUSPENDED", "লেনদেন স্থগিত"]] as const)("Bangla account mark uses the localized %s price state", (status, label) => {
+it.each([["FINALIZED", "চূড়ান্ত দাম"], ["PROVISIONAL", "সাময়িক দাম"], ["SUSPENDED", "লেনদেন স্থগিত"]] as const)("Bangla account mark keeps trading restrictions and hides freshness (%s)", (status, label) => {
   const { container } = render(<AccountMarketCell item={accountRow({ price_status: status })} locale="bn" />);
-  expect(container.querySelector("summary")?.textContent).toBe(`${label} · 10 নভেম্বর`);
+  if(status==="SUSPENDED")expect(container.textContent).toContain(label);else expect(container.textContent).not.toContain(label);
+  expect(container.textContent).toContain("৳103");
+});
+
+it.each(["en", "bn"] as const)("keeps compatible mark-quality values while showing delivered authority in %s", (locale) => {
+  const original=accountRow();
+  const { container,rerender }=render(<AccountMarketCell item={{ ...original,mark_authority:"RECORDED" }} locale={locale} />);
+  expect(container.textContent).not.toContain(portfolioLanguage[locale].recordedPrice);
+  expect(container.textContent).toContain("৳103");
+  rerender(<AccountMarketCell item={{ ...original,mark_authority:"FINALIZED" }} locale={locale} />);
+  expect(container.textContent).not.toContain(portfolioLanguage[locale].priceStatus.FINALIZED);
+  expect(container.textContent).toContain("৳103");
+  expect(original.price_status).toBe("FINALIZED");
 });

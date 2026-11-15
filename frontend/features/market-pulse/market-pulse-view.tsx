@@ -51,6 +51,7 @@ export function MarketPulseView({
         />
         <MarketBriefingSectionSkeleton copy={language} />
         <StocksInFocusSection
+          locale={locale}
           copy={language.focus}
           isLoading
           scoreCopy={language.score}
@@ -70,12 +71,11 @@ export function MarketPulseView({
     );
   }
 
-  const focusStocks = model.focusStocks.length > 0 ? model.focusStocks : model.monitorCandidates;
-  const showFocusSection = focusStocks.length > 0 || sectionLoading.focus;
+  const focusStocks = model.focusStocks;
+  const showFocusSection = true;
   const showAlerts = model.alerts.length > 0;
   const showEvidenceRow = showAlerts || Boolean(model.briefing) || isBriefingLoading;
-  const showCriticalNotice =
-    model.emptyState === "waiting-snapshot" || model.emptyState === "insufficient-history";
+  const showCriticalNotice = model.emptyState === "insufficient-history";
 
   return (
     <div className="market-pulse-page">
@@ -102,7 +102,6 @@ export function MarketPulseView({
         <div className="data-warning pulse-inline-notice">{model.emptyMessage}</div>
       ) : null}
 
-      {model.dataQualityNote ? <div className="data-warning pulse-inline-notice">{model.dataQualityNote}</div> : null}
 
       {isBriefingLoading && !model.briefing ? (
         <MarketBriefingSectionSkeleton copy={language} />
@@ -112,12 +111,13 @@ export function MarketPulseView({
 
       {showFocusSection ? (
         <StocksInFocusSection
+          locale={locale}
           copy={language.focus}
           isLoading={sectionLoading.focus}
           scoreCopy={language.score}
           stockCount={focusStocks.length}
           stocks={focusStocks}
-          usingMonitorFallback={model.focusStocks.length === 0 && model.monitorCandidates.length > 0}
+          usingMonitorFallback={false}
         />
       ) : null}
 

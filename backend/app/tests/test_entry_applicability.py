@@ -141,7 +141,7 @@ def test_applicability_reason_codes_are_a_fixed_api_contract():
     from app.modules.stock_details.decision.entry_applicability import EntryApplicabilityRead
     schema = EntryApplicabilityRead.model_json_schema()
     codes = schema["properties"]["reason_code"]["enum"]
-    assert len(codes) == len(set(codes)) == 19
+    assert len(codes) == len(set(codes)) == 20
     assert {"STOP_BREACHED", "QUOTE_UNUSABLE", "ENTRY_TERMS_MET", "PATH_INCOMPLETE"} <= set(codes)
     with pytest.raises(ValueError):
         EntryApplicabilityRead(status="UNVERIFIED", reason_code="UNKNOWN_NEW_REASON", assessed_at=datetime.now(UTC))

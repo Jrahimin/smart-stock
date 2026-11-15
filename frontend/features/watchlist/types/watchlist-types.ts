@@ -3,7 +3,7 @@ import type {
   DecisionDisplayAction,
 } from "@/lib/api/backend-api-types";
 import type { StockIntelligenceModel, TrendDirection } from "@/lib/market/market-intelligence-types";
-import type { ResolvedTraderDecision } from "@/lib/market/trader-decision";
+import type { ResolvedTraderDecision, ContextualTraderAction } from "@/lib/market/trader-decision";
 
 export type WatchlistFilterMode = "ALL" | "WATCHLISTED" | "NOT_WATCHLISTED" | "HOLDINGS";
 
@@ -15,6 +15,9 @@ export type WatchlistActionFilter =
   | "HOLD"
   | "WAIT"
   | "SELL"
+  | "AVOID"
+  | "REVIEW"
+  | "REDUCE"
   | "NEW";
 
 export type WatchlistTrendFilter = "ALL" | "BULLISH" | "BEARISH" | "SIDEWAYS";
@@ -40,7 +43,7 @@ export type WatchlistRowViewModel = {
   trendTone: "positive" | "negative" | "neutral";
   trendKey: WatchlistTrendKey;
   trendDirection: TrendDirection;
-  actionLabel: DecisionDisplayAction | null;
+  actionLabel: ContextualTraderAction | null;
   entryCondition: string | null;
   unrealizedGainLabel: string | null;
   isNewSignal: boolean;

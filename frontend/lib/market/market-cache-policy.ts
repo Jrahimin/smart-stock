@@ -1,7 +1,7 @@
 import type { BackendMarketFreshnessDto } from "@/lib/api/backend-api-types";
 
 const DASHBOARD_CACHE_TTL_FALLBACK_MS = 600_000;
-const OPEN_REFETCH_FALLBACK_MS = 15 * 60 * 1000;
+
 
 export function getDashboardStaleTimeMs(
   freshness?: Pick<BackendMarketFreshnessDto, "dashboard_cache_ttl_seconds"> | null,
@@ -29,9 +29,12 @@ export function getDashboardRefetchIntervalMs(
     return false;
   }
 
-  const syncCadenceMs = (freshness.snapshot_interval_minutes ?? 15) * 60 * 1000;
-  return Math.min(getDashboardStaleTimeMs(freshness), syncCadenceMs || OPEN_REFETCH_FALLBACK_MS);
+  return (freshness.snapshot_interval_minutes ?? 15) * 60_000;
 }
 
 export const getMarketStaleTimeMs = getDashboardStaleTimeMs;
-export const getMarketRefetchIntervalMs = getDashboardRefetchIntervalMs;
+
+export function getMarketRefetchIntervalMs(freshness: Parameters<typeof getDashboardRefetchIntervalMs>[0]) {
+  const cadence = getDashboardRefetchIntervalMs(freshness);
+  return cadence === false ? false : Math.min(getMarketStaleTimeMs(freshness), cadence);
+}

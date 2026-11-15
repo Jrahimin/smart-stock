@@ -6,9 +6,11 @@ from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any
 from urllib.parse import urlencode
+from zoneinfo import ZoneInfo
 
 from app.core.enums import DataQualityFlag, MarketEventType, ReportPeriodType, ReportStatus
 from app.jobs.ingestion.amarstock_http_client import AmarStockHttpClient
+from app.jobs.ingestion.amarstock_news_classifier import classify_market_event_notice
 from app.jobs.ingestion.stock_details_api_source_base import (
     ApiDailyPrice,
     ApiFinancialMetric,
@@ -412,14 +414,34 @@ class AmarStockApiStockDetailsSource:
             title = str(snapshot.get(f"news{index}sttitle") or "").strip()
             if not title:
                 continue
+            source_date = snapshot.get(f"news{index}stdate")
+            publication_date = None
+            published_at = None
+            match = re.search(r"/Date\((\d+)(?:[+-]\d+)?\)/", str(source_date))
+            try:
+                publication_date = datetime.fromtimestamp(int(match.group(1))/1000, UTC).astimezone(ZoneInfo("Asia/Dhaka")).date() if match else date.fromisoformat(str(source_date))
+                if match:
+                    instant = datetime.fromtimestamp(int(match.group(1))/1000, UTC)
+                    # Date-only placeholders occur at midnight; real intraday
+                    # source clocks are retained, never replaced by receipt.
+                    if instant.time().isoformat() != "00:00:00" and instant.astimezone(ZoneInfo("Asia/Dhaka")).time().isoformat() != "00:00:00":
+                        published_at = instant.isoformat()
+            except (ValueError, TypeError, OSError, OverflowError):
+                pass
+            event_type, material = classify_market_event_notice(title=title, content=str(snapshot.get(f"news{index}stbody") or ""))
             events.append(
                 ApiMarketEvent(
-                    event_type=MarketEventType.NEWS,
-                    event_date=self._date_from_aspnet(snapshot.get(f"news{index}stdate"))
-                    or scrape_date,
+                    event_type=event_type,
+                    # Compatibility storage date is not publication evidence.
+                    # Consumers must use publication_date/date_basis below.
+                    event_date=publication_date or scrape_date,
                     title=title[:255],
                     summary=str(snapshot.get(f"news{index}stbody") or "").strip() or None,
-                    metadata={"news_index": index},
+                    metadata={"news_index": index, "publication_date": publication_date.isoformat() if publication_date else None,
+                        "publication_date_basis": "SOURCE_DATE" if publication_date else "UNKNOWN",
+                        "published_at": published_at,
+                        "material": material,
+                        "ingested_on": scrape_date.isoformat(), "source_news_date": source_date},
                 )
             )
         return events

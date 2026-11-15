@@ -18,9 +18,10 @@ it.each(["PRE_OPEN", "HOLIDAY", "POST_CLOSE"])("permits a client-cache refresh d
   fireEvent.click(button);
   expect(state.refresh).toHaveBeenCalledOnce();
 });
-it("uses the public closed label in the English accessible status tooltip", () => {
+it("keeps recovery available without a freshness status or tooltip", () => {
   state.status = "HOLIDAY";
   const view = render(<MarketDataFreshnessBar locale="en" />);
-  const title = view.getByRole("status").getAttribute("title");
-  expect(title).toContain("Session: Market closed"); expect(title).not.toContain("HOLIDAY");
+  expect(view.queryByRole("status")).toBeNull();
+  expect(view.getByRole("button",{name:"Refresh market data"})).toBeTruthy();
+  expect(view.container.textContent).toBe("");
 });

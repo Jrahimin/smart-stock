@@ -51,6 +51,7 @@ export function getMarketPulseSummary(params: GetMarketPulseParams = {}) {
     : undefined;
 
   return backendApiGetMarket<BackendMarketPulseSummaryDto>("/market/pulse/summary", {
+    setup_contract: "top-setups-v1",
     exchange: params.exchange ?? "DSE",
     previous_snapshot: previousSnapshot,
     display_name: params.displayName ?? undefined,

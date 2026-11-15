@@ -258,7 +258,7 @@ export function MobileNavigationDrawer({
 
           <section className="mobile-nav-drawer-section">
             <p className="mobile-nav-drawer-section-label">{locale === "bn" ? "সেটিংস" : "Settings"}</p>
-            <SidebarThemeToggle locale={locale} collapsed={false} ready={storeHydrated} />
+            <SidebarThemeToggle collapsed={false} ready={storeHydrated} />
           </section>
         </nav>
       </aside>

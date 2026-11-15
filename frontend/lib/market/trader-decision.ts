@@ -3,7 +3,7 @@ import type {
   TraderRecommendation,
 } from "@/lib/api/backend-api-types";
 import type { StockIntelligenceModel } from "@/lib/market/market-intelligence-types";
-import { compatibleDisplayAction } from "@/lib/market/decision-action-compatibility";
+import { compatibleDisplayAction, prospectiveDisplayAction } from "@/lib/market/decision-action-compatibility";
 
 export type ResolvedTraderDecision = {
   recommendation: DecisionDisplayAction | null;
@@ -11,15 +11,19 @@ export type ResolvedTraderDecision = {
   evidenceStatus: string;
   reason: string;
   reasonCode: string | null;
+  eligibilityReasons?: string[] | null;
   riskLabel: string;
   opportunityScore: number | null;
   entryTiming: string | null;
   entryCondition: string | null;
+  nonHolderAction?: string | null;
+  holderAction?: string | null;
   entryApplicability?: import("@/lib/api/stock-decision-support-types").EntryApplicabilityDto | null;
   measuredSupport?: string | null;
   opposingConstraint?: string | null;
   source: "decision-engine" | "unavailable";
 };
+export type ContextualTraderAction = DecisionDisplayAction | "REVIEW" | "REDUCE";
 
 export function resolveVersionedInternalAction(
   internalAction: TraderRecommendation,
@@ -42,18 +46,18 @@ export function resolveWatchlistAction(
   intelligence: StockIntelligenceModel | null,
   isHolding: boolean,
   backendContextualAction?: string | null,
-): DecisionDisplayAction | null {
+): ContextualTraderAction | null {
   const decision = intelligence?.traderDecision;
   if (decision && !isHolding) {
-    return compatibleDisplayAction(decision);
+    return prospectiveDisplayAction(decision);
   }
   const contextualAction = decision?.holder_action ?? backendContextualAction;
 
   if (contextualAction === "POTENTIAL_BUY" || contextualAction === "BUY") {
     return "POTENTIAL_BUY";
   }
-  if (contextualAction === "SELL" || contextualAction === "REDUCE") {
-    return "SELL";
+  if (contextualAction === "SELL" || contextualAction === "REDUCE" || contextualAction === "REVIEW") {
+    return contextualAction;
   }
   if (contextualAction === "HOLD") {
     return "HOLD";
@@ -85,11 +89,14 @@ export function isTraderDecisionChangedThisSession(stock: StockIntelligenceModel
 export function resolveTraderDecision(stock: StockIntelligenceModel): ResolvedTraderDecision {
   if (stock.traderDecision) {
     return {
-      recommendation: compatibleDisplayAction(stock.traderDecision),
+      recommendation: prospectiveDisplayAction(stock.traderDecision),
+      nonHolderAction: stock.traderDecision.non_holder_action,
+      holderAction: stock.traderDecision.holder_action,
       confidence: stock.traderDecision.confidence,
       evidenceStatus: stock.traderDecision.evidence_status ?? "UNAVAILABLE",
       reason: stock.traderDecision.reason,
       reasonCode: stock.traderDecision.primary_reason_code ?? null,
+      eligibilityReasons: stock.traderDecision.eligibility_reason_codes,
       riskLabel: stock.traderDecision.trading_risk?.label ?? stock.traderDecision.risk_label ?? "UNKNOWN",
       opportunityScore: stock.traderDecision.opportunity_score,
       entryTiming: stock.traderDecision.entry_timing ?? null,
@@ -171,7 +178,7 @@ export function buildDecisionSupportingContext(stock: StockIntelligenceModel): s
 }
 
 export function isActionableDecision(recommendation: DecisionDisplayAction | null): boolean {
-  return recommendation === "POTENTIAL_BUY" || recommendation === "SELL";
+  return recommendation === "POTENTIAL_BUY" || recommendation === "SELL" || recommendation === "AVOID";
 }
 
 export function getVolumeBehaviorId(stock: StockIntelligenceModel): string {

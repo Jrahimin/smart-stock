@@ -385,16 +385,15 @@ User navigates within dashboard
 → No network, IndexedDB not consulted
 ```
 
-### T=10 min — TanStack refetch interval fires (OPEN session)
+### T=10 min: Dashboard entries become stale
 
-```text
-refetchInterval triggers useDashboardOverview refetch
-→ backendApiGetMarket("/dashboard/overview")
-→ IndexedDB may still serve cached JSON if within 10 min TTL
-
-If backend sync has not run since T=0, data may match T=0 snapshot.
-Coordinator has not fired (last_synced_at unchanged).
-```
+With a 15-minute snapshot cadence, expiry permits a new read when needed.
+Mounted price sections refresh on the reported snapshot cadence. A new
+publication detected earlier changes query keys immediately. News checks at
+most one minute apart while the page is active, including after close.
+Overview and News bypass IndexedDB. The app-level coordinator applies the
+server TTL to the persistent market cache. Without a published ID, Dashboard
+reads compute directly and do not populate unversioned Redis keys.
 
 ### T=15 min — Scheduler runs sync_market_snapshot
 

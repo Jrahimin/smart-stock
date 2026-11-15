@@ -1,0 +1,645 @@
+{
+  "data_state": "FINALIZED",
+  "decision_generation_id": "COUNTERFACTUAL-6df3e7a02befdd889876f207",
+  "decision_status": "CURRENT",
+  "decision_support": {
+    "breakout": {
+      "breakout_level": 14.5,
+      "confirmation_level": 14.645,
+      "direction": "breakout",
+      "evidence_score": 20,
+      "explanation": "Breakout evidence score combines volume, trend, resistance proximity, and confirmed pattern context.",
+      "factors": [
+        {
+          "explanation": "Volume has not expanded enough.",
+          "label": "Volume increasing",
+          "matched": false
+        },
+        {
+          "explanation": "Trend is not aligned for a bullish breakout.",
+          "label": "Trend aligned",
+          "matched": false
+        },
+        {
+          "explanation": "Price is testing or clearing the key trigger level.",
+          "label": "At breakout zone",
+          "matched": true
+        },
+        {
+          "explanation": "No active pattern aligned with this scenario.",
+          "label": "Pattern active",
+          "matched": false
+        }
+      ],
+      "probability": 20,
+      "projected_target": 15.225,
+      "score_semantics": "HEURISTIC_BREAKOUT_EVIDENCE"
+    },
+    "canonical_decision": {
+      "action_taxonomy": "TRADER_DECISION_V2",
+      "as_of_date": "2026-11-12",
+      "blocker_codes": [
+        "elevated_trading_risk",
+        "entry_plan_not_valid",
+        "resistance_target_unavailable"
+      ],
+      "calculated_at": "2026-11-13T17:06:43.439035Z",
+      "data_revision": "639586f17701358eb19fffa5caeda3a7ed95cc3d23db8c1104ee6686da812396",
+      "decision_taxonomy_version": "v2",
+      "display_action": "WAIT",
+      "eligibility_status": "ELIGIBLE",
+      "entry_condition": null,
+      "entry_readiness": "NOT_READY",
+      "entry_timing": null,
+      "event_revision": "3c98a979461ac388ed9bc05cc2ee0a7baf60fe97afb5357f496b435d61542623",
+      "evidence_status": "MIXED",
+      "evidence_strength": 92,
+      "exchange": "DSE",
+      "holder_action": "REVIEW",
+      "input_hash": "9894e32d5d85cc08720fa7f8da46a19cfe3025dd628e48996428ae80851702ca",
+      "input_schema_version": "trading-input-v4",
+      "internal_action": "WAIT",
+      "non_holder_action": "AVOID",
+      "opportunity_quality": "WEAK",
+      "opportunity_score": 53,
+      "previous_session_date": "2026-11-11",
+      "primary_reason": "Trading-risk tier is HIGH; fresh entry is blocked.",
+      "primary_reason_code": "elevated_trading_risk",
+      "recommendation": "WAIT",
+      "regime_confidence": 100,
+      "regime_label": "BEARISH",
+      "regime_phase": "REVERSAL_RISK",
+      "regime_score": 43,
+      "replay_limitations": [
+        "INPUT_CAPTURE_REQUIRES_COMPLETE_GENERATION_PUBLICATION",
+        "EFFECTIVE_DATED_STATUS_CATEGORY_CIRCUIT_HISTORY_INCOMPLETE"
+      ],
+      "replay_status": "IDENTIFIED_WITH_LIMITATIONS",
+      "result_semantics": {
+        "blocker_codes": "ORDERED_MACHINE_READABLE_CONSTRAINTS",
+        "display_action": "VERSIONED_PUBLIC_NON_HOLDER_ACTION",
+        "entry_readiness": "DETERMINISTIC_PLAN_READINESS",
+        "entry_timing": "DETERMINISTIC_CONDITIONAL_TIMING",
+        "evidence_strength": "HEURISTIC_DIRECTIONAL_EVIDENCE",
+        "internal_action": "LEGACY_CANONICAL_ACTION",
+        "opportunity_quality": "DETERMINISTIC_COMPLETED_SESSION_QUALITY",
+        "opportunity_score": "HEURISTIC_LONG_SETUP_INDEX",
+        "recommendation": "DETERMINISTIC_CONTEXTUAL_ACTION",
+        "risk_label": "CANONICAL_TRADING_RISK",
+        "trade_plan_status": "DETERMINISTIC_PLAN_FEASIBILITY"
+      },
+      "risk_label": "HIGH",
+      "shared_decision_id": "cc673df5-4813-5f01-b9cc-cb107f42d7b8",
+      "stance": "NEUTRAL",
+      "stock_id": "c8058db3-46bc-4b38-86b0-2e114f9bf896",
+      "strategy_version": "trading-intelligence-v4",
+      "threshold_version": "trading-thresholds-v4",
+      "trade_plan_status": "WATCH_ONLY"
+    },
+    "data_freshness": {
+      "data_quality": "OK",
+      "is_sparse": false,
+      "is_stale": false,
+      "latest_trade_date": "2026-11-12",
+      "missing_fields": [],
+      "ohlcv_row_count": 90,
+      "source_summary": "Computed from stored daily_prices and stock master profile."
+    },
+    "data_reliability": {
+      "explanation": "Deterministic input reliability reflects freshness, history coverage, source quality, row validity, and corporate-action resolution.",
+      "label": "HIGH",
+      "reason_codes": [
+        "raw_unadjusted_analytical_series"
+      ],
+      "score": 85,
+      "score_semantics": "DETERMINISTIC_INPUT_RELIABILITY"
+    },
+    "data_state": "FINALIZED",
+    "decision": {
+      "blocker_codes": [
+        "elevated_trading_risk",
+        "entry_plan_not_valid",
+        "resistance_target_unavailable"
+      ],
+      "canonical": {
+        "action_taxonomy": "TRADER_DECISION_V2",
+        "as_of_date": "2026-11-12",
+        "blocker_codes": [
+          "elevated_trading_risk",
+          "entry_plan_not_valid",
+          "resistance_target_unavailable"
+        ],
+        "calculated_at": "2026-11-13T17:06:43.439035Z",
+        "data_revision": "639586f17701358eb19fffa5caeda3a7ed95cc3d23db8c1104ee6686da812396",
+        "decision_taxonomy_version": "v2",
+        "display_action": "WAIT",
+        "eligibility_status": "ELIGIBLE",
+        "entry_condition": null,
+        "entry_readiness": "NOT_READY",
+        "entry_timing": null,
+        "event_revision": "3c98a979461ac388ed9bc05cc2ee0a7baf60fe97afb5357f496b435d61542623",
+        "evidence_status": "MIXED",
+        "evidence_strength": 92,
+        "exchange": "DSE",
+        "holder_action": "REVIEW",
+        "input_hash": "9894e32d5d85cc08720fa7f8da46a19cfe3025dd628e48996428ae80851702ca",
+        "input_schema_version": "trading-input-v4",
+        "internal_action": "WAIT",
+        "non_holder_action": "AVOID",
+        "opportunity_quality": "WEAK",
+        "opportunity_score": 53,
+        "previous_session_date": "2026-11-11",
+        "primary_reason": "Trading-risk tier is HIGH; fresh entry is blocked.",
+        "primary_reason_code": "elevated_trading_risk",
+        "recommendation": "WAIT",
+        "regime_confidence": 100,
+        "regime_label": "BEARISH",
+        "regime_phase": "REVERSAL_RISK",
+        "regime_score": 43,
+        "replay_limitations": [
+          "INPUT_CAPTURE_REQUIRES_COMPLETE_GENERATION_PUBLICATION",
+          "EFFECTIVE_DATED_STATUS_CATEGORY_CIRCUIT_HISTORY_INCOMPLETE"
+        ],
+        "replay_status": "IDENTIFIED_WITH_LIMITATIONS",
+        "result_semantics": {
+          "blocker_codes": "ORDERED_MACHINE_READABLE_CONSTRAINTS",
+          "display_action": "VERSIONED_PUBLIC_NON_HOLDER_ACTION",
+          "entry_readiness": "DETERMINISTIC_PLAN_READINESS",
+          "entry_timing": "DETERMINISTIC_CONDITIONAL_TIMING",
+          "evidence_strength": "HEURISTIC_DIRECTIONAL_EVIDENCE",
+          "internal_action": "LEGACY_CANONICAL_ACTION",
+          "opportunity_quality": "DETERMINISTIC_COMPLETED_SESSION_QUALITY",
+          "opportunity_score": "HEURISTIC_LONG_SETUP_INDEX",
+          "recommendation": "DETERMINISTIC_CONTEXTUAL_ACTION",
+          "risk_label": "CANONICAL_TRADING_RISK",
+          "trade_plan_status": "DETERMINISTIC_PLAN_FEASIBILITY"
+        },
+        "risk_label": "HIGH",
+        "shared_decision_id": "cc673df5-4813-5f01-b9cc-cb107f42d7b8",
+        "stance": "NEUTRAL",
+        "stock_id": "c8058db3-46bc-4b38-86b0-2e114f9bf896",
+        "strategy_version": "trading-intelligence-v4",
+        "threshold_version": "trading-thresholds-v4",
+        "trade_plan_status": "WATCH_ONLY"
+      },
+      "confidence": 92,
+      "confidence_semantics": "HEURISTIC_EVIDENCE",
+      "constraints": [
+        {
+          "code": "elevated_trading_risk",
+          "is_critical": false,
+          "kind": "BLOCK",
+          "reason": "Trading-risk tier is HIGH; fresh entry is blocked.",
+          "title": "Elevated trading risk"
+        },
+        {
+          "code": "entry_plan_not_valid",
+          "is_critical": false,
+          "kind": "BLOCK",
+          "reason": "The current structural plan is not valid for a fresh entry.",
+          "title": "Entry plan not valid"
+        },
+        {
+          "code": "bearish_market_regime",
+          "is_critical": false,
+          "kind": "DOWNGRADE",
+          "reason": "The broad market regime downgrades new long exposure.",
+          "title": "Bearish market regime"
+        },
+        {
+          "code": "near_resistance",
+          "is_critical": false,
+          "kind": "DOWNGRADE",
+          "reason": "Price is near resistance without a current break event.",
+          "title": "Near resistance"
+        }
+      ],
+      "decision_taxonomy_version": "v2",
+      "display_action": "WAIT",
+      "eligibility_reason_codes": [],
+      "entry_applicability": {
+        "assessed_at": "2026-11-13T17:06:49.839499Z",
+        "controlling_blocker": "elevated_trading_risk",
+        "price_basis": "CURRENT",
+        "price_context": {
+          "comparison_price": 14.5,
+          "first_target_reward_risk": null,
+          "planned_basis": "ENTRY_ZONE_HIGH_TO_FIRST_TARGET_BEFORE_COSTS",
+          "price_basis": "RECORDED",
+          "price_session_date": "2026-11-12",
+          "reward_risk_status": "TERMS_UNKNOWN",
+          "zone_relation": "IN_ENTRY_ZONE"
+        },
+        "publication_observed_at": "2026-11-13T17:06:49.839499Z",
+        "quote_session_date": "2026-11-12",
+        "reason_code": "ACTION_NOT_PERMITTED",
+        "recheck_at": null,
+        "source_observed_at": null,
+        "status": "NOT_APPLICABLE"
+      },
+      "entry_condition": null,
+      "entry_readiness": "NOT_READY",
+      "entry_timing": null,
+      "evidence_status": "UNAVAILABLE",
+      "evidence_strength": 92,
+      "evidence_strength_semantics": "HEURISTIC_DIRECTIONAL_EVIDENCE",
+      "holder_action": "REVIEW",
+      "internal_action": "WAIT",
+      "measured_support": null,
+      "non_holder_action": "AVOID",
+      "opportunity_quality": "WEAK",
+      "opposing_constraint": null,
+      "primary_reason": "Trading-risk tier is HIGH; fresh entry is blocked.",
+      "primary_reason_code": "elevated_trading_risk",
+      "reasoning": [
+        "Trend context: sideways.",
+        "Directional evidence: neutral (bullish 46, bearish 54).",
+        "Opportunity compatibility score: 53/100.",
+        "Opportunity quality: weak.",
+        "Trading risk: HIGH.",
+        "Data reliability: HIGH (85/100).",
+        "Trading-risk tier is HIGH; fresh entry is blocked.",
+        "Constraint [BLOCK]: Trading-risk tier is HIGH; fresh entry is blocked.",
+        "Constraint [BLOCK]: The current structural plan is not valid for a fresh entry.",
+        "Constraint [DOWNGRADE]: The broad market regime downgrades new long exposure.",
+        "Constraint [DOWNGRADE]: Price is near resistance without a current break event."
+      ],
+      "recommendation": "WAIT",
+      "stance": "NEUTRAL"
+    },
+    "decision_generation_id": "COUNTERFACTUAL-6df3e7a02befdd889876f207",
+    "decision_session_date": "2026-11-12",
+    "decision_status": "CURRENT",
+    "directional_evidence": {
+      "bearish_score": 54,
+      "bullish_score": 46,
+      "components": [
+        {
+          "direction": "NEUTRAL",
+          "explanation": "The established trend is sideways.",
+          "key": "trend",
+          "label": "Trend",
+          "strength": 70,
+          "weight": 0.5
+        },
+        {
+          "direction": "BEARISH",
+          "explanation": "20-session analytical return is -4.61%.",
+          "key": "momentum",
+          "label": "Momentum",
+          "strength": 64,
+          "weight": 0.3
+        },
+        {
+          "direction": "NEUTRAL",
+          "explanation": "No current structural price-break event is present.",
+          "key": "level_event",
+          "label": "Level Event",
+          "strength": 60,
+          "weight": 0.2
+        }
+      ],
+      "coverage_percent": 100,
+      "direction": "NEUTRAL",
+      "score_semantics": "HEURISTIC_DIRECTIONAL_EVIDENCE"
+    },
+    "eligibility": {
+      "analytical_price_basis": "RAW_UNADJUSTED",
+      "corporate_action_status": "NONE",
+      "event_coverage_status": "UNKNOWN",
+      "exchange_session_date": "2026-11-12",
+      "expected_session_count": 0,
+      "invalid_ohlcv_row_count": 0,
+      "latest_trade_date": "2026-11-12",
+      "median_turnover": 98870000.0,
+      "missed_session_count": 0,
+      "missing_session_count": 0,
+      "observed_session_count": 0,
+      "quality_ok_count": 50,
+      "quality_partial_count": 0,
+      "quality_suspicious_count": 0,
+      "reason_codes": [],
+      "status": "ELIGIBLE",
+      "traded_session_count": 87,
+      "traded_session_ratio": 0.9667,
+      "turnover_observation_count": 20,
+      "turnover_provenance": "REPORTED",
+      "valid_ohlcv_row_count": 90,
+      "zero_volume_session_count": 0
+    },
+    "entry_applicability": {
+      "assessed_at": "2026-11-13T17:06:49.839499Z",
+      "controlling_blocker": "elevated_trading_risk",
+      "price_basis": "CURRENT",
+      "price_context": {
+        "comparison_price": 14.5,
+        "first_target_reward_risk": null,
+        "planned_basis": "ENTRY_ZONE_HIGH_TO_FIRST_TARGET_BEFORE_COSTS",
+        "price_basis": "RECORDED",
+        "price_session_date": "2026-11-12",
+        "reward_risk_status": "TERMS_UNKNOWN",
+        "zone_relation": "IN_ENTRY_ZONE"
+      },
+      "publication_observed_at": "2026-11-13T17:06:49.839499Z",
+      "quote_session_date": "2026-11-12",
+      "reason_code": "ACTION_NOT_PERMITTED",
+      "recheck_at": null,
+      "source_observed_at": null,
+      "status": "NOT_APPLICABLE"
+    },
+    "events": [],
+    "exchange": "DSE",
+    "is_live_session": false,
+    "liquidity": {
+      "average_turnover": 103762000.0,
+      "average_volume": 6749406.5,
+      "explanation": "Median traded-session turnover is deep for the observed window.",
+      "label": "STRONG",
+      "latest_volume_ratio": 0.8223354157139594,
+      "median_turnover": 98870000.0,
+      "traded_session_ratio": 0.9666666666666667,
+      "turnover_observation_count": 20,
+      "turnover_provenance": "REPORTED",
+      "volume_consistency_score": 65
+    },
+    "live_data_as_of": null,
+    "market_sync_id": "COUNTERFACTUAL-6df3e7a02befdd889876f207",
+    "measured_facts": {
+      "opportunity_score": 53,
+      "resistance": 14.5,
+      "rsi": 51.11597548456889,
+      "trend": "SIDEWAYS",
+      "trigger_price": null,
+      "volume_baseline": "PRIOR_20_SESSION_MEDIAN",
+      "volume_ratio": 0.8223354157139594,
+      "volume_sample_count": 20
+    },
+    "opportunity": {
+      "components": [
+        {
+          "explanation": "Trend is sideways; direction is not clearly established. Price is 2.9% above SMA20.",
+          "key": "trend",
+          "label": "Trend",
+          "score": 56,
+          "weight": 0.28
+        },
+        {
+          "explanation": "RSI 51.1 is in a neutral-to-positive zone.",
+          "key": "momentum",
+          "label": "Momentum",
+          "score": 55,
+          "weight": 0.22
+        },
+        {
+          "explanation": "Volume participation is near normal at 0.8x prior-session median. Falling, flat or unknown close direction does not confirm buying support.",
+          "key": "volume",
+          "label": "Volume",
+          "score": 50,
+          "weight": 0.2
+        },
+        {
+          "explanation": "Price is near support, offering a favorable risk zone. Price is near resistance; upside may be limited.",
+          "key": "price_position",
+          "label": "Price Position",
+          "score": 44,
+          "weight": 0.2
+        },
+        {
+          "explanation": "Higher risk (39) reduces opportunity conviction.",
+          "key": "risk_adjustment",
+          "label": "Risk Adjustment",
+          "score": 61,
+          "weight": 0.1
+        }
+      ],
+      "quality": "WEAK",
+      "score": 53,
+      "score_semantics": "HEURISTIC_LONG_SETUP_INDEX"
+    },
+    "ownership": null,
+    "patterns": [],
+    "price_position": {
+      "above_ema20_percent": 0.5985851758580553,
+      "above_sma20_percent": 2.87335934728628,
+      "current_price": 14.5,
+      "distance_to_resistance_percent": 0.0,
+      "distance_to_support_percent": 0.0
+    },
+    "primary_pattern": null,
+    "quote_generation_id": "COUNTERFACTUAL-6df3e7a02befdd889876f207",
+    "resistance": 14.5,
+    "risk": {
+      "components": [
+        {
+          "explanation": "Volatility is elevated at 3.32%. Opens gap >3% in 5% of sessions.",
+          "key": "volatility",
+          "label": "Volatility",
+          "score": 91,
+          "weight": 0.25
+        },
+        {
+          "explanation": "DSE category B contributes to structural risk.",
+          "key": "category",
+          "label": "Category",
+          "score": 30,
+          "weight": 0.2
+        },
+        {
+          "explanation": "Liquidity profile is strong.",
+          "key": "liquidity",
+          "label": "Liquidity",
+          "score": 15,
+          "weight": 0.2
+        },
+        {
+          "explanation": "Latest OHLCV data quality is OK.",
+          "key": "data_quality",
+          "label": "Data Quality",
+          "score": 20,
+          "weight": 0.15
+        },
+        {
+          "explanation": "Data freshness is acceptable.",
+          "key": "stale_data",
+          "label": "Data Freshness",
+          "score": 15,
+          "weight": 0.1
+        },
+        {
+          "explanation": "Price is not overextended versus its recent mean.",
+          "key": "overextension",
+          "label": "Overextension",
+          "score": 25,
+          "weight": 0.1
+        }
+      ],
+      "label": "MEDIUM",
+      "score": 39,
+      "score_semantics": "LEGACY_COMPOSITE_RISK"
+    },
+    "stock_id": "c8058db3-46bc-4b38-86b0-2e114f9bf896",
+    "support": 14.5,
+    "symbol": "ETL",
+    "technical_snapshot": {
+      "adjusted_close_coverage_ratio": 0.0,
+      "analytical_price_basis": "RAW_UNADJUSTED",
+      "atr14": 0.7358259762377951,
+      "average_turnover": 103762000.0,
+      "average_volume": 6749406.5,
+      "calendar_status": "OBSERVED_ROWS_ONLY",
+      "data_quality": "OK",
+      "ema20": 14.413721599217633,
+      "expected_session_count": 0,
+      "gap_frequency_percent": 5.263157894736842,
+      "invalid_ohlcv_row_count": 0,
+      "is_breakout": false,
+      "latest_price": 14.5,
+      "latest_row_valid": true,
+      "latest_trade_date": "2026-11-12",
+      "median_turnover": 98870000.0,
+      "missing_session_count": 0,
+      "observed_session_count": 0,
+      "ohlcv_row_count": 90,
+      "previous_close": 14.8,
+      "price_change": -0.3,
+      "price_change_percent": -2.027,
+      "price_change_percent_ratio": {
+        "denominator": "1000",
+        "numerator": "-2027"
+      },
+      "resistance": 14.5,
+      "return_20d_percent": -4.6052631578947345,
+      "return_5d_percent": 2.1126760563380254,
+      "rsi": 51.11597548456889,
+      "sma20": 14.094999999999999,
+      "sma50": 14.308,
+      "sparkline_closes": [
+        14.2,
+        14.5,
+        14.2,
+        14.9,
+        14.5,
+        15.1,
+        14.8,
+        14.5
+      ],
+      "structure": "neutral",
+      "support": 14.5,
+      "traded_session_count": 87,
+      "traded_session_ratio": 0.9666666666666667,
+      "trend": "SIDEWAYS",
+      "turnover": 81190000.0,
+      "turnover_observation_count": 20,
+      "turnover_provenance": "REPORTED",
+      "volatility": 3.324488182028001,
+      "volume": 5550276,
+      "volume_behavior": "NORMAL",
+      "volume_observation_count": 20,
+      "zero_volume_session_count": 0
+    },
+    "trade_plan": {
+      "condition_text": null,
+      "confirmation_rule": null,
+      "entry_readiness": "NOT_READY",
+      "entry_timing": null,
+      "entry_zone_high": 14.5725,
+      "entry_zone_low": 14.355,
+      "expiry_sessions": null,
+      "explanation": "Scenario levels are watch-only for the current decision.",
+      "invalidation_price": 14.259,
+      "management_mode": null,
+      "partial_profit_price": null,
+      "preferred_entry_zone_high": null,
+      "preferred_entry_zone_low": null,
+      "reasons": [
+        "resistance_target_unavailable",
+        "current_action_does_not_support_fresh_entry"
+      ],
+      "reassessment_sessions": null,
+      "risk_reward_ratio": null,
+      "status": "WATCH_ONLY",
+      "stop_loss": 14.259,
+      "target_high": null,
+      "target_low": null,
+      "trailing_rule": null,
+      "trigger_price": null
+    },
+    "trading_risk": {
+      "components": [
+        {
+          "explanation": "Analytical daily volatility is high at 3.32%. Large opening gaps occur in 5% of observations.",
+          "key": "volatility_gap",
+          "label": "Volatility and Gap Risk",
+          "score": 91,
+          "weight": 0.55
+        },
+        {
+          "explanation": "Category B is treated as a structural trading-risk input.",
+          "key": "category",
+          "label": "Category Risk",
+          "score": 30,
+          "weight": 0.25
+        },
+        {
+          "explanation": "Price is not overextended versus its medium-term path.",
+          "key": "overextension",
+          "label": "Overextension Risk",
+          "score": 25,
+          "weight": 0.2
+        }
+      ],
+      "label": "HIGH",
+      "score": 63,
+      "score_semantics": "HEURISTIC_TRADING_RISK"
+    },
+    "trend": "SIDEWAYS",
+    "valuation": null,
+    "warnings": []
+  },
+  "display_metrics": {
+    "as_of_trade_date": "2026-11-12",
+    "current_price": 14.5,
+    "data_quality": "OK",
+    "earnings_yield": null,
+    "ingested_at": null,
+    "marked_to_latest_price": false,
+    "market_cap": null,
+    "max_age_seconds": 1800,
+    "observation_session_date": "2026-11-12",
+    "observation_status": "UNAVAILABLE",
+    "pb_ratio": null,
+    "pe_helper": null,
+    "pe_ratio": null,
+    "previous_close": null,
+    "price_change": -0.3,
+    "price_change_percent": -2.027,
+    "source": "AMARSTOCK_MARKET_MSGPACK",
+    "source_observed_at": null,
+    "volume": 5550276
+  },
+  "dividend_intelligence": null,
+  "financial_trends": [],
+  "fundamentals_snapshot": null,
+  "latest_trade_date": "2026-11-12",
+  "market_sync_id": "COUNTERFACTUAL-6df3e7a02befdd889876f207",
+  "prices": [],
+  "quote_generation_id": "COUNTERFACTUAL-6df3e7a02befdd889876f207",
+  "stock": {
+    "category": "B",
+    "created_at": "2026-05-03T11:50:53.916672Z",
+    "exchange": "DSE",
+    "id": "c8058db3-46bc-4b38-86b0-2e114f9bf896",
+    "is_active": true,
+    "isin": null,
+    "listing_date": "2016-01-01",
+    "lot_size": null,
+    "market_cap": "1564.8870",
+    "name": "Evince Textiles Limited",
+    "paid_up_capital": "1837.4400",
+    "sector": "Textile",
+    "should_fetch_details": true,
+    "symbol": "ETL",
+    "updated_at": "2026-09-08T10:30:51.314125Z"
+  },
+  "valuation_context": null
+}
