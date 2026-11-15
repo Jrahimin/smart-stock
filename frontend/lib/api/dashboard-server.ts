@@ -1,5 +1,6 @@
 import "server-only";
 
+import { dashboardSectionMatchesOverview } from "@/features/market-dashboard/hooks/dashboard-query-key";
 import { cache } from "react";
 
 import type {
@@ -33,10 +34,6 @@ export type DashboardCoreLoadResult =
   | { status: "ok"; data: DashboardCorePayload }
   | { status: "partial"; data: DashboardCorePayload }
   | { status: "error"; message: string };
-
-type DashboardSessionSection = {
-  session_trade_date: string | null;
-};
 
 function buildCorePayload(
   freshness: BackendMarketFreshnessDto | null,
@@ -84,28 +81,6 @@ function reconcileOverviewWithFreshness(
   }
 
   return overview;
-}
-
-function reconcileDashboardSessionSection<T extends DashboardSessionSection>(
-  overview: BackendDashboardOverviewDto | null,
-  section: T | null,
-): T | null {
-  if (!section) {
-    return null;
-  }
-
-  if (!overview) {
-    return null;
-  }
-
-  const overviewTradeDate = overview.session_trade_date ?? null;
-  const sectionTradeDate = section.session_trade_date ?? null;
-
-  if (overviewTradeDate && sectionTradeDate && overviewTradeDate !== sectionTradeDate) {
-    return null;
-  }
-
-  return section;
 }
 
 async function fetchFreshness(exchange: ExchangeCode, signal: AbortSignal) {
@@ -167,10 +142,10 @@ async function loadDashboardCoreInternal(exchange: ExchangeCode = "DSE"): Promis
     const overview = reconcileOverviewWithFreshness(freshness, overviewRaw);
     const sectorsRaw =
       sectorsResult.status === "fulfilled" ? sectorsResult.value : null;
-    const sectors = dashboardSectorsMatchFreshness(sectorsRaw, freshness) ? reconcileDashboardSessionSection(overview, sectorsRaw) : null;
+    const sectors = dashboardSectorsMatchFreshness(sectorsRaw, freshness) && dashboardSectionMatchesOverview(overview, sectorsRaw) ? sectorsRaw : null;
     const moversRaw =
       moversResult.status === "fulfilled" ? moversResult.value : null;
-    const movers = reconcileDashboardSessionSection(overview, moversRaw);
+    const movers = dashboardSectionMatchesOverview(overview, moversRaw) ? moversRaw : null;
 
     const data = buildCorePayload(freshness, overview, sectors, movers);
     const status = resolveCoreStatus(freshness, overview);

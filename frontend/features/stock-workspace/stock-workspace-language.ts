@@ -281,7 +281,7 @@ const stockWorkspaceLanguage = {
       currentEntryUnverified: "Current entry unverified",
       entryApplicableAt: (time) => `Quote meets the checked entry conditions as of ${time} (Dhaka).`,
       quoteObservedAt: (time) => `Quote source observed ${time} (Dhaka).`,
-      markedQuote: "Marked quote",
+      markedQuote: "Price",
       decisionReference: "Decision reference",
       plannedRewardRisk: "Planned reward / risk",
       trailingManagement: "Trailing management",
@@ -538,7 +538,7 @@ const stockWorkspaceLanguage = {
         fresh: "No missed sessions flagged",
       },
       disclaimer:
-        "Snapshot-based market data and rule-based decision support — not live quotes and not investment advice.",
+        "Rule-based decision support — not investment advice.",
       uncertaintyStale:
         "stale prices",
       uncertaintySparse:
@@ -643,7 +643,7 @@ const stockWorkspaceLanguage = {
       currentEntryUnverified: "বর্তমান entry যাচাই করা হয়নি",
       entryApplicableAt: (time) => `${time} (ঢাকা) সময়ের যাচাইয়ে দর entry-এর পরীক্ষিত শর্ত পূরণ করে।`,
       quoteObservedAt: (time) => `দরের উৎসে পর্যবেক্ষণের সময় ${time} (ঢাকা)।`,
-      markedQuote: "সর্বশেষ পর্যবেক্ষিত দর",
+      markedQuote: "দাম",
       decisionReference: "সিদ্ধান্তের ভিত্তিদর",
       plannedRewardRisk: "পরিকল্পিত লাভ / ঝুঁকি",
       trailingManagement: "Trailing ব্যবস্থাপনা",
@@ -923,7 +923,7 @@ const stockWorkspaceLanguage = {
         fresh: "বাদ পড়া কার্যদিবস শনাক্ত হয়নি",
       },
       disclaimer:
-        "এটি সর্বশেষ পাওয়া market data ও rule-based analysis-এর ওপর তৈরি—live price নয়, বিনিয়োগ পরামর্শও নয়।",
+        "এটি rule-based analysis—বিনিয়োগ পরামর্শ নয়।",
       uncertaintyStale:
         "দামের তথ্য পুরনো",
       uncertaintySparse:

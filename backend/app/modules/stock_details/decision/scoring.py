@@ -181,16 +181,20 @@ def _score_trend(snapshot: TechnicalSnapshot) -> ScoreComponent:
     )
 
 
-def _score_momentum(snapshot: TechnicalSnapshot) -> ScoreComponent:
+def _score_momentum(snapshot: TechnicalSnapshot, *, contextual: bool = False) -> ScoreComponent:
     score = 50.0
     explanations: list[str] = []
     if snapshot.rsi is not None:
         if snapshot.rsi < RSI_OVERSOLD_THRESHOLD:
-            score = 72
-            explanations.append(f"RSI {snapshot.rsi:.1f} is oversold; rebound potential exists.")
+            score = 50 if contextual and snapshot.trend != TrendDirection.UPTREND else 72
+            explanations.append(f"RSI {snapshot.rsi:.1f} is oversold; " + (
+                "no rebound bonus outside an established uptrend." if contextual and snapshot.trend != TrendDirection.UPTREND
+                else "rebound potential exists."))
         elif snapshot.rsi > RSI_OVERBOUGHT_THRESHOLD:
             score = 28
-            explanations.append(f"RSI {snapshot.rsi:.1f} is extended; upside may be crowded.")
+            explanations.append(f"RSI {snapshot.rsi:.1f} is {'elevated' if contextual else 'extended'}; " + (
+                "strong trend momentum still needs entry and extension guards." if contextual and snapshot.trend == TrendDirection.UPTREND
+                else "upside may be crowded."))
         else:
             score = 55 + (snapshot.rsi - 50) * 0.4
             explanations.append(f"RSI {snapshot.rsi:.1f} is in a neutral-to-positive zone.")
@@ -237,7 +241,7 @@ def _score_momentum(snapshot: TechnicalSnapshot) -> ScoreComponent:
     )
 
 
-def _score_volume(snapshot: TechnicalSnapshot, liquidity_label: LiquidityLabel) -> ScoreComponent:
+def _score_volume(snapshot: TechnicalSnapshot, liquidity_label: LiquidityLabel, *, contextual: bool = False) -> ScoreComponent:
     score = 50.0
     explanations: list[str] = []
     if snapshot.average_volume and snapshot.average_volume > 0:
@@ -254,6 +258,11 @@ def _score_volume(snapshot: TechnicalSnapshot, liquidity_label: LiquidityLabel) 
     if liquidity_label in {LiquidityLabel.THIN, LiquidityLabel.ILLIQUID}:
         score = max(0, score - 15)
         explanations.append("Liquidity is thin, reducing conviction.")
+    if contextual and (snapshot.price_change_percent is None or snapshot.price_change_percent <= 0):
+        score = min(score, 50)
+        explanations.append("Falling, flat or unknown close direction does not confirm buying support.")
+    if contextual:
+        explanations = [text.replace("20-day average", "prior-20-session median").replace("x average", "x prior-session median") for text in explanations]
     return ScoreComponent(
         key="volume",
         label="Volume",
@@ -317,12 +326,12 @@ def _score_risk_penalty(risk_score: int) -> ScoreComponent:
 
 
 def compute_opportunity_score(
-    snapshot: TechnicalSnapshot, risk_score: int, liquidity_label: LiquidityLabel
+    snapshot: TechnicalSnapshot, risk_score: int, liquidity_label: LiquidityLabel, *, contextual: bool = False
 ) -> OpportunityScoreResult:
     components = [
         _score_trend(snapshot),
-        _score_momentum(snapshot),
-        _score_volume(snapshot, liquidity_label),
+        _score_momentum(snapshot, contextual=contextual),
+        _score_volume(snapshot, liquidity_label, contextual=contextual),
         _score_price_position(snapshot),
         _score_risk_penalty(risk_score),
     ]

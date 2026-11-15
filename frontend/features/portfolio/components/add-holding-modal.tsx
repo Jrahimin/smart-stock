@@ -56,8 +56,6 @@ export function AddHoldingModal({ locale, controller }: AddHoldingModalProps) {
 
   const priceStatusMessage = (() => {
     if (!selectedStock) return null;
-    if (preview.priceStatus === "UNAVAILABLE") return t.previewPriceUnavailable;
-    if (preview.priceStatus === "STALE_LAST_KNOWN") return t.previewPriceStale;
     if (preview.priceStatus === "SUSPICIOUS") return t.previewPriceSuspicious;
     return null;
   })();
@@ -157,9 +155,6 @@ export function AddHoldingModal({ locale, controller }: AddHoldingModalProps) {
             </div>
             {priceStatusMessage ? (
               <p className="add-holding-preview-status">{priceStatusMessage}</p>
-            ) : null}
-            {preview.priceStatus === "STALE_LAST_KNOWN" || preview.priceStatus === "SUSPICIOUS" ? (
-              <p className="add-holding-preview-status">{t.previewNoDailyFromStale}</p>
             ) : null}
           </div>
         ) : null}

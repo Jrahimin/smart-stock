@@ -412,3 +412,4 @@ def test_suggestion_retains_resolved_account_mark_when_universe_quote_is_unusabl
         assert watched.display_quote == suggestion.display_quote
         assert suggestion.display_quote.current_price == 103
         assert suggestion.price_status == watched.price_status == PortfolioPriceStatus.FINALIZED
+        assert watched.mark_authority == "RECORDED"

@@ -171,6 +171,7 @@ def monitor_universe_payload(
     expected_source_last_synced_at: datetime | None,
     previous_payload: ScoredUniverseCacheRead | None = None,
     cross_surface_results: tuple[CanonicalDecisionResultRead, ...] = (),
+    allow_legacy: bool = False,
 ) -> TradingIntelligenceMonitoringReport:
     issues: list[TradingIntelligenceMonitoringIssue] = []
 
@@ -182,11 +183,13 @@ def monitor_universe_payload(
     ) -> None:
         issues.append(TradingIntelligenceMonitoringIssue(code, severity, message, stock_id))
 
-    if payload.strategy_version != TRADING_STRATEGY_VERSION:
+    from app.core.constants.trading_constants import production_version_pair, trading_input_schema_version
+    accepted_legacy = allow_legacy and production_version_pair(payload.strategy_version, payload.threshold_version)
+    if payload.strategy_version != TRADING_STRATEGY_VERSION and not accepted_legacy:
         add("STALE_STRATEGY_VERSION", "ERROR", "Universe strategy version is not current.")
-    if payload.threshold_version != TRADING_THRESHOLD_VERSION:
+    if payload.threshold_version != TRADING_THRESHOLD_VERSION and not accepted_legacy:
         add("STALE_THRESHOLD_VERSION", "ERROR", "Universe threshold version is not current.")
-    if payload.input_schema_version != TRADING_INPUT_SCHEMA_VERSION:
+    if payload.input_schema_version != (trading_input_schema_version(payload.strategy_version) if accepted_legacy else TRADING_INPUT_SCHEMA_VERSION):
         add("STALE_INPUT_SCHEMA_VERSION", "ERROR", "Universe input schema is not current.")
     if payload.decision_taxonomy_version != DECISION_TAXONOMY_VERSION:
         add(
@@ -228,6 +231,8 @@ def monitor_universe_payload(
             )
             continue
         universe_by_stock[stock_id] = canonical
+        if canonical.strategy_version != payload.strategy_version or canonical.threshold_version != payload.threshold_version:
+            add("ROW_POLICY_MISMATCH", "ERROR", "Canonical policy does not match the selected publication.", stock_id)
         if canonical.input_hash is None or len(canonical.input_hash) != 64:
             add(
                 "INVALID_INPUT_HASH",

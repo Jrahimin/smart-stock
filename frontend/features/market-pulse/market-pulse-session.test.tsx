@@ -7,21 +7,20 @@ import { MarketPulseHero } from "./components/market-pulse-hero";
 import { getMarketPulseLanguage } from "./market-pulse-language";
 
 vi.mock("@/components/command/workspace-command-search", () => ({ WorkspaceCommandSearch: () => null }));
-vi.mock("@/components/layout/market-data-freshness-bar", () => ({ MarketDataFreshnessBar: () => <span>OPEN</span> }));
+vi.mock("@/components/layout/market-data-freshness-bar", () => ({ MarketDataFreshnessBar: () => null }));
 vi.mock("@/features/market-dashboard/components/dashboard-locale-switcher", () => ({ DashboardLocaleSwitcher: () => null }));
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 
-it.each(["en", "bn"] as const)("renders the earlier quote session beside today's open market (%s)", locale => {
+it.each(["en", "bn"] as const)("renders the decision date without earlier-quote freshness copy (%s)", locale => {
   vi.useFakeTimers(); vi.setSystemTime(new Date("2026-11-12T05:00:00Z"));
   const { pulse } = order4SurfaceFixture();
   pulse.coverage!.market_status = "OPEN";
   pulse.coverage!.quote_session_date = "2026-11-10";
   const model = buildMarketPulseViewModel(pulse, locale);
   const view = render(<MarketPulseHero hero={model.hero} briefingChips={model.briefingChips} copy={getMarketPulseLanguage(locale)} locale={locale} />);
-  const line = view.getByRole("status");
-  expect(line.textContent).toContain(locale === "en" ? "today's prices are not in yet" : "আজকের দাম আসেনি");
-  expect(line.textContent).toContain(locale === "en" ? "Analysis 10 Nov" : "বিশ্লেষণ 10 নভেম্বর");
-  expect(view.container.querySelector(".explorer-hero-status-row")?.textContent).toContain("OPEN");
+  expect(view.container.querySelector(".pulse-hero-session")?.textContent).toContain(locale === "en" ? "10 Nov" : "10 নভেম্বর");
+  expect(view.container.textContent).not.toContain(locale === "en" ? "today's prices are not in yet" : "আজকের দাম আসেনি");
+  expect(view.queryByRole("status")).toBeNull();
 });
 
 it.each(["en", "bn"] as const)("does not mistake yesterday's finalized decision for a missing current quote (%s)", locale => {
@@ -31,7 +30,8 @@ it.each(["en", "bn"] as const)("does not mistake yesterday's finalized decision 
   pulse.coverage!.quote_session_date = "2026-11-12";
   const model = buildMarketPulseViewModel(pulse, locale);
   const view = render(<MarketPulseHero hero={model.hero} briefingChips={model.briefingChips} copy={getMarketPulseLanguage(locale)} locale={locale} />);
-  expect(view.getByRole("status").textContent).toContain(locale === "en" ? "Market open · Analysis 10 Nov" : "লেনদেন চলছে · বিশ্লেষণ 10 নভেম্বর");
+  expect(view.container.querySelector(".pulse-hero-session")?.textContent).toContain(locale === "en" ? "10 Nov" : "10 নভেম্বর");
+  expect(view.queryByRole("status")).toBeNull();
   expect(view.container.textContent).not.toContain(locale === "en" ? "prices are not in" : "দাম আসেনি");
 });
 

@@ -24,7 +24,7 @@ it.each(["en", "bn"] as const)("removes operation updates while preserving dated
     session_trade_date: "2026-07-21",
     items: [{ time: "2026-07-21", title: "Market snapshot ready",
       description: "426 active instruments in the latest price snapshot." },
-      { time: "2026-07-21", title: "Dated market event", description: "Reported stock event", source_url: "https://example.com/source" }],
+      { kind:"NEWS", time: "2026-07-21", title: "Dated market event", description: "Reported stock event", source_url: "https://example.com/source" }],
   }), locale, getDashboardLanguage(locale));
   const html = renderToStaticMarkup(<MarketTimeline items={items} copy={copy} loading={false} />);
   expect(html).not.toContain(copy.snapshotUpdate); expect(html).not.toContain("426 active instruments"); expect(html).toContain("Dated market event");

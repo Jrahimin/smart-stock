@@ -41,7 +41,7 @@ def build_event_timeline(
             EventTimelineItem(
                 event_type=event.event_type.value,
                 category=_event_category(event.event_type),
-                event_date=event.event_date.isoformat(),
+                event_date="" if (event.metadata_json or {}).get("publication_date_basis") == "UNKNOWN" else event.event_date.isoformat(),
                 title=event.title,
                 summary=event.summary,
                 source=event.source,

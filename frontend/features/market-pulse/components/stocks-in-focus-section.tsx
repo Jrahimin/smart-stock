@@ -1,5 +1,7 @@
 "use client";
 
+import { TopSetupSummary } from "@/components/market/top-setup-summary";
+
 import { getPulsePresentationLanguage } from "@/features/market-pulse/market-pulse-presentation-language";
 import { MeasuredDecisionFacts } from "@/components/market/measured-decision-facts";
 import { publishedSetupCondition } from "@/lib/market/published-setup-condition";
@@ -37,12 +39,13 @@ export function FocusStockCard({ stock, copy, scoreCopy, sharedDecisionDate, sha
           <div className="pulse-focus-identity">
             <strong title={stock.symbol}>{stock.symbol}</strong>
             <span title={stock.name}>{stock.name}</span>
-            <SignalBadge signal={["POTENTIAL_BUY", "WAIT", "HOLD", "SELL"].includes(stock.recommendation ?? "") ? stock.recommendation as DecisionDisplayAction : null} locale={stock.locale ?? "en"} />
+            {!stock.topSetup ? <SignalBadge signal={["POTENTIAL_BUY", "WAIT", "HOLD", "AVOID", "SELL"].includes(stock.recommendation ?? "") ? stock.recommendation as DecisionDisplayAction : null} locale={stock.locale ?? "en"} /> : null}
           </div>
         </div>
-        <PulseScoreHeaderCluster breakdown={stock.scoreBreakdown} copy={scoreCopy} score={stock.pulseScore} />
+        {!stock.topSetup ? <PulseScoreHeaderCluster breakdown={stock.scoreBreakdown} copy={scoreCopy} score={stock.pulseScore} /> : null}
       </div>
 
+      {stock.topSetup ? <TopSetupSummary setup={stock.topSetup} assessment={stock.entryApplicability} locale={stock.locale ?? "en"} /> : <>
       <div className="pulse-focus-conviction">
         <small>{sharedDecisionDate ? language.forNewBuyers : stock.decisionContext}</small>
         <EntryApplicabilityLabel assessment={stock.entryApplicability} locale={stock.locale ?? "en"} policyReason={stock.controllingReason} />
@@ -60,10 +63,11 @@ export function FocusStockCard({ stock, copy, scoreCopy, sharedDecisionDate, sha
       <small className="pulse-focus-risk">{scoreCopy.tradingRisk}: <strong>{riskValueLabel(stock.entryRiskLabel, stock.locale ?? "en")}</strong></small>
       {stock.watchLevel != null && !condition ? <small>{copy.watchLevel}: {stock.watchLevel.toFixed(2)}</small> : null}
 
+      </>}
       <div className="pulse-focus-card-footer">
         <div className="pulse-focus-quote-values">
-          {sharedQuoteDate ? <small>{language.closingPrice}</small> : stock.displayQuote ? <QuotePublicationLabel quote={stock.displayQuote} locale={stock.locale ?? "en"} /> : <small>{stock.locale === "bn" ? "সেশনের সমাপনী দর" : "Session close"} · {shortTradeDate(stock.decisionDate, stock.locale)}</small>}
           <span className="pulse-focus-price">{stock.latestPrice}</span>
+          <QuotePublicationLabel quote={stock.displayQuote} locale={stock.locale ?? "en"} />
           <span className={`pulse-focus-change pulse-focus-change-${stock.priceTone}`}>{stock.priceChangePercent}</span>
         </div>
         <MiniSparkline points={stock.sparklinePoints} tone={stock.priceTone} />
@@ -74,6 +78,7 @@ export function FocusStockCard({ stock, copy, scoreCopy, sharedDecisionDate, sha
 }
 
 type StocksInFocusSectionProps = {
+  locale?: import("@/lib/locale/app-locale").AppLocale;
   stocks: FocusStockModel[];
   stockCount?: number;
   isLoading?: boolean;
@@ -83,6 +88,7 @@ type StocksInFocusSectionProps = {
 };
 
 export function StocksInFocusSection({
+  locale = "en",
   stocks,
   stockCount = stocks.length,
   isLoading = false,
@@ -109,7 +115,7 @@ export function StocksInFocusSection({
               {copy.eyebrow}
             </p>
             <h2 id="pulse-focus-heading">
-              {usingMonitorFallback ? copy.titleMonitorFallback : copy.titleDefault}
+              Top setups to watch
             </h2>
             {sharedDate ? <small className="pulse-shared-date">{sharedQuoteDate ? language.analysisAndClose : language.analysis} · {shortTradeDate(sharedDate, stocks[0]?.locale)}</small> : null}
           </div>
@@ -126,6 +132,7 @@ export function StocksInFocusSection({
           </div>
         ) : (
           <div className={gridClass}>
+            {!stocks.length ? <p className="sw-state">{locale === "bn" ? "এই মুহূর্তে উপযুক্ত setup নেই।" : "No qualified setups at the moment."}</p> : null}
             {stocks.map((stock) => (
               <FocusStockCard copy={copy} key={stock.stockId} scoreCopy={scoreCopy} sharedDecisionDate={sharedDate} sharedQuoteDate={sharedQuoteDate} stock={stock} />
             ))}

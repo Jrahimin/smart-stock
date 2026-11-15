@@ -4,18 +4,46 @@ DEFAULT_LONG_MOVING_AVERAGE_PERIOD = 50
 
 # Canonical live decision identity. Threshold-only changes must increment the
 # threshold version even when the API shape and strategy family stay stable.
-TRADING_STRATEGY_VERSION = "trading-intelligence-v3"
-SUPPORTED_TRADING_STRATEGY_VERSIONS = ("trading-intelligence-v2", TRADING_STRATEGY_VERSION)
-TRADING_THRESHOLD_VERSION = "trading-thresholds-v3"
+TRADING_STRATEGY_VERSION = "trading-intelligence-v4"
+# Shadow identities are audit-only. Production builders always use v4.
+TRADING_SHADOW_VERSIONS = tuple(
+    f"trading-intelligence-v4-shadow-{arm}"
+    for arm in ("market", "risk", "rsi", "pullback", "ranking", "combined")
+)
+SUPPORTED_TRADING_STRATEGY_VERSIONS = (
+    "trading-intelligence-v2", "trading-intelligence-v3", TRADING_STRATEGY_VERSION,
+    *TRADING_SHADOW_VERSIONS,
+    "trading-intelligence-v3-shadow-market",
+)
+TRADING_THRESHOLD_VERSION = "trading-thresholds-v4"
+
+
+def trading_threshold_version(strategy_version: str) -> str:
+    # v2 captures were published with v3 identity metadata on the original main.
+    return "trading-thresholds-v3" if strategy_version in {
+        "trading-intelligence-v2", "trading-intelligence-v3",
+    } else TRADING_THRESHOLD_VERSION
 LEGACY_TRADING_ACTION_TAXONOMY = "TRADER_RECOMMENDATION_V1"
 TRADING_ACTION_TAXONOMY = "TRADER_DECISION_V2"
 DECISION_TAXONOMY_VERSION = "v2"
 # Version the canonical serialization used for input hashes, cache envelopes,
 # immutable decision snapshots, and replay manifests. Bump this whenever the
 # hashed input contract changes even if strategy thresholds do not.
-TRADING_INPUT_SCHEMA_VERSION = "trading-input-v3"
+TRADING_INPUT_SCHEMA_VERSION = "trading-input-v4"
+
+
+def trading_input_schema_version(strategy_version: str) -> str:
+    return "trading-input-v3" if strategy_version in {"trading-intelligence-v2", "trading-intelligence-v3"} else TRADING_INPUT_SCHEMA_VERSION
 DECISION_CAPTURE_VERSION = "decision-capture-v2"
-SHORTLIST_RANKING_VERSION = "entry-shortlist-v1"
+SHORTLIST_RANKING_VERSION = "entry-shortlist-v2-permission"
+# Sealed research ownership is independent of the production default.
+RESEARCH_STRATEGY_VERSION = "trading-intelligence-v3"
+RESEARCH_THRESHOLD_VERSION = "trading-thresholds-v3"
+RESEARCH_RANKING_VERSION = "entry-shortlist-v1"
+
+
+def production_version_pair(strategy: str, threshold: str) -> bool:
+    return strategy in {"trading-intelligence-v2", "trading-intelligence-v3", TRADING_STRATEGY_VERSION} and threshold == trading_threshold_version(strategy)
 TRADING_REPLAY_MANIFEST_VERSION = "trading-replay-manifest-v2"
 
 # Operational drift gates compare consecutive like-for-like universe payloads.

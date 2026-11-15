@@ -42,12 +42,12 @@ export function buildPulseSummaryQueryKey(params: {
   exchange?: ExchangeCode;
   displayName?: string | null;
   previousSnapshot?: BackendMarketPulsePreviousSnapshotDto | null;
-}): readonly ["market-pulse-summary", typeof PRICE_BASIS_CONTRACT, ExchangeCode, string | null, string | null] {
+}): readonly ["market-pulse-summary", typeof PRICE_BASIS_CONTRACT, ExchangeCode, string | null, string | null, "setups-v1"] {
   const exchange = params.exchange ?? "DSE";
   const displayName = normalizeDisplayName(params.displayName);
   const previousSnapshotFingerprint = buildPreviousSnapshotFingerprint(params.previousSnapshot);
 
-  return ["market-pulse-summary", PRICE_BASIS_CONTRACT, exchange, displayName, previousSnapshotFingerprint];
+  return ["market-pulse-summary", PRICE_BASIS_CONTRACT, exchange, displayName, previousSnapshotFingerprint, "setups-v1"];
 }
 
 export function buildPulseBriefingQueryKey(params: {

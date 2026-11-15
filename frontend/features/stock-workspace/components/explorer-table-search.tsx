@@ -2,10 +2,7 @@
 
 import { Search, X } from "lucide-react";
 import {
-  startTransition,
-  useEffect,
   useId,
-  useState,
   type ChangeEvent,
   type KeyboardEvent,
 } from "react";
@@ -25,38 +22,16 @@ export function ExplorerTableSearch({
   placeholder,
   ariaLabel,
   clearAriaLabel,
-  debounceMs = 200,
 }: ExplorerTableSearchProps) {
   const inputId = useId();
-  const [draft, setDraft] = useState(value);
-
-  useEffect(() => {
-    setDraft(value);
-  }, [value]);
-
-  useEffect(() => {
-    if (draft === value) {
-      return;
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      startTransition(() => {
-        onChange(draft);
-      });
-    }, debounceMs);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [debounceMs, draft, onChange, value]);
+  const draft = value;
 
   function handleChange(event: ChangeEvent<HTMLInputElement>) {
-    setDraft(event.target.value);
+    onChange(event.target.value);
   }
 
   function clear() {
-    setDraft("");
-    startTransition(() => {
-      onChange("");
-    });
+    onChange("");
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {

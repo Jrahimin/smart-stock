@@ -183,6 +183,7 @@ def compute_recommendation(
             "elevated_trading_risk",
             "overextended_price",
             "extended_momentum",
+            "market_evidence_unknown",
             "regime_plan_not_permitted",
         )
         controlling = next(

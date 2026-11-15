@@ -8,7 +8,7 @@ from statistics import mean, median
 from app.core.audit_hashing import stable_audit_hash
 from app.core.enums import EligibilityStatus
 from app.modules.backtesting.backtesting_evaluation import observation_key, shortlist_key, top_five
-from app.modules.market_universe.shortlist import RANKING_POLICY_VERSION
+from app.core.constants.trading_constants import RESEARCH_RANKING_VERSION
 from app.modules.stock_details.decision.event_availability import utc_instant, available_event_revisions, effective_event_dates
 from app.modules.trading_intelligence.input_capture import restore_strategy_input
 
@@ -27,7 +27,7 @@ CHALLENGER_INPUT_PROVENANCE = {
 EXPERIMENT = {
     "version": "phase2-shadow-factors-v4",
     "forward_cohort": {"selection_sessions": 120, "primary_horizon": 10, "formal_assessment": "ONCE_AT_PREDECLARED_ENDPOINT", "weekly_reporting": "COVERAGE_AND_MATURITY_ONLY"},
-    "ranking_baseline": RANKING_POLICY_VERSION,
+    "ranking_baseline": RESEARCH_RANKING_VERSION,
     "entry_baseline": "canonical-plan-v1",
     "families": (
         "relative_strength",

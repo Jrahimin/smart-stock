@@ -1,3 +1,6 @@
+import { TopSetupSummary } from "@/components/market/top-setup-summary";
+import { decisionConditionLabel } from "@/lib/market/decision-presentation";
+import { isInternalFreshnessReason } from "@/lib/market/market-presentation-policy";
 import { shortTradeDate } from "@/lib/formatters/trader-formatters";
 import { MeasuredDecisionFacts } from "@/components/market/measured-decision-facts";
 import { PublishedSetupCondition } from "@/components/market/published-setup-condition";
@@ -32,10 +35,23 @@ export const SmartSignalFeed = memo(function SmartSignalFeed({
     : decision?.decision_status === "UNAVAILABLE" ? copy.signalsUnavailable
     : warmingUp && !signals.length ? copy.signalsUpdating : !signals.length ? copy.signalsEmpty : null;
   const rows = state ? [] : signals.slice(0, 5);
+  if (rows.length && rows.every(signal => signal.topSetup)) {
+    const allBreakouts = rows.every(row => row.topSetup!.setup_type === "BREAKOUT");
+    const allAwaitingBreakout = allBreakouts && rows.every(row => row.topSetup!.readiness === "AWAITING_CONFIRMATION");
+    const allPriceWait = rows.every(row => row.topSetup!.readiness === "WAIT_FOR_PRICE");
+    const label = allAwaitingBreakout ? `${rows.length} awaiting breakout` : allPriceWait ? `${rows.length} awaiting entry range` : allBreakouts ? `${rows.length} Breakout plans` : `${rows.length} setups to watch`;
+    const note = allBreakouts ? (locale === "bn" ? "Close confirmation ও supporting volume মিলিয়ে নিন" : "Close confirmation + supporting volume") : (locale === "bn" ? "প্রতিটি setup-এর Entry condition দেখুন" : "Review each setup’s entry condition");
+    return <section className="sw-signals setup-reference-panel" aria-labelledby="sw-signals-title" aria-busy={loading}>
+      <div className="sw-section-head" data-guide="smart-signals" data-guide-extent="sw-signal-example"><div className="sw-section-heading"><h2 id="sw-signals-title" className="sw-section-title">Top setups to watch</h2><DecisionPublicationLabel decision={decision} locale={locale} /></div><Link className="sw-section-link" href="/signals" prefetch={false}>{locale === "bn" ? "সব signals" : "All signals"} ↗</Link></div>
+      <p className="setup-reference-summary"><span aria-hidden="true"/><strong>{label}</strong><span className="setup-reference-summary-note">{note}</span></p>
+      <div className="setup-reference-table" role="table" aria-label="Top setups to watch"><div className="setup-reference-columns" role="row"><span role="columnheader">Stock / trigger</span><span role="columnheader">Entry zone (৳)</span><span role="columnheader">Stop (৳)</span><span role="columnheader">Risk</span><span role="columnheader" className="sr-only">Details</span></div><div role="rowgroup">{rows.map((signal,index)=><TopSetupSummary key={signal.symbol} setup={signal.topSetup!} assessment={signal.entryApplicability} locale={locale} compact symbol={signal.symbol} href={signal.href} rowId={index === 0 ? "sw-signal-example" : undefined}/>)}</div></div>
+    </section>;
+  }
   const signalCopy = getDashboardLanguage(locale).signals;
   const waitGroups = new Map<string, { text: string; rows: SignalFeedItemModel[] }>();
   for (const signal of rows) {
     if (signal.signal !== "WAIT") continue;
+    if (isInternalFreshnessReason(signal.reasonKey) || isInternalFreshnessReason(signal.reasonCode)) continue;
     const text = signal.reasonKey === "data_not_eligible" ? copy.sharedWait
       : signal.reasonKey === "stale_sparse_data" ? copy.sharedStaleWait
         : resolveDecisionReasonSummary({ key: signal.reasonKey, params: signal.reasonParams, rawReason: signal.reasonSummary }, signalCopy.decisionReasons);
@@ -51,7 +67,7 @@ export const SmartSignalFeed = memo(function SmartSignalFeed({
   return <section className="sw-signals" aria-labelledby="sw-signals-title" aria-busy={loading}>
     <div className="sw-section-head" data-guide="smart-signals" data-guide-extent="sw-signal-example">
       <div className="sw-section-heading">
-        <h2 className="sw-section-title" id="sw-signals-title">Smart Signals</h2>
+        <h2 className="sw-section-title" id="sw-signals-title">Top setups to watch</h2>
         <DecisionPublicationLabel decision={decision} locale={locale} />
       </div>
       <Link className="sw-section-link" href="/signals" prefetch={false}>{copy.signalCenter} <span aria-hidden="true">→</span></Link>
@@ -72,17 +88,20 @@ export const SmartSignalFeed = memo(function SmartSignalFeed({
         const entry = signal.signal === "POTENTIAL_BUY" && signal.entryCondition
           ? localizeEntryCondition(signal.entryCondition, locale, dashboardEntryConditions[locale]) : null;
         const selected = selectedDecisionExplanation(signal.decisionSummary, locale);
-        const policy = controllingReasonLabel(signal.reasonCode, "", locale);
+        const policy = decisionConditionLabel(signal.reasonCode, signal.entryApplicability, locale, signal.decisionSummary?.eligibility_reason_codes);
+        const internalReason=isInternalFreshnessReason(signal.reasonCode)||isInternalFreshnessReason(signal.reasonKey);
         const condition = signal.decisionSummary ? policy || selected.limitation : sharedWait ? evidence || copy.evidenceUnavailable : entry ? `${locale === "bn" ? "প্রকাশিত শর্ত" : "Dated condition"}: ${entry}` : signal.reason;
         return <tr id={index === 0 ? "sw-signal-example" : undefined} key={signal.symbol + "-" + signal.signal} role="row">
           <th scope="row" role="rowheader"><Link href={signal.href} prefetch={false}>{signal.symbol}</Link>{signal.decisionDate && signal.decisionDate !== decision?.decision_session_date ? <small>{shortTradeDate(signal.decisionDate, locale)}</small> : null}</th>
           <td role="cell"><span className={"sw-action sw-action-" + signal.signal}>{signal.signal ? copy.actions[signal.signal] : copy.missing}</span></td>
           <td role="cell" aria-describedby={sharedWait ? "sw-signal-context" : undefined}>
+            {signal.topSetup ? <TopSetupSummary setup={signal.topSetup} assessment={signal.entryApplicability} locale={locale} /> : <>
+            {internalReason ? null : sharedWait ? signal.measuredFacts ? null : evidence || copy.evidenceUnavailable : isDatedPlanGuidance(signal.reasonCode) ? null : policy || condition?.trim() || copy.conditionUnavailable}
             {signal.entryApplicability?.status !== "UNVERIFIED" ? <EntryApplicabilityLabel assessment={signal.entryApplicability} locale={locale} policyReason={policy} /> : null}
             <PublishedSetupCondition facts={signal.measuredFacts} assessment={signal.entryApplicability} locale={locale} reasonCode={signal.reasonCode} />
-            {sharedWait ? signal.measuredFacts ? null : evidence || copy.evidenceUnavailable : isDatedPlanGuidance(signal.reasonCode) ? null : policy || condition?.trim() || copy.conditionUnavailable}
             <MeasuredDecisionFacts facts={signal.measuredFacts} locale={locale} />
             {!signal.measuredFacts ? (signal.decisionSummary && selected.support ? <small className="sw-signal-evidence">{selected.support}</small> : entry && evidence ? <small className="sw-signal-evidence">{evidence}</small> : null) : null}
+            </>}
           </td>
           <td role="cell">{copy.risks[risk] ?? copy.missing}</td>
         </tr>;

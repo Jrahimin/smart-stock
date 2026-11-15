@@ -2,9 +2,8 @@
 
 import React from "react";
 import { shortTradeDate } from "@/lib/formatters/trader-formatters";
-import { QuoteObservationTimes } from "@/components/ui/quote-observation-times";
 import Link from "next/link";
-import { QuotePublicationLabel } from "@/components/ui/market-publication-label";
+import { PortfolioPricePublication } from "./portfolio-price-publication";
 import { portfolioLanguage } from "@/features/portfolio/portfolio-language";
 import { accountQuoteForPrice, financialTone, formatPortfolioMoney, formatSignedPercent, getPortfolioWhatNextCopy, portfolioHolderReason, portfolioRowAction, portfolioRowComparison } from "@/features/portfolio/view-models/portfolio-view-model";
 import type { BackendPortfolioHoldingDto } from "@/lib/api/backend-api-types";
@@ -19,13 +18,8 @@ export function AccountMarketCell({ item, locale }: { item: BackendPortfolioHold
   return <div className="portfolio-market-cell">
     <strong>{formatPortfolioMoney(item.current_price, locale)}</strong>
     {hasChange && item.price_change_percent != null && <small className={`is-${financialTone(item.price_change_percent)}`}>{formatSignedPercent(item.price_change_percent)}</small>}
-    <details className="portfolio-mark-detail">
-      <summary>{t.priceStatus[item.price_status]}{item.latest_trade_date ? ` · ${shortTradeDate(item.latest_trade_date, locale)}` : ""}</summary>
-      <div>
-        {quote && <QuoteObservationTimes quote={quote} locale={locale} />}
-        {item.previous_close != null && <small>{t.previousClose}: {formatPortfolioMoney(item.previous_close, locale)}</small>}
-      </div>
-    </details>
+    <PortfolioPricePublication item={item} locale={locale} />
+    {item.previous_close != null && <small>{t.previousClose}: {formatPortfolioMoney(item.previous_close,locale)}</small>}
   </div>;
 }
 

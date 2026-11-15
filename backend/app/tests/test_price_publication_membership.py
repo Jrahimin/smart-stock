@@ -58,6 +58,28 @@ def price(stock_id, day, low=99, source=None):
         source_observed_at=source, batch_fetched_at=datetime.now(DHAKA_TZ))
 
 
+def completed_source_clock(quote_day, known_at, settings):
+    """A source observation within a fully elapsed session, before real writes."""
+    local_known = known_at.astimezone(DHAKA_TZ)
+    boundary = min(local_known.replace(hour=0, minute=0, second=0, microsecond=0),
+        datetime.combine(quote_day, datetime.min.time(), tzinfo=DHAKA_TZ))
+    opening, closing, _ = entry_quote_session(boundary-timedelta(microseconds=1), settings)
+    return opening+(closing-opening)/2
+
+
+@pytest.mark.parametrize("known", ["2026-11-15T01:00:00+06:00", "2026-11-15T11:00:00+06:00",
+    "2026-11-15T17:00:00+06:00", "2026-11-13T12:00:00+06:00", "2026-11-14T12:00:00+06:00"])
+def test_completed_source_clock_precedes_receipt_and_quote_session(known):
+    known = datetime.fromisoformat(known)
+    assessed = max(known, known.replace(hour=16, minute=0, second=0, microsecond=0))
+    settings = Settings()
+    quote_day = entry_quote_session(assessed, settings)[1].date()
+    source = completed_source_clock(quote_day, known, settings)
+    assert source < known and source.date() < quote_day
+    opening, closing, _ = entry_quote_session(source, settings)
+    assert opening <= source <= closing
+
+
 async def activate(session, reference):
     session.add(TradingSourceObservation(source_table="daily_prices", source_row_id="activation", session_date=reference,
         operation="INSERT", observed_at=datetime.combine(reference-timedelta(days=1), datetime.min.time(), tzinfo=DHAKA_TZ),
@@ -112,10 +134,22 @@ async def test_normal_same_transaction_publisher_and_live_promotion(price_db, mo
         assessed = max(assessed, assessed.replace(hour=16, minute=0, second=0))
         day = entry_quote_session(assessed, Settings())[1].date()
         reference = day-timedelta(days=1)
+        source_clock = None
+        if case == "source-low-recovered":
+            known_at = await session.scalar(text("SELECT clock_timestamp()"))
+            source_clock = completed_source_clock(day, known_at, Settings())
+            assert source_clock < known_at and source_clock.date() < day
+            reference = source_clock.date()-timedelta(days=1)
         stock = Stock(id=uuid4(), symbol="MEMBER", name="Publication fixture", exchange=ExchangeCode.DSE)
         session.add(stock); await session.commit(); await activate(session, reference)
-        row = price(stock.id, day, 95 if case in {"95-to-99", "source-low-recovered", "legacy-clock"} else 99,
-            datetime.combine(day, datetime.min.time(), tzinfo=DHAKA_TZ).replace(hour=11) if case == "source-low-recovered" else None)
+        if source_clock is not None:
+            # The source low genuinely predates the trigger receipt. Recover the
+            # older mutable row before publishing the separate quote-day member.
+            historical = price(stock.id, source_clock.date(), 95, source_clock)
+            session.add(historical); await session.commit()
+            historical.low_price = 99; historical.source_observed_at = None
+            await session.commit()
+        row = price(stock.id, day, 95 if case in {"95-to-99", "source-low-recovered", "legacy-clock"} else 99)
         session.add(row); await session.commit()
         transaction_start = await session.scalar(text("SELECT now()"))
         row.low_price = 95 if case == "99-to-95-recovered" else 98 if case == "ordinary-close" else 99
@@ -159,6 +193,7 @@ async def test_normal_same_transaction_publisher_and_live_promotion(price_db, mo
             assert projected[stock.id].price_basis == "LAST_CLOSE" and paths[0].complete
             assert (day, 95.0) not in paths[0].reliable_lows
         if case == "99-to-95-recovered": assert (day, 95.0) in paths[0].reliable_lows
+        if source_clock is not None: assert (source_clock.date(), 95.0) in paths[0].reliable_lows
         journal = list((await session.scalars(select(TradingSourceObservation).where(TradingSourceObservation.source_table == PRICE_PUBLICATION_SOURCE))).all())
         if case == "legacy-clock": assert not journal
         else:
@@ -243,16 +278,28 @@ async def test_decision_revision_inherits_exact_parent_membership_and_live_promo
         evidence = await repository.list_finalized_price_publications(exchange=ExchangeCode.DSE, start_date=day-timedelta(days=1), end_date=day, known_by=datetime.now(DHAKA_TZ)+timedelta(seconds=1))
         assert len(evidence) == 1 and float(evidence[0].price_versions[0]["low_price"]) == 99
         universe = MarketUniverseService(repository, object(), object(), Settings())
+        async def observed_status(context):
+            # Membership is asserted after the DB publication is known. Avoid a
+            # host-clock race; no authentication predicate is mocked or weakened.
+            from sqlalchemy import func
+            from unittest.mock import patch
+            known_at = await session.scalar(select(func.clock_timestamp()))
+            class AssessedClock(datetime):
+                @classmethod
+                def now(cls, tz=None):
+                    return known_at.astimezone(tz) if tz else known_at.replace(tzinfo=None)
+            with patch("app.modules.market_universe.market_universe_service.datetime", AssessedClock):
+                return (await universe.get_display_quotes({stock.id}, context=context, price_basis_v2=True))[stock.id].observation_status
         child_context = replace(context, sync_id=child_sync, data_state=MarketDataState.FINALIZED)
         expected = "UNAVAILABLE" if raw_replaced else "FINALIZED"
-        assert (await universe.get_display_quotes({stock.id}, context=child_context, price_basis_v2=True))[stock.id].observation_status == expected
+        assert await observed_status(child_context) == expected
         publisher._resolve_published_market_generation = AsyncMock(return_value=child_context)
         final_revision = await publisher.publish_decision_input_revision(exchange=ExchangeCode.DSE, source="second-decision-only-correction")
         final_context = replace(child_context, sync_id=final_revision)
-        assert (await universe.get_display_quotes({stock.id}, context=final_context, price_basis_v2=True))[stock.id].observation_status == expected
+        assert await observed_status(final_context) == expected
         republished = await publisher.publish_market_generation(exchange=ExchangeCode.DSE, trade_date=day, state=MarketDataState.FINALIZED,
             source="real-price-correction", fetched_count=1, accepted_count=1, suspicious_count=0)
-        assert (await universe.get_display_quotes({stock.id}, context=replace(final_context, sync_id=republished), price_basis_v2=True))[stock.id].observation_status == "FINALIZED"
+        assert await observed_status(replace(final_context, sync_id=republished)) == "FINALIZED"
 
 
 async def test_snapshot_membership_rejects_concurrent_old_transaction_replacement(price_db):

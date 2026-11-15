@@ -7,7 +7,7 @@ import { useMemo, useState } from "react";
 import { WorkspacePageHero } from "@/components/layout/workspace-page-hero";
 import { MarketActivityLoader } from "@/components/ui/market-activity-loader";
 import { SignalBadge } from "@/components/ui/signal-badge";
-import { DecisionPublicationLabel, QuotePublicationLabel } from "@/components/ui/market-publication-label";
+import { DecisionPublicationLabel } from "@/components/ui/market-publication-label";
 import { WatchlistPriceCell } from "@/features/watchlist/components/watchlist-price-cell";
 import { WatchlistRowActions } from "@/features/watchlist/components/watchlist-row-actions";
 import { useUserWatchlist } from "@/features/watchlist/hooks/use-user-watchlist";
@@ -149,6 +149,9 @@ export function WatchlistView({ locale = DEFAULT_LOCALE }: { locale?: AppLocale 
               <option value="HOLD">HOLD</option>
               <option value="WAIT">WAIT</option>
               <option value="SELL">SELL</option>
+              <option value="AVOID">AVOID</option>
+              <option value="REVIEW">REVIEW</option>
+              <option value="REDUCE">REDUCE</option>
               <option value="NEW">NEW</option>
             </select>
           </label>
@@ -197,9 +200,6 @@ export function WatchlistView({ locale = DEFAULT_LOCALE }: { locale?: AppLocale 
               <div className="watchlist-cell watchlist-trend-header" role="columnheader">
                 Trend
               </div>
-              <div className="watchlist-cell watchlist-updated-header" role="columnheader">
-                Updated
-              </div>
             </div>
           </div>
           <div className="watchlist-table-body" role="rowgroup">
@@ -245,6 +245,7 @@ export function WatchlistView({ locale = DEFAULT_LOCALE }: { locale?: AppLocale 
                     </div>
                     <div className="watchlist-cell watchlist-price-column" role="cell">
                       <WatchlistPriceCell
+                        locale={locale}
                         buyPriceDraft={buyPriceDraft}
                         isEditingBuyPrice={isEditingBuyPrice}
                         onBuyPriceDraftChange={setBuyPriceDraft}
@@ -299,9 +300,6 @@ export function WatchlistView({ locale = DEFAULT_LOCALE }: { locale?: AppLocale 
                     </div>
                     <div className="watchlist-cell watchlist-trend-cell" role="cell">
                       <span className={`watchlist-trend-badge watchlist-trend-${row.trendTone}`}>{row.trendLabel}</span>
-                    </div>
-                    <div className="watchlist-cell watchlist-updated-cell" role="cell">
-                      <QuotePublicationLabel locale={locale} quote={row.intelligence?.displayQuote} />
                     </div>
                   </div>
                 );

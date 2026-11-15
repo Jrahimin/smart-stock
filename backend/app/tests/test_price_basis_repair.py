@@ -99,7 +99,7 @@ async def test_historic_basis_presence_controls_both_pulse_trigger_projections(b
         universe_service=SimpleNamespace(project_current_entries=AsyncMock(return_value=snapshot)), redis=object(), settings=Settings())
     refreshed = await service._refresh_current_fields(_pulse("cached").model_copy(update={"focus_stocks": [item]}), snapshot)
     assert item.actionable_trigger is (basis == "CURRENT")
-    assert refreshed.focus_stocks[0].actionable_trigger is (basis == "CURRENT")
+    assert (refreshed.focus_stocks + refreshed.monitor_candidates)[0].actionable_trigger is (basis == "CURRENT")
 
 
 @pytest.mark.asyncio

@@ -11,6 +11,7 @@ from app.core.constants.trading_constants import (
     TRADING_STRATEGY_VERSION,
     SUPPORTED_TRADING_STRATEGY_VERSIONS,
     TRADING_THRESHOLD_VERSION,
+    trading_threshold_version,
 )
 from app.core.enums import (
     DecisionDisplayAction,
@@ -74,12 +75,14 @@ class BacktestConfig:
     rolling_train_sessions: int = 60
     frozen_test_sessions: int = 60
     strategy_version: str = TRADING_STRATEGY_VERSION
-    threshold_version: str = TRADING_THRESHOLD_VERSION
+    threshold_version: str | None = None
     decision_taxonomy_version: str = DECISION_TAXONOMY_VERSION
     sensitivity_cost_bps: tuple[float, ...] = (25, 50, 75)
     sensitivity_pulse_thresholds: tuple[int, ...] = (55, 60, 65)
 
     def __post_init__(self) -> None:
+        if self.threshold_version is None:
+            object.__setattr__(self, "threshold_version", trading_threshold_version(self.strategy_version))
         if self.start_date > self.end_date:
             raise ValueError("start_date must not be after end_date")
         if not self.horizons or any(horizon <= 0 for horizon in self.horizons):
@@ -121,8 +124,8 @@ class BacktestConfig:
             raise ValueError("Unknown replay mode")
         if self.strategy_version not in SUPPORTED_TRADING_STRATEGY_VERSIONS:
             raise ValueError("This replay build requires an explicitly supported strategy version")
-        if self.threshold_version != TRADING_THRESHOLD_VERSION:
-            raise ValueError("This replay build can only execute the current threshold version")
+        if self.threshold_version != trading_threshold_version(self.strategy_version):
+            raise ValueError("Strategy and threshold versions do not form an owning policy pair")
         if self.decision_taxonomy_version != DECISION_TAXONOMY_VERSION:
             raise ValueError("This replay build can only execute the current decision taxonomy")
 
@@ -218,6 +221,7 @@ class ReplayObservation:
     regime_score: int = 50
     regime_phase: MarketRegimePhase = MarketRegimePhase.HEALTHY
     regime_confidence: int = 0
+    regime_permission: str | None = None
     internal_action: TraderRecommendation | None = None
     display_action: DecisionDisplayAction | None = None
     decision_taxonomy_version: str = DECISION_TAXONOMY_VERSION
@@ -227,6 +231,10 @@ class ReplayObservation:
     trigger_price: float | None = None
     invalidation_price: float | None = None
     expiry_sessions: int | None = None
+    confirmation_rule: str | None = None
+    confirmation_support: float | None = None
+    non_holder_action: str | None = None
+    trade_plan_status: str | None = None
     average_volume: float | None = None
     target_price: float | None = None
     controlling_reason: str | None = None

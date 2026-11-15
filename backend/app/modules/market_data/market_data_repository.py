@@ -1,9 +1,9 @@
-from datetime import date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
 
 from fastapi import Depends
-from sqlalchemy import String, and_, cast, func, or_, select, true, union, update
+from sqlalchemy import DateTime, String, case, and_, cast, func, or_, select, true, union, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,6 +16,7 @@ from app.models import (
     DailyPrice,
     DividendEvent,
     MarketDataGeneration,
+    MarketEvent,
     Stock,
     TradingSourceObservation,
 )
@@ -26,6 +27,24 @@ class MarketDataRepository(BaseRepository[DailyPrice]):
 
     def __init__(self, session: AsyncSession) -> None:
         super().__init__(session)
+
+    async def list_session_news(self, *, exchange, start_date, end_date, limit=100, known_at=None):
+        from app.modules.market_data.news_versions import read_session_news
+        return await read_session_news(self.session, exchange=exchange, start_date=start_date, end_date=end_date,
+            known_at=known_at or datetime.now(UTC), limit=limit)
+
+    async def latest_verified_news_day(self, *, exchange, known_at):
+        from app.modules.market_data.news_versions import latest_verified_news_day
+        return await latest_verified_news_day(self.session,exchange=exchange,known_at=known_at)
+
+    async def list_latest_recorded_news(self, *, exchange, known_at, limit=100):
+        from app.modules.market_data.news_versions import read_latest_recorded_news
+        return await read_latest_recorded_news(self.session,exchange=exchange,known_at=known_at,limit=limit)
+
+    async def previous_completed_market_session(self, *, exchange, session_date):
+        return await self.session.scalar(select(func.max(DailyMarketSummary.trade_date)).where(
+            DailyMarketSummary.exchange == exchange, DailyMarketSummary.index_name == "DSEX",
+            DailyMarketSummary.is_finalized.is_(True), DailyMarketSummary.trade_date < session_date))
 
     async def list_daily_prices(self, *, stock_id: UUID, limit: int, offset: int) -> list[DailyPrice]:
         return await self.list_daily_prices_filtered(
@@ -222,27 +241,16 @@ class MarketDataRepository(BaseRepository[DailyPrice]):
         return list((await self.session.scalars(statement)).all())
 
     async def list_entry_basis_events(self, *, stock_ids, end_date):
-        from app.core.enums import CorporateActionSubtype, DividendStatus
-        from app.modules.stock_details.decision.entry_applicability import PriceBasisEvent
-        result = {}
+        from app.modules.stock_details.decision.entry_basis_events import project_entry_basis_events
         if not stock_ids:
-            return result
+            return {}
         actions = (await self.session.scalars(select(CorporateAction).where(
             CorporateAction.stock_id.in_(stock_ids), CorporateAction.effective_date <= end_date,
-            CorporateAction.action_subtype.in_([CorporateActionSubtype.SPLIT, CorporateActionSubtype.BONUS,
-                CorporateActionSubtype.RIGHTS, CorporateActionSubtype.MERGER]),
         ))).all()
-        for action in actions:
-            result.setdefault(action.stock_id, []).append(PriceBasisEvent(action.effective_date, action.action_subtype.value))
         dividends = (await self.session.scalars(select(DividendEvent).where(
             DividendEvent.stock_id.in_(stock_ids), DividendEvent.ex_dividend_date <= end_date,
-            DividendEvent.status.in_([DividendStatus.APPROVED, DividendStatus.PAID]),
-            or_(DividendEvent.stock_dividend_percent > 0, DividendEvent.cash_dividend_percent > 0,
-                DividendEvent.cash_amount_per_share > 0),
         ))).all()
-        for event in dividends:
-            result.setdefault(event.stock_id, []).append(PriceBasisEvent(event.ex_dividend_date, "EX_DIVIDEND"))
-        return result
+        return project_entry_basis_events(actions,dividends,end_date=end_date).events
 
     async def list_entry_path_observations(self, *, stock_ids, start_date, end_date):
         """Bulk path and append-only revisions; no per-symbol request queries."""

@@ -23,7 +23,7 @@ export function getDashboardSectors(exchange: ExchangeCode = "DSE", generation?:
 }
 
 export function getDashboardMarketAlerts(exchange: ExchangeCode = "DSE", generation?: string) {
-  return backendApiGetMarket<BackendDashboardMarketAlertsDto>("/dashboard/market-alerts", { exchange }, undefined, generation);
+  return backendApiGetFresh<BackendDashboardMarketAlertsDto>("/dashboard/market-alerts", { exchange }, undefined, generation);
 }
 
 export function getDashboardStocksInFocus(exchange: ExchangeCode = "DSE") {

@@ -5,6 +5,7 @@ import { setCurrentMarketFreshness } from "@/lib/market/market-freshness-registr
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef } from "react";
 
+import { setMarketPersistentCacheTtlMs } from "@/lib/api/backend-api-client";
 import { useMarketDataFreshness } from "@/hooks/market/use-market-data-freshness";
 import type { ExchangeCode } from "@/lib/api/backend-api-types";
 import {
@@ -24,6 +25,10 @@ export function useMarketCacheSyncCoordinator(exchange: ExchangeCode = "DSE") {
   const current = freshnessGenerationToken(data);
 
   useEffect(() => { setCurrentMarketFreshness(data); }, [data]);
+  const ttlSeconds = data?.dashboard_cache_ttl_seconds;
+  useEffect(() => {
+    setMarketPersistentCacheTtlMs(ttlSeconds == null ? null : ttlSeconds * 1000);
+  }, [ttlSeconds]);
 
   useEffect(() => {
     registerMarketCacheQueryClient(queryClient);

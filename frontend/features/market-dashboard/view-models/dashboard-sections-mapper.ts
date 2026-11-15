@@ -1,3 +1,4 @@
+import { prospectiveDisplayAction } from "@/lib/market/decision-action-compatibility";
 import { formatCompactNumber, formatNumber, formatPercent, toNumber } from "@/lib/formatters/financial-formatters";
 import type {
   BackendDashboardHeatmapDto,
@@ -65,13 +66,11 @@ export function mapUniverseRowsToSignalFeed(
   rows: BackendScoredUniverseRowDto[],
   limit = DASHBOARD_SIGNAL_FEED_LIMIT,
 ): SignalFeedItemModel[] {
+  const setups = new Map(rows.filter(row => row.top_setup).map(row => [row.stock.symbol, row.top_setup!]));
   return rows
+    .filter(row => row.top_setup)
+    .sort((a, b) => a.top_setup!.rank - b.top_setup!.rank)
     .map((row) => mapUniverseRowToListRow(row))
-    .filter((stock) => {
-      const decision = resolveTraderDecision(stock);
-      return decision.source === "decision-engine";
-    })
-    .sort(compareSignalFeedCandidates)
     .slice(0, limit)
     .map((stock) => {
       const decision = resolveTraderDecision(stock);
@@ -82,6 +81,7 @@ export function mapUniverseRowsToSignalFeed(
       );
 
       return {
+        topSetup: setups.get(stock.stock.symbol),
         symbol: stock.stock.symbol,
         name: stock.stock.name,
         decisionDate: stock.decisionDate,
@@ -120,7 +120,7 @@ export function mapTraderDecisionsToSignalFeed(
     .filter(
       ({ decision }) =>
         isActionableDecision(
-          decision.display_action ??
+          prospectiveDisplayAction(decision) ??
             (decision.recommendation === "SELL" ? "SELL" : "WAIT"),
         ) || decision.evidence_status === "MIXED",
     )
@@ -133,7 +133,7 @@ export function mapTraderDecisionsToSignalFeed(
       decision.primary_reason_code,
     );
     const displayAction =
-      decision.display_action ??
+      prospectiveDisplayAction(decision) ??
       (decision.recommendation === "SELL" ? "SELL" : "WAIT");
 
     return {
@@ -194,8 +194,14 @@ export function mapDashboardSignalsDto(dto: BackendDashboardStocksInFocusDto): S
 
 export function mapDashboardAlertsDto(dto: BackendDashboardMarketAlertsDto): MarketTimelineItemModel[] {
   return dto.items.filter(item => !["Market snapshot ready", "Market scan complete", "Generated snapshot update"].includes(item.title)).map((item) => ({
-    kind: item.title === "Market snapshot ready" || item.title === "Market scan complete" ? "snapshot"
-      : /^Top session mover in the latest snapshot/.test(item.description) ? "mover" : "alert",
+    dateBasis:item.date_basis ?? undefined,dateLabel:item.date_label ?? undefined,dateLabelAsOf:item.date_label_as_of ?? undefined,
+    highlightType: item.highlight_type ?? undefined,
+    metricValue: typeof item.metric_value === "number" && Number.isFinite(item.metric_value) ? item.metric_value : undefined, metricUnit: item.metric_unit ?? undefined,
+    id: item.id ?? undefined, publicationDate: item.publication_date ?? undefined, publishedAt: item.published_at ?? undefined,
+    effectiveDate: item.effective_date ?? undefined, source: item.source ?? undefined, href: item.href ?? undefined,
+    symbol: item.symbol ?? undefined, priority: item.priority,
+    kind: item.kind ?? (item.title === "Market snapshot ready" || item.title === "Market scan complete" ? "snapshot"
+      : /^Top session mover in the latest snapshot/.test(item.description) ? "mover" : "alert"),
     sourceUrl: item.source_url && /^https?:\/\//i.test(item.source_url) ? item.source_url : undefined,
     time: /^\d{4}-\d{2}-\d{2}/.test(item.time) ? item.time : dto.session_trade_date ?? item.time,
     title: item.title,

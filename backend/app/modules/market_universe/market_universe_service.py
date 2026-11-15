@@ -204,6 +204,7 @@ class MarketUniverseService:
                 context.trade_date,
                 context.source_last_synced_at,
                 context.sync_id,
+                allow_legacy=bool(publication and publication.generation_id == context.sync_id),
             ):
                 return CanonicalUniverseSnapshot(generation=context, payload=cached_payload)
             await self._log_cache_rejection(
@@ -233,6 +234,7 @@ class MarketUniverseService:
                 publication.session_date,
                 payload.source_last_synced_at,
                 publication.generation_id,
+                allow_legacy=True,
             ):
                 prior = PublishedMarketGeneration(
                     trade_date=publication.session_date, sync_id=publication.generation_id,
@@ -326,7 +328,11 @@ class MarketUniverseService:
         session_trade_date: date | None,
         source_last_synced_at: datetime | None,
         market_sync_id: str | None,
+        *, allow_legacy: bool = False,
     ) -> bool:
+        from app.core.constants.trading_constants import production_version_pair, trading_input_schema_version
+        accepted_pair = production_version_pair(payload.strategy_version, payload.threshold_version) if allow_legacy else (
+            payload.strategy_version == TRADING_STRATEGY_VERSION and payload.threshold_version == TRADING_THRESHOLD_VERSION)
         structural_match = (
             payload.data_state == MarketDataState.FINALIZED
             and not payload.is_live_session
@@ -334,9 +340,8 @@ class MarketUniverseService:
             and bool(payload.rows)
             and payload.session_trade_date == session_trade_date
             and payload.decision_session_date == session_trade_date
-            and payload.strategy_version == TRADING_STRATEGY_VERSION
-            and payload.threshold_version == TRADING_THRESHOLD_VERSION
-            and payload.input_schema_version == TRADING_INPUT_SCHEMA_VERSION
+            and accepted_pair
+            and payload.input_schema_version == trading_input_schema_version(payload.strategy_version)
             and payload.decision_taxonomy_version == DECISION_TAXONOMY_VERSION
             and payload.scanner_version == SCANNER_CONDITION_VERSION
             and payload.market_sync_id == market_sync_id
@@ -345,8 +350,8 @@ class MarketUniverseService:
             and row.eligibility.exchange_session_date == session_trade_date
             and row.decision is not None
             and row.decision.canonical is not None
-            and row.decision.canonical.strategy_version == TRADING_STRATEGY_VERSION
-            and row.decision.canonical.threshold_version == TRADING_THRESHOLD_VERSION
+            and row.decision.canonical.strategy_version == payload.strategy_version
+            and row.decision.canonical.threshold_version == payload.threshold_version
             and row.decision.canonical.decision_taxonomy_version
             == DECISION_TAXONOMY_VERSION
             and row.scanner is not None
@@ -358,6 +363,7 @@ class MarketUniverseService:
             payload,
             expected_session_date=session_trade_date,
             expected_source_last_synced_at=source_last_synced_at,
+            allow_legacy=allow_legacy,
         )
         if report.issues:
             log_monitoring_report(report, exchange="cache-read")
@@ -536,10 +542,6 @@ class MarketUniverseService:
                 offset=0,
                 end_date=decision_session_date,
             )
-            market_regime = resolve_regime_result_from_summaries(
-                summaries,
-                decision_session_date=decision_session_date,
-            )
         grouped = group_price_window_rows(window_rows)
         stock_ids = {
             entry["stock"].id
@@ -561,6 +563,19 @@ class MarketUniverseService:
             )
         event_reader = getattr(self.market_repository, "list_decision_event_observations", None)
         event_observations = await event_reader(stock_ids=stock_ids) if event_reader else {}
+        market_regime = resolve_regime_result_from_summaries(summaries,
+            decision_session_date=decision_session_date, exchange_session_dates=exchange_session_dates)
+        from app.modules.stock_details.decision.market_regime import capture_market_context
+        self._market_context_capture = capture_market_context(summaries, session_date=decision_session_date,
+            captured_at=datetime.now(UTC), generation_id=context.sync_id,
+            session_dates=set(exchange_session_dates))
+        # Observed source/publication dates do not by themselves prove that a
+        # missing whole exchange session was a holiday. Preserve that shortfall.
+        calendar_reader = getattr(self.market_repository, "get_authenticated_exchange_calendar", None)
+        self._market_calendar_capture = await calendar_reader(exchange=exchange, end_date=decision_session_date) if calendar_reader else {
+            "status": "INDEPENDENT_CALENDAR_COVERAGE_UNAVAILABLE", "complete": False,
+            "observed_session_dates": [day.isoformat() for day in exchange_session_dates],
+            "source": "OBSERVED_PRICE_DATES_ONLY_NOT_A_COMPLETE_EXCHANGE_CALENDAR"}
         self._input_captures = {}
         async with async_perf_stage(perf, "compute.scored_rows"):
             rows = build_scored_universe_rows(
@@ -711,6 +726,8 @@ class MarketUniverseService:
                         str(row.stock.id): row.stock.model_dump(mode="json") for row in rows
                     },
                     "inputs": self._input_captures,
+                    "market_context": getattr(self, "_market_context_capture", []),
+                    "market_calendar": getattr(self, "_market_calendar_capture", {}),
                     "quote_generation": (
                         await self.resolve_quote_context(exchange=exchange)
                     ).sync_id,
@@ -731,6 +748,7 @@ class MarketUniverseService:
             durable_payload = self._parse_cache_payload(serialized_payload)
             if durable_payload is None or not self._cache_matches_identity(
                 durable_payload, context.trade_date, context.source_last_synced_at, context.sync_id,
+                allow_legacy=True,
             ):
                 raise UniverseCachePublicationError("Durable publication winner has invalid identity")
         # Built from the validated durable winner once; dashboard reads only
@@ -872,7 +890,9 @@ class MarketUniverseService:
                 )
                 facts = await repository.publication_coverage(exchange=exchange, generation_id=publication.generation_id)
                 coverage = verify_capture_coverage(facts, [str(row.stock.id) for row in snapshot.rows])["verified"]
-        candidates = {row.stock.id for row in selected if row.decision and row.decision.display_action == "POTENTIAL_BUY"}
+        from app.modules.market_universe.top_setups import _candidate, project_top_setups
+        from app.modules.stock_details.decision.entry_applicability import plan_path_termination
+        candidates = {row.stock.id for row in selected if row.decision and (row.decision.display_action == "POTENTIAL_BUY" or _candidate(row, qualification_only=True))}
         reference = snapshot.generation.trade_date
         sessions = await self.market_repository.list_recent_exchange_session_dates(exchange=exchange, limit=5000, end_date=now.date()) if selected else []
         previous_session = max((day for day in sessions if day < reference), default=None)
@@ -938,6 +958,9 @@ class MarketUniverseService:
         ))
         actions = await self.market_repository.list_entry_basis_events(stock_ids=candidates, end_date=now.date()) if candidates else {}
         projected = {}
+        unusable_setups = set()
+        watch_assessments = {}
+        from app.modules.stock_details.decision.entry_applicability import evaluate_watch_setup_applicability
         for row in selected:
             plan = row.analysis.trade_plan if row.analysis else None
             # Non-candidate permission is resolved before path evidence is read.
@@ -953,7 +976,11 @@ class MarketUniverseService:
                 price_publications=price_publications, price_evidence=evidence_by_stock.get(row.stock.id),
                 authenticated_sessions=v2,
             ) if not v2 or row.stock.id in candidates else EntryPathFacts()
-            applicability = evaluate_entry_applicability(
+            if plan and plan_path_termination(plan, path, reference):
+                unusable_setups.add(row.stock.id)
+            if plan and any(day > reference for day in path.sessions) and not path.complete:
+                unusable_setups.add(row.stock.id)
+            assessment_inputs = dict(
                 decision=row.decision, plan=plan, eligibility=row.eligibility, quote=quotes.get(row.stock.id),
                 reference_date=reference, now=now, market_open=recheck_at is None,
                 recheck_at=recheck_at, session_open_at=session_open_at, session_close_at=session_close_at,
@@ -963,6 +990,9 @@ class MarketUniverseService:
                 price_basis_v2=v2, finalized_session_date=closing_day,
                 session_settling=settling,
             )
+            applicability = evaluate_entry_applicability(**assessment_inputs)
+            if row.stock.id in candidates and _candidate(row, qualification_only=True):
+                watch_assessments[row.stock.id] = evaluate_watch_setup_applicability(**assessment_inputs)
             decision = row.decision.model_copy(update={"entry_applicability": applicability}) if row.decision else None
             if decision and row.analysis and decision.measured_support_component is None:
                 from app.modules.stock_details.decision.summary import selected_explanation_fields
@@ -994,7 +1024,7 @@ class MarketUniverseService:
         return replace(snapshot, entries_projected=True, quote_generation=context,
             updating=snapshot.updating or bool(required and required.sync_id != snapshot.generation.sync_id),
             payload=snapshot.payload.model_copy(update={
-                "rows": [projected.get(row.stock.id, row) for row in snapshot.rows],
+                "rows": project_top_setups([projected.get(row.stock.id, row) for row in snapshot.rows], unusable_ids=unusable_setups, watch_assessments=watch_assessments),
             }))
 
     async def observe_scheduled_entries(self, *, exchange):

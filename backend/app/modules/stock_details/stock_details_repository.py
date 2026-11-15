@@ -2,7 +2,7 @@ from datetime import date, datetime
 from uuid import UUID
 
 from fastapi import Depends
-from sqlalchemy import case, func, select
+from sqlalchemy import case, func, select, or_
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -678,6 +678,22 @@ class StockDetailsRepository(BaseRepository[StockDetailsSyncJob]):
         )
 
     async def create_or_update_market_event(self, values: dict[str, object]) -> MarketEvent:
+        # Retain distinct timed bulletins sharing the legacy day/title key.
+        # No schema migration or fabricated source identity is needed.
+        from app.modules.market_data.news_versions import merge_received_news_payloads
+        from app.modules.market_data.publication_lock import lock_market_event_delivery
+        await lock_market_event_delivery(self.session, stock_id=values["stock_id"],
+            event_date=values["event_date"], title=values["title"], source=values["source"])
+        existing = await self.session.scalar(select(MarketEvent).where(
+            MarketEvent.stock_id == values["stock_id"], MarketEvent.event_date == values["event_date"],
+            MarketEvent.title == values["title"], MarketEvent.source == values["source"]).execution_options(populate_existing=True))
+        previous = ({**(existing.metadata_json or {}), "title": existing.title, "summary": existing.summary,
+            "source_url": existing.source_url, "event_type": existing.event_type.value} if existing is not None else None)
+        received = {**(values.get("metadata_json") or {}), "title": values["title"], "summary": values.get("summary"),
+            "source_url": values.get("source_url"), "event_type": str(values["event_type"])}
+        merged = merge_received_news_payloads(previous, received)
+        values = {**values, "summary": merged.get("summary"), "source_url": merged.get("source_url"),
+            "event_type": merged["event_type"], "metadata_json": merged}
         statement = insert(MarketEvent).values(**values)
         update_values = {
             column.name: statement.excluded[column.name]
@@ -685,6 +701,9 @@ class StockDetailsRepository(BaseRepository[StockDetailsSyncJob]):
             if column.name not in {"id", "created_at", "stock_id", "event_date", "title", "source"}
         }
         update_values["updated_at"] = func.now()
+        from app.modules.market_data.news_versions import _sql_time
+        old_clock = _sql_time(MarketEvent.metadata_json["published_at"].astext)
+        incoming_clock = _sql_time(statement.excluded["metadata"]["published_at"].astext)
         statement = statement.on_conflict_do_update(
             index_elements=[
                 MarketEvent.stock_id,
@@ -693,8 +712,14 @@ class StockDetailsRepository(BaseRepository[StockDetailsSyncJob]):
                 MarketEvent.source,
             ],
             set_=update_values,
+            where=or_(old_clock.is_(None), incoming_clock >= old_clock),
         ).returning(MarketEvent)
-        event = await self.session.scalar(statement)
+        event = await self.session.scalar(statement.execution_options(populate_existing=True))
+        if event is None:
+            # A later known source revision won; an older sync cannot replace it.
+            event = await self.session.scalar(select(MarketEvent).where(
+                MarketEvent.stock_id == values["stock_id"], MarketEvent.event_date == values["event_date"],
+                MarketEvent.title == values["title"], MarketEvent.source == values["source"]).execution_options(populate_existing=True))
         if event is None:
             raise RuntimeError("Market event upsert did not return a row")
         return event

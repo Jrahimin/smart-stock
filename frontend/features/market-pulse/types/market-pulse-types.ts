@@ -17,6 +17,7 @@ export type PulseScoreBreakdownModel = {
 };
 
 export type FocusStockModel = {
+  topSetup?: import("@/lib/api/backend-api-types").BackendTopSetupDto | null;
   displayQuote?: import("@/lib/api/backend-api-types").BackendScoredUniverseRowDto["display_quote"];
   measuredFacts?: import("@/lib/api/stock-decision-support-types").MeasuredDecisionFactsDto | null;
   locale?: import("@/lib/locale/app-locale").AppLocale;
@@ -25,6 +26,7 @@ export type FocusStockModel = {
   recommendation?: string;
   readiness?: string;
   controllingReasonCode?: string | null;
+  eligibilityReasons?: string[] | null;
   controllingReason?: string | null;
   decisionDate?: string | null;
   watchLevel?: number | null;
@@ -50,6 +52,7 @@ export type FocusStockModel = {
 };
 
 export type MarketPulseHeroModel = {
+  decisionDate?: string | null;
   greeting: string;
   attentionHeadline: string;
   attentionSubline: string;

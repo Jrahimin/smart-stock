@@ -212,7 +212,8 @@ async def test_universe_cache_and_snapshot_share_decision_session_date() -> None
     assert rows[0].eligibility.exchange_session_date == COMPLETED_SESSION
     assert rows[0].decision is not None and rows[0].decision.canonical is not None
     assert rows[0].decision.canonical.as_of_date == COMPLETED_SESSION
-    cached = next(iter(service.redis.storage.values()))
+    # Leadership is a separate compact cache and may be written first.
+    cached = next(value for value in service.redis.storage.values() if "session_trade_date" in value)
     assert cached["decision_session_date"] == COMPLETED_SESSION.isoformat()
     assert cached["session_trade_date"] == COMPLETED_SESSION.isoformat()
     assert cached["is_live_session"] is False

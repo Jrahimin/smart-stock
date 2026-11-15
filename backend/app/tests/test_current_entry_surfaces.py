@@ -86,8 +86,8 @@ async def test_universe_signals_support_and_cached_pulse_share_current_codes(mon
     if pause and expected != "STOP_BREACHED":
         expected = pause
     codes = [response.rows[0].entry_applicability.reason_code, signal.decision.entry_applicability.reason_code,
-        support.entry_applicability.reason_code, pulse.focus_stocks[0].entry_applicability.reason_code]
+        support.entry_applicability.reason_code, (pulse.focus_stocks + pulse.monitor_candidates)[0].entry_applicability.reason_code]
     assert codes == [expected]*4
-    assert pulse.focus_stocks[0].actionable_trigger is (expected == "ENTRY_TERMS_MET" and hour == 5)
+    assert (pulse.focus_stocks + pulse.monitor_candidates)[0].actionable_trigger is (expected == "ENTRY_TERMS_MET" and hour == 5)
     assert response.rows[0].decision.canonical.shared_decision_id == original.decision.canonical.shared_decision_id
     assert support.canonical_decision.shared_decision_id == original.decision.canonical.shared_decision_id

@@ -1,5 +1,6 @@
 import type { AppLocale } from "@/lib/locale/app-locale";
 import type { BackendTraderDecisionSummaryDto } from "@/lib/api/backend-api-types";
+import { isInternalFreshnessReason } from "./market-presentation-policy";
 
 export function riskValueLabel(label: string | null | undefined, locale: AppLocale): string {
   const values: Record<string, [string, string]> = { LOW: ["Low", "কম"], MEDIUM: ["Medium", "মাঝারি"], HIGH: ["High", "উচ্চ"], SPECULATIVE: ["Speculative", "জল্পনামূলক"], UNKNOWN: ["Unavailable", "তথ্য নেই"] };
@@ -33,19 +34,29 @@ export function selectedDecisionExplanation(decision: Pick<BackendTraderDecision
   };
 }
 
-export function controllingReasonLabel(code: string | null | undefined, fallback: string, locale: AppLocale): string {
+export function eligibilityRestrictionLabel(reasons: readonly string[] | null | undefined, locale: AppLocale): string {
+  if (!reasons?.length) return locale === "bn" ? "তথ্য বা eligibility নীতির কারণে Entry সীমিত।" : "Entry restricted by data or eligibility policy.";
+  const policyOnly = reasons.every((code) => ["median_turnover_below_policy", "category_z_review", "mixed_turnover_provenance"].includes(code));
+  return policyOnly ? (locale === "bn" ? "Entry সীমিত · turnover/category নীতি" : "Entry restricted · Turnover/category policy")
+    : (locale === "bn" ? "Entry সীমিত · অপর্যাপ্ত বা অবৈধ তথ্য" : "Entry restricted · Missing or invalid data");
+}
+
+export function controllingReasonLabel(code: string | null | undefined, fallback: string, locale: AppLocale, eligibilityReasons?: readonly string[] | null): string {
+  if (isInternalFreshnessReason(code)) return "";
+  if (code === "data_not_eligible" && eligibilityReasons) return eligibilityRestrictionLabel(eligibilityReasons, locale);
   const labels: Record<string, [string, string]> = {
-    data_not_eligible: ["Decision data is unavailable or ineligible.", "সিদ্ধান্তের তথ্য অপর্যাপ্ত বা অযোগ্য।"],
+    data_not_eligible: ["Fresh entry is restricted by data or eligibility policy.", "তথ্য বা eligibility নীতির কারণে নতুন Entry সীমিত।"],
     illiquid: ["Tradability blocks a fresh entry.", "লেনদেনের স্বল্পতার কারণে নতুন entry বন্ধ।"],
     elevated_trading_risk: ["Too risky to start a new position right now.", "এখন নতুন করে কেনা বেশি ঝুঁকিপূর্ণ।"],
     overextended_price: ["Price is too extended for a fresh entry.", "দাম অতিরিক্ত বেড়েছে; নতুন entry-এর জন্য অপেক্ষা করুন।"],
     extended_momentum: ["Momentum is too extended for a fresh entry.", "momentum অতিরিক্ত; নতুন entry-এর জন্য অপেক্ষা করুন।"],
     regime_plan_not_permitted: ["The market regime blocks this entry plan; a watch level alone is not permission to enter.", "বাজারের অবস্থা এই entry plan অনুমোদন করছে না; পর্যবেক্ষণমূলক স্তর ছোঁয়া entry-এর অনুমতি নয়।"],
+    market_evidence_unknown: ["Entry restricted · Market evidence missing. A current completed index baseline and breadth are required.", "Entry সীমিত · বাজারের তথ্য অসম্পূর্ণ। বর্তমান সম্পূর্ণ index baseline ও breadth দরকার।"],
     entry_plan_not_valid: ["Wait for a confirmed, permitted entry plan.", "নিশ্চিত ও অনুমোদিত entry plan-এর জন্য অপেক্ষা করুন।"],
     no_directional_edge: ["Balanced evidence; no directional edge.", "মিশ্র সংকেত; স্পষ্ট দিকনির্দেশ নেই।"],
     constructive_watch: ["The dated structure is constructive; holders may hold while prospective entrants wait.", "প্রকাশিত দামের গঠন অনুকূল; হাতে থাকলে ধরে রাখতে পারেন, নতুন entry-এর জন্য অপেক্ষা করুন।"],
     near_resistance: ["The dated setup is near resistance; a confirmed price break is required.", "প্রকাশিত setup resistance-এর কাছে; নিশ্চিত price break প্রয়োজন।"],
-    bullish_setup_valid_entry: ["The dated evidence supports the plan; current entry depends on the assessment above.", "প্রকাশিত তথ্য পরিকল্পনাকে সমর্থন করে; বর্তমান entry-এর অবস্থা উপরের যাচাইয়ে দেখুন।"],
+    bullish_setup_valid_entry: ["The dated evidence supports the published Trade Plan.", "প্রকাশিত তথ্য Trade Plan-কে সমর্থন করে।"],
     bullish_setup_pullback: ["The dated plan requires a pullback into its preferred zone and support to hold.", "প্রকাশিত পরিকল্পনায় নির্ধারিত pullback সীমায় দর ফেরা ও support টিকে থাকা প্রয়োজন।"],
     bullish_setup_breakout: ["Wait for a daily close above the trigger on strong volume. Then consider entering in the next session.", "যথেষ্ট volume নিয়ে trigger-এর ওপরে দিনের close-এর অপেক্ষা করুন। তারপর পরের session-এ entry বিবেচনা করুন।"],
     bullish_setup_continuation: ["The dated plan follows a confirmed breakout; monitor its published management conditions.", "প্রকাশিত পরিকল্পনা নিশ্চিত breakout অনুসরণ করে; প্রকাশিত ব্যবস্থাপনার শর্ত নজরে রাখুন।"],
@@ -54,11 +65,34 @@ export function controllingReasonLabel(code: string | null | undefined, fallback
     lower_structure: ["Price structure shows lower highs and lower lows; the trend indicator measures direction separately.", "দামের শীর্ষ ও তলানি ক্রমে নিচে নামছে; প্রবণতার সূচক দিকনির্দেশ আলাদাভাবে মাপে।"],
     fresh_entry_risk_block: ["Published trading risk or tradability blocks a fresh entry.", "প্রকাশিত trading ঝুঁকি বা লেনদেনের সীমার কারণে নতুন entry বন্ধ।"],
     bullish_setup_downgraded: ["The setup looks good, but one safety rule says wait.", "অনুকূল সংকেত থাকলেও প্রকাশিত সীমাবদ্ধতার কারণে নতুন entry বন্ধ।"],
-    bullish_setup_ready: ["The dated evidence supports the plan; see the checked entry assessment.", "প্রকাশিত তথ্য পরিকল্পনাকে সমর্থন করে; entry-এর যাচাই দেখুন।"],
+    bullish_setup_ready: ["The dated evidence supports the published Trade Plan.", "প্রকাশিত তথ্য Trade Plan-কে সমর্থন করে।"],
     reward_risk_below_minimum: ["Planned reward per unit of risk is below the policy minimum.", "পরিকল্পিত লাভ-ঝুঁকির অনুপাত নীতির ন্যূনতম সীমার নিচে।"],
     bearish_directional_evidence: ["The dated trend and momentum evidence is bearish.", "প্রকাশিত trend ও momentum-এর সংকেত নিম্নমুখী।"],
   };
   return labels[code ?? ""]?.[locale === "bn" ? 1 : 0] ?? fallback;
+}
+
+/** Finite labels over delivered controlling facts, with no client permission rules. */
+export function decisionConditionLabel(code: string | null | undefined, assessment: import("@/lib/api/stock-decision-support-types").EntryApplicabilityDto | null | undefined, locale: AppLocale, eligibilityReasons?: readonly string[] | null): string {
+  const bn = locale === "bn";
+  const reason = assessment?.reason_code;
+  const labels: Record<string, [string, string]> = {
+    STOP_BREACHED: ["Invalidated", "Invalidated"], PRICE_BASIS_CHANGED: ["Invalidated", "Invalidated"],
+    PUBLICATION_INVALIDATED: ["Invalidated", "Invalidated"], PLAN_EXPIRED: ["Expired", "মেয়াদ শেষ"], TARGET_REACHED: ["Target reached", "Target ছুঁয়েছে"],
+    ABOVE_ENTRY_ZONE: ["Above entry zone", "Entry zone-এর ওপরে"], BELOW_ENTRY_ZONE: ["Awaiting entry zone", "Entry zone-এর অপেক্ষায়"],
+    COMPLETED_BREAKOUT_REQUIRED: ["Awaiting breakout close", "Breakout close-এর অপেক্ষায়"],
+    COMPLETED_PULLBACK_HOLD_REQUIRED: ["Awaiting pullback hold", "Pullback hold-এর অপেক্ষায়"],
+  };
+  if (reason && labels[reason] && ["INVALIDATED", "EXPIRED"].includes(assessment?.status ?? "") || reason === "TARGET_REACHED") return labels[reason!][bn ? 1 : 0];
+  if (isInternalFreshnessReason(code)) return "";
+  if (code === "data_not_eligible") return eligibilityRestrictionLabel(eligibilityReasons, locale);
+  if (["market_evidence_unknown", "regime_plan_not_permitted", "bearish_market_regime"].includes(code ?? "")) return bn ? "Entry সীমিত · বাজার" : "Entry restricted · Market";
+  if (["illiquid", "thin_liquidity"].includes(code ?? "")) return bn ? "Entry সীমিত · তারল্য" : "Entry restricted · Liquidity";
+  if (["elevated_trading_risk", "overextended_price", "extended_momentum", "fresh_entry_risk_block"].includes(code ?? "")) return bn ? "Entry সীমিত · ঝুঁকি" : "Entry restricted · Risk";
+  if (code === "entry_plan_not_valid" || reason === "NO_ENTRY_PLAN") return bn ? "কার্যকর Trade Plan নেই" : "No workable plan";
+  if (reason && labels[reason]) return labels[reason][bn ? 1 : 0];
+  if (["no_directional_edge", "constructive_watch", "bullish_setup_downgraded"].includes(code ?? "")) return bn ? "Setup তৈরি হচ্ছে" : "Setup forming";
+  return "";
 }
 
 export function readinessLabel(value: string | null | undefined, locale: AppLocale): string {
@@ -79,7 +113,7 @@ export function holderReasonLabel(code: string | null | undefined, fallback: str
     extended_momentum: ["Momentum is stretched. Review the holding before adding more.", "momentum অতিরিক্ত বেড়েছে। আরও কেনার আগে হোল্ডিং পর্যালোচনা করুন।"],
     entry_plan_not_valid: ["Review the holding's protection levels before adding more.", "আরও কেনার আগে হোল্ডিংয়ের সুরক্ষা স্তর পর্যালোচনা করুন।"],
     regime_plan_not_permitted: ["Market conditions call for caution with this holding.", "বাজার পরিস্থিতির কারণে এই হোল্ডিংয়ে সতর্ক থাকুন।"],
-    data_not_eligible: ["The holding needs more complete price data for review.", "হোল্ডিং পর্যালোচনার জন্য আরও সম্পূর্ণ দামের তথ্য দরকার।"],
+    data_not_eligible: ["Review the published data or eligibility restriction for this holding.", "হোল্ডিংয়ের প্রকাশিত তথ্য বা eligibility সীমা পর্যালোচনা করুন।"],
     near_resistance: ["Price is near resistance. Review gains and protection levels.", "দাম resistance-এর কাছে। লাভ ও সুরক্ষা স্তর পর্যালোচনা করুন।"],
     support_break: ["Support has broken. Follow the holding's protection instruction.", "support ভেঙেছে। হোল্ডিংয়ের সুরক্ষা নির্দেশনা অনুসরণ করুন।"],
     bearish_directional_evidence: ["Trend and momentum are weakening; review this holding.", "প্রবণতা ও momentum দুর্বল হচ্ছে; হোল্ডিং পর্যালোচনা করুন।"],

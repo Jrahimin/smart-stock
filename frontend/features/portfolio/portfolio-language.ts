@@ -171,6 +171,7 @@ type PortfolioLanguage = {
   attentionLabels: Record<PortfolioAttentionCode, string>;
   reasonLabels: Record<string, string>;
   priceStatus: Record<PortfolioPriceStatus, string>;
+  recordedPrice: string;
 };
 
 const en: PortfolioLanguage = {
@@ -317,7 +318,7 @@ const en: PortfolioLanguage = {
   comparisonChanged: "Changed since previous session",
   comparisonUnchanged: "Unchanged since previous session",
   comparisonUnavailable: "Previous-session comparison unavailable",
-  actionLabels: { ...holderActionLabels.en, WAIT: "Wait", POTENTIAL_BUY: "Potential buy" },
+  actionLabels: { ...holderActionLabels.en, AVOID: "AVOID", WAIT: "WAIT", POTENTIAL_BUY: "Potential Buy" },
   partialExposure: "Exposure reflects only holdings with known current value.",
   concentration: "Concentration",
   insights: "Portfolio insights",
@@ -350,7 +351,7 @@ const en: PortfolioLanguage = {
     HOLDER_REVIEW: "Review holder guidance",
     SUPPORT_BREAK: "Support break",
     SELL_OR_REDUCE: "SELL or REDUCE signal",
-    PRICE_QUALITY: "Stale, suspended, or uncertain price",
+    PRICE_QUALITY: "Price quality or trading restriction",
     ELEVATED_RISK: "Elevated risk",
     INCOMPLETE_HOLDING: "Incomplete holding information",
     HIGH_CONCENTRATION: "High position concentration",
@@ -369,6 +370,7 @@ const en: PortfolioLanguage = {
     IMPORTANT_EVENT: "Important company event",
     ELEVATED_RISK: "Elevated risk warrants caution",
   },
+  recordedPrice: "Recorded price · Entry unverified",
   priceStatus: {
     FINALIZED: "Finalized price",
     PROVISIONAL: "Provisional price",
@@ -560,7 +562,7 @@ const bn: PortfolioLanguage = {
   comparisonChanged: "আগের সেশনের তুলনায় বদলেছে",
   comparisonUnchanged: "আগের সেশনের তুলনায় অপরিবর্তিত",
   comparisonUnavailable: "আগের সেশনের তুলনা পাওয়া যায়নি",
-  actionLabels: { ...holderActionLabels.bn, WAIT: "অপেক্ষা করুন", POTENTIAL_BUY: "সম্ভাব্য ক্রয়" },
+  actionLabels: { ...holderActionLabels.bn, AVOID: "AVOID", WAIT: "WAIT", POTENTIAL_BUY: "Potential Buy" },
 
   partialExposure:
     "যেসব holding-এর current value হিসাব করা গেছে, শুধু সেগুলো দিয়েই এই চিত্র দেখানো হচ্ছে।",
@@ -622,7 +624,7 @@ const bn: PortfolioLanguage = {
     HOLDER_REVIEW: "holder নির্দেশনা পর্যালোচনা করুন",
     SUPPORT_BREAK: "গুরুত্বপূর্ণ support ভেঙেছে",
     SELL_OR_REDUCE: "SELL বা REDUCE signal",
-    PRICE_QUALITY: "দামের তথ্য পুরোপুরি পরিষ্কার নয়",
+    PRICE_QUALITY: "দামের মান বা লেনদেনের সীমাবদ্ধতা",
     ELEVATED_RISK: "Risk বেড়েছে",
     INCOMPLETE_HOLDING: "Holding-এর কিছু তথ্য বাকি",
     HIGH_CONCENTRATION: "একটি stock-এ বেশি ওজন",
@@ -643,10 +645,11 @@ const bn: PortfolioLanguage = {
     ELEVATED_RISK: "Risk বেড়েছে, সতর্ক থাকুন",
   },
 
+  recordedPrice: "নথিভুক্ত দাম · Entry যাচাই হয়নি",
   priceStatus: {
     FINALIZED: "চূড়ান্ত দাম",
     PROVISIONAL: "সাময়িক দাম",
-    NON_TRADED: "আজ লেনদেন হয়নি",
+    NON_TRADED: "এই সেশনে লেনদেন হয়নি",
     STALE_LAST_KNOWN: "সর্বশেষ পাওয়া পুরোনো দাম",
     SUSPENDED: "লেনদেন স্থগিত",
     SUSPICIOUS: "দামটি যাচাই করা দরকার",

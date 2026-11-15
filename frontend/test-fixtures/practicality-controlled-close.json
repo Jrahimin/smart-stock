@@ -1,0 +1,647 @@
+{
+  "provenance": {
+    "evidence_class": "CONTROLLED",
+    "projection": "actual shared production summary-to-Details projection",
+    "immutable_quote_path_clocks": "unchanged",
+    "sources": {
+      "C:\\Users\\asus\\.codex\\visualizations\\2026\\11\\11\\01a1c98e-71c3-7a52-a88b-26f7d7122bcd\\practicality-workflow\\audit-repaired-reconstructed\\2026-11-12\\controlled-15min-closed_hours_last_close\\universe.json": "83c259a054fb72c7c31954ceda7d79b0fca22176756d28541e71b0ba9459ad2a",
+      "C:\\Users\\asus\\.codex\\visualizations\\2026\\11\\11\\01a1c98e-71c3-7a52-a88b-26f7d7122bcd\\practicality-workflow\\audit-repaired-reconstructed\\2026-11-12\\controlled-15min-closed_hours_last_close\\details\\BSRMSTEEL.json": "067523eaf358be4ebdbd57cbafa766154d631db5816fc60d352218ea81fecad4",
+      "C:\\Users\\asus\\.codex\\visualizations\\2026\\11\\11\\01a1c98e-71c3-7a52-a88b-26f7d7122bcd\\practicality-workflow\\audit-repaired-reconstructed\\2026-11-12\\controlled-15min-closed_hours_last_close\\freshness.json": "1c1751f29fdddfeb79196da2e927aa70230c365477d3c3bcaa6a2a9dc04016f0",
+      "C:\\Users\\asus\\.codex\\visualizations\\2026\\11\\11\\01a1c98e-71c3-7a52-a88b-26f7d7122bcd\\practicality-workflow\\audit-repaired-reconstructed\\2026-11-12\\controlled-15min-closed_hours_last_close\\manifest.json": "eb321a9ed7af1bf691c65d54ac82392787ac1f8158788cb4f04a1b0cc45e999c"
+    }
+  },
+  "workspace": {
+    "stock": {
+      "symbol": "BSRMSTEEL",
+      "name": "BSRM Steels Limited",
+      "exchange": "DSE",
+      "sector": "Engineering",
+      "category": "A",
+      "isin": null,
+      "listing_date": "2009-01-01",
+      "lot_size": null,
+      "paid_up_capital": "3759.5300",
+      "market_cap": "9653.7880",
+      "is_active": true,
+      "should_fetch_details": true,
+      "id": "73dd2f81-18d8-4c09-8107-7787eec25b08",
+      "created_at": "2026-05-03T11:50:53.916672Z",
+      "updated_at": "2026-09-07T10:30:50.237153Z"
+    },
+    "prices": [],
+    "latest_trade_date": "2026-11-12",
+    "decision_support": {
+      "measured_facts": {
+        "entry_timing": "PULLBACK",
+        "rsi": 69.13758319342762,
+        "trend": "UPTREND",
+        "opportunity_score": 75,
+        "trigger_price": null,
+        "resistance": 101.7,
+        "volume_ratio": 5.297486591349994,
+        "volume_baseline": "PRIOR_20_SESSION_MEDIAN",
+        "volume_sample_count": 20
+      },
+      "quote_generation_id": "CONTROLLED-f3c748ff1d5ca25a1c98d2e2",
+      "decision_generation_id": "CONTROLLED-f3c748ff1d5ca25a1c98d2e2",
+      "entry_applicability": {
+        "status": "APPLICABLE",
+        "reason_code": "ENTRY_TERMS_MET",
+        "controlling_blocker": null,
+        "price_context": {
+          "comparison_price": 93.899,
+          "price_session_date": "2026-11-12",
+          "price_basis": "RECORDED",
+          "zone_relation": "IN_ENTRY_ZONE",
+          "first_target_reward_risk": 3.5706,
+          "reward_risk_status": "AVAILABLE",
+          "planned_basis": "ENTRY_ZONE_HIGH_TO_FIRST_TARGET_BEFORE_COSTS"
+        },
+        "batch_fetched_at": "2026-11-12T09:00:00Z",
+        "assessed_at": "2026-11-13T23:24:33.347536Z",
+        "quote_session_date": "2026-11-12",
+        "source_observed_at": "2026-11-12T09:00:00Z",
+        "publication_observed_at": "2026-11-13T05:00:00Z",
+        "recheck_at": "2026-11-15T04:00:00Z",
+        "price_basis": "LAST_CLOSE"
+      },
+      "stock_id": "73dd2f81-18d8-4c09-8107-7787eec25b08",
+      "symbol": "BSRMSTEEL",
+      "exchange": "DSE",
+      "market_sync_id": "CONTROLLED-f3c748ff1d5ca25a1c98d2e2",
+      "data_state": "FINALIZED",
+      "decision_session_date": "2026-11-12",
+      "decision_status": "CURRENT",
+      "live_data_as_of": null,
+      "is_live_session": false,
+      "decision": {
+        "eligibility_reason_codes": [],
+        "entry_applicability": {
+          "status": "APPLICABLE",
+          "reason_code": "ENTRY_TERMS_MET",
+          "controlling_blocker": null,
+          "price_context": {
+            "comparison_price": 93.899,
+            "price_session_date": "2026-11-12",
+            "price_basis": "RECORDED",
+            "zone_relation": "IN_ENTRY_ZONE",
+            "first_target_reward_risk": 3.5706,
+            "reward_risk_status": "AVAILABLE",
+            "planned_basis": "ENTRY_ZONE_HIGH_TO_FIRST_TARGET_BEFORE_COSTS"
+          },
+          "batch_fetched_at": "2026-11-12T09:00:00Z",
+          "assessed_at": "2026-11-13T23:24:33.347536Z",
+          "quote_session_date": "2026-11-12",
+          "source_observed_at": "2026-11-12T09:00:00Z",
+          "publication_observed_at": "2026-11-13T05:00:00Z",
+          "recheck_at": "2026-11-15T04:00:00Z",
+          "price_basis": "LAST_CLOSE"
+        },
+        "measured_support": "Price is in an uptrend above moving averages. Price is 6.4% above SMA20. (25.2 contribution points).",
+        "opposing_constraint": "Weakest setup factor: Price Position. Support/resistance context is neutral. Input limitations: raw_unadjusted_analytical_series.",
+        "measured_support_component": {
+          "key": "trend",
+          "label": "Trend",
+          "score": 90,
+          "weight": 0.28,
+          "explanation": "Price is in an uptrend above moving averages. Price is 6.4% above SMA20."
+        },
+        "opposing_component": {
+          "key": "price_position",
+          "label": "Price Position",
+          "score": 50,
+          "weight": 0.2,
+          "explanation": "Support/resistance context is neutral."
+        },
+        "recommendation": "BUY",
+        "internal_action": "BUY",
+        "display_action": "POTENTIAL_BUY",
+        "decision_taxonomy_version": "v2",
+        "confidence": 77,
+        "reasoning": [
+          "Strong completed-session evidence aligns with a valid, meaningful entry condition."
+        ],
+        "confidence_semantics": "HEURISTIC_EVIDENCE",
+        "evidence_status": "BULLISH",
+        "evidence_strength": 77,
+        "evidence_strength_semantics": "HEURISTIC_DIRECTIONAL_EVIDENCE",
+        "primary_reason": "Strong completed-session evidence aligns with a valid, meaningful entry condition.",
+        "primary_reason_code": "bullish_setup_pullback",
+        "stance": "BULLISH",
+        "non_holder_action": "BUY",
+        "holder_action": "HOLD",
+        "constraints": [],
+        "opportunity_quality": "STRONG",
+        "entry_readiness": "CONDITIONAL",
+        "entry_timing": "PULLBACK",
+        "entry_condition": "Planned pullback zone; holding confirmation not assessed.",
+        "blocker_codes": [],
+        "canonical": {
+          "stock_id": "73dd2f81-18d8-4c09-8107-7787eec25b08",
+          "exchange": "DSE",
+          "strategy_version": "trading-intelligence-v4-shadow-market",
+          "threshold_version": "trading-thresholds-v4",
+          "action_taxonomy": "TRADER_DECISION_V2",
+          "decision_taxonomy_version": "v2",
+          "as_of_date": "2026-11-12",
+          "previous_session_date": "2026-11-11",
+          "calculated_at": "2026-11-13T17:06:42.813273Z",
+          "shared_decision_id": "8525f427-4392-535f-adad-2219121931f6",
+          "input_schema_version": "trading-input-v4",
+          "data_revision": "35a97255a284f19236b9faeb67476a8ea4820038b4ee718c6ce8350e5ea0ac2f",
+          "event_revision": "3c98a979461ac388ed9bc05cc2ee0a7baf60fe97afb5357f496b435d61542623",
+          "input_hash": "d6fa49edc904e352fe39e9129f9dde4a3ba09f33b5c79144a16a3178bb6f888c",
+          "replay_status": "IDENTIFIED_WITH_LIMITATIONS",
+          "replay_limitations": [
+            "INPUT_CAPTURE_REQUIRES_COMPLETE_GENERATION_PUBLICATION",
+            "EFFECTIVE_DATED_STATUS_CATEGORY_CIRCUIT_HISTORY_INCOMPLETE"
+          ],
+          "result_semantics": {
+            "blocker_codes": "ORDERED_MACHINE_READABLE_CONSTRAINTS",
+            "display_action": "VERSIONED_PUBLIC_NON_HOLDER_ACTION",
+            "entry_readiness": "DETERMINISTIC_PLAN_READINESS",
+            "entry_timing": "DETERMINISTIC_CONDITIONAL_TIMING",
+            "evidence_strength": "HEURISTIC_DIRECTIONAL_EVIDENCE",
+            "internal_action": "LEGACY_CANONICAL_ACTION",
+            "opportunity_quality": "DETERMINISTIC_COMPLETED_SESSION_QUALITY",
+            "opportunity_score": "HEURISTIC_LONG_SETUP_INDEX",
+            "recommendation": "DETERMINISTIC_CONTEXTUAL_ACTION",
+            "risk_label": "CANONICAL_TRADING_RISK",
+            "trade_plan_status": "DETERMINISTIC_PLAN_FEASIBILITY"
+          },
+          "recommendation": "BUY",
+          "internal_action": "BUY",
+          "display_action": "POTENTIAL_BUY",
+          "evidence_status": "BULLISH",
+          "evidence_strength": 77,
+          "opportunity_score": 75,
+          "opportunity_quality": "STRONG",
+          "entry_readiness": "CONDITIONAL",
+          "entry_timing": "PULLBACK",
+          "entry_condition": "Planned pullback zone; holding confirmation not assessed.",
+          "blocker_codes": [],
+          "risk_label": "LOW",
+          "trade_plan_status": "VALID_ENTRY_PLAN",
+          "eligibility_status": "ELIGIBLE",
+          "primary_reason": "Strong completed-session evidence aligns with a valid, meaningful entry condition.",
+          "primary_reason_code": "bullish_setup_pullback",
+          "stance": "BULLISH",
+          "non_holder_action": "BUY",
+          "holder_action": "HOLD",
+          "regime_score": 50,
+          "regime_label": "NEUTRAL",
+          "regime_phase": "HEALTHY",
+          "regime_confidence": 0,
+          "regime_permission": "CAUTION"
+        }
+      },
+      "canonical_decision": {
+        "stock_id": "73dd2f81-18d8-4c09-8107-7787eec25b08",
+        "exchange": "DSE",
+        "strategy_version": "trading-intelligence-v4-shadow-market",
+        "threshold_version": "trading-thresholds-v4",
+        "action_taxonomy": "TRADER_DECISION_V2",
+        "decision_taxonomy_version": "v2",
+        "as_of_date": "2026-11-12",
+        "previous_session_date": "2026-11-11",
+        "calculated_at": "2026-11-13T17:06:42.813273Z",
+        "shared_decision_id": "8525f427-4392-535f-adad-2219121931f6",
+        "input_schema_version": "trading-input-v4",
+        "data_revision": "35a97255a284f19236b9faeb67476a8ea4820038b4ee718c6ce8350e5ea0ac2f",
+        "event_revision": "3c98a979461ac388ed9bc05cc2ee0a7baf60fe97afb5357f496b435d61542623",
+        "input_hash": "d6fa49edc904e352fe39e9129f9dde4a3ba09f33b5c79144a16a3178bb6f888c",
+        "replay_status": "IDENTIFIED_WITH_LIMITATIONS",
+        "replay_limitations": [
+          "INPUT_CAPTURE_REQUIRES_COMPLETE_GENERATION_PUBLICATION",
+          "EFFECTIVE_DATED_STATUS_CATEGORY_CIRCUIT_HISTORY_INCOMPLETE"
+        ],
+        "result_semantics": {
+          "blocker_codes": "ORDERED_MACHINE_READABLE_CONSTRAINTS",
+          "display_action": "VERSIONED_PUBLIC_NON_HOLDER_ACTION",
+          "entry_readiness": "DETERMINISTIC_PLAN_READINESS",
+          "entry_timing": "DETERMINISTIC_CONDITIONAL_TIMING",
+          "evidence_strength": "HEURISTIC_DIRECTIONAL_EVIDENCE",
+          "internal_action": "LEGACY_CANONICAL_ACTION",
+          "opportunity_quality": "DETERMINISTIC_COMPLETED_SESSION_QUALITY",
+          "opportunity_score": "HEURISTIC_LONG_SETUP_INDEX",
+          "recommendation": "DETERMINISTIC_CONTEXTUAL_ACTION",
+          "risk_label": "CANONICAL_TRADING_RISK",
+          "trade_plan_status": "DETERMINISTIC_PLAN_FEASIBILITY"
+        },
+        "recommendation": "BUY",
+        "internal_action": "BUY",
+        "display_action": "POTENTIAL_BUY",
+        "evidence_status": "BULLISH",
+        "evidence_strength": 77,
+        "opportunity_score": 75,
+        "opportunity_quality": "STRONG",
+        "entry_readiness": "CONDITIONAL",
+        "entry_timing": "PULLBACK",
+        "entry_condition": "Planned pullback zone; holding confirmation not assessed.",
+        "blocker_codes": [],
+        "risk_label": "LOW",
+        "trade_plan_status": "VALID_ENTRY_PLAN",
+        "eligibility_status": "ELIGIBLE",
+        "primary_reason": "Strong completed-session evidence aligns with a valid, meaningful entry condition.",
+        "primary_reason_code": "bullish_setup_pullback",
+        "stance": "BULLISH",
+        "non_holder_action": "BUY",
+        "holder_action": "HOLD",
+        "regime_score": 50,
+        "regime_label": "NEUTRAL",
+        "regime_phase": "HEALTHY",
+        "regime_confidence": 0,
+        "regime_permission": "CAUTION"
+      },
+      "technical_snapshot": {
+        "price_change_percent_ratio": {
+          "numerator": "28421",
+          "denominator": "10000"
+        },
+        "latest_price": 97.7,
+        "previous_close": 95.0,
+        "price_change": 2.7,
+        "price_change_percent": 2.8421,
+        "volume": 2228250,
+        "average_volume": 420624.0,
+        "turnover": 216560000.0,
+        "rsi": 69.13758319342762,
+        "sma20": 91.795,
+        "ema20": 92.39828751373716,
+        "volatility": 1.3546213574073982,
+        "support": 93.2,
+        "resistance": 101.7,
+        "trend": "UPTREND",
+        "data_quality": "OK",
+        "latest_trade_date": "2026-11-12",
+        "ohlcv_row_count": 90,
+        "sparkline_closes": [
+          90.0,
+          93.3,
+          95.9,
+          94.4,
+          95.6,
+          96.0,
+          95.0,
+          97.7
+        ],
+        "sma50": 88.55,
+        "atr14": 2.265243819728488,
+        "average_turnover": 43227500.0,
+        "return_5d_percent": 1.8769551616266922,
+        "return_20d_percent": 12.94797687861271,
+        "is_breakout": false,
+        "structure": "higher_high_higher_low",
+        "gap_frequency_percent": 0.0,
+        "invalid_ohlcv_row_count": 0,
+        "latest_row_valid": true,
+        "traded_session_count": 87,
+        "zero_volume_session_count": 0,
+        "traded_session_ratio": 0.9666666666666667,
+        "volume_observation_count": 20,
+        "median_turnover": 37495000.0,
+        "turnover_observation_count": 20,
+        "turnover_provenance": "REPORTED",
+        "analytical_price_basis": "RAW_UNADJUSTED",
+        "adjusted_close_coverage_ratio": 0.0,
+        "expected_session_count": 0,
+        "observed_session_count": 0,
+        "missing_session_count": 0,
+        "calendar_status": "OBSERVED_ROWS_ONLY",
+        "volume_behavior": "EXPANSION"
+      },
+      "opportunity": {
+        "score": 75,
+        "components": [
+          {
+            "key": "trend",
+            "label": "Trend",
+            "score": 90,
+            "weight": 0.28,
+            "explanation": "Price is in an uptrend above moving averages. Price is 6.4% above SMA20."
+          },
+          {
+            "key": "momentum",
+            "label": "Momentum",
+            "score": 69,
+            "weight": 0.22,
+            "explanation": "RSI 69.1 is in a neutral-to-positive zone. 20-day trend momentum is strong (12.9%)."
+          },
+          {
+            "key": "volume",
+            "label": "Volume",
+            "score": 85,
+            "weight": 0.2,
+            "explanation": "Volume is 5.3x the prior-20-session median."
+          },
+          {
+            "key": "price_position",
+            "label": "Price Position",
+            "score": 50,
+            "weight": 0.2,
+            "explanation": "Support/resistance context is neutral."
+          },
+          {
+            "key": "risk_adjustment",
+            "label": "Risk Adjustment",
+            "score": 73,
+            "weight": 0.1,
+            "explanation": "Higher risk (27) reduces opportunity conviction."
+          }
+        ],
+        "quality": "STRONG",
+        "score_semantics": "HEURISTIC_LONG_SETUP_INDEX"
+      },
+      "risk": {
+        "score": 27,
+        "label": "LOW",
+        "components": [
+          {
+            "key": "volatility",
+            "label": "Volatility",
+            "score": 41,
+            "weight": 0.25,
+            "explanation": "Volatility is moderate at 1.35%."
+          },
+          {
+            "key": "category",
+            "label": "Category",
+            "score": 15,
+            "weight": 0.2,
+            "explanation": "DSE category A contributes to structural risk."
+          },
+          {
+            "key": "liquidity",
+            "label": "Liquidity",
+            "score": 35,
+            "weight": 0.2,
+            "explanation": "Liquidity profile is normal."
+          },
+          {
+            "key": "data_quality",
+            "label": "Data Quality",
+            "score": 20,
+            "weight": 0.15,
+            "explanation": "Latest OHLCV data quality is OK."
+          },
+          {
+            "key": "stale_data",
+            "label": "Data Freshness",
+            "score": 15,
+            "weight": 0.1,
+            "explanation": "Data freshness is acceptable."
+          },
+          {
+            "key": "overextension",
+            "label": "Overextension",
+            "score": 25,
+            "weight": 0.1,
+            "explanation": "Price is not overextended versus its recent mean."
+          }
+        ],
+        "score_semantics": "LEGACY_COMPOSITE_RISK"
+      },
+      "directional_evidence": {
+        "direction": "BULLISH",
+        "bullish_score": 77,
+        "bearish_score": 23,
+        "coverage_percent": 100,
+        "components": [
+          {
+            "key": "trend",
+            "label": "Trend",
+            "direction": "BULLISH",
+            "strength": 85,
+            "weight": 0.5,
+            "explanation": "The established trend is upward."
+          },
+          {
+            "key": "momentum",
+            "label": "Momentum",
+            "direction": "BULLISH",
+            "strength": 81,
+            "weight": 0.3,
+            "explanation": "20-session analytical return is 12.95%."
+          },
+          {
+            "key": "level_event",
+            "label": "Level Event",
+            "direction": "NEUTRAL",
+            "strength": 60,
+            "weight": 0.2,
+            "explanation": "No current structural price-break event is present."
+          }
+        ],
+        "score_semantics": "HEURISTIC_DIRECTIONAL_EVIDENCE"
+      },
+      "data_reliability": {
+        "score": 85,
+        "label": "HIGH",
+        "reason_codes": [
+          "raw_unadjusted_analytical_series"
+        ],
+        "explanation": "Deterministic input reliability reflects freshness, history coverage, source quality, row validity, and corporate-action resolution.",
+        "score_semantics": "DETERMINISTIC_INPUT_RELIABILITY"
+      },
+      "trading_risk": {
+        "score": 31,
+        "label": "LOW",
+        "components": [
+          {
+            "key": "volatility_gap",
+            "label": "Volatility and Gap Risk",
+            "score": 41,
+            "weight": 0.55,
+            "explanation": "Analytical daily volatility is moderate at 1.35%."
+          },
+          {
+            "key": "category",
+            "label": "Category Risk",
+            "score": 15,
+            "weight": 0.25,
+            "explanation": "Category A is treated as a structural trading-risk input."
+          },
+          {
+            "key": "overextension",
+            "label": "Overextension Risk",
+            "score": 25,
+            "weight": 0.2,
+            "explanation": "Price is not overextended versus its medium-term path."
+          }
+        ],
+        "score_semantics": "HEURISTIC_TRADING_RISK"
+      },
+      "price_position": {
+        "current_price": 97.7,
+        "distance_to_support_percent": 4.828326180257511,
+        "distance_to_resistance_percent": 4.094165813715455,
+        "above_sma20_percent": 6.432812244675637,
+        "above_ema20_percent": 5.73789041866671
+      },
+      "trade_plan": {
+        "entry_zone_low": 93.2,
+        "entry_zone_high": 94.598,
+        "stop_loss": 92.5687,
+        "target_low": 98.649,
+        "target_high": 101.7,
+        "risk_reward_ratio": 2.0,
+        "explanation": "The strong opportunity has a precise pullback zone, structural invalidation, and overhead objective.",
+        "status": "VALID_ENTRY_PLAN",
+        "reasons": [],
+        "entry_readiness": "CONDITIONAL",
+        "entry_timing": "PULLBACK",
+        "preferred_entry_zone_low": 93.2,
+        "preferred_entry_zone_high": 94.598,
+        "invalidation_price": 92.5687,
+        "condition_text": "Planned pullback zone; holding confirmation not assessed.",
+        "expiry_sessions": 10,
+        "trigger_price": null,
+        "confirmation_rule": null,
+        "management_mode": "STRUCTURAL",
+        "trailing_rule": null,
+        "reassessment_sessions": null,
+        "partial_profit_price": null
+      },
+      "liquidity": {
+        "label": "NORMAL",
+        "average_volume": 420624.0,
+        "latest_volume_ratio": 5.297486591349994,
+        "volume_consistency_score": 85,
+        "average_turnover": 43227500.0,
+        "median_turnover": 37495000.0,
+        "turnover_observation_count": 20,
+        "turnover_provenance": "REPORTED",
+        "traded_session_ratio": 0.9666666666666667,
+        "explanation": "Median traded-session turnover is adequate for standard sizing."
+      },
+      "eligibility": {
+        "status": "ELIGIBLE",
+        "reason_codes": [],
+        "exchange_session_date": "2026-11-12",
+        "latest_trade_date": "2026-11-12",
+        "missed_session_count": 0,
+        "valid_ohlcv_row_count": 90,
+        "invalid_ohlcv_row_count": 0,
+        "traded_session_count": 87,
+        "zero_volume_session_count": 0,
+        "traded_session_ratio": 0.9667,
+        "quality_ok_count": 50,
+        "quality_partial_count": 0,
+        "quality_suspicious_count": 0,
+        "median_turnover": 37495000.0,
+        "turnover_observation_count": 20,
+        "turnover_provenance": "REPORTED",
+        "analytical_price_basis": "RAW_UNADJUSTED",
+        "expected_session_count": 0,
+        "observed_session_count": 0,
+        "missing_session_count": 0,
+        "event_coverage_status": "UNKNOWN",
+        "corporate_action_status": "NONE"
+      },
+      "warnings": [],
+      "data_freshness": {
+        "latest_trade_date": "2026-11-12",
+        "ohlcv_row_count": 90,
+        "is_stale": false,
+        "is_sparse": false,
+        "missing_fields": [],
+        "data_quality": "OK",
+        "source_summary": "Computed from stored daily_prices and stock master profile."
+      },
+      "support": 93.2,
+      "resistance": 101.7,
+      "trend": "UPTREND",
+      "patterns": [],
+      "primary_pattern": null,
+      "breakout": {
+        "probability": 40,
+        "factors": [
+          {
+            "label": "Volume increasing",
+            "matched": true,
+            "explanation": "Latest volume exceeds the 20-day average materially."
+          },
+          {
+            "label": "Trend aligned",
+            "matched": true,
+            "explanation": "Uptrend supports upside continuation."
+          },
+          {
+            "label": "At breakout zone",
+            "matched": false,
+            "explanation": "Price is not near the trigger level."
+          },
+          {
+            "label": "Pattern active",
+            "matched": false,
+            "explanation": "No active pattern aligned with this scenario."
+          }
+        ],
+        "breakout_level": 101.7,
+        "confirmation_level": 102.717,
+        "projected_target": 106.785,
+        "explanation": "Breakout evidence score combines volume, trend, resistance proximity, and confirmed pattern context.",
+        "direction": "breakout",
+        "evidence_score": 40,
+        "score_semantics": "HEURISTIC_BREAKOUT_EVIDENCE"
+      },
+      "ownership": null,
+      "valuation": null,
+      "events": []
+    },
+    "fundamentals_snapshot": null,
+    "financial_trends": [],
+    "valuation_context": null,
+    "dividend_intelligence": null,
+    "display_metrics": {
+      "volume": 1000,
+      "session_date_verified": true,
+      "previous_close": null,
+      "source": null,
+      "data_quality": "OK",
+      "ingested_at": null,
+      "source_observed_at": "2026-11-12T09:00:00Z",
+      "batch_fetched_at": "2026-11-12T09:00:00Z",
+      "max_age_seconds": 1800,
+      "price_change": null,
+      "price_change_percent": null,
+      "observation_session_date": "2026-11-12",
+      "observation_status": "FINALIZED",
+      "current_price": 93.899,
+      "pe_ratio": null,
+      "pb_ratio": null,
+      "earnings_yield": null,
+      "market_cap": null,
+      "marked_to_latest_price": false,
+      "pe_helper": null,
+      "as_of_trade_date": "2026-11-12"
+    },
+    "quote_generation_id": "CONTROLLED-f3c748ff1d5ca25a1c98d2e2",
+    "decision_generation_id": "CONTROLLED-f3c748ff1d5ca25a1c98d2e2",
+    "decision_status": "CURRENT",
+    "market_sync_id": "CONTROLLED-f3c748ff1d5ca25a1c98d2e2",
+    "data_state": "FINALIZED"
+  },
+  "freshness": {
+    "dashboard_cache_ttl_seconds": 600,
+    "data_state": "FINALIZED",
+    "decision_generation_id": "CONTROLLED-f3c748ff1d5ca25a1c98d2e2",
+    "decision_session_date": "2026-11-12",
+    "decision_status": "CURRENT",
+    "exchange": "DSE",
+    "expected_delay_minutes": 15,
+    "freshness_label": "CONTROLLED timing simulation",
+    "is_live_session": false,
+    "last_synced_at": "2026-11-13T23:24:33.347536Z",
+    "live_data_as_of": null,
+    "market_close_time": "15:00",
+    "market_open_time": "10:00",
+    "market_status": "POST_CLOSE",
+    "market_sync_id": "CONTROLLED-f3c748ff1d5ca25a1c98d2e2",
+    "market_sync_interval_seconds": 900,
+    "next_sync_at": null,
+    "published_at": null,
+    "snapshot_interval_minutes": 15,
+    "trade_date": "2026-11-12"
+  }
+}

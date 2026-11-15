@@ -1,7 +1,7 @@
 import { getPulsePresentationLanguage } from "@/features/market-pulse/market-pulse-presentation-language";
 import { getTraderJourneyLanguage } from "@/lib/market/trader-journey-language";
 import { formatNumber, formatPercent } from "@/lib/formatters/financial-formatters";
-import { compatibleDisplayAction } from "@/lib/market/decision-action-compatibility";
+import { prospectiveDisplayAction } from "@/lib/market/decision-action-compatibility";
 import { breadthCoverageLabel, breadthDefinition } from "@/lib/market/breadth-presentation";
 import { controllingReasonLabel, readinessLabel } from "@/lib/market/decision-presentation";
 import type { BackendMarketPulseDto, BackendFocusStockDto, BackendMarketMoverDto, BackendMarketBriefingDto, PulseStoryHeadlineCode } from "@/lib/api/backend-api-types";
@@ -55,14 +55,16 @@ function mapFocusStock(stock: BackendFocusStockDto): FocusStockModel {
     (stock.focus_label !== "Signal Upgrade" || ["WAIT", "HOLD"].includes(pair.previous_action ?? ""));
   const legacyTransition = ["Signal Upgrade", "New BUY Setup"].includes(stock.focus_label) && !verifiedTransition;
   return {
+    topSetup: stock.top_setup,
     entryApplicability: stock.entry_applicability,
     measuredFacts: stock.measured_facts,
     displayQuote: stock.display_quote,
     entryRiskLabel: stock.entry_risk_label,
     rank: stock.rank,
-    recommendation: compatibleDisplayAction({ display_action: stock.recommendation, decision_taxonomy_version: stock.decision_taxonomy_version ?? undefined }) ?? undefined,
+    recommendation: prospectiveDisplayAction({ display_action: stock.recommendation, non_holder_action: stock.non_holder_action, decision_taxonomy_version: stock.decision_taxonomy_version ?? undefined }) ?? undefined,
     readiness: stock.entry_readiness,
     controllingReasonCode: stock.controlling_reason_code,
+    eligibilityReasons: stock.eligibility_reason_codes,
     controllingReason: stock.controlling_reason,
     decisionDate: stock.decision_session_date,
     watchLevel: stock.watch_level,
@@ -449,7 +451,7 @@ export function applyMarketPulseLocalization(model: MarketPulseModel, locale: Ap
       ? (locale === "bn" ? "অনুমোদিত entry trigger নেই" : "No permitted entry trigger")
       : language.focus.trigger(localizeEntryCondition(stock.trigger, locale) ?? stock.trigger),
     decisionContext: `${stock.recommendation ?? "—"} · ${readinessLabel(stock.readiness, locale)} · ${stock.decisionDate ?? "—"}`,
-    controllingReason: controllingReasonLabel(stock.controllingReasonCode, stock.controllingReason ?? "", locale),
+    controllingReason: controllingReasonLabel(stock.controllingReasonCode, stock.controllingReason ?? "", locale, stock.eligibilityReasons),
     actionSummary: language.focus.actionSummary(stock.actionSummary),
   });
 
@@ -572,8 +574,7 @@ function focusEvidenceReason(stock: FocusStockModel, locale: AppLocale): string[
 function presentPulseAlert(alert: MarketAlertModel, locale: AppLocale): MarketAlertModel {
   const copy = getPulsePresentationLanguage(locale);
   return { ...alert, eventTitle: `${alert.symbol ? `${alert.symbol} · ` : ""}${(copy.alertTitles as Record<string, string>)[alert.type] ?? copy.sessionAlert}`,
-    eventExplanation: (copy.alertExplanations as Record<string, (metric: string) => string>)[alert.type]?.(alert.metricLabel) ?? "",
-    whyItMatters: copy.alertAdvice };
+    eventExplanation: (copy.alertExplanations as Record<string, (metric: string) => string>)[alert.type]?.(alert.metricLabel) ?? "" };
 }
 
 export function buildMarketPulseViewModel(dto: BackendMarketPulseDto, locale: AppLocale = "en"): MarketPulseModel {
@@ -583,12 +584,13 @@ export function buildMarketPulseViewModel(dto: BackendMarketPulseDto, locale: Ap
   const decisionDate = dto.coverage?.decision_session_date ?? dto.coverage?.session_trade_date;
   const quoteDate = dto.coverage?.quote_session_date ?? [...dto.focus_stocks, ...dto.monitor_candidates]
     .map(stock => stock.display_quote?.observation_session_date ?? stock.display_quote?.as_of_trade_date).filter((value): value is string => Boolean(value)).sort().at(-1);
-  const focusStocks = dto.focus_stocks.map(mapFocusStock);
+  const focusStocks = dto.focus_stocks.filter(stock => stock.top_setup).map(mapFocusStock);
   const monitorCandidates = dto.monitor_candidates.map(mapFocusStock);
 
   const model: MarketPulseModel = {
     hero: {
       greeting: dto.hero.greeting,
+      decisionDate,
       attentionHeadline: dto.hero.attention_headline,
       attentionSubline: dto.hero.attention_subline,
       lastUpdatedLabel: dto.hero.last_updated_label,
@@ -624,7 +626,7 @@ export function buildMarketPulseViewModel(dto: BackendMarketPulseDto, locale: Ap
   const localized = applyMarketPulseLocalization(model, locale);
   const focus = (stock: FocusStockModel): FocusStockModel => ({ ...stock, locale,
     whyHere: focusEvidenceReason(stock, locale),
-    controllingReason: controllingReasonLabel(stock.controllingReasonCode, "", locale),
+    controllingReason: controllingReasonLabel(stock.controllingReasonCode, "", locale, stock.eligibilityReasons),
     decisionContext: `${copy.forNewBuyers} · ${shortTradeDate(stock.decisionDate, locale)}`,
   });
   const facts = dto.briefing?.breadth ?? dto.coverage?.breadth;

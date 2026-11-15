@@ -30,6 +30,26 @@ def test_classify_dividend() -> None:
     assert t == MarketEventType.DISCLOSURE
 
 
+@pytest.mark.parametrize("title,content", [
+    ("Cash dividend", "Analysts recommended dividend yield stocks"),
+    ("Cash dividend", "The company might declare a cash dividend"),
+    ("Cash dividend", "Cash dividend yield is attractive"),
+    ("Board Meeting schedule under LR 16(1)", "Rumours of a meeting of the Board of Directors"),
+    ("Board Meeting schedule under LR 16(1)", "Analysts discuss a meeting of the Board of Directors"),
+    ("Board Meeting schedule under LR 16(1)", "Market outlook"),
+])
+def test_notice_headings_do_not_promote_commentary_or_missing_action(title, content) -> None:
+    assert classify_market_event_type(title=title, content=content) == MarketEventType.NEWS
+
+
+@pytest.mark.parametrize("title,content", [
+    ("Stock dividend", "declared stock dividend"),
+    ("Cash dividend payment", "paid cash dividend"),
+])
+def test_explicit_dividend_notices(title, content) -> None:
+    assert classify_market_event_type(title=title, content=content) == MarketEventType.DISCLOSURE
+
+
 def test_turnover_suffix_m() -> None:
     assert normalize_amarstock_turnover_text("7.5M") == Decimal("7500000")
 

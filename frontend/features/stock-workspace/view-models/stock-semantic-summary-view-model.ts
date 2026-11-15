@@ -1,7 +1,7 @@
 import type { StockDecisionViewModel } from "@/features/stock-workspace/view-models/stock-decision-view-model";
 import type { StockWorkspaceModel } from "@/features/stock-workspace/view-models/stock-workspace-view-model";
-import { getStockWorkspaceLanguage } from "@/features/stock-workspace/stock-workspace-language";
 import { formatMarketCapBdt } from "@/lib/formatters/financial-formatters";
+import { entryAssessmentPresentation } from "@/lib/market/entry-assessment-presentation";
 
 function resolveAction(decision: StockDecisionViewModel) {
   if (decision.available && decision.displayAction) {
@@ -48,15 +48,12 @@ export function buildStockSemanticSummary(model: StockWorkspaceModel, decision: 
     parts.push(`${marketCapPhrase}.`);
   }
 
-  const panels = getStockWorkspaceLanguage(decision.locale ?? "en").panels;
   parts.push(`${decision.datedActionLabel ?? "Dated decision"}: ${action ?? (decision.locale === "bn" ? "সিদ্ধান্ত অনুপলব্ধ" : "Decision unavailable")}.`);
-  const assessment = decision.tradePlanVisual.entryApplicability;
-  parts.push(assessment ? `${panels.entryStatus[assessment.status]}. ${panels.entryReason[assessment.reason_code]}` : panels.currentEntryUnverified);
+  const assessment = entryAssessmentPresentation(decision.tradePlanVisual.entryApplicability, decision.locale ?? "en");
+  if (assessment) parts.push([assessment.label, assessment.detail].filter(Boolean).join(". "));
+  if (decision.controllingReason) parts.push(decision.controllingReason);
+  if (decision.entryCondition) parts.push(decision.entryCondition);
   if (confidence !== null && action) parts.push(decision.confidenceLabel);
-
-  if (decision.available && decision.freshness.label) {
-    parts.push(`Decision data: ${decision.freshness.label} (${decision.freshness.helper}).`);
-  }
 
   return parts.join(" ");
 }

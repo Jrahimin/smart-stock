@@ -77,6 +77,23 @@ class DashboardSectorsRead(BaseModel):
 
 
 class DashboardTimelineItemRead(BaseModel):
+    id: str | None = None
+    kind: str = "HIGHLIGHT"
+    publication_date: date | None = None
+    date_basis: Literal["PUBLICATION","RECORDED_DATE"] | None = None
+    date_label: Literal["TODAY","DATE","RECORDED_DATE"] | None = None
+    date_label_as_of: date | None = None
+    published_at: datetime | None = None
+    effective_date: date | None = None
+    ingested_at: datetime | None = None
+    source: str | None = None
+    source_url: str | None = None
+    href: str | None = None
+    symbol: str | None = None
+    priority: str = "NORMAL"
+    highlight_type: str | None = None
+    metric_value: float | None = None
+    metric_unit: str | None = None
     time: str
     title: str
     description: str

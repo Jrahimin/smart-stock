@@ -28,6 +28,7 @@ export function TradePlanPanel({ decision, copy }: TradePlanPanelProps) {
       <div className="trade-plan-rr"><span>{copy.plannedRewardRisk}</span><strong>{plan.riskReward !== null ? `${plan.riskReward.toFixed(2)}×` : "—"}</strong></div>
     </div>
     <p className="trade-plan-date">{copy.planAsOf} {shortTradeDate(plan.asOfDate, decision.locale)} · {copy.decisionReference} {formatNumber(plan.reference)}</p>
+    <small>{decision.locale === "bn" ? "Planned R/R: Entry zone-এর ওপরের দাম থেকে প্রথম target, খরচের আগে।" : "Planned R/R: entry-zone high to first target, before costs."}</small>
     <div className="trade-plan-timeline">
       <div className="trade-plan-row trade-plan-entry"><span>{copy.entryZone}</span><div className="trade-plan-track">{band(plan.entryLow, plan.entryHigh, "entry")}</div><strong>{range(plan.entryLow, plan.entryHigh)}</strong></div>
       <div className="trade-plan-row trade-plan-current"><span>{copy.markedQuote}</span><div className="trade-plan-track">{valid(plan.current) ? <i aria-hidden="true" className="trade-plan-dot trade-plan-dot-current" style={{ left: `${position(plan.current)}%` }} /> : null}</div><strong>{formatNumber(plan.current)}</strong></div>

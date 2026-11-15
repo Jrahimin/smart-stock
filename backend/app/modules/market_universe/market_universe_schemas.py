@@ -19,6 +19,7 @@ from app.modules.stock_details.decision.comparison import (
 )
 from app.modules.stock_details.decision.entry_applicability import EntryApplicabilityRead
 from app.modules.stock_details.decision.measured_facts import MeasuredDecisionFactsRead
+from app.modules.market_universe.top_setups import TopSetupRead
 from app.modules.stock_details.stock_details_schemas import (
     CanonicalDecisionResultRead,
     DataReliabilityRead,
@@ -107,6 +108,7 @@ class ScoredUniverseRow(BaseModel):
     """Lightweight exchange-wide row — safe for universe:scored Redis cache."""
 
     entry_applicability: EntryApplicabilityRead | None = None
+    top_setup: "TopSetupRead | None" = Field(default=None, exclude_if=lambda value: value is None)
     measured_facts: MeasuredDecisionFactsRead | None = Field(default=None, exclude_if=lambda value: value is None)
     holder_comparison: "HolderDecisionComparisonRead | None" = Field(default=None, exclude_if=lambda value: value is None)
     public_comparison: "PublicDecisionComparisonRead | None" = Field(default=None, exclude_if=lambda value: value is None)

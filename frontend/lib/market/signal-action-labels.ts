@@ -3,8 +3,8 @@ import type { AppLocale } from "@/lib/locale/app-locale";
 import { DEFAULT_LOCALE } from "@/lib/locale/app-locale";
 
 type SignalActionLabelCopy = {
-  default: Record<DecisionDisplayAction, string>;
-  compact: Partial<Record<DecisionDisplayAction, string>>;
+  default: Record<DecisionDisplayAction | HolderAction, string>;
+  compact: Partial<Record<DecisionDisplayAction | HolderAction, string>>;
 };
 
 const signalActionLabels: Record<AppLocale, SignalActionLabelCopy> = {
@@ -13,7 +13,9 @@ const signalActionLabels: Record<AppLocale, SignalActionLabelCopy> = {
       POTENTIAL_BUY: "POTENTIAL BUY",
       WAIT: "WAIT",
       SELL: "SELL",
+      AVOID: "AVOID",
       HOLD: "HOLD",
+      REVIEW: "REVIEW", REDUCE: "REDUCE",
     },
     compact: {
       POTENTIAL_BUY: "P. BUY",
@@ -24,7 +26,9 @@ const signalActionLabels: Record<AppLocale, SignalActionLabelCopy> = {
       POTENTIAL_BUY: "POTENTIAL BUY",
       WAIT: "WAIT",
       SELL: "SELL",
+      AVOID: "AVOID",
       HOLD: "HOLD",
+      REVIEW: "REVIEW", REDUCE: "REDUCE",
     },
     compact: {
       POTENTIAL_BUY: "POTENTIAL BUY",
@@ -33,7 +37,7 @@ const signalActionLabels: Record<AppLocale, SignalActionLabelCopy> = {
 };
 
 export function getSignalActionLabel(
-  signal: DecisionDisplayAction,
+  signal: DecisionDisplayAction | HolderAction,
   locale: AppLocale = DEFAULT_LOCALE,
   density: "default" | "compact" = "default",
 ): string {

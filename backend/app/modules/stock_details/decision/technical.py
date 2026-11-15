@@ -327,6 +327,10 @@ class LevelResult:
     support: float | None
     resistance: float | None
     prior_swing_high: float | None
+    support_source: str | None = None
+    resistance_source: str | None = None
+    support_age_sessions: int | None = None
+    resistance_age_sessions: int | None = None
 
 
 def _donchian(prices: list[DailyPrice], lookback: int) -> tuple[float | None, float | None]:
@@ -385,7 +389,17 @@ def resolve_levels(
         below = [price for price in confirmed_lows if latest_price is None or price <= latest_price]
         support = max(below) if below else min(confirmed_lows)
 
-    return LevelResult(support=support, resistance=resistance, prior_swing_high=prior_swing_high)
+    def age(value, kind, confirmed):
+        matches = [point.index for point in swings if point.kind == kind and point.price == value
+                   and point.index <= confirm_before_index] if confirmed else [
+            index for index, row in enumerate(sorted_prices) if index >= len(sorted_prices)-lookback
+            and _to_float(row.low_price if kind == "low" else row.high_price) == value]
+        return len(sorted_prices)-1-max(matches) if matches else None
+    return LevelResult(support=support, resistance=resistance, prior_swing_high=prior_swing_high,
+        support_source="CONFIRMED_SWING" if confirmed_lows else "DONCHIAN_WINDOW",
+        resistance_source="CONFIRMED_SWING" if confirmed_highs else "DONCHIAN_WINDOW",
+        support_age_sessions=age(support, "low", confirmed_lows),
+        resistance_age_sessions=age(resistance, "high", confirmed_highs))
 
 
 def compute_support_resistance(

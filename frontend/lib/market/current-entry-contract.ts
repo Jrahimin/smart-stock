@@ -8,7 +8,7 @@ const record = (value: unknown): RecordValue => value && typeof value === "objec
 const timestamp = (value: unknown) => typeof value === "string" && /T.*(?:Z|[+-]\d\d:\d\d)$/.test(value) ? Date.parse(value) : NaN;
 const dhakaDate = (time: number) => new Date(time + 6 * 60 * 60 * 1000).toISOString().slice(0, 10);
 const states = new Set(["NOT_APPLICABLE", "INVALIDATED", "EXPIRED", "UNVERIFIED", "OUTSIDE_ZONE", "AWAITING_CONFIRMATION", "APPLICABLE"]);
-const reasons = new Set(["PUBLICATION_INVALIDATED", "ACTION_NOT_PERMITTED", "ELIGIBILITY_BLOCKED", "NO_ENTRY_PLAN", "STOP_BREACHED", "PRICE_BASIS_CHANGED", "PLAN_EXPIRED", "COVERAGE_UNKNOWN", "QUOTE_UNUSABLE", "PATH_INCOMPLETE", "TERMS_UNKNOWN", "TARGET_REACHED", "BELOW_ENTRY_ZONE", "ABOVE_ENTRY_ZONE", "COMPLETED_BREAKOUT_REQUIRED", "ENTRY_SESSION_PENDING", "ENTRY_TERMS_MET", "MARKET_CLOSED", "SESSION_SETTLING"]);
+const reasons = new Set(["PUBLICATION_INVALIDATED", "ACTION_NOT_PERMITTED", "ELIGIBILITY_BLOCKED", "NO_ENTRY_PLAN", "STOP_BREACHED", "PRICE_BASIS_CHANGED", "PLAN_EXPIRED", "COVERAGE_UNKNOWN", "QUOTE_UNUSABLE", "PATH_INCOMPLETE", "TERMS_UNKNOWN", "TARGET_REACHED", "BELOW_ENTRY_ZONE", "ABOVE_ENTRY_ZONE", "COMPLETED_BREAKOUT_REQUIRED", "COMPLETED_PULLBACK_HOLD_REQUIRED", "ENTRY_SESSION_PENDING", "ENTRY_TERMS_MET", "MARKET_CLOSED", "SESSION_SETTLING"]);
 
 type EntryRecord = { owner: RecordValue; stamp: RecordValue; lineage: RecordValue[]; stock: RecordValue; quote: RecordValue; assessment: RecordValue };
 function entries(data: unknown): EntryRecord[] {
@@ -131,8 +131,13 @@ export function expiredCurrentEntryKeys(data: unknown, freshness?: BackendMarket
   });
 }
 
-export function currentEntryEvidenceTime(data: unknown): number {
-  return Math.max(0, ...entries(data).map((entry) => timestamp(entry.assessment.assessed_at)).filter(Number.isFinite));
+export function currentEntryEvidenceTime(data: unknown, freshness?: BackendMarketFreshnessDto | null, now = Date.now(), expected?: CurrentEntryInstrument): number {
+  // Rejected future/foreign-owner responses cannot become trusted ordering
+  // evidence and permanently suppress later legitimate reads for this query.
+  return Math.max(0, ...entries(data).filter((entry) => {
+    const assessed = timestamp(entry.assessment.assessed_at), published = timestamp(entry.assessment.publication_observed_at);
+    return Number.isFinite(assessed) && assessed <= now && Number.isFinite(published) && published <= assessed && usable(entry, freshness, now, expected);
+  }).map((entry) => timestamp(entry.assessment.assessed_at)));
 }
 
 /** IDB never renews source age with cache insertion time. Missing freshness cannot certify permission. */
@@ -164,30 +169,60 @@ function usable(entry: EntryRecord, freshness: BackendMarketFreshnessDto | null 
   return deadline !== null && timestamp(entry.assessment.assessed_at) <= now && now < deadline;
 }
 
+function sameValue(left: unknown, right: unknown): boolean {
+  if (left === right) return true;
+  if (!left || !right || typeof left !== "object" || typeof right !== "object") return false;
+  const a = left as Record<string, unknown>, b = right as Record<string, unknown>;
+  const keys = Object.keys(a);
+  return keys.length === Object.keys(b).length && keys.every((key) => key in b && sameValue(a[key], b[key]));
+}
+const fenced = new WeakMap<object, { state: string; output: unknown }>();
+
 /** Preserve dated thesis/levels; null means a client display fallback, not server UNVERIFIED. */
 export function fenceCurrentEntryPayload<T>(data: T, freshness?: BackendMarketFreshnessDto | null, now = Date.now(), expected?: CurrentEntryInstrument, suppressPositive = false): T {
   const payload = record(data);
-  if (payload.data) return { ...payload, data: fenceCurrentEntryPayload(payload.data, freshness, now, expected, suppressPositive) } as T;
+  if (payload.data) {
+    const next = fenceCurrentEntryPayload(payload.data, freshness, now, expected, suppressPositive);
+    return next === payload.data ? data : { ...payload, data: next } as T;
+  }
   const assessments = entries(data);
+  const allowed = assessments.map((entry) => !(suppressPositive && timedAssessment(entry)) && usable(entry, freshness, now, expected));
+  const state = allowed.map(Number).join("");
+  const previous = data && typeof data === "object" ? fenced.get(data) : undefined;
+  if (previous?.state === state) return previous.output as T;
+  const remember = (output: T): T => {
+    if (data && typeof data === "object") fenced.set(data, { state, output });
+    return output;
+  };
   if (payload.decision_support) {
     const support = record(payload.decision_support);
     const assessment = assessments[0] && !(suppressPositive && timedAssessment(assessments[0])) && usable(assessments[0], freshness, now, expected) ? support.entry_applicability : null;
-    return { ...payload, decision_support: { ...support, entry_applicability: assessment, decision: { ...record(support.decision), entry_applicability: assessment } } } as T;
+    if (sameValue(support.entry_applicability, assessment) && sameValue(record(support.decision).entry_applicability, assessment)) return remember(data);
+    return remember({ ...payload, decision_support: { ...support, entry_applicability: assessment, decision: { ...record(support.decision), entry_applicability: assessment } } } as T);
   }
-  if (Array.isArray(payload.rows)) return { ...payload, rows: payload.rows.map((value, i) => {
+  if (Array.isArray(payload.rows)) {
+    const rows = payload.rows.map((value, i) => {
     const row = record(value);
-    const assessment = !(suppressPositive && timedAssessment(assessments[i])) && usable(assessments[i], freshness, now, expected) ? assessments[i].assessment as EntryApplicabilityDto : null;
+    const assessment = allowed[i] ? assessments[i].assessment as EntryApplicabilityDto : null;
+    if (sameValue(row.entry_applicability, assessment) && (!row.decision || sameValue(record(row.decision).entry_applicability, assessment))) return value;
     return { ...row, entry_applicability: assessment, decision: row.decision ? { ...record(row.decision), entry_applicability: assessment } : null };
-  }) } as T;
+    });
+    return remember(rows.every((row, i) => row === (payload.rows as unknown[])[i]) ? data : { ...payload, rows } as T);
+  }
   if (Array.isArray(payload.focus_stocks)) {
     let index = 0;
     const mapItem = (value: unknown) => {
       const item = record(value);
       const entry = assessments[index++];
       const assessment = !(suppressPositive && timedAssessment(entry)) && usable(entry, freshness, now, expected) ? entry.assessment : null;
-      return { ...item, entry_applicability: assessment, actionable_trigger: assessment?.status === "APPLICABLE" && assessment.price_basis === "CURRENT" };
+      const trigger = assessment?.status === "APPLICABLE" && assessment.price_basis === "CURRENT";
+      if (item.entry_applicability === assessment && item.actionable_trigger === trigger) return value;
+      return { ...item, entry_applicability: assessment, actionable_trigger: trigger };
     };
-    return { ...payload, focus_stocks: payload.focus_stocks.map(mapItem), monitor_candidates: Array.isArray(payload.monitor_candidates) ? payload.monitor_candidates.map(mapItem) : [] } as T;
+    const focus = payload.focus_stocks.map(mapItem);
+    const monitor = Array.isArray(payload.monitor_candidates) ? payload.monitor_candidates.map(mapItem) : [];
+    return remember(focus.every((item, i) => item === (payload.focus_stocks as unknown[])[i]) && monitor.every((item, i) => item === (payload.monitor_candidates as unknown[])[i])
+      ? data : { ...payload, focus_stocks: focus, monitor_candidates: monitor } as T);
   }
   return data;
 }

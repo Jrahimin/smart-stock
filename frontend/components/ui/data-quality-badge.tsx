@@ -5,5 +5,6 @@ type DataQualityBadgeProps = {
 };
 
 export function DataQualityBadge({ quality }: DataQualityBadgeProps) {
+  if (quality !== "SUSPICIOUS") return null;
   return <span className={`quality-badge quality-badge-${quality.toLowerCase()}`}>{quality}</span>;
 }

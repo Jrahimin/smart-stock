@@ -1,4 +1,5 @@
 import type { StockIntelligenceModel } from "@/lib/market/market-intelligence-types";
+import { isInternalFreshnessReason } from "./market-presentation-policy";
 import { resolveTraderDecision } from "@/lib/market/trader-decision";
 
 export type TraderDecisionReasonKey =
@@ -179,6 +180,7 @@ export function resolveDecisionReasonSummary(
   resolvedReason: ResolvedTraderDecisionReason,
   decisionReasons: DecisionReasonCopy,
 ): string {
+  if (isInternalFreshnessReason(resolvedReason.key)) return "";
   const template = decisionReasons[resolvedReason.key];
   return typeof template === "function"
     ? template(resolvedReason.params ?? {})

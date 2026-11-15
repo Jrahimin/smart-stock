@@ -1,5 +1,11 @@
 import type { DecisionDisplayAction } from "@/lib/api/backend-api-types";
 
+/** Public pages address a prospective buyer. Canonical history remains unchanged. */
+export function prospectiveDisplayAction(decision: Parameters<typeof compatibleDisplayAction>[0] & { non_holder_action?: string | null }): DecisionDisplayAction | null {
+  const action = compatibleDisplayAction(decision);
+  return action && decision?.non_holder_action === "AVOID" ? "AVOID" : action;
+}
+
 /** Keep recognizable dated legacy actions; never turn absent/unknown taxonomy into WAIT. */
 export function compatibleDisplayAction(decision: { display_action?: string; recommendation?: string; decision_taxonomy_version?: string; canonical?: { decision_taxonomy_version?: string; action_taxonomy?: string } | null } | null | undefined): DecisionDisplayAction | null {
   if (!decision || decision.decision_taxonomy_version && !["v1", "v2"].includes(decision.decision_taxonomy_version)) return null;

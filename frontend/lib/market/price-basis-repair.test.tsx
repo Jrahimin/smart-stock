@@ -69,9 +69,10 @@ it.each(["en", "bn"] as const)("keeps stale/null evidence neutral and distinguis
   const stale = entryWorkspace(); Object.assign(stale.decision_support.entry_applicability, { status: "UNVERIFIED", reason_code: "QUOTE_UNUSABLE", price_basis: "SNAPSHOT", batch_fetched_at: "2026-11-11T04:59:00Z" });
   const fenced = fenceCurrentEntryPayload(stale, entryFreshness(), ENTRY_NOW).decision_support.entry_applicability as EntryApplicabilityDto | null;
   expect(fenced).toBeNull();
-  expect(label(fenced)).toContain(locale === "en" ? "current entry check is unavailable" : "বর্তমান entry যাচাই করা যাচ্ছে না");
+  expect(label(fenced)).toBe("");
   expect(label(fenced)).not.toContain(locale === "en" ? "time of this price is unknown" : "দামটি কখনের");
-  expect(label({ status: "UNVERIFIED", reason_code: "MARKET_CLOSED" })).toContain(locale === "en" ? "market is closed" : "বাজার বন্ধ");
-  expect(label({ status: "UNVERIFIED", reason_code: "QUOTE_UNUSABLE" })).toContain(locale === "en" ? "time of this price is unknown" : "দামটি কখনের");
-  expect(label({ status: "UNVERIFIED", reason_code: "SESSION_SETTLING" })).toContain(locale === "en" ? "Closing price pending" : "Closing price-এর অপেক্ষায়");
+  expect(label({ status: "UNVERIFIED", reason_code: "MARKET_CLOSED" })).toBe("");
+  expect(label({ status: "UNVERIFIED", reason_code: "QUOTE_UNUSABLE" })).toBe("");
+  expect(label({ status: "UNVERIFIED", reason_code: "SESSION_SETTLING" })).toBe("");
+  expect(label({status:"INVALIDATED",reason_code:"STOP_BREACHED"})).not.toBe("");
 });

@@ -205,7 +205,7 @@ def resolve_account_mark(*, row=None, fallback_price=None):
             previous_close=fallback_price.previous_close_price,
             price_change=fallback_price.price_change, price_change_percent=fallback_price.price_change_percent,
             as_of_trade_date=fallback_price.trade_date.isoformat(),
-            observation_status="NO_TRADE" if fallback_price.volume == 0 else "FINALIZED",
+            observation_status="NO_TRADE" if fallback_price.volume == 0 else "UNAVAILABLE",
             source=getattr(fallback_price, "source", None), data_quality=fallback_price.data_quality_flag,
             ingested_at=getattr(fallback_price, "updated_at", None),
             source_observed_at=getattr(fallback_price, "source_observed_at", None),
@@ -218,6 +218,6 @@ def resolve_account_mark(*, row=None, fallback_price=None):
             previous_close=technical.previous_close, price_change=technical.price_change,
             price_change_percent=row.session.change_percent,
             as_of_trade_date=row.session.latest_trade_date.isoformat(),
-            observation_status="FINALIZED", data_quality=row.session.data_quality_flag.value,
+            observation_status="UNAVAILABLE", data_quality=row.session.data_quality_flag.value,
             ingested_at=row.session.updated_at)
     return DisplayQuoteRead(current_price=None)

@@ -80,9 +80,16 @@ def restore_strategy_input(payload: dict) -> StrategyInput:
             TurnoverProvenance(fields["turnover_provenance"])
             if fields["turnover_provenance"] is not None else None
         )
+        observation = next((row for row in payload.get("source_observations", []) if row.get("session") == item["trade_date"]), {})
+        for key, source_key in (("updated_at", "database_updated_at"), ("source_observed_at", "source_observed_at"), ("batch_fetched_at", "batch_fetched_at")):
+            raw = observation.get(source_key)
+            if raw is not None:
+                fields[key] = datetime.fromisoformat(raw)
         prices.append(DailyPrice(stock_id=UUID(payload["stock_id"]), **fields))
     regime = dict(payload["market_regime"])
     regime["phase"] = MarketRegimePhase(regime["phase"])
+    if regime.get("as_of_session"):
+        regime["as_of_session"] = date.fromisoformat(regime["as_of_session"])
     return StrategyInput(
         strategy_version=payload.get("strategy_version", "trading-intelligence-v2"),
         stock_id=UUID(payload["stock_id"]),

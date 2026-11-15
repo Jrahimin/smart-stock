@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Response
 
@@ -68,8 +68,9 @@ async def get_dashboard_market_alerts(
     service: Annotated[MarketDashboardService, Depends(get_market_dashboard_service)],
     settings: Annotated[Settings, Depends(get_settings)],
     exchange: ExchangeCode = ExchangeCode.DSE,
+    news_contract: Literal["verified-v1", "recorded-date-v1"] = "verified-v1",
 ) -> ApiResponse[DashboardMarketAlertsRead]:
-    alerts = await service.get_market_alerts(exchange=exchange)
+    alerts = await service.get_market_alerts(exchange=exchange,news_contract=news_contract)
     _attach_compute_header(response, service, settings)
     return success_response(data=alerts, message="Dashboard market alerts retrieved")
 

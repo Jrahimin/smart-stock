@@ -103,6 +103,10 @@ def fixture():
         entry_timing=EntryTiming.READY,
         display_action=DecisionDisplayAction.POTENTIAL_BUY,
         expiry_sessions=4,
+        # This pre-v4 execution/accounting fixture intentionally omits the new
+        # zone terms. Preserve its original owner; explicit v4 zone/window
+        # regressions live in test_practicality_repair.py.
+        engine_version="trading-intelligence-v3",
     )
     config = BacktestConfig(
         ExchangeCode.DSE,
@@ -115,6 +119,7 @@ def fixture():
         initial_train_sessions=2,
         validation_sessions=1,
         frozen_test_sessions=2,
+        strategy_version="trading-intelligence-v3",
     )
     summaries = tuple(
         DailyMarketSummary(

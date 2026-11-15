@@ -130,7 +130,9 @@ it.each(["en", "bn"].flatMap(locale => [{ quoteDate: "2026-11-12", activity: nul
   if (activity !== null) body.summaries.push({ ...body.summaries[0], trade_date: quoteDate, index_close: null, index_change: null, index_change_percent: null, total_volume: activity, total_turnover: 500 });
   body.breadth = { ...breadth("gA"), as_of_date: quoteDate, advancing: 111, declining: 29, unchanged: 2, known_count: 142, denominator: 142, cohort_count: 142 };
   body.last_synced_at = "2026-11-12T04:59:00Z";
-  const reading = sentiment("gA"); reading.interpretation = { ...reading.interpretation!, as_of_date: quoteDate, code: "BREADTH_ONLY", index_change_percent: null, volume_vs_average: activity === null ? null : String(activity / 100), breadth: body.breadth };
+  const reading = sentiment("gA");
+  reading.session_trade_date = quoteDate; // Both envelopes describe the quote snapshot; DSEX retains its own date.
+  reading.interpretation = { ...reading.interpretation!, as_of_date: quoteDate, code: "BREADTH_ONLY", index_change_percent: null, volume_vs_average: activity === null ? null : String(activity / 100), breadth: body.breadth };
   vi.stubGlobal("fetch", vi.fn((url: string) => Promise.resolve(new Response(JSON.stringify({ success: true,
     data: new URL(url).pathname.endsWith("/dashboard/overview") ? body : reading }), { status: 200, headers: { "Content-Type": "application/json" } }))));
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }); clients.push(client);
@@ -158,10 +160,10 @@ it.each(["en", "bn"].flatMap(locale => [{ quoteDate: "2026-11-12", activity: nul
     }
     expect(container.textContent).not.toContain(locale === "en" ? "prices are not in" : "দাম এখনও আসেনি");
     expect(container.textContent).not.toContain(locale === "en" ? "DSEX still fell" : "তবু DSEX সূচক কমেছে");
-  } else expect(container.textContent).toContain(locale === "en" ? "prices are not in" : "দাম এখনও আসেনি");
+  } else expect(container.textContent).not.toContain(locale === "en" ? "prices are not in" : "দাম এখনও আসেনি");
 });
 
-it.each(["en", "bn"].flatMap(locale => ["new-overview", "old-overview", "missing-own-time", "legacy"].map(mode => ({ locale: locale as "en" | "bn", mode }))))("timestamps actual overview bodies without borrowing another same-day generation ($locale, $mode)", async ({ locale, mode }) => {
+it.each(["en", "bn"].flatMap(locale => ["new-overview", "old-overview", "missing-own-time", "legacy"].map(mode => ({ locale: locale as "en" | "bn", mode }))))("retains each overview's own provenance internally without displaying freshness ($locale, $mode)", async ({ locale, mode }) => {
   vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(new Date("2026-11-12T07:00:00Z"));
   const older = "2026-11-12T04:03:00Z", newer = "2026-11-12T06:49:00Z";
   Object.assign(state.freshness, { trade_date: "2026-11-12", market_sync_id: mode === "old-overview" ? "gB" : "gA", last_synced_at: mode === "old-overview" ? newer : older });
@@ -172,11 +174,13 @@ it.each(["en", "bn"].flatMap(locale => ["new-overview", "old-overview", "missing
     data: new URL(url).pathname.endsWith("/dashboard/overview") ? body : sentiment("gA") }), { status: 200, headers: { "Content-Type": "application/json" } }))));
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }); clients.push(client);
   const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
-  function View() { const data = useMarketDashboard({ locale }); return <MarketOverview model={data.model} freshness={data.freshness} copy={getTerminalCopy(locale)} locale={locale} loading={false} leadersLoading={false} />; }
+  let current!: MarketDashboardModel;
+  function View() { const data = useMarketDashboard({ locale }); current = data.model; return <MarketOverview model={data.model} freshness={data.freshness} copy={getTerminalCopy(locale)} locale={locale} loading={false} leadersLoading={false} />; }
   const { container } = render(<View />, { wrapper });
   await waitFor(() => expect(container.querySelector(".sw-index-value")?.textContent).toBe("5,000.00"));
   const times = [...container.querySelectorAll(".sw-session time")].map(node => node.getAttribute("datetime"));
-  if (mode === "missing-own-time") { expect(times).not.toContain(older); expect(times).not.toContain(newer); }
-  else { const expected = mode === "new-overview" ? newer : older; expect(times).toContain(expected); expect(times).not.toContain(expected === older ? newer : older); }
-  expect(container.querySelector(".sw-session-state")?.textContent).toContain(getTerminalCopy(locale).open);
+  expect(times).toEqual(["2026-11-12"]);
+  expect(current.overviewPublication?.last_synced_at).toBe(body.last_synced_at);
+  expect(current.overviewPublication?.market_sync_id).toBe(body.market_sync_id);
+  expect(container.querySelector(".sw-session-state")).toBeNull();
 });

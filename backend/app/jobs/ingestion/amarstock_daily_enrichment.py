@@ -179,7 +179,7 @@ async def _ingest_amarstock_news(
     upserted = 0
     skipped = 0
     news_source = AmarStockNewsApiSource.source_name
-
+    deliveries = []
     for item in items:
         if not item.scrip or item.scrip == "EXCH":
             stock_id = None
@@ -204,7 +204,7 @@ async def _ingest_amarstock_news(
         elif "egm" in combined_lower or "extraordinary general meeting" in combined_lower:
             meta["subtype"] = "EGM"
 
-        await details_repo.create_or_update_market_event(
+        deliveries.append(
             {
                 "stock_id": stock_id,
                 "exchange": res_exchange,
@@ -218,6 +218,11 @@ async def _ingest_amarstock_news(
                 "metadata_json": meta,
             }
         )
+    from app.modules.market_data.publication_lock import market_event_delivery_order
+    for values in sorted(deliveries, key=lambda values: market_event_delivery_order(
+        stock_id=values["stock_id"], event_date=values["event_date"],
+        title=values["title"], source=values["source"])):
+        await details_repo.create_or_update_market_event(values)
         upserted += 1
 
     return upserted, skipped

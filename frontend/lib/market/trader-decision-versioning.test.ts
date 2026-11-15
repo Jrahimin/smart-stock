@@ -191,6 +191,6 @@ describe("canonical decision and persisted signal versioning", () => {
 
     const bearish = buildStockIntelligenceFromUniverseRow(universeRow("SELL"));
     expect(resolveWatchlistAction(bearish, true)).toBe("SELL");
-    expect(resolveWatchlistAction(bearish, false)).toBe("SELL");
+    expect(resolveWatchlistAction(bearish, false)).toBe("AVOID");
   });
 });

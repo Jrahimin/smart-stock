@@ -40,6 +40,7 @@ def _clamp(value: float) -> int:
 def compute_trading_risk(
     snapshot: TechnicalSnapshot,
     category: str | None,
+    *, continuous: bool = False,
 ) -> TradingRiskResult:
     volatility_score = 35.0
     if snapshot.volatility is None:
@@ -59,6 +60,16 @@ def compute_trading_risk(
         volatility_explanation = (
             f"Analytical daily volatility is moderate at {snapshot.volatility:.2f}%."
         )
+    if continuous and snapshot.volatility is not None:
+        # Existing bounded anchors; interpolation replaces only the cliffs.
+        value = max(0.0, snapshot.volatility)
+        anchors = ((0.0, 30.0), (2.3, 65.0), (3.0, 90.0), (4.0, 100.0))
+        volatility_score = 100.0
+        for (left, low), (right, high) in zip(anchors, anchors[1:]):
+            if value <= right:
+                volatility_score = low + (high - low) * (value - left) / (right - left)
+                break
+        volatility_explanation = f"Continuous analytical volatility component at {value:.4f}%."
     if snapshot.gap_frequency_percent:
         volatility_score += GAP_RISK_VOLATILITY_BONUS * (snapshot.gap_frequency_percent / 100)
         volatility_explanation += (

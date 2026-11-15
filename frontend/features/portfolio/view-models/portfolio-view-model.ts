@@ -1,11 +1,14 @@
 import { holderReasonLabel } from "@/lib/market/decision-presentation";
+import { visiblePriceQuality } from "@/lib/market/market-presentation-policy";
 import type {
   BackendPortfolioHoldingDto,
+  BackendPortfolioWorkspaceDto,
   BackendDisplayQuoteDto,
   PortfolioAttentionCode,
   PortfolioPriceStatus,
 } from "@/lib/api/backend-api-types";
 import type { AppLocale } from "@/lib/locale/app-locale";
+import { portfolioLanguage } from "@/features/portfolio/portfolio-language";
 import { formatTrendLabel, normalizeTrendDirection } from "@/lib/market/trend-display";
 
 export type PortfolioHoldingFilter = "ALL" | "HOLDINGS" | "WATCHLIST" | "REVIEW" | "STABLE" | "INCOMPLETE";
@@ -47,27 +50,16 @@ export function formatPortfolioRisk(risk: BackendPortfolioHoldingDto["risk"]) {
 }
 
 export function formatPortfolioPriceState(status: PortfolioPriceStatus, locale: AppLocale) {
-  const labels = {
-    en: {
-      FINALIZED: null,
-      PROVISIONAL: "Live price",
-      NON_TRADED: "Not traded today",
-      STALE_LAST_KNOWN: "Stale data",
-      SUSPENDED: "Suspended",
-      SUSPICIOUS: "Verify price",
-      UNAVAILABLE: "Price unavailable",
-    },
-    bn: {
-      FINALIZED: null,
-      PROVISIONAL: "লাইভ দাম",
-      NON_TRADED: "আজ লেনদেন হয়নি",
-      STALE_LAST_KNOWN: "পুরোনো তথ্য",
-      SUSPENDED: "স্থগিত",
-      SUSPICIOUS: "দাম যাচাই করুন",
-      UNAVAILABLE: "দাম পাওয়া যায়নি",
-    },
-  } as const;
-  return labels[locale][status];
+  return visiblePriceQuality(status) ? portfolioLanguage[locale].priceStatus[status] : null;
+}
+
+/** Hide freshness-only attention while preserving named trading restrictions. */
+export function visiblePortfolioAttention(data: BackendPortfolioWorkspaceDto) {
+  return data.attention.flatMap(item => {
+    if (item.code !== "PRICE_QUALITY") return [item];
+    const rows = data.watchlist_items.filter(row => item.stock_ids.includes(row.stock_id) && visiblePriceQuality(row.price_status));
+    return rows.length ? [{ ...item, stock_ids: rows.map(row=>row.stock_id), symbols: rows.map(row=>row.symbol), count: rows.length }] : [];
+  });
 }
 
 type GuidanceCopy = {
@@ -85,6 +77,7 @@ export function getPortfolioWhatNextCopy(
   copy: GuidanceCopy,
   locale: AppLocale = "en",
 ) {
+  if (item.what_next_code === "PRICE_STALE_OR_SUSPENDED" && !visiblePriceQuality(item.price_status)) return "";
   if (!item.is_holding) {
     if (item.action == null) return copy.signalUnavailable;
     if (item.action === "WAIT") return copy.watching;
@@ -92,7 +85,7 @@ export function getPortfolioWhatNextCopy(
   }
   if (item.quantity == null) return copy.addQuantity;
   if (item.average_buy_price == null) return copy.addAveragePrice;
-  if (item.current_price == null) return copy.guidance.PRICE_STALE_OR_SUSPENDED;
+  if (item.current_price == null) return "";
   if (item.holder_action == null) return copy.signalUnavailable;
   if (item.what_next_code === "REVIEW_HOLDER_GUIDANCE" || item.holder_action === "REVIEW" && ["NO_ACTION_NEEDED", "PROFITABLE_TREND_INTACT"].includes(item.what_next_code)) {
     return holderReasonLabel(item.primary_reason_code, copy.guidance.REVIEW_HOLDER_GUIDANCE, locale);
@@ -107,9 +100,7 @@ export function getPortfolioSignalMeta(
   const trend = normalizeTrendDirection(item.trend);
   const trendLabel = trend === "UNKNOWN" ? null : formatTrendLabel(trend);
   const riskLabel = formatPortfolioRisk(item.risk);
-  const priceState = item.price_status === "FINALIZED" || item.price_status === "PROVISIONAL"
-    ? null
-    : item.price_status.replaceAll("_", " ").toLowerCase();
+  const priceState = visiblePriceQuality(item.price_status) ? item.price_status.replaceAll("_", " ").toLowerCase() : null;
   const parts = [trendLabel, riskLabel, priceState].filter(Boolean);
   return {
     trendLabel,
@@ -122,6 +113,15 @@ export function parseDecimal(value: string | number | null | undefined) {
   if (value == null || value === "") return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+/** Render trading/quality restrictions; freshness and authority stay internal. */
+export function portfolioPriceStatusLabel(item: { current_price: string | number | null; price_status?: PortfolioPriceStatus | null; mark_authority?: string | null; display_quote?: BackendDisplayQuoteDto | null }, locale: AppLocale) {
+  const copy=portfolioLanguage[locale];
+  const price=parseDecimal(item.current_price);
+  if (price == null || price <= 0) return "";
+  if (item.price_status && visiblePriceQuality(item.price_status)) return copy.priceStatus[item.price_status];
+  return item.display_quote?.observation_status === "NO_TRADE" ? copy.priceStatus.NON_TRADED : "";
 }
 
 export function formatPortfolioMoney(value: string | number | null, locale: AppLocale, maximumFractionDigits = 2) {
@@ -209,8 +209,8 @@ export function filterPortfolioHoldings(
 /** Preserve the precise audience instruction; REDUCE and REVIEW are never public SELL/WAIT. */
 export function portfolioRowAction(item: BackendPortfolioHoldingDto) {
   if (item.decision_taxonomy_version && !["v1", "v2"].includes(item.decision_taxonomy_version)) return null;
-  const action = item.is_holding ? item.holder_action : item.action;
-  const allowed = item.is_holding ? ["HOLD", "REVIEW", "REDUCE", "SELL"] : ["POTENTIAL_BUY", "WAIT", "HOLD", "SELL"];
+  const action = item.is_holding ? item.holder_action : item.non_holder_action === "AVOID" ? "AVOID" : item.action;
+  const allowed = item.is_holding ? ["HOLD", "REVIEW", "REDUCE", "SELL"] : ["POTENTIAL_BUY", "WAIT", "HOLD", "SELL", "AVOID"];
   return action && allowed.includes(action) ? action : null;
 }
 

@@ -9,6 +9,8 @@ from app.core.constants.trading_constants import (
     TRADING_INPUT_SCHEMA_VERSION,
     TRADING_STRATEGY_VERSION,
     TRADING_THRESHOLD_VERSION,
+    trading_threshold_version,
+    trading_input_schema_version,
 )
 from app.models import DailyPrice
 
@@ -55,16 +57,18 @@ def daily_price_audit_payload(price: DailyPrice) -> dict[str, Any]:
 
 
 def build_decision_input_lineage(strategy_input: StrategyInput) -> DecisionInputLineage:
+    from app.modules.stock_details.decision.market_regime import regime_identity
+    schema = trading_input_schema_version(strategy_input.strategy_version)
     sorted_prices = sorted(strategy_input.prices, key=lambda price: price.trade_date)
     data_revision = stable_audit_hash(
         {
-            "schema": TRADING_INPUT_SCHEMA_VERSION,
+            "schema": schema,
             "prices": [daily_price_audit_payload(price) for price in sorted_prices],
         }
     )
     event_revision = stable_audit_hash(
         {
-            "schema": TRADING_INPUT_SCHEMA_VERSION,
+            "schema": schema,
             "known_corporate_action_dates": sorted(strategy_input.known_corporate_action_dates),
             "event_observations": strategy_input.event_observations,
             "event_coverage_status": strategy_input.event_coverage_status,
@@ -73,9 +77,9 @@ def build_decision_input_lineage(strategy_input: StrategyInput) -> DecisionInput
     )
     input_hash = stable_audit_hash(
         {
-            "input_schema_version": TRADING_INPUT_SCHEMA_VERSION,
+            "input_schema_version": schema,
             "strategy_version": strategy_input.strategy_version,
-            "threshold_version": TRADING_THRESHOLD_VERSION,
+            "threshold_version": trading_threshold_version(strategy_input.strategy_version),
             # The public v2 taxonomy is output metadata, not a decision input.
             # Retain the internal legacy taxonomy identity so an output-only
             # rollout does not masquerade as an input revision.
@@ -88,13 +92,15 @@ def build_decision_input_lineage(strategy_input: StrategyInput) -> DecisionInput
             "is_active": strategy_input.is_active,
             "reference_date": strategy_input.reference_date,
             "exchange_session_dates": strategy_input.exchange_session_dates,
-            "market_regime": strategy_input.market_regime,
+            "market_regime": regime_identity(strategy_input.market_regime, legacy=strategy_input.strategy_version in {
+                "trading-intelligence-v2", "trading-intelligence-v3",
+            }),
             "data_revision": data_revision,
             "event_revision": event_revision,
         }
     )
     return DecisionInputLineage(
-        input_schema_version=TRADING_INPUT_SCHEMA_VERSION,
+        input_schema_version=schema,
         data_revision=data_revision,
         event_revision=event_revision,
         input_hash=input_hash,

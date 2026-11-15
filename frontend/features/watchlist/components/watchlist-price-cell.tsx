@@ -3,9 +3,12 @@
 import { Check, CirclePlus, Pencil, X } from "lucide-react";
 
 import type { WatchlistRowViewModel } from "@/features/watchlist/types/watchlist-types";
+import { QuotePublicationLabel } from "@/components/ui/market-publication-label";
+import type { AppLocale } from "@/lib/locale/app-locale";
 
 type WatchlistPriceCellProps = {
   row: WatchlistRowViewModel;
+  locale?: AppLocale;
   isEditingBuyPrice: boolean;
   buyPriceDraft: string;
   onBuyPriceDraftChange: (value: string) => void;
@@ -16,6 +19,7 @@ type WatchlistPriceCellProps = {
 
 export function WatchlistPriceCell({
   row,
+  locale = "en",
   isEditingBuyPrice,
   buyPriceDraft,
   onBuyPriceDraftChange,
@@ -30,6 +34,7 @@ export function WatchlistPriceCell({
     <div className="watchlist-price-cell">
       <div className="watchlist-price-stack">
         <strong className="watchlist-market-price">{row.latestPriceLabel}</strong>
+        <QuotePublicationLabel quote={item.display_quote} locale={locale} />
 
         {item.is_holding ? (
           <>

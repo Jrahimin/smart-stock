@@ -19,6 +19,7 @@ from app.core.enums import (
 )
 from app.modules.market_data.breadth import BreadthRead
 from app.modules.market_universe.market_universe_schemas import DisplayQuoteRead
+from app.modules.market_universe.top_setups import TopSetupRead
 from app.modules.stock_details.decision.comparison import PublicDecisionComparisonRead
 from app.modules.stock_details.decision.entry_applicability import EntryApplicabilityRead
 from app.modules.stock_details.decision.measured_facts import MeasuredDecisionFactsRead
@@ -38,6 +39,10 @@ class PulseScoreBreakdownRead(BaseModel):
 
 
 class FocusStockRead(BaseModel):
+    top_setup: "TopSetupRead | None" = None
+    eligibility_reason_codes: list[str] | None = Field(default=None, exclude_if=lambda value: value is None)
+    non_holder_action: str | None = None
+    holder_action: str | None = None
     measured_facts: MeasuredDecisionFactsRead | None = None
     display_quote: DisplayQuoteRead | None = None
     decision_taxonomy_version: str | None = None

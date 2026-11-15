@@ -1,3 +1,4 @@
+import { topSetupFixture } from "@/test-fixtures/top-setup-fixture";
 import { describe, expect, it } from "vitest";
 
 import type { BackendDailyMarketSummaryDto, BackendDsexIndexSnapshotDto } from "@/lib/api/backend-api-types";
@@ -143,6 +144,7 @@ describe("dashboard signal localization", () => {
   it("localizes trader decision reasons in bn model output", () => {
     const signals = mapUniverseRowsToSignalFeed([
       {
+        top_setup: topSetupFixture(),
         stock: {
           id: "walton-id",
           symbol: "WALTONHIL",

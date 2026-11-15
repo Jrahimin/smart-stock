@@ -316,6 +316,20 @@ describe("loadDashboardCore session section reconciliation", () => {
     }
   });
 
+  it("omits same-session movers from a different publication from hydration", async () => {
+    const responses: Record<string, unknown> = {
+      freshness: { ...freshnessFixture, market_sync_id: "A" },
+      overview: { ...overviewFixture, market_sync_id: "A" },
+      movers: { ...moversFixture, market_sync_id: "B" },
+    };
+    global.fetch = vi.fn(async (url) => jsonResponse(responses[String(url).split("?")[0].split("/").pop()!] ?? null));
+    const result = await loadDashboardCore("DSE");
+    expect(result.status).toBe("ok");
+    if (result.status === "error") throw new Error(result.message);
+    expect(result.data.movers).toBeNull();
+    expect(buildDashboardDehydratedState(result.data).queries.some(q => q.queryKey[1] === "movers")).toBe(false);
+  });
+
   it("drops movers when session_trade_date disagrees with overview", async () => {
     global.fetch = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);

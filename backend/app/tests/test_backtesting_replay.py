@@ -92,6 +92,9 @@ def _observation(stock: Stock, prices: list[DailyPrice], index: int) -> ReplayOb
         sma50=float(bar.close_price) - 2,
         rsi=55,
         shared_decision_id="test-decision",
+        # These pre-v4 synthetic observations intentionally omit zone terms.
+        # Owning v3 reproduction must keep its original execution behavior.
+        engine_version="trading-intelligence-v3",
     )
 
 

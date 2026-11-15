@@ -120,7 +120,7 @@ async def test_real_quote_projector_requires_exact_durable_closing_publication(c
 @pytest.mark.parametrize("evidence", ["undated", "source", "published"])
 async def test_actual_database_journal_previous_payload_retains_only_proven_breaches(evidence):
     import os
-    from sqlalchemy import text
+    from sqlalchemy import func, select, text
     from sqlalchemy.engine import make_url
     from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
     from sqlalchemy.schema import CreateSchema, DropSchema
@@ -145,7 +145,8 @@ async def test_actual_database_journal_previous_payload_retains_only_proven_brea
         await connection.execute(text(f'CREATE TRIGGER final_evidence_journal AFTER INSERT OR UPDATE OR DELETE ON "{schema}".daily_prices FOR EACH ROW EXECUTE FUNCTION public.capture_trading_source_revision()'))
     try:
         async with async_sessionmaker(engine, expire_on_commit=False)() as session:
-            now = datetime.now(DHAKA_TZ)
+            # Source evidence must precede the write, not race independent host/DB clocks.
+            now = (await session.scalar(select(func.clock_timestamp()))).astimezone(DHAKA_TZ)-timedelta(seconds=1)
             day = now.date()
             stock = Stock(id=uuid4(), symbol="EVIDENCE", name="Fixture", exchange=ExchangeCode.DSE)
             session.add(stock); await session.commit()
@@ -184,7 +185,7 @@ async def test_actual_database_journal_previous_payload_retains_only_proven_brea
                     source_last_synced_at=manifest.source_last_synced_at, published_at=manifest.published_at)
                 assert (await closing_result(context))[1].status == "APPLICABLE"
             row.low_price = 119  # recovery must not erase a genuine previous low
-            if evidence == "source": row.source_observed_at = datetime.now(DHAKA_TZ)
+            if evidence == "source": row.source_observed_at = (await session.scalar(select(func.clock_timestamp())))-timedelta(seconds=1)
             await session.commit()
             prices, revisions, started = await repository.list_entry_path_observations(stock_ids={stock.id}, start_date=day-timedelta(days=1), end_date=day)
             update = next(item for item in revisions if item.previous_payload is not None)
