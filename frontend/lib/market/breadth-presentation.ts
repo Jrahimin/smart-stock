@@ -4,7 +4,8 @@ import { shortTradeDate } from "@/lib/formatters/trader-formatters";
 
 export function breadthCoverageLabel(facts: BackendBreadthDto | null | undefined, locale: AppLocale): string | null {
   if (!facts) return null;
-  const cohort = facts.cohort === "ACTIVE_VALID_OHLC" ? (locale === "bn" ? "বৈধ দাম থাকা শেয়ার" : "Stocks with valid prices") : (locale === "bn" ? "এই session-এ পর্যালোচিত শেয়ার" : "Stocks reviewed for this session");
+  if (locale === "bn") return `${compactBreadthCoverage(facts, locale)} · ${shortTradeDate(facts.as_of_date, locale)}`;
+  const cohort = facts.cohort === "ACTIVE_VALID_OHLC" ? "Stocks with valid prices" : "Stocks reviewed for this session";
   return `${cohort} · ${compactBreadthCoverage(facts, locale)} · ${shortTradeDate(facts.as_of_date, locale)}`;
 }
 

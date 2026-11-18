@@ -263,7 +263,7 @@ export function buildStockWorkspaceModel(
         key: "support",
         label: "Support",
         value: formatNumber(support),
-        helper: "Canonical support from the decision engine when available.",
+        helper: "A price area where a decline may find buyers.",
       },
       {
         key: "resistance",

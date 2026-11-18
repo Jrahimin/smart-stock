@@ -361,7 +361,7 @@ const stockWorkspaceLanguage = {
         "avg-volume":
           "20-session average volume.",
         support:
-          "Canonical support from the decision engine when available.",
+          "A price area where a decline may find buyers.",
         resistance:
           "Canonical resistance from the decision engine when available.",
       },
@@ -1010,7 +1010,7 @@ export function localizeRelatedStocksCta(
         copy.browseSectorPeers(
           normalizedSector,
         ),
-      href: `/stocks?search=${encodeURIComponent(
+      href: `/stocks?sector=${encodeURIComponent(
         normalizedSector,
       )}`,
     };

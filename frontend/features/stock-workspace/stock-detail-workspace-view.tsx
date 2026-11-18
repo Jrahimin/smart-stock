@@ -257,7 +257,7 @@ export function StockDetailWorkspaceView({
 
       <div className="trader-workspace-layout">
         <aside className="trader-decision-rail" ref={railRef} data-sticky-fit={railFits}>
-          <TraderDecisionCard copy={language.decision} decision={decisionModel} />
+          <TraderDecisionCard copy={language.decision} decision={decisionModel} previousTrigger={workspace?.previous_trigger_price} previousTriggerDate={workspace?.previous_trigger_date} />
           <DecisionScoresPanel copy={language.decision} decision={decisionModel} />
           <DecisionSourceDetails decision={decisionModel} />
           {isDecisionLoading ? <div className="data-warning data-warning-compact">{language.states.decisionUpdating}</div> : null}

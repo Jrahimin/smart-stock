@@ -96,7 +96,7 @@ export function MarketPulseView({
         <div className="data-warning pulse-inline-notice">{language.states.briefingPersonalizationWarning}</div>
       ) : null}
 
-      {isError ? <div className="data-warning pulse-inline-notice">{language.states.backendError}</div> : null}
+      {isError ? <div className="data-warning pulse-inline-notice" role="status">{language.states.backendError}</div> : null}
 
       {showCriticalNotice && model.emptyMessage ? (
         <div className="data-warning pulse-inline-notice">{model.emptyMessage}</div>

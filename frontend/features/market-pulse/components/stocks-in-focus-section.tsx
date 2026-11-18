@@ -9,6 +9,7 @@ import { publishedSetupCondition } from "@/lib/market/published-setup-condition"
 
 import { riskValueLabel, isDatedPlanGuidance } from "@/lib/market/decision-presentation";
 import { EntryApplicabilityLabel } from "@/components/market/entry-applicability-label";
+import { potentialBuyNextStep } from "@/lib/market/entry-assessment-presentation";
 import { QuotePublicationLabel } from "@/components/ui/market-publication-label";
 import { SignalBadge } from "@/components/ui/signal-badge";
 import type { DecisionDisplayAction } from "@/lib/api/backend-api-types";
@@ -31,27 +32,36 @@ type FocusStockCardProps = {
 export function FocusStockCard({ stock, copy, scoreCopy, sharedDecisionDate, sharedQuoteDate }: FocusStockCardProps) {
   const language = getPulsePresentationLanguage(stock.locale ?? "en");
   const condition = publishedSetupCondition(stock.measuredFacts, stock.entryApplicability, stock.locale ?? "en", stock.controllingReasonCode);
+  const buyIdea = !stock.reviewOnly && stock.recommendation === "POTENTIAL_BUY" ? potentialBuyNextStep(stock.entryApplicability, stock.measuredFacts, stock.locale ?? "en", condition) : null;
+  const reviewGuidance = stock.reviewOnly ? potentialBuyNextStep(stock.entryApplicability, stock.measuredFacts, stock.locale ?? "en").nextStep : null;
+  const quoteDate = stock.displayQuote?.observation_session_date ?? stock.displayQuote?.as_of_trade_date;
+  const quoteCaption = stock.displayQuote?.observation_status === "FINALIZED"
+    ? language.closingPrice : stock.locale === "bn" ? "প্রাপ্ত দর" : "Reported price";
   return (
-    <article className="pulse-focus-card">
+    <article className="pulse-focus-card" data-setup-tone={stock.reviewOnly || stock.topSetup?.readiness === "MARKET_WATCH" ? "watch" : stock.topSetup ? "plan" : undefined}>
       <div className="pulse-focus-card-header">
         <div className="pulse-focus-card-head">
           <span className="pulse-focus-rank">{stock.rank}</span>
           <div className="pulse-focus-identity">
             <strong title={stock.symbol}>{stock.symbol}</strong>
             <span title={stock.name}>{stock.name}</span>
-            {!stock.topSetup ? <SignalBadge signal={["POTENTIAL_BUY", "WAIT", "HOLD", "AVOID", "SELL"].includes(stock.recommendation ?? "") ? stock.recommendation as DecisionDisplayAction : null} locale={stock.locale ?? "en"} /> : null}
+            {!stock.topSetup && !stock.reviewOnly ? buyIdea ? <strong>{buyIdea.headline}</strong> : <SignalBadge signal={["POTENTIAL_BUY", "WAIT", "HOLD", "AVOID", "SELL"].includes(stock.recommendation ?? "") ? stock.recommendation as DecisionDisplayAction : null} locale={stock.locale ?? "en"} /> : null}
           </div>
         </div>
-        {!stock.topSetup ? <PulseScoreHeaderCluster breakdown={stock.scoreBreakdown} copy={scoreCopy} score={stock.pulseScore} /> : null}
+        {!stock.topSetup && !stock.reviewOnly ? <PulseScoreHeaderCluster breakdown={stock.scoreBreakdown} copy={scoreCopy} score={stock.pulseScore} /> : null}
       </div>
 
-      {stock.topSetup ? <TopSetupSummary setup={stock.topSetup} assessment={stock.entryApplicability} locale={stock.locale ?? "en"} /> : <>
+      {stock.reviewOnly ? <div className="top-setup-summary">
+        <div className="top-setup-action"><strong>{stock.locale === "bn" ? "নজরে রাখুন" : "Watch"}</strong></div>
+        <p className="top-setup-condition">{reviewGuidance}</p>
+        <MeasuredDecisionFacts facts={stock.measuredFacts} locale={stock.locale ?? "en"} />
+      </div> : stock.topSetup ? <TopSetupSummary setup={stock.topSetup} assessment={stock.entryApplicability} recommendation={stock.recommendation} locale={stock.locale ?? "en"} /> : <>
       <div className="pulse-focus-conviction">
         <small>{sharedDecisionDate ? language.forNewBuyers : stock.decisionContext}</small>
-        <EntryApplicabilityLabel assessment={stock.entryApplicability} locale={stock.locale ?? "en"} policyReason={stock.controllingReason} />
+        {buyIdea ? <p>{buyIdea.nextStep}</p> : <EntryApplicabilityLabel assessment={stock.entryApplicability} locale={stock.locale ?? "en"} policyReason={stock.controllingReason} />}
         {stock.controllingReason && (!condition || !isDatedPlanGuidance(stock.controllingReasonCode)) ? <small>{stock.controllingReason}</small> : null}
       </div>
-      {condition ? <div className="pulse-next-trigger"><small>{language.nextTrigger}</small><strong>{condition}</strong></div> : null}
+      {condition && !buyIdea ? <div className="pulse-next-trigger"><small>{language.nextTrigger}</small><strong>{condition}</strong></div> : null}
       <div className="pulse-focus-evidence">
         <MeasuredDecisionFacts facts={stock.measuredFacts} locale={stock.locale ?? "en"} ratings />
       </div>
@@ -68,10 +78,13 @@ export function FocusStockCard({ stock, copy, scoreCopy, sharedDecisionDate, sha
         <div className="pulse-focus-quote-values">
           <span className="pulse-focus-price">{stock.latestPrice}</span>
           <QuotePublicationLabel quote={stock.displayQuote} locale={stock.locale ?? "en"} />
+          {quoteDate && !sharedQuoteDate && stock.displayQuote?.observation_status !== "NO_TRADE" ? (
+            <small>{quoteCaption} · {shortTradeDate(quoteDate, stock.locale)}</small>
+          ) : null}
           <span className={`pulse-focus-change pulse-focus-change-${stock.priceTone}`}>{stock.priceChangePercent}</span>
         </div>
         <MiniSparkline points={stock.sparklinePoints} tone={stock.priceTone} />
-        <Link aria-label={stock.locale === "bn" ? `${stock.symbol}-এর বিস্তারিত দেখুন` : `View ${stock.symbol} details`} className="pulse-focus-detail-link" href={stock.href}>{stock.locale === "bn" ? "বিস্তারিত" : "Detail"} →</Link>
+        <Link aria-label={stock.locale === "bn" ? `${stock.symbol}-এর বিস্তারিত দেখুন` : `View ${stock.symbol} details`} className="pulse-focus-detail-link" href={stock.href}>{stock.locale === "bn" ? "শেয়ার দেখুন" : "View stock"} <span aria-hidden="true">↗</span></Link>
       </div>
     </article>
   );
@@ -115,7 +128,7 @@ export function StocksInFocusSection({
               {copy.eyebrow}
             </p>
             <h2 id="pulse-focus-heading">
-              Top setups to watch
+              {copy.titleDefault}
             </h2>
             {sharedDate ? <small className="pulse-shared-date">{sharedQuoteDate ? language.analysisAndClose : language.analysis} · {shortTradeDate(sharedDate, stocks[0]?.locale)}</small> : null}
           </div>

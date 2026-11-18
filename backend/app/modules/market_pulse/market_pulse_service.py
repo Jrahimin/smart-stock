@@ -52,6 +52,7 @@ from app.modules.market_pulse.market_pulse_cache import (
     pulse_cache_ttl_seconds,
 )
 from app.modules.market_pulse.market_pulse_history import (
+    PULSE_HISTORY_MIN_ELIGIBLE_CANDIDATES,
     compute_pulse_opportunity_aggregate,
     pulse_history_trend_label,
 )
@@ -419,6 +420,8 @@ class MarketPulseService:
         decision_date: date | None,
         briefing_rows: list[PulseBriefingRow],
         is_finalized: bool,
+        identity: PulseSnapshotIdentity | None = None,
+        payload_revision: str | None = None,
     ) -> OpportunityScoreRead:
         aggregate = compute_pulse_opportunity_aggregate(briefing_rows)
         result = OpportunityScoreRead(
@@ -430,7 +433,7 @@ class MarketPulseService:
         if not is_finalized or self.snapshot_repository is None or decision_date is None:
             return result
 
-        identity = PulseSnapshotIdentity(
+        identity = identity or PulseSnapshotIdentity(
             exchange=exchange,
             pulse_score_version=PULSE_SCORE_VERSION,
             strategy_version=TRADING_STRATEGY_VERSION,
@@ -438,8 +441,17 @@ class MarketPulseService:
             input_schema_version=TRADING_INPUT_SCHEMA_VERSION,
             decision_taxonomy_version=DECISION_TAXONOMY_VERSION,
         )
+        return await self._with_opportunity_history(result, identity=identity, decision_date=decision_date,
+            population_fingerprint=aggregate.eligible_population_fingerprint, payload_revision=payload_revision)
+
+    async def _with_opportunity_history(
+        self, result: OpportunityScoreRead, *, identity: PulseSnapshotIdentity, decision_date: date,
+        payload_revision: str | None = None, population_fingerprint: str | None = None,
+    ) -> OpportunityScoreRead:
+        if self.snapshot_repository is None:
+            return result
         finalized_dates = await self.market_data_service.list_recent_finalized_session_dates(
-            exchange=exchange,
+            exchange=identity.exchange,
             end_date=decision_date,
             limit=5,
         )
@@ -451,21 +463,24 @@ class MarketPulseService:
         current_snapshot = snapshots_by_date.get(decision_date)
         if (
             current_snapshot is None
-            or current_snapshot.eligible_population_fingerprint
-            != aggregate.eligible_population_fingerprint
+            or (payload_revision is not None and current_snapshot.universe_payload_revision != payload_revision)
+            or (population_fingerprint is not None and current_snapshot.eligible_population_fingerprint != population_fingerprint)
         ):
             if current_snapshot is not None:
                 logger.warning(
                     "Pulse history lineage mismatch for %s %s; hiding non-comparable history",
-                    exchange.value,
+                    identity.exchange.value,
                     decision_date,
                 )
             return result
 
+        revisions = (await self.snapshot_repository.current_publication_revisions(identity.exchange, finalized_dates)
+                     if payload_revision is not None else None)
         contiguous_desc = []
         for session_date in finalized_dates:
             snapshot = snapshots_by_date.get(session_date)
-            if snapshot is None:
+            if (snapshot is None or snapshot.eligible_candidate_count < PULSE_HISTORY_MIN_ELIGIBLE_CANDIDATES
+                or (revisions is not None and revisions.get(session_date) != snapshot.universe_payload_revision)):
                 break
             contiguous_desc.append(snapshot)
         history = [snapshot.opportunity_score for snapshot in reversed(contiguous_desc)]
@@ -601,11 +616,12 @@ class MarketPulseService:
                     snapshot=snapshot,
                     decision_date=decision_date,
                 )
-                if cached_pulse is not None and await self.universe_service.is_generation_current(
-                    generation,
-                    exchange=exchange,
-                ):
-                    return await self._stamp_pulse(cached_pulse, snapshot)
+                if cached_pulse is not None:
+                    stamped = await self._stamp_pulse(cached_pulse, snapshot)
+                    if await self.universe_service.is_generation_current(generation, exchange=exchange,
+                            expected_status=(snapshot.updating, snapshot.withdrawn)):
+                        return stamped
+                    continue
 
             payload = await self._compute_market_pulse(
                 exchange=exchange,
@@ -613,9 +629,10 @@ class MarketPulseService:
                 display_name=display_name,
                 snapshot=snapshot,
             )
-            if not await self.universe_service.is_generation_current(generation, exchange=exchange):
-                continue
             stamped = await self._stamp_pulse(payload, snapshot)
+            if not await self.universe_service.is_generation_current(generation, exchange=exchange,
+                    expected_status=(snapshot.updating, snapshot.withdrawn)):
+                continue
             if uses_shared_pulse_cache(previous, display_name):
                 await self._cache_set(
                     cache_key,
@@ -643,11 +660,12 @@ class MarketPulseService:
                     snapshot=snapshot,
                     decision_date=decision_date,
                 )
-                if cached_summary is not None and await self.universe_service.is_generation_current(
-                    generation,
-                    exchange=exchange,
-                ):
-                    return await self._stamp_summary(cached_summary, snapshot)
+                if cached_summary is not None:
+                    stamped = await self._stamp_summary(cached_summary, snapshot)
+                    if await self.universe_service.is_generation_current(generation, exchange=exchange,
+                            expected_status=(snapshot.updating, snapshot.withdrawn)):
+                        return stamped
+                    continue
 
             pulse = await self._compute_market_pulse(
                 exchange=exchange,
@@ -655,9 +673,10 @@ class MarketPulseService:
                 display_name=display_name,
                 snapshot=snapshot,
             )
-            if not await self.universe_service.is_generation_current(generation, exchange=exchange):
-                continue
             stamped_pulse = await self._stamp_pulse(pulse, snapshot)
+            if not await self.universe_service.is_generation_current(generation, exchange=exchange,
+                    expected_status=(snapshot.updating, snapshot.withdrawn)):
+                continue
             summary = MarketPulseSummaryRead(
                 hero=stamped_pulse.hero,
                 since_last_visit=stamped_pulse.since_last_visit,
@@ -695,6 +714,10 @@ class MarketPulseService:
             previous=None,
             display_name=display_name,
         )
+        return self.briefing_from_pulse(pulse)
+
+    @staticmethod
+    def briefing_from_pulse(pulse: MarketPulseRead) -> MarketBriefingRead | None:
         if pulse.briefing is None:
             return None
         return pulse.briefing.model_copy(
@@ -714,6 +737,7 @@ class MarketPulseService:
     ) -> MarketPulseRead:
         pulse = await self._refresh_current_fields(pulse, snapshot)
         generation = snapshot.generation
+        status = "UNAVAILABLE" if snapshot.withdrawn else "UPDATING" if snapshot.updating else "CURRENT"
         coverage = pulse.coverage.model_copy(
             update={
                 "decision_session_date": generation.trade_date,
@@ -721,7 +745,7 @@ class MarketPulseService:
                 "session_trade_date": generation.trade_date,
                 "market_sync_id": generation.sync_id,
                 "decision_generation_id": generation.sync_id,
-                "decision_status": "UPDATING" if snapshot.updating else "CURRENT",
+                "decision_status": status,
                 "data_state": generation.data_state,
             }
         )
@@ -731,7 +755,7 @@ class MarketPulseService:
                 "last_synced_at": generation.source_last_synced_at,
                 "market_sync_id": generation.sync_id,
                 "decision_generation_id": generation.sync_id,
-                "decision_status": "UPDATING" if snapshot.updating else "CURRENT",
+                "decision_status": status,
                 "data_state": generation.data_state,
             }
         )
@@ -742,6 +766,7 @@ class MarketPulseService:
     ) -> MarketPulseSummaryRead:
         summary = await self._refresh_current_fields(summary, snapshot)
         generation = snapshot.generation
+        status = "UNAVAILABLE" if snapshot.withdrawn else "UPDATING" if snapshot.updating else "CURRENT"
         coverage = summary.coverage.model_copy(
             update={
                 "decision_session_date": generation.trade_date,
@@ -749,7 +774,7 @@ class MarketPulseService:
                 "session_trade_date": generation.trade_date,
                 "market_sync_id": generation.sync_id,
                 "decision_generation_id": generation.sync_id,
-                "decision_status": "UPDATING" if snapshot.updating else "CURRENT",
+                "decision_status": status,
                 "data_state": generation.data_state,
             }
         )
@@ -759,7 +784,7 @@ class MarketPulseService:
                 "last_synced_at": generation.source_last_synced_at,
                 "market_sync_id": generation.sync_id,
                 "decision_generation_id": generation.sync_id,
-                "decision_status": "UPDATING" if snapshot.updating else "CURRENT",
+                "decision_status": status,
                 "data_state": generation.data_state,
             }
         )
@@ -813,20 +838,32 @@ class MarketPulseService:
             "quote_generation_id": projected.quote_generation.sync_id if projected.quote_generation else None,
         })
         setup_rows = sorted((row for row in projected.rows if row.top_setup), key=lambda row: row.top_setup.rank)
-        setup_items = []
-        for row in setup_rows:
+        def focus_item(row, rank, *, review_only=False):
             technical = technical_snapshot_from_read(row.technical_snapshot)
             score = compute_pulse_score(technical, row.decision)
             presentation = PulsePresentationRow(stock=row.stock, snapshot=technical, decision=row.decision,
                 score=score, label=derive_pulse_focus_label(technical, row.decision, score),
                 measured_change_percent=measured_price_change(row.technical_snapshot, row.session))
-            setup_items.append(_to_focus_stock_read(presentation, row.top_setup.rank))
-        selected_ids = {item.stock_id for item in setup_items}
-        # Keep dated legacy activity readable without filling the watch shortlist
-        # with expired, invalidated or withdrawn plans.
+            return _to_focus_stock_read(presentation, rank).model_copy(update={"review_only": review_only})
+
+        setup_items = [focus_item(row, row.top_setup.rank) for row in setup_rows[:5]]
+        review_rows = []
+        if len(setup_items) < 5:
+            for row in projected.rows:
+                assessment = row.entry_applicability or (row.decision.entry_applicability if row.decision else None)
+                if (not row.top_setup and row.eligibility and row.eligibility.status == "ELIGIBLE"
+                        and row.decision and row.decision.display_action == "POTENTIAL_BUY" and row.shortlist
+                        and assessment and assessment.status == "UNVERIFIED"
+                        and assessment.reason_code in {"PATH_INCOMPLETE", "COVERAGE_UNKNOWN", "SESSION_SETTLING"}):
+                    review_rows.append(row)
+            review_rows.sort(key=lambda row: row.shortlist.entry_rank)
+        review_items = [focus_item(row, rank, review_only=True)
+                        for rank, row in enumerate(review_rows[:5 - len(setup_items)], len(setup_items) + 1)]
+        selected_ids = {item.stock_id for item in [*setup_items, *review_items]}
+        # Legacy monitors remain available for context and never stand in for review candidates.
         monitor_by_id = {item.stock_id: item for item in [*payload.monitor_candidates, *payload.focus_stocks]
-            if item.stock_id not in selected_ids}
-        update = {"focus_stocks": refresh(setup_items), "monitor_candidates": refresh(list(monitor_by_id.values())[:3]),
+            if not item.review_only and item.stock_id not in selected_ids}
+        update = {"focus_stocks": refresh(setup_items), "monitor_candidates": refresh([*review_items, *list(monitor_by_id.values())[:3]]),
             "coverage": coverage, "quote_generation_id": projected.quote_generation.sync_id if projected.quote_generation else None,
             "hero": payload.hero.model_copy(update={"session_label": freshness.market_status.value.replace("_", " ")})}
         if isinstance(payload, MarketPulseRead) and payload.briefing:
@@ -847,7 +884,16 @@ class MarketPulseService:
                 "fresh_buy_signals": [item.symbol for item in changed],
                 "fresh_new_count": len(changed) - len(upgraded), "fresh_upgraded_count": len(upgraded),
             })
-            update["briefing"] = payload.briefing.model_copy(update={"breadth": breadth, "leadership": leadership})
+            score = payload.briefing.opportunity_score
+            if score is not None:
+                score = OpportunityScoreRead(score=score.score, label=score.label)
+                source = snapshot.payload
+                if (not snapshot.updating and not snapshot.withdrawn and source.decision_status == "CURRENT"
+                    and snapshot.generation.data_state == MarketDataState.FINALIZED and source.payload_revision):
+                    score = await self._with_opportunity_history(score,
+                        identity=PulseSnapshotIdentity.from_publication(exchange, source),
+                        decision_date=snapshot.generation.trade_date, payload_revision=source.payload_revision)
+            update["briefing"] = payload.briefing.model_copy(update={"breadth": breadth, "leadership": leadership, "opportunity_score": score})
         if getattr(payload, "hero", None):
             update["hero"] = update.get("hero", payload.hero).model_copy(update={"focus_count": len(setup_items), "recent_focus_count": min(payload.hero.recent_focus_count, len(setup_items))})
         if getattr(payload, "since_last_visit", None):
@@ -960,7 +1006,7 @@ class MarketPulseService:
             exchange=exchange,
             decision_date=decision_date,
             briefing_rows=briefing_rows,
-            is_finalized=generation.data_state == MarketDataState.FINALIZED,
+            is_finalized=False,  # Both cold and warm responses attach verified history at publication stamping.
         )
         briefing = build_market_briefing(
             briefing_rows,

@@ -69,7 +69,7 @@ export function buildCompanySnapshotStrip(
       key: "sector",
       label: "Sector",
       value: sector,
-      href: sectorSearch ? `/stocks?search=${encodeURIComponent(sectorSearch)}` : undefined,
+      href: sectorSearch ? `/stocks?sector=${encodeURIComponent(sectorSearch)}` : undefined,
     },
     {
       key: "category",

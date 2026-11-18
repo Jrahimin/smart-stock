@@ -497,6 +497,19 @@ describe("market pulse query orchestration", () => {
     expect(resolved.resolvedBriefing).toEqual(briefingFixture);
   });
 
+  it("keeps matching shared content and reports an unavailable briefing when every response mismatches", () => {
+    const valid = { ...briefingFixture, decision_generation_id: "current" };
+    const mismatched = { ...valid, decision_generation_id: "other" };
+    const query = { isLoading: false, isSuccess: true, isError: false };
+    const personal = { ...query, data: mismatched };
+    expect(resolveMarketPulseBriefing(null, { ...query, data: valid }, personal, "current|current", "current").resolvedBriefing).toBe(valid);
+
+    const shared = { ...query, data: mismatched };
+    const result = resolveMarketPulseBriefing(null, shared, personal, "current|current", "current");
+    expect(result.resolvedBriefing).toBeNull();
+    expect(resolveMarketPulseBriefingFlags(result.resolvedBriefing, shared, personal, result.anonymousBriefing).isBriefingError).toBe(true);
+  });
+
   it("hydrates anonymous briefing from SSR seed while query is pending", () => {
     const resolved = resolveMarketPulseBriefing(
       initialCore,

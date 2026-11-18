@@ -347,6 +347,8 @@ export type DisplayMetricsDto = {
 };
 
 export type StockWorkspaceDto = {
+  previous_trigger_price?: number | null;
+  previous_trigger_date?: string | null;
   quote_generation_id?: string | null;
   decision_generation_id?: string | null;
   decision_status?: "CURRENT" | "UPDATING" | "UNAVAILABLE";

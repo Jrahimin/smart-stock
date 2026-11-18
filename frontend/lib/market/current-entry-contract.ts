@@ -119,15 +119,28 @@ function entryDeadline(entry: EntryRecord, freshness?: BackendMarketFreshnessDto
   return Number.isFinite(deadline) && assessed < deadline ? deadline : null;
 }
 
+function marketWatchDeadline(entry: EntryRecord, freshness?: BackendMarketFreshnessDto | null): number | null {
+  const setup = record(entry.owner.top_setup);
+  if (setup.readiness !== "MARKET_WATCH" || setup.action !== "WAIT" || entry.assessment.status !== "NOT_APPLICABLE" || !aligned(entry, freshness)) return null;
+  if (setup.price_basis === "LAST_CLOSE" ? freshness?.market_status === "OPEN" : freshness?.market_status !== "OPEN") return null;
+  if (!bases.has(String(setup.price_basis)) || setup.price_session_date !== freshness?.trade_date) return null;
+  const assessed = timestamp(setup.assessed_at), deadline = timestamp(setup.watch_valid_until);
+  return Number.isFinite(assessed) && Number.isFinite(deadline) && assessed < deadline ? deadline : null;
+}
+
 export function earliestCurrentEntryDeadline(data: unknown, freshness?: BackendMarketFreshnessDto | null, now = Date.now()): number | null {
-  const deadlines = entries(data).map((entry) => entryDeadline(entry, freshness)).filter((value): value is number => value !== null && value > now);
+  const deadlines = entries(data).flatMap((entry) => [entryDeadline(entry, freshness), marketWatchDeadline(entry, freshness)]).filter((value): value is number => value !== null && value > now);
   return deadlines.length ? Math.min(...deadlines) : null;
 }
 
 export function expiredCurrentEntryKeys(data: unknown, freshness?: BackendMarketFreshnessDto | null, now = Date.now()): string[] {
   return entries(data).flatMap((entry) => {
     const deadline = entryDeadline(entry, freshness);
-    return deadline !== null && deadline <= now ? [`${entry.stock.id}:${entry.assessment.price_basis}:${entry.assessment.price_basis === "SNAPSHOT" ? entry.quote.batch_fetched_at : entry.quote.source_observed_at ?? entry.assessment.quote_session_date}:${deadline}`] : [];
+    const watch = marketWatchDeadline(entry, freshness);
+    return [
+      ...(deadline !== null && deadline <= now ? [`${entry.stock.id}:${entry.assessment.price_basis}:${entry.assessment.price_basis === "SNAPSHOT" ? entry.quote.batch_fetched_at : entry.quote.source_observed_at ?? entry.assessment.quote_session_date}:${deadline}`] : []),
+      ...(watch !== null && watch <= now ? [`${entry.stock.id}:watch:${watch}`] : []),
+    ];
   });
 }
 
@@ -187,7 +200,13 @@ export function fenceCurrentEntryPayload<T>(data: T, freshness?: BackendMarketFr
   }
   const assessments = entries(data);
   const allowed = assessments.map((entry) => !(suppressPositive && timedAssessment(entry)) && usable(entry, freshness, now, expected));
-  const state = allowed.map(Number).join("");
+  const showWatch = assessments.map((entry) => {
+    const setup = record(entry.owner.top_setup);
+    if (setup.readiness !== "MARKET_WATCH") return true;
+    const deadline = marketWatchDeadline(entry, freshness);
+    return !suppressPositive && instrumentMatches(entry, expected) && deadline !== null && timestamp(setup.assessed_at) <= now && now < deadline;
+  });
+  const state = allowed.map(Number).join("") + "/" + showWatch.map(Number).join("");
   const previous = data && typeof data === "object" ? fenced.get(data) : undefined;
   if (previous?.state === state) return previous.output as T;
   const remember = (output: T): T => {
@@ -204,8 +223,8 @@ export function fenceCurrentEntryPayload<T>(data: T, freshness?: BackendMarketFr
     const rows = payload.rows.map((value, i) => {
     const row = record(value);
     const assessment = allowed[i] ? assessments[i].assessment as EntryApplicabilityDto : null;
-    if (sameValue(row.entry_applicability, assessment) && (!row.decision || sameValue(record(row.decision).entry_applicability, assessment))) return value;
-    return { ...row, entry_applicability: assessment, decision: row.decision ? { ...record(row.decision), entry_applicability: assessment } : null };
+    if (showWatch[i] && sameValue(row.entry_applicability, assessment) && (!row.decision || sameValue(record(row.decision).entry_applicability, assessment))) return value;
+    return { ...row, ...(!showWatch[i] ? { top_setup: null } : {}), entry_applicability: assessment, decision: row.decision ? { ...record(row.decision), entry_applicability: assessment } : null };
     });
     return remember(rows.every((row, i) => row === (payload.rows as unknown[])[i]) ? data : { ...payload, rows } as T);
   }
@@ -213,11 +232,12 @@ export function fenceCurrentEntryPayload<T>(data: T, freshness?: BackendMarketFr
     let index = 0;
     const mapItem = (value: unknown) => {
       const item = record(value);
-      const entry = assessments[index++];
+      const i = index++;
+      const entry = assessments[i];
       const assessment = !(suppressPositive && timedAssessment(entry)) && usable(entry, freshness, now, expected) ? entry.assessment : null;
       const trigger = assessment?.status === "APPLICABLE" && assessment.price_basis === "CURRENT";
-      if (item.entry_applicability === assessment && item.actionable_trigger === trigger) return value;
-      return { ...item, entry_applicability: assessment, actionable_trigger: trigger };
+      if (showWatch[i] && item.entry_applicability === assessment && item.actionable_trigger === trigger) return value;
+      return { ...item, ...(!showWatch[i] ? { top_setup: null } : {}), entry_applicability: assessment, actionable_trigger: trigger };
     };
     const focus = payload.focus_stocks.map(mapItem);
     const monitor = Array.isArray(payload.monitor_candidates) ? payload.monitor_candidates.map(mapItem) : [];

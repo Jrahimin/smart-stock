@@ -234,8 +234,9 @@ describe("fixed price-scale trade plan", () => {
     const next = renderToStaticMarkup(createElement(TradePlanPanel, { decision: moved, copy: getStockWorkspaceLanguage("en").panels }));
     expect(html.match(/class="trade-plan-zone " style="[^"]+"/)?.[0]).toBe(next.match(/class="trade-plan-zone " style="[^"]+"/)?.[0]);
     const action = renderToStaticMarkup(createElement(TraderDecisionCard, { decision: model, copy: getStockWorkspaceLanguage("en").decision }));
-    expect(action).toContain("Above entry zone");
-    expect(action.indexOf("Above entry zone")).toBeGreaterThan(action.indexOf("POTENTIAL BUY"));
+    expect(action).toContain("Potential Buy");
+    expect(action).toContain("Above entry zone. Reassess if price returns to the range.");
+    expect(action.indexOf("Above entry zone")).toBeGreaterThan(action.indexOf("Potential Buy"));
     expect(action).not.toContain("trader-decision-metrics");
   });
   it("draws equal bounds as a tick and never draws missing quote, stop or target markers", () => {
@@ -273,15 +274,15 @@ describe("repair1 publication reading order and measured basis", () => {
     dto.entry_applicability = { status: "APPLICABLE", reason_code: "ENTRY_TERMS_MET", price_basis: "CURRENT", assessed_at: "2026-11-11T05:00:00Z", source_observed_at: "2026-11-11T05:00:00Z" };
     const model = buildStockDecisionViewModel(dto, locale);
     const confirmed = renderToStaticMarkup(createElement(TraderDecisionCard, { decision: model, copy: getStockWorkspaceLanguage(locale).decision }));
-    expect(confirmed).toContain(locale === "bn" ? "close ও volume নিশ্চিত হয়েছে" : "close and volume are confirmed");
+    expect(confirmed).toContain(locale === "bn" ? "কেনার শর্ত পূরণ হয়েছে" : "Entry conditions met");
     expect(confirmed).not.toContain("Enter only after a completed-session close");
     dto.entry_applicability = { status: "AWAITING_CONFIRMATION", reason_code: "COMPLETED_BREAKOUT_REQUIRED", price_basis: "CURRENT", source_observed_at: "2026-11-11T05:00:00Z" };
     const pendingClose = renderToStaticMarkup(createElement(TraderDecisionCard, { decision: buildStockDecisionViewModel(dto, locale), copy: getStockWorkspaceLanguage(locale).decision }));
-    expect(pendingClose).toContain(locale === "bn" ? "Breakout confirmation-এর অপেক্ষায়" : "Breakout confirmation pending");
-    expect(pendingClose).not.toContain(locale === "bn" ? "close ও volume নিশ্চিত হয়েছে" : "close and volume are confirmed");
+    expect(pendingClose).toContain(locale === "bn" ? "পরিকল্পনার দামের স্তরের ওপরে দিন শেষ" : "Wait for a close above the plan’s trigger");
+    expect(pendingClose).not.toContain(locale === "bn" ? "কেনার শর্ত পূরণ হয়েছে" : "Entry conditions met");
     dto.entry_applicability.reason_code = "ENTRY_SESSION_PENDING";
     const pendingSession = renderToStaticMarkup(createElement(TraderDecisionCard, { decision: buildStockDecisionViewModel(dto, locale), copy: getStockWorkspaceLanguage(locale).decision }));
-    expect(pendingSession).toContain(locale === "bn" ? "পরের entry session-এর অপেক্ষায়" : "Next entry session pending");
+    expect(pendingSession).toContain(locale === "bn" ? "পরের অনুমোদিত কার্যদিবসে দাম আবার দেখুন" : "Recheck the price in the next eligible session");
     dto.trade_plan.management_mode = "TRAILING"; dto.trade_plan.trailing_rule = "Trail below the latest completed-session structure or 2.0 ATR, whichever is higher.";
     dto.trade_plan.target_low = dto.trade_plan.target_high = null;
     const trail = renderToStaticMarkup(createElement(TradePlanPanel, { decision: buildStockDecisionViewModel(dto, locale), copy: getStockWorkspaceLanguage(locale).panels }));
@@ -311,7 +312,9 @@ describe("repair1 publication reading order and measured basis", () => {
       const header = renderToStaticMarkup(createElement(StockWorkspaceHeader, { model, decision, locale, copy: language.header }));
       const card = renderToStaticMarkup(createElement(TraderDecisionCard, { decision, copy: language.decision }));
       expect(durable).not.toContain("WAIT"); expect(card).not.toContain("WAIT");
-      expect(header).toContain("2026-11-10"); expect(header).not.toContain(shortTradeDate("2026-11-11", locale));
+      expect(header).not.toContain("decision-publication-compact");
+      expect(header).not.toContain(shortTradeDate("2026-11-11", locale));
+      expect(card).toContain(shortTradeDate("2026-11-10", locale));
       expect(durable).not.toContain(locale === "bn" ? "Entry যাচাই হয়নি" : "Entry unverified");
       expect(durable).toContain(decision.confidenceLabel);
       expect(durable).toContain(locale === "bn" ? "সিদ্ধান্ত অনুপলব্ধ" : "Decision unavailable");

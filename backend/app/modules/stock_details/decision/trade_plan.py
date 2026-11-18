@@ -87,6 +87,7 @@ class TradePlanResult:
     partial_profit_price: float | None = None
     scenario_entry_timing: EntryTiming | None = None
     confirmation_support: float | None = None
+    fixed_entry_geometry_valid: bool | None = None
 
 
 @dataclass(frozen=True)
@@ -296,6 +297,7 @@ def _build_plan(
         target_low=round(target_low, 4) if target_low is not None else None,
         target_high=round(target_high, 4) if target_high is not None else None,
         risk_reward_ratio=round(risk_reward, 2) if risk_reward is not None else None,
+        fixed_entry_geometry_valid=not reasons if target_low is not None else None,
         explanation=resolved_explanation,
         status=status,
         reasons=tuple(reasons),

@@ -36,6 +36,9 @@ export function selectedDecisionExplanation(decision: Pick<BackendTraderDecision
 
 export function eligibilityRestrictionLabel(reasons: readonly string[] | null | undefined, locale: AppLocale): string {
   if (!reasons?.length) return locale === "bn" ? "তথ্য বা eligibility নীতির কারণে Entry সীমিত।" : "Entry restricted by data or eligibility policy.";
+  if (reasons.length === 1 && reasons[0] === "median_turnover_below_policy") {
+    return locale === "bn" ? "নতুন করে কেনার জন্য লেনদেন খুব কম।" : "Trading is too thin for a new position.";
+  }
   const policyOnly = reasons.every((code) => ["median_turnover_below_policy", "category_z_review", "mixed_turnover_provenance"].includes(code));
   return policyOnly ? (locale === "bn" ? "Entry সীমিত · turnover/category নীতি" : "Entry restricted · Turnover/category policy")
     : (locale === "bn" ? "Entry সীমিত · অপর্যাপ্ত বা অবৈধ তথ্য" : "Entry restricted · Missing or invalid data");
@@ -60,7 +63,7 @@ export function controllingReasonLabel(code: string | null | undefined, fallback
     bullish_setup_pullback: ["The dated plan requires a pullback into its preferred zone and support to hold.", "প্রকাশিত পরিকল্পনায় নির্ধারিত pullback সীমায় দর ফেরা ও support টিকে থাকা প্রয়োজন।"],
     bullish_setup_breakout: ["Wait for a daily close above the trigger on strong volume. Then consider entering in the next session.", "যথেষ্ট volume নিয়ে trigger-এর ওপরে দিনের close-এর অপেক্ষা করুন। তারপর পরের session-এ entry বিবেচনা করুন।"],
     bullish_setup_continuation: ["The dated plan follows a confirmed breakout; monitor its published management conditions.", "প্রকাশিত পরিকল্পনা নিশ্চিত breakout অনুসরণ করে; প্রকাশিত ব্যবস্থাপনার শর্ত নজরে রাখুন।"],
-    bearish_market_regime: ["The dated market regime limits new long exposure.", "প্রকাশিত বাজারের অবস্থা নতুন long অবস্থান সীমিত করে।"],
+    bearish_market_regime: ["The broader market looks weak for new entries.", "বাজারের বর্তমান পরিস্থিতি নতুন করে কেনার অনুকূলে নেই।"],
     support_break: ["The dated analysis observed a support break.", "প্রকাশিত বিশ্লেষণে support ভাঙতে দেখা গেছে।"],
     lower_structure: ["Price structure shows lower highs and lower lows; the trend indicator measures direction separately.", "দামের শীর্ষ ও তলানি ক্রমে নিচে নামছে; প্রবণতার সূচক দিকনির্দেশ আলাদাভাবে মাপে।"],
     fresh_entry_risk_block: ["Published trading risk or tradability blocks a fresh entry.", "প্রকাশিত trading ঝুঁকি বা লেনদেনের সীমার কারণে নতুন entry বন্ধ।"],

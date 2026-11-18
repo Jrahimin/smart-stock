@@ -140,7 +140,7 @@ export function StockCandlestickChart({
 
     const chart = createChart(containerRef.current, {
       handleScroll: { mouseWheel: false },
-      handleScale: { mouseWheel: false, pinch: true },
+      handleScale: { mouseWheel: true, pinch: true },
       height: 420,
       layout: {
         background: { color: panelColor },

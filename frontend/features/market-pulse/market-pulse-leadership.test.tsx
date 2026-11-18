@@ -39,7 +39,9 @@ it.each(["en", "bn"].flatMap(locale => ["positive", "declining", "flat", "unavai
   const pulse = leadershipFixture(kind, false); pulse.briefing!.state.excluded_sector_count = 2;
   const briefing = buildMarketPulseViewModel(pulse, locale).briefing!;
   const pulseHtml = renderToStaticMarkup(<MarketBriefingSection briefing={briefing} copy={getMarketPulseLanguage(locale)} />);
-  for (const html of [dashboardHtml, pulseHtml]) expect(html).toContain(locale === "en" ? "2 sectors excluded" : "2টি sector বাদ");
+  const excluded = locale === "en" ? "2 sectors excluded" : "2টি sector বাদ";
+  expect(dashboardHtml).toContain(excluded);
+  expect(pulseHtml).not.toContain(excluded);
   expect(briefing.leadership.cards.some(card => card.kind === "sector")).toBe(kind === "positive");
 });
 
@@ -56,7 +58,8 @@ it.each(["en", "bn"].flatMap(locale => ["declining", "flat", "unavailable", "pos
     expect(html).not.toContain("concentrated"); expect(html).not.toContain("অগ্রগতি সীমিত");
     if (available) {
       if (kind === "flat") expect(briefing.story.headline).toContain(locale === "en" ? "No positive sector leader" : "ইতিবাচক দামের অগ্রগতি নেই");
-      for (const line of [briefing.story.explanation, briefing.leadership.narrative, briefing.summary.text]) expect(line).toContain(locale === "en" ? "No positive sector leader" : "ইতিবাচক দামের অগ্রগতি নেই");
+      for (const line of [briefing.story.explanation, briefing.leadership.narrative]) expect(line).toContain(locale === "en" ? "No positive sector leader" : "ইতিবাচক দামের অগ্রগতি নেই");
+      expect(briefing.summary.text).toBe(copy.summary.nextSession(briefing.story.tone));
       expect(briefing.summary.highlights[0].value).toBe(locale === "en" ? "No positive leader" : "ইতিবাচক অগ্রগতি নেই");
       expect(briefing.summary.tradingEnvironment?.signals[0].text).toBe(briefing.leadership.narrative);
     } else {
@@ -92,10 +95,10 @@ it.each(headlineCases.flatMap(test => ["en", "bn"].flatMap(locale => ["current",
   const heading = html.slice(html.indexOf('<h2 class="pulse-story-headline">'), html.indexOf('</h2>'));
   expect(heading).not.toContain("999");
   if (version === "current" && count !== null) {
-    expect(heading).toContain(locale === "en" ? `${count} ${count === 1 ? "SECTOR" : "SECTORS"}` : `${count}টি খাতে`);
+    expect(heading).toContain(locale === "en" ? `${count} ${count === 1 ? "SECTOR" : "SECTORS"}` : `${count.toLocaleString("bn-BD")}টি খাতে`);
     if (locale === "en" && count === 1) expect(heading).not.toContain("1 SECTORS");
   }
-  else expect(heading).not.toMatch(/\d+.*(?:SECTORS|টি খাতে|টি সেক্টরে)/);
+  else expect(heading).not.toMatch(/[0-9০-৯]+.*(?:SECTORS|টি খাতে|টি সেক্টরে)/);
   if (known < 3 && tone === "warning") expect(heading).toContain(locale === "en" ? "Sector leadership unavailable" : "খাতের অগ্রগতির তথ্য পাওয়া যায়নি");
   if (known < 3) expect(model.briefing!.leadership.cards.some(card => card.kind === "sector")).toBe(false);
 });

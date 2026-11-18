@@ -6,7 +6,7 @@ import type { BackendMarketFreshnessDto } from "@/lib/api/backend-api-types";
 import { currentEntryEvidenceTime, earliestCurrentEntryDeadline, expiredCurrentEntryKeys, fenceCurrentEntryPayload, type CurrentEntryInstrument } from "@/lib/market/current-entry-contract";
 
 /** One deadline on the owning request; resumed permission requires two successful reads. */
-export function useCurrentEntryBoundary<T>(data: T, freshness: BackendMarketFreshnessDto | undefined, queryKey: QueryKey, instrument?: CurrentEntryInstrument) {
+export function useCurrentEntryBoundary<T>(data: T, freshness: BackendMarketFreshnessDto | undefined, queryKey: QueryKey, instrument?: CurrentEntryInstrument, enabled = true) {
   const client = useQueryClient();
   const [, renderClock] = useState(0);
   const key = JSON.stringify(queryKey);
@@ -26,6 +26,7 @@ export function useCurrentEntryBoundary<T>(data: T, freshness: BackendMarketFres
   const deadline = earliestCurrentEntryDeadline(data, freshness);
   const overdue = expiredCurrentEntryKeys(data, freshness).filter((id) => !attempted.current.has(id)).join("|");
   useEffect(() => {
+    if (!enabled) return;
     const ownerKey: QueryKey = JSON.parse(key);
     const freshnessKey = ["market-freshness", freshness?.exchange ?? "DSE"];
     const complete = () => {
@@ -49,21 +50,21 @@ export function useCurrentEntryBoundary<T>(data: T, freshness: BackendMarketFres
       };
       renderClock((clock) => clock + 1);
       // A paused offline invalidation resolves without a read; only cache success counts above release the fence.
-      void client.invalidateQueries({ queryKey: ownerKey, exact: true }, { throwOnError: true }).catch(() => {});
-      void client.invalidateQueries({ queryKey: freshnessKey, exact: true }, { throwOnError: true }).catch(() => {});
+      void client.invalidateQueries({ queryKey: ownerKey, exact: true }, { throwOnError: true, cancelRefetch: false }).catch(() => {});
+      void client.invalidateQueries({ queryKey: freshnessKey, exact: true }, { throwOnError: true, cancelRefetch: false }).catch(() => {});
     };
     const resume = () => { if (document.visibilityState === "visible") refresh(); };
     window.addEventListener("focus", refresh);
     document.addEventListener("visibilitychange", resume);
     const remaining = deadline === null ? 0 : deadline - Date.now();
     const timer = remaining > 0 ? window.setTimeout(refresh, remaining) : undefined;
-    if (overdue || checkpoint.current && checkpoint.current.key !== key) refresh();
+    if (overdue || deadline !== null && remaining <= 0 || checkpoint.current && checkpoint.current.key !== key) refresh();
     return () => {
       unsubscribe();
       window.removeEventListener("focus", refresh);
       document.removeEventListener("visibilitychange", resume);
       window.clearTimeout(timer);
     };
-  }, [client, data, deadline, freshness, key, overdue]);
+  }, [client, data, deadline, enabled, freshness, key, overdue]);
   return fenceCurrentEntryPayload(data, freshness, Date.now(), instrument, outOfOrder || !!checkpoint.current);
 }

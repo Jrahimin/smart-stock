@@ -113,6 +113,7 @@ class ScoredUniverseRow(BaseModel):
     holder_comparison: "HolderDecisionComparisonRead | None" = Field(default=None, exclude_if=lambda value: value is None)
     public_comparison: "PublicDecisionComparisonRead | None" = Field(default=None, exclude_if=lambda value: value is None)
     previous_publication_generation_id: str | None = Field(default=None, exclude_if=lambda value: value is None)
+    previous_trigger_price: float | None = Field(default=None, exclude_if=lambda value: value is None)
     display_quote: DisplayQuoteRead | None = None
     shortlist: ShortlistRead | None = None
     previous_finalized_decision: CanonicalDecisionResultRead | None = None

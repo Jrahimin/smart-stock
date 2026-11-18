@@ -11,6 +11,24 @@ import type { MarketLeadershipModel, MarketSummaryModel } from "./types/market-p
 afterEach(cleanup);
 
 describe("increment2 repair card clarity", () => {
+  it("fills five slots with marked Watch candidates and skips expired or legacy monitors", () => {
+    const { pulse } = order4SurfaceFixture();
+    const base = pulse.focus_stocks[0];
+    pulse.focus_stocks = [base];
+    pulse.monitor_candidates = Array.from({ length: 6 }, (_, index) => ({
+      ...base, stock_id: `watch-${index}`, symbol: `WATCH${index}`, top_setup: null, review_only: index !== 0,
+      entry_applicability: index === 1
+        ? { status: "EXPIRED", reason_code: "PLAN_EXPIRED" }
+        : { status: "UNVERIFIED", reason_code: "COVERAGE_UNKNOWN" },
+    }));
+    const model = buildMarketPulseViewModel(pulse, "en");
+    expect(model.focusStocks.map(item => item.symbol)).toEqual([base.symbol, "WATCH2", "WATCH3", "WATCH4", "WATCH5"]);
+    const copy = getMarketPulseLanguage("en");
+    const view = render(<FocusStockCard stock={model.focusStocks[1]} copy={copy.focus} scoreCopy={copy.score} />);
+    expect(view.getByText("Watch")).toBeTruthy();
+    expect(view.container.textContent).toContain("not enough reliable price history");
+    expect(view.container.textContent).not.toMatch(/Potential Buy|Entry range|Trade Plan/);
+  });
   it.each(["en", "bn"] as const)("drops unverified legacy upgrades and presents structured measured facts on both lists (%s)", (locale) => {
     const { pulse } = order4SurfaceFixture();
     for (const stock of [...pulse.focus_stocks, ...pulse.monitor_candidates]) {

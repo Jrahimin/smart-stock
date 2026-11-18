@@ -4,11 +4,14 @@ import { decisionConditionLabel } from "@/lib/market/decision-presentation";
 
 import { MeasuredDecisionFacts } from "@/components/market/measured-decision-facts";
 import { PublishedSetupCondition } from "@/components/market/published-setup-condition";
+import { publishedSetupCondition } from "@/lib/market/published-setup-condition";
 
 
 import { EntryApplicabilityLabel } from "@/components/market/entry-applicability-label";
+import { potentialBuyNextStep } from "@/lib/market/entry-assessment-presentation";
 import { isDatedPlanGuidance, evidenceLabel, controllingReasonLabel, selectedDecisionExplanation, riskValueLabel } from "@/lib/market/decision-presentation";
 import Link from "next/link";
+import { ArrowUpRight } from "lucide-react";
 import { shortTradeDate, commonTradeDate } from "@/lib/formatters/trader-formatters";
 import { getSignalActionLabel } from "@/lib/market/signal-action-labels";
 import { useEffect, useMemo, useState } from "react";
@@ -126,31 +129,40 @@ export function SignalCenterView({ locale = DEFAULT_LOCALE }: SignalCenterViewPr
               const decision = resolveTraderDecision(stock);
               const selected = selectedDecisionExplanation(stock.traderDecision, locale, stock.measuredFacts);
               const policy = decisionConditionLabel(decision.reasonCode, decision.entryApplicability, locale, decision.eligibilityReasons);
+              const buyIdea = decision.recommendation === "POTENTIAL_BUY" ? potentialBuyNextStep(decision.entryApplicability, stock.measuredFacts, locale,
+                publishedSetupCondition(stock.measuredFacts, decision.entryApplicability, locale, decision.reasonCode)) : null;
 
               return (
                 <article
-                  className={`signal-center-item signal-center-item-${(decision.recommendation?.toLowerCase() ?? "unavailable")} priority-${stock.traderDecision?.opportunity_quality === "STRONG" ? "high" : "low"}`}
+                  className={`market-result-card signal-center-item signal-center-item-${(buyIdea?.terminal ? "unavailable" : decision.recommendation?.toLowerCase() ?? "unavailable")} priority-${stock.traderDecision?.opportunity_quality === "STRONG" ? "high" : "low"}`}
+                  data-action={buyIdea?.terminal ? undefined : decision.recommendation ?? undefined}
                   key={stock.stock.id}
                 >
                   <div className="signal-center-topline">
                     <div>
-                      <strong>{stock.stock.symbol}</strong>
-                      <br />
-                      <span>{stock.stock.name}</span>
+                      <Link className="market-result-link" href={buildStockDetailPath(stock.stock.exchange, stock.stock.symbol)} prefetch={false}>
+                        {stock.stock.symbol}<ArrowUpRight size={13} aria-hidden="true" />
+                      </Link>
+                      <span className="market-result-company" title={stock.stock.name}>{stock.stock.name}</span>
                     </div>
-                    <SignalBadge signal={decision.recommendation} locale={locale} />
+                    {buyIdea ? <strong className="market-result-buy-label">{buyIdea.headline}</strong> : <SignalBadge signal={decision.recommendation} locale={locale} />}
                   </div>
-                  <small>{locale === "bn" ? "নতুন ক্রেতার জন্য" : "For new buyers"}{!sharedDate ? ` · ${shortTradeDate(stock.decisionDate, locale)}` : ""}</small>
-                  {policy && (!decision.entryApplicability || decision.entryApplicability.status === "NOT_APPLICABLE") ? <p className="signal-controlling-reason">{policy}</p> : null}
-                  <EntryApplicabilityLabel assessment={decision.entryApplicability} locale={locale} policyReason={policy} />
-                  <PublishedSetupCondition facts={stock.measuredFacts} assessment={decision.entryApplicability} locale={locale} reasonCode={decision.reasonCode} />
-                  {selected.limitation && selected.limitation !== policy ? <p className="signal-controlling-reason">{selected.limitation}</p> : null}
-                  <MeasuredDecisionFacts facts={stock.measuredFacts} locale={locale} ratings />
-                  {!stock.measuredFacts && selected.support ? <small className="signal-measured-support">{selected.support}</small> : null}
+                  <div className="market-result-guidance">
+                    <small>{locale === "bn" ? "নতুন ক্রেতার জন্য" : "For new buyers"}{!sharedDate ? ` · ${shortTradeDate(stock.decisionDate, locale)}` : ""}</small>
+                    {policy && (!decision.entryApplicability || decision.entryApplicability.status === "NOT_APPLICABLE") ? <p className="signal-controlling-reason">{policy}</p> : null}
+                    {buyIdea ? <p className="signal-controlling-reason">{buyIdea.nextStep}</p> : <>
+                      <EntryApplicabilityLabel assessment={decision.entryApplicability} locale={locale} policyReason={policy} announce={false} />
+                      <PublishedSetupCondition facts={stock.measuredFacts} assessment={decision.entryApplicability} locale={locale} reasonCode={decision.reasonCode} />
+                    </>}
+                  </div>
+                  {selected.limitation && selected.limitation !== policy ? <small className="market-result-limitation">{selected.limitation}</small> : null}
+                  <div className="market-result-evidence">
+                    <MeasuredDecisionFacts facts={stock.measuredFacts} locale={locale} ratings />
+                    {!stock.measuredFacts && selected.support ? <small className="signal-measured-support">{selected.support}</small> : null}
+                  </div>
                   <div className="signal-evidence-row">
                     <span>{stock.traderDecision?.trading_risk ? locale === "bn" ? "entry-এর ঝুঁকি" : "Entry risk" : locale === "bn" ? "প্রকাশিত ঝুঁকি" : "Published risk"}: {riskValueLabel(decision.riskLabel, locale)}</span>
                   </div>
-                  <Link href={buildStockDetailPath(stock.stock.exchange, stock.stock.symbol)}>{locale === "bn" ? "বিস্তারিত দেখুন" : "View details"} →</Link>
                 </article>
               );
             })

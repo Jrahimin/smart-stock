@@ -1,4 +1,9 @@
 import { dashboardSectorsMatchGeneration, isDashboardSectorPayload } from "./dashboard-sector-generation";
+import { PRICE_BASIS_CONTRACT } from "./entry-contract-capability";
+
+export function marketUniverseQueryKey(exchange: string, generation: string | null | undefined) {
+  return ["market-universe-rows", PRICE_BASIS_CONTRACT, exchange, 500, generation ?? "unavailable"] as const;
+}
 
 export const MARKET_GENERATION_FIELD = "market_sync_id" as const;
 

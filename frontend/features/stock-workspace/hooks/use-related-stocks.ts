@@ -1,9 +1,10 @@
 "use client";
 
-import { PRICE_BASIS_CONTRACT } from "@/lib/market/entry-contract-capability";
+import { freshnessGenerationToken, marketUniverseQueryKey } from "@/lib/market/market-generation";
+import { useCurrentEntryBoundary } from "@/hooks/market/use-current-entry-boundary";
 
 import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type { ExchangeCode } from "@/lib/api/backend-api-types";
 import { listUniverseRows } from "@/lib/api/market-universe-api";
@@ -31,12 +32,16 @@ type UseRelatedStocksOptions = {
 
 export function useRelatedStocks({ exchange, currentStock, sectorLabel, enabled }: UseRelatedStocksOptions) {
   const freshnessQuery = useMarketDataFreshness(exchange);
+  const queryClient = useQueryClient();
   const staleTimeMs = getMarketStaleTimeMs(freshnessQuery.data);
+  const generation = freshnessGenerationToken(freshnessQuery.data);
+  const queryKey = marketUniverseQueryKey(exchange, generation);
+  const active = enabled && currentStock !== null;
 
   const universeQuery = useQuery({
-    queryKey: ["market-universe-rows", PRICE_BASIS_CONTRACT, exchange, 500],
-    queryFn: () => listUniverseRows(exchange),
-    enabled: enabled && currentStock !== null,
+    queryKey,
+    queryFn: () => listUniverseRows(exchange, generation, queryClient.getQueryData(queryKey) !== undefined),
+    enabled: active,
     staleTime: staleTimeMs,
     refetchOnMount: false,
     retry: shouldRetryUniverseCache,
@@ -46,15 +51,16 @@ export function useRelatedStocks({ exchange, currentStock, sectorLabel, enabled 
     universeQuery.error ?? universeQuery.failureReason,
   );
 
+  const boundedData = useCurrentEntryBoundary(universeQuery.data, freshnessQuery.isError ? undefined : freshnessQuery.data, queryKey, undefined, active);
   const groups = useMemo(() => {
-    const rows = universeQuery.data?.rows;
+    const rows = boundedData?.rows;
     if (!currentStock || !rows?.length) {
       return [];
     }
 
     const universe = rows.map((row) => mapUniverseRowToListRow(row));
     return buildRelatedStocksGroups(currentStock, universe);
-  }, [currentStock, universeQuery.data?.rows]);
+  }, [currentStock, boundedData?.rows]);
 
   const cta = useMemo(() => resolveRelatedStocksCta(sectorLabel, groups), [groups, sectorLabel]);
 

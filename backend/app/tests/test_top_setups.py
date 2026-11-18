@@ -1,6 +1,7 @@
 """Shared watch selection uses actual canonical engine output, not activity."""
 import json
 from dataclasses import replace
+from datetime import timedelta
 from pathlib import Path
 from uuid import uuid4
 
@@ -122,3 +123,35 @@ def test_history_qualification_is_independent_of_old_quote_or_readiness():
     row.display_quote.current_price=row.analysis.trade_plan.target_low*2
     assert _candidate(row) is None
     assert _candidate(row,qualification_only=True) is True
+
+
+def test_measured_bearish_market_only_watch_preserves_permission_and_filters_expiry():
+    row, value = setup_row()
+    market = replace(compute_market_regime_result([110 - i * .2 for i in range(60)], 25, 75),
+                     required_inputs_complete=True, as_of_session=value.as_of_date)
+    bundle = compute_trader_decision(replace(value, strategy_version="trading-intelligence-v4", market_regime=market))
+    row.decision = build_trader_decision_summary(bundle)
+    row.analysis = canonical_analysis_to_read(bundle)
+    row.entry_applicability = EntryApplicabilityRead(status="NOT_APPLICABLE", reason_code="ACTION_NOT_PERMITTED", assessed_at=value.calculated_at)
+    observation = EntryApplicabilityRead(status="APPLICABLE", reason_code="ENTRY_TERMS_MET", assessed_at=value.calculated_at,
+        recheck_at=value.calculated_at + timedelta(minutes=5), price_basis="CURRENT")
+    row.display_quote.current_price = row.analysis.trade_plan.entry_zone_high
+
+    assert project_top_setups([row])[0].top_setup is None
+    projected = project_top_setups([row], watch_assessments={row.stock.id: observation})[0]
+    assert projected.top_setup.readiness == "MARKET_WATCH"
+    assert projected.top_setup.action == "WAIT"
+    assert projected.top_setup.watch_valid_until == observation.recheck_at
+    assert projected.decision == row.decision
+    assert projected.entry_applicability.status == "NOT_APPLICABLE"
+
+    expired = observation.model_copy(update={"status": "EXPIRED", "reason_code": "PLAN_EXPIRED"})
+    assert project_top_setups([row], watch_assessments={row.stock.id: expired})[0].top_setup is None
+    distant = row.model_copy(deep=True)
+    distant.analysis.trade_plan.target_low = row.analysis.trade_plan.entry_zone_high * 1.35
+    distant.display_quote.current_price = row.analysis.trade_plan.entry_zone_high * 1.15
+    assert project_top_setups([distant], watch_assessments={row.stock.id: observation})[0].top_setup is None
+    from app.modules.stock_details.stock_details_schemas import DecisionConstraintRead
+    row.decision.constraints.append(DecisionConstraintRead(code="extended_momentum", title="Extended momentum",
+        kind="BLOCK", reason="RSI above threshold", is_critical=False))
+    assert project_top_setups([row], watch_assessments={row.stock.id: observation})[0].top_setup is None

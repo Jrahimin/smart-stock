@@ -23,7 +23,6 @@ export function MarketPulseHero({ hero, briefingChips, copy, locale }: MarketPul
       localeSwitcherAria={copy.localeSwitcherAria}
       subtitle={
         <div className="pulse-hero-briefing">
-          <p className="pulse-hero-subline pulse-hero-subline-brief">{copy.hero.subline}</p>
           {hero.decisionDate && <p className="pulse-hero-session">{locale==="bn"?"সিদ্ধান্ত":"Decision"} · {shortTradeDate(hero.decisionDate,locale)}</p>}
 
           {visibleChips.length > 0 ? (

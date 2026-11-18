@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel, Field
 
@@ -122,6 +122,8 @@ class SectorContextRead(BaseModel):
 
 
 class StockWorkspaceRead(BaseModel):
+    previous_trigger_price: float | None = None
+    previous_trigger_date: date | None = None
     """Page aggregate / read model for the public stock details page.
 
     Not the Stock Entity itself — a composed projection over the Stock domain

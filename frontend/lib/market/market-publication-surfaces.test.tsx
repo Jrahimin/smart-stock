@@ -114,7 +114,7 @@ it.each([
     if (quoteStatus === "NO_TRADE") expect(markup).toContain(index === 4 ? locale === "bn" ? "এই সেশনে লেনদেন হয়নি" : "No trade in this session" : quoteCopy);
     else expect(markup).not.toContain(quoteCopy);
     expect(markup).not.toContain(decisionCopy);
-    expect(markup.includes(finalDate) || markup.includes(shortTradeDate(finalDate, locale))).toBe(true);
+    expect(markup.includes(finalDate) || markup.includes(shortTradeDate(finalDate, locale))).toBe(index !== 1);
     expect(markup).toContain("110");
   }
   const smartSignals = renderToStaticMarkup(<SmartSignalFeed

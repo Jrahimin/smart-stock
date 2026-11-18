@@ -29,7 +29,7 @@ import type {
   SignalFeedItemModel,
 } from "@/features/market-dashboard/types/market-dashboard-types";
 
-const DASHBOARD_SIGNAL_FEED_LIMIT = 8;
+const DASHBOARD_SIGNAL_FEED_LIMIT = 5;
 
 function decisionPriority(confidence: number): SignalFeedItemModel["priority"] {
   if (confidence >= 70) {
@@ -66,13 +66,17 @@ export function mapUniverseRowsToSignalFeed(
   rows: BackendScoredUniverseRowDto[],
   limit = DASHBOARD_SIGNAL_FEED_LIMIT,
 ): SignalFeedItemModel[] {
-  const setups = new Map(rows.filter(row => row.top_setup).map(row => [row.stock.symbol, row.top_setup!]));
-  return rows
-    .filter(row => row.top_setup)
-    .sort((a, b) => a.top_setup!.rank - b.top_setup!.rank)
-    .map((row) => mapUniverseRowToListRow(row))
-    .slice(0, limit)
-    .map((stock) => {
+  const plans = rows.filter(row => row.top_setup).sort((a, b) => a.top_setup!.rank - b.top_setup!.rank).slice(0, limit);
+  const watch = plans.length < limit ? rows.filter(row => {
+    const assessment = row.entry_applicability ?? row.decision?.entry_applicability;
+    return !row.top_setup && row.eligibility?.status === "ELIGIBLE" &&
+      row.decision?.display_action === "POTENTIAL_BUY" && row.shortlist &&
+      assessment?.status === "UNVERIFIED" &&
+      ["PATH_INCOMPLETE", "COVERAGE_UNKNOWN", "SESSION_SETTLING"].includes(assessment.reason_code);
+  }).sort((a, b) => a.shortlist!.entry_rank - b.shortlist!.entry_rank).slice(0, limit - plans.length) : [];
+
+  return [...plans, ...watch].map((row) => {
+      const stock = mapUniverseRowToListRow(row);
       const decision = resolveTraderDecision(stock);
       const supportingContext = buildDecisionSupportingContext(stock);
       const resolvedReason = resolveTraderDecisionReason(
@@ -81,7 +85,8 @@ export function mapUniverseRowsToSignalFeed(
       );
 
       return {
-        topSetup: setups.get(stock.stock.symbol),
+        topSetup: row.top_setup,
+        reviewOnly: !row.top_setup,
         symbol: stock.stock.symbol,
         name: stock.stock.name,
         decisionDate: stock.decisionDate,

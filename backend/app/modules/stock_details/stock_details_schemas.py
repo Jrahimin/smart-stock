@@ -408,6 +408,7 @@ class PricePositionRead(BaseModel):
 
 
 class TradePlanRead(BaseModel):
+    fixed_entry_geometry_valid: bool | None = Field(default=None, exclude_if=lambda value: value is None)
     scenario_entry_timing: EntryTiming | None = Field(default=None, exclude_if=lambda value: value is None)
     confirmation_support: float | None = Field(default=None, exclude_if=lambda value: value is None)
     entry_zone_low: float | None

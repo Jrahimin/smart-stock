@@ -3,8 +3,28 @@ import { earliestCurrentEntryDeadline, expiredCurrentEntryKeys, fenceCurrentEntr
 import { evaluateMarketIndexedDbEntry, MARKET_INDEXEDDB_SCHEMA_VERSION } from "./market-indexeddb-cache";
 import { resetMarketFreshnessGenerationForTests, setCurrentMarketFreshness } from "./market-freshness-registry";
 import { ENTRY_NOW, entryFreshness, entryUniverse, entryWorkspace } from "@/test-fixtures/current-entry-fixtures";
+import { topSetupFixture } from "@/test-fixtures/top-setup-fixture";
 
 afterEach(() => { vi.useRealTimers(); resetMarketFreshnessGenerationForTests(); });
+
+it("fences a market Watch in both projections without changing the blocked action", () => {
+  const data = entryUniverse();
+  const row = data.rows[0];
+  const expiry = ENTRY_NOW + 60_000;
+  const assessment = { ...row.entry_applicability, status: "NOT_APPLICABLE", reason_code: "ACTION_NOT_PERMITTED" };
+  const watch = { ...row, entry_applicability: assessment, decision: { ...row.decision, display_action: "AVOID", entry_applicability: assessment },
+    top_setup: topSetupFixture({ readiness: "MARKET_WATCH", action: "WAIT", price_basis: "CURRENT", price_session_date: "2026-11-11", assessed_at: new Date(ENTRY_NOW).toISOString(), watch_valid_until: new Date(expiry).toISOString() }) };
+  const universe = { ...data, rows: [watch] };
+  const pulse = { ...data.meta, focus_stocks: [{ ...watch, stock_id: row.stock.id, symbol: row.stock.symbol, exchange: row.stock.exchange,
+    recommendation: "AVOID", decision_taxonomy_version: "v2", actionable_trigger: false }] };
+  const fresh = entryFreshness();
+  expect(earliestCurrentEntryDeadline(universe, fresh, ENTRY_NOW)).toBe(expiry);
+  expect(fenceCurrentEntryPayload(universe, fresh, ENTRY_NOW).rows[0].top_setup.readiness).toBe("MARKET_WATCH");
+  expect(fenceCurrentEntryPayload(universe, fresh, expiry).rows[0]).toMatchObject({ top_setup: null, decision: { display_action: "AVOID" } });
+  expect(fenceCurrentEntryPayload(pulse, fresh, ENTRY_NOW).focus_stocks[0].top_setup.readiness).toBe("MARKET_WATCH");
+  expect(fenceCurrentEntryPayload(pulse, fresh, expiry).focus_stocks[0]).toMatchObject({ top_setup: null, actionable_trigger: false });
+  expect(fenceCurrentEntryPayload(universe, entryFreshness({ decision_generation_id: "corrected" }), ENTRY_NOW).rows[0].top_setup).toBeNull();
+});
 
 describe("source-bounded current entry contract", () => {
   it("accepts the deployed freshness contract where market_sync_id owns the quote generation", () => {

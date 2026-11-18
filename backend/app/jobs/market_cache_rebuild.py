@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass, field
+from functools import partial
 from uuid import uuid4
 
 from app.core.core_config import Settings, get_settings
@@ -17,6 +18,9 @@ from app.core.security_config import UserContext
 from app.modules.market_dashboard.market_dashboard_service import MarketDashboardService
 from app.modules.market_data.market_data_repository import MarketDataRepository
 from app.modules.market_data.market_data_service import MarketDataService
+from app.modules.market_data.published_generation import PublishedMarketGeneration
+from app.modules.market_pulse.market_pulse_snapshot_repository import MarketPulseSnapshotRepository
+from app.modules.market_pulse.market_pulse_snapshot_service import MarketPulseSnapshotService
 from app.modules.market_universe.market_universe_service import MarketUniverseService
 from app.modules.stocks.stocks_repository import StocksRepository
 from app.modules.trading_intelligence.decision_snapshot_repository import (
@@ -79,6 +83,21 @@ def _build_universe_service(session, settings: Settings, redis: OptionalRedisCli
     )
 
 
+async def _capture_pulse_after_universe(generation: PublishedMarketGeneration, *, exchange: ExchangeCode, settings: Settings, redis: OptionalRedisClient) -> None:
+    try:
+        async with AsyncSessionLocal() as session:
+            capture = MarketPulseSnapshotService(
+                universe_service=_build_universe_service(session, settings, redis),
+                snapshot_repository=MarketPulseSnapshotRepository(session),
+                redis=redis,
+            )
+            result = await capture.capture_finalized_session(exchange=exchange, generation=generation)
+            logger.info("Pulse session capture for %s: %s (%s eligible)",
+                        exchange.value, result.status, result.eligible_candidate_count)
+    except Exception:
+        logger.exception("Pulse session capture failed after universe rebuild for %s", exchange.value)
+
+
 async def _cache_dashboard_section(
     service: MarketDashboardService,
     *,
@@ -134,6 +153,7 @@ async def _rebuild_current_universe(
     service: MarketUniverseService,
     *,
     exchange: ExchangeCode,
+    after_publish=None,
 ) -> str:
     """Build latest generation under one context; retain old doubles for rolling tests."""
 
@@ -153,6 +173,8 @@ async def _rebuild_current_universe(
             recorder = getattr(service, "ensure_cached_shadow_receipt", None)
             if recorder is not None:
                 await recorder(exchange=exchange, generation=generation)
+            if after_publish is not None:
+                await after_publish(generation)
             return "universe-current"
         rows = await service.recompute_scored_universe(exchange, generation=generation)
         if await service.cache_scored_universe(
@@ -160,6 +182,8 @@ async def _rebuild_current_universe(
             rows,
             generation=generation,
         ):
+            if after_publish is not None:
+                await after_publish(generation)
             return "universe"
     raise RuntimeError("Published generation kept changing during rebuild")
 
@@ -336,6 +360,7 @@ async def rebuild_market_read_cache(
                         await _rebuild_current_universe(
                             universe_service,
                             exchange=exchange,
+                            after_publish=partial(_capture_pulse_after_universe, exchange=exchange, settings=resolved_settings, redis=resolved_redis),
                         )
                         observer = getattr(universe_service, "observe_scheduled_entries", None)
                         if observer is not None:
@@ -385,7 +410,8 @@ async def rebuild_universe_read_cache(
     try:
         async with AsyncSessionLocal() as session:
             universe_service = _build_universe_service(session, resolved_settings, resolved_redis)
-            step = await _rebuild_current_universe(universe_service, exchange=exchange)
+            step = await _rebuild_current_universe(universe_service, exchange=exchange,
+                after_publish=partial(_capture_pulse_after_universe, exchange=exchange, settings=resolved_settings, redis=resolved_redis))
             observer = getattr(universe_service, "observe_scheduled_entries", None)
             if observer is not None:
                 await observer(exchange=exchange)

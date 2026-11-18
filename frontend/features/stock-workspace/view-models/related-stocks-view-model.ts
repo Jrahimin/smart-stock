@@ -93,7 +93,7 @@ export function resolveRelatedStocksCta(sector: string, groups: RelatedStocksGro
   if (sectorPeers?.items.length && normalizedSector && normalizedSector !== "Unclassified") {
     return {
       label: `Browse ${normalizedSector} peers`,
-      href: `/stocks?search=${encodeURIComponent(normalizedSector)}`,
+      href: `/stocks?sector=${encodeURIComponent(normalizedSector)}`,
     };
   }
 

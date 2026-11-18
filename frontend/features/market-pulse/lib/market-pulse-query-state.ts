@@ -82,9 +82,12 @@ export function resolveMarketPulseBriefing(
   const anonymousBriefing = anonymousBriefingQuery.data ?? seededAnonymousBriefing ?? null;
   const personalizedBriefing = personalizedBriefingQuery.data ?? null;
 
-  const candidate = personalizedBriefingQuery.isSuccess && personalizedBriefing ? personalizedBriefing : anonymousBriefing;
-  const resolvedBriefing = candidate && responseMatchesMarketFreshness(candidate, freshnessGeneration) &&
-    (decisionGenerationId === undefined || candidate.decision_generation_id === decisionGenerationId) ? candidate : null;
+  const matchesPublication = (briefing: BackendMarketBriefingDto | null) =>
+    briefing && responseMatchesMarketFreshness(briefing, freshnessGeneration) &&
+    (decisionGenerationId === undefined || briefing.decision_generation_id === decisionGenerationId);
+  const resolvedBriefing = personalizedBriefingQuery.isSuccess && matchesPublication(personalizedBriefing)
+    ? personalizedBriefing
+    : matchesPublication(anonymousBriefing) ? anonymousBriefing : null;
 
   return {
     anonymousBriefing,
@@ -95,13 +98,13 @@ export function resolveMarketPulseBriefing(
 
 export function resolveMarketPulseBriefingFlags(
   resolvedBriefing: BackendMarketBriefingDto | null,
-  anonymousBriefingQuery: Pick<BriefingQueryState, "isLoading" | "isError">,
+  anonymousBriefingQuery: Pick<BriefingQueryState, "isLoading" | "isError"> & { isSuccess?: boolean },
   personalizedBriefingQuery: Pick<BriefingQueryState, "isError" | "data">,
   anonymousBriefing: BackendMarketBriefingDto | null,
 ) {
   return {
     isBriefingLoading: !resolvedBriefing && anonymousBriefingQuery.isLoading,
-    isBriefingError: anonymousBriefingQuery.isError && !resolvedBriefing,
+    isBriefingError: !resolvedBriefing && (anonymousBriefingQuery.isError || anonymousBriefingQuery.isSuccess === true),
     showBriefingPersonalizationWarning:
       Boolean(anonymousBriefing) && personalizedBriefingQuery.isError,
   };

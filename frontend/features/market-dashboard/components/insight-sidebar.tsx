@@ -29,7 +29,12 @@ export const InsightSidebar = memo(function InsightSidebar({ insights, copy, mod
   const comparable = current != null && Number.isFinite(current) && current >= 0 && average != null && Number.isFinite(average) && average > 0;
   const ratio = comparable ? current / average : null;
   const scale = comparable ? Math.max(current, average) : 1;
-  const percent = ratio === null ? null : new Intl.NumberFormat("en-BD", { style: "percent", maximumFractionDigits: 0 }).format(ratio);
+  const difference = ratio === null ? null : Math.round((ratio - 1) * 100);
+  const differenceLabel = difference === null ? null : new Intl.NumberFormat(locale === "bn" ? "bn-BD" : "en-BD", { style: "percent" }).format(Math.abs(difference) / 100);
+  const turnoverHeadline = difference === null ? premium.unavailable
+    : difference === 0 ? (locale === "bn" ? "লেনদেন গড়ের কাছাকাছি" : "Turnover near its average")
+    : locale === "bn" ? `লেনদেন গড়ের চেয়ে ${differenceLabel} ${difference > 0 ? "বেশি" : "কম"}`
+    : `Turnover ${differenceLabel} ${difference > 0 ? "above" : "below"} average`;
   const volume = model?.pulse.volumeContext.ratioVsAvg;
   const relationship = model && model.pulse.indexTradeDate === model.pulse.latestTradeDate && model.pulse.activityTradeDate === model.pulse.latestTradeDate && model.breadth.total > 0 && model.pulse.indexChangePercent !== null && volume && volume !== "N/A"
     ? premium.breadth(model.breadth.advancing, model.breadth.declining, formatPercent(model.pulse.indexChangePercent), premium.volumeAverage(volume)) : null;
@@ -51,7 +56,7 @@ export const InsightSidebar = memo(function InsightSidebar({ insights, copy, mod
             {insight.interpretation && <small>{shortTradeDate(insight.interpretation.as_of_date, locale)} · {compactBreadthCoverage(insight.interpretation.breadth, locale)}</small>}
 
           </> : <>
-            <h3 className="sw-activity-headline">{percent ? locale === "bn" ? <>এভারেজের {percent} <span>লেনদেন</span></> : <>{percent}<span>{premium.ratio}</span></> : premium.unavailable}</h3>
+            <h3 className="sw-activity-headline">{turnoverHeadline}</h3>
             {comparable ? <div className="sw-turnover-comparison">
               <div className="sw-comparison-row"><span>{locale === "bn" ? "সেশনের লেনদেন" : "Session turnover"}</span><b>{turnover?.primaryValue}</b><div className="sw-comparison-track"><i style={{ width: `${current / scale * 100}%` }} /></div></div>
               <div className="sw-comparison-row sw-comparison-average"><span>{premium.average(turnover?.averageSessions ?? 30)}</span><b>BDT {turnover?.vs30DayAvg}</b><div className="sw-comparison-track"><i style={{ width: `${average / scale * 100}%` }} /></div></div>

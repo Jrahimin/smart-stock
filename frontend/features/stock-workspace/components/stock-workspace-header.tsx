@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { DecisionPublicationLabel, QuotePublicationLabel } from "@/components/ui/market-publication-label";
+import { QuotePublicationLabel } from "@/components/ui/market-publication-label";
 import { SignalBadge } from "@/components/ui/signal-badge";
 import { WatchlistStarToggle } from "@/features/watchlist/components/watchlist-star-toggle";
 import type { StockDecisionViewModel } from "@/features/stock-workspace/view-models/stock-decision-view-model";
@@ -31,7 +31,7 @@ export function StockWorkspaceHeader({ model, decision, stockId, copy, locale = 
   const action = decision?.displayAction ?? null;
   const sector = model.header.sector;
   const sectorHref =
-    sector && sector !== "Unclassified" ? `/stocks?search=${encodeURIComponent(sector)}` : null;
+    sector && sector !== "Unclassified" ? `/stocks?sector=${encodeURIComponent(sector)}` : null;
 
   return (
     <section className="stock-workspace-header">
@@ -67,10 +67,9 @@ export function StockWorkspaceHeader({ model, decision, stockId, copy, locale = 
           <span>{copy.marketCap}</span>
           <strong>{model.header.marketCap}</strong>
         </div>
-        <div className="stock-header-metric stock-header-metric-action">
+        <div className="stock-header-metric stock-header-metric-action" data-action={action ?? undefined}>
           <span>{decision?.holderInstruction ? (locale === "bn" ? "সাধারণ অ্যাকশন" : "Public action") : copy.action}</span>
-          <SignalBadge signal={action} locale={action ? "en" : locale} />
-          <DecisionPublicationLabel compact decision={model.header.decisionPublication} locale={locale} />
+          <SignalBadge signal={action} locale={action ? "en" : locale} density="compact" />
         </div>
       </div>
     </section>

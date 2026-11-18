@@ -1,6 +1,6 @@
 "use client";
 
-import { PRICE_BASIS_CONTRACT } from "@/lib/market/entry-contract-capability";
+import { marketUniverseQueryKey } from "@/lib/market/market-generation";
 
 import { useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -20,7 +20,7 @@ import {
 
 type UseDashboardSectionOptions = {
   exchange?: ExchangeCode;
-  generation: string;
+  generation: string | null;
   staleTimeMs: number;
   refetchIntervalMs?: number | false;
   enabled?: boolean;
@@ -32,8 +32,6 @@ export type DashboardStocksInFocusQueryData = {
   decisionPublication: DecisionPublication;
 };
 
-const UNIVERSE_ROWS_QUERY_KEY_LIMIT = 500;
-
 export function useDashboardStocksInFocus({
   exchange = "DSE",
   generation,
@@ -43,16 +41,17 @@ export function useDashboardStocksInFocus({
 }: UseDashboardSectionOptions) {
   const client = useQueryClient();
   const freshness = useMarketDataFreshness(exchange);
+  const queryKey = marketUniverseQueryKey(exchange, generation);
   const universeQuery = useQuery({
-    queryKey: ["market-universe-rows", PRICE_BASIS_CONTRACT, exchange, UNIVERSE_ROWS_QUERY_KEY_LIMIT, generation, "setups-v1"],
-    queryFn: ({ queryKey }) => listUniverseRows(exchange, generation, client.getQueryData(queryKey) !== undefined),
+    queryKey,
+    queryFn: () => listUniverseRows(exchange, generation, client.getQueryData(queryKey) !== undefined),
     staleTime: staleTimeMs,
     refetchInterval: refetchIntervalMs,
     enabled,
     retry: shouldRetryUniverseCache,
     retryDelay: () => UNIVERSE_CACHE_WARM_RETRY_DELAY_MS,
   });
-  const boundedData = useCurrentEntryBoundary(universeQuery.data, freshness.isError ? undefined : freshness.data, ["market-universe-rows", PRICE_BASIS_CONTRACT, exchange, UNIVERSE_ROWS_QUERY_KEY_LIMIT, generation, "setups-v1"]);
+  const boundedData = useCurrentEntryBoundary(universeQuery.data, freshness.isError ? undefined : freshness.data, queryKey);
 
   const data = useMemo((): DashboardStocksInFocusQueryData | undefined => {
     if (!boundedData?.rows) {

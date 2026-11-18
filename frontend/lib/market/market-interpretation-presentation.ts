@@ -10,9 +10,16 @@ export function formatMarketInterpretation(facts: BackendMarketInterpretationDto
   };
   const move = facts.index_change_percent === null ? null : Number(facts.index_change_percent);
   const breadth = facts.breadth;
-  const index = move !== null && Number.isFinite(move) ? `DSEX ${move > 0 ? "+" : ""}${move.toFixed(2)}%.` : (bn ? "সূচকের পরিবর্তন জানা নেই।" : "Index change is unavailable.");
+  const indexFlat = move !== null && Number.isFinite(move) && Math.abs(move) < 0.005;
+  const index = indexFlat ? (bn ? "DSEX প্রায় অপরিবর্তিত।" : "DSEX was nearly flat.")
+    : move !== null && Number.isFinite(move) ? `DSEX ${move > 0 ? "+" : ""}${move.toFixed(2)}%.` : (bn ? "সূচকের পরিবর্তন জানা নেই।" : "Index change is unavailable.");
   const distribution = breadth.known_count > 0 ? (bn ? `${breadth.advancing}টি বেড়েছে, ${breadth.declining}টি কমেছে।` : `${breadth.advancing} rose and ${breadth.declining} fell.`) : (bn ? "তুলনাযোগ্য শেয়ারের পরিবর্তন জানা নেই।" : "No comparable stock changes are known.");
   const ratio = facts.volume_vs_average === null ? null : Number(facts.volume_vs_average);
   const participation = ratio !== null && Number.isFinite(ratio) ? (bn ? `পরিমাণ আগের ${facts.volume_average_sessions} সেশনের গড়ের ${ratio.toFixed(2)}×।` : `Volume is ${ratio.toFixed(2)}× the prior ${facts.volume_average_sessions}-session average.`) : (bn ? "পরিমাণের তুলনা নেই।" : "Participation comparison is unavailable.");
-  return { title: titles[facts.code][bn ? 1 : 0], description: `${index} ${distribution} ${participation}` };
+  const title = indexFlat && breadth.known_count > 0 && breadth.advancing !== breadth.declining
+    ? breadth.advancing > breadth.declining
+      ? (bn ? "সূচক প্রায় একই, বেশি শেয়ারের দাম বেড়েছে" : "Index nearly flat, more stocks rose")
+      : (bn ? "সূচক প্রায় একই, বেশি শেয়ারের দাম কমেছে" : "Index nearly flat, more stocks fell")
+    : titles[facts.code][bn ? 1 : 0];
+  return { title, description: `${indexFlat && title !== titles[facts.code][bn ? 1 : 0] ? "" : index + " "}${distribution} ${participation}` };
 }

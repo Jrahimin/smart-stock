@@ -458,12 +458,14 @@ class MarketUniverseService:
         current = await self.resolve_generation_context(exchange=exchange)
         return current is not None and current.sync_id == generation.sync_id
 
-    async def is_generation_current(self, generation, *, exchange: ExchangeCode) -> bool:
+    async def is_generation_current(self, generation, *, exchange: ExchangeCode, expected_status: tuple[bool, bool] | None = None) -> bool:
         try:
             selected = await self.get_canonical_universe(exchange=exchange, allow_rebuild=False)
         except UniverseCacheUnavailableError:
             return False
-        return selected.generation.sync_id == generation.sync_id
+        return selected.generation.sync_id == generation.sync_id and (
+            expected_status is None or expected_status == (selected.updating, selected.withdrawn)
+        )
 
     async def previous_finalized_publication(self, *, exchange: ExchangeCode, before_date: date):
         if self.decision_snapshot_repository is None:
@@ -594,20 +596,15 @@ class MarketUniverseService:
                 exchange=exchange, before_date=decision_session_date
             )
             prior_rows = {str(row.stock.id): row for row in prior.rows} if prior else {}
-            rows = [
-                row.model_copy(
-                    update={
-                        "previous_finalized_decision": (
-                            prior_rows[str(row.stock.id)].decision.canonical
-                            if str(row.stock.id) in prior_rows
-                            and prior_rows[str(row.stock.id)].decision
-                            else None
-                        ),
-                        "previous_publication_generation_id": prior.market_sync_id if prior else None
-                    }
-                )
-                for row in rows
-            ]
+            for index, row in enumerate(rows):
+                previous = prior_rows.get(str(row.stock.id))
+                previous_decision = previous.decision.canonical if previous and previous.decision else None
+                previous_plan = previous.analysis.trade_plan if previous and previous.analysis else None
+                rows[index] = row.model_copy(update={
+                    "previous_finalized_decision": previous_decision,
+                    "previous_publication_generation_id": prior.market_sync_id if prior else None,
+                    "previous_trigger_price": previous_plan.trigger_price if previous_plan else None,
+                })
         if data_state == MarketDataState.FINALIZED and self.decision_snapshot_repository is not None:
             try:
                 async with async_perf_stage(perf, "db.decision_snapshots"):
