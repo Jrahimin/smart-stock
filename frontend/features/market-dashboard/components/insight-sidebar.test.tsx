@@ -13,7 +13,7 @@ function render(current: number | null, average: number | null, intraday = false
 describe("turnover comparison", () => {
   it("uses raw values and scales both bars to the same maximum", () => {
     const html = render(3_000_000_000, 2_000_000_000);
-    expect(html).toContain("150%");
+    expect(html).toContain("50% above average");
     expect(html).toContain('width:100%');
     expect(html).toContain('width:66.66666666666666%');
     expect(html).toContain("9-session average");

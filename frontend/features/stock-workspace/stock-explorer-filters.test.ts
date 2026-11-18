@@ -70,6 +70,21 @@ function makeDecision(recommendation: ResolvedTraderDecision["recommendation"]):
 }
 
 describe("stock explorer table filters", () => {
+  it("matches the linked sector exactly and does not confuse company names with sectors", () => {
+    const peer = makeStock({ id: "peer", symbol: "PEER", name: "Peer Ltd" });
+    peer.stock.sector = "Engineering";
+    const other = makeStock({ id: "other", symbol: "OTHER", name: "Engineering Holdings Ltd" });
+    const universe = [peer, other];
+    const filters = { ...createDefaultExplorerTableFilters(), sector: "engineering" };
+    const rows = filterExplorerUniverseRows({
+      universe, filters, searchTextByStockId: new Map(),
+      decisionByStockId: new Map(universe.map(row => [row.stock.id, makeDecision("WAIT")])),
+      watchedStockIds: new Set(), holdingStockIds: new Set(),
+    });
+    expect(rows.map(row => row.stock.id)).toEqual(["peer"]);
+    expect(hasActiveExplorerTableFilters(filters)).toBe(true);
+  });
+
   const gp = makeStock({ id: "1", symbol: "GP", name: "Grameenphone Ltd" });
   const batbc = makeStock({ id: "2", symbol: "BATBC", name: "British American Tobacco" });
   const brac = makeStock({

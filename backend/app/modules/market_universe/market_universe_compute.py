@@ -236,6 +236,7 @@ def canonical_analysis_to_read(
             above_ema20_percent=position.above_ema20_percent,
         ),
         trade_plan=TradePlanRead(
+            fixed_entry_geometry_valid=plan.fixed_entry_geometry_valid,
             scenario_entry_timing=plan.scenario_entry_timing,
             confirmation_support=plan.confirmation_support,
             entry_zone_low=plan.entry_zone_low,

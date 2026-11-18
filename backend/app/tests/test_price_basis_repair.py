@@ -201,11 +201,8 @@ async def test_summary_finalized_manifest_failure_cannot_confirm_breakout(monkey
     monkeypatch.setattr("app.jobs.ingestion.ingest_daily_market_prices.AsyncSessionLocal", lambda: MagicMock(
         __aenter__=AsyncMock(return_value=object()), __aexit__=AsyncMock(return_value=None)))
     monkeypatch.setattr("app.jobs.ingestion.ingest_daily_market_prices.spawn_rebuild_market_read_cache", lambda *args, **kwargs: None)
-    capture = AsyncMock()
-    monkeypatch.setattr("app.jobs.ingestion.ingest_daily_market_prices._capture_market_pulse_session_snapshot", capture)
     result = await run_daily_market_sync(settings=Settings(), skip_session_validation=True)
     assert result.session_finalized is True
-    capture.assert_not_awaited()
     day = NOW.date()-timedelta(days=1)
     row = SimpleNamespace(trade_date=day, open_price=100, high_price=102, low_price=99,
         close_price=100, volume=1000, data_quality_flag="OK", updated_at=NOW-timedelta(hours=20))

@@ -16,22 +16,46 @@ it.each(["en","bn"].flatMap(locale=>["light","dark"].map(theme=>({locale:locale 
   const rows=Array.from({length:5},(_,i)=>({...fixture,stock:{...fixture.stock,id:`id-${i}`,symbol:i===0?"VERYLONGSTOCKSYMBOL123456789":`STOCK${i}`},
     top_setup:{...fixture.top_setup!,rank:i+1,readiness:"CONDITIONAL_SETUP" as const,setup_type:i===1?"PULLBACK":i===2?"CONTINUATION":"BREAKOUT"}}));
   const view=render(<SmartSignalFeed signals={mapUniverseRowsToSignalFeed(rows)} locale={locale}/>);
-  expect(view.getByRole("columnheader",{name:"Stock / trigger"})).toBeTruthy();
-  expect(view.getByRole("columnheader",{name:"Entry zone (৳)"})).toBeTruthy();
+  expect(view.getByRole("columnheader",{name:locale==="en"?"Entry condition":"কেনার শর্ত"})).toBeTruthy();
+  expect(view.getByRole("columnheader",{name:locale==="en"?"Entry range & stop (৳)":"দরসীমা ও স্টপ (৳)"})).toBeTruthy();
   expect(view.getAllByRole("rowheader")).toHaveLength(5);
   const symbol=view.getByRole("link",{name:"VERYLONGSTOCKSYMBOL123456789"});
   expect(symbol.getAttribute("title")).toBe("VERYLONGSTOCKSYMBOL123456789");
   expect(view.container.textContent).not.toContain("5 awaiting breakout");
-  expect(view.container.textContent).toContain("Pullback");expect(view.container.textContent).toContain("Continuation");
+  expect(view.container.textContent).toContain(locale==="en"?"Pullback":"পুলব্যাক");expect(view.container.textContent).toContain(locale==="en"?"Continuation":"ঊর্ধ্বমুখী ধারা");
   fireEvent.click(view.getByRole("button",{name:locale==="en"?"VERYLONGSTOCKSYMBOL123456789 setup details":"VERYLONGSTOCKSYMBOL123456789 setup-এর বিস্তারিত"}));
-  expect(view.getByRole("dialog").textContent).toContain("Opportunity");
+  expect(view.getByRole("dialog").textContent).toContain(locale==="en"?"Opportunity":"সম্ভাবনার স্কোর");
 });
 
-it("a conditional five-breakout set is described as plans, not verified awaiting confirmation",()=>{
+it("shows up to five Potential Buy ideas without implying that entry conditions were met",()=>{
   const fixture=order4SurfaceFixture().row;
-  const rows=Array.from({length:5},(_,i)=>({...fixture,stock:{...fixture.stock,id:`i-${i}`,symbol:`S${i}`},top_setup:{...fixture.top_setup!,rank:i+1,readiness:"CONDITIONAL_SETUP" as const}}));
+  const rows=Array.from({length:6},(_,i)=>({...fixture,stock:{...fixture.stock,id:`i-${i}`,symbol:`S${i}`},top_setup:{...fixture.top_setup!,rank:i+1,readiness:"CONDITIONAL_SETUP" as const}}));
   const view=render(<SmartSignalFeed signals={mapUniverseRowsToSignalFeed(rows)} locale="en"/>);
-  expect(view.container.textContent).toContain("5 Breakout plans");expect(view.container.textContent).not.toContain("awaiting breakout");
+  expect(view.container.textContent).toContain("5 Potential Buy ideas");expect(view.container.textContent).not.toContain("Conditions met");
+  expect(view.getAllByRole("rowheader")).toHaveLength(5);
+});
+
+it("fills three plan rows with two ranked watch rows and leaves unverified levels blank", () => {
+  const row = order4SurfaceFixture().row;
+  const plans = Array.from({ length: 3 }, (_, index) => ({
+    ...row, stock: { ...row.stock, id: `plan-${index}`, symbol: `PLAN${index}` },
+    top_setup: { ...row.top_setup!, rank: index + 1 },
+  }));
+  const candidate = (symbol: string, rank: number, expired = false) => ({
+    ...row, top_setup: null, stock: { ...row.stock, id: symbol, symbol },
+    decision: { ...row.decision!, display_action: "POTENTIAL_BUY" as const },
+    eligibility: { ...row.eligibility!, status: "ELIGIBLE" as const },
+    shortlist: { version: "test", entry_rank: rank, holder_exit_rank: rank, risk_rank: rank, volume_rank: rank },
+    entry_applicability: { ...row.entry_applicability!,
+      status: expired ? "EXPIRED" as const : "UNVERIFIED" as const,
+      reason_code: expired ? "PLAN_EXPIRED" as const : "COVERAGE_UNKNOWN" as const },
+  });
+  const feed = mapUniverseRowsToSignalFeed([...plans, candidate("NEXT", 3), candidate("FIRST", 2), candidate("EXPIRED", 1, true), candidate("SIXTH", 4)]);
+  const view = render(<SmartSignalFeed signals={feed} locale="en" />);
+  expect(feed.map(item => item.symbol)).toEqual(["PLAN0", "PLAN1", "PLAN2", "FIRST", "NEXT"]);
+  expect(view.getByText("3 plans · 2 to review")).toBeTruthy();
+  expect(view.getAllByRole("cell", { name: "Entry levels unverified" })).toHaveLength(2);
+  expect(view.getAllByText("Watch", { exact: true })).toHaveLength(2);
 });
 
 it.each(["en","bn"] as const)("typed highlight values and manual navigation work with only three rows (%s)",locale=>{

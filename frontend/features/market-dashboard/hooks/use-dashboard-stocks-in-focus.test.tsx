@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, renderHook } from "@testing-library/react";
 import { type ReactNode } from "react";
 import { afterEach, expect, it, vi } from "vitest";
+import { marketUniverseQueryKey } from "@/lib/market/market-generation";
 import { useDashboardStocksInFocus } from "./use-dashboard-stocks-in-focus";
 import { ENTRY_NOW, entryFreshness, entryUniverse } from "@/test-fixtures/current-entry-fixtures";
 import type { BackendUniverseRowsDto } from "@/lib/api/backend-api-types";
@@ -20,7 +21,7 @@ it("bounds Dashboard as the sole universe observer across an unchanged-ID positi
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
   const generation = "quote-1|decision-1|CURRENT";
   client.setQueryData(["market-freshness", "DSE"], entryFreshness());
-  client.setQueryData(["market-universe-rows", "price-basis-v2", "DSE", 500, generation, "setups-v1"], data);
+  client.setQueryData(marketUniverseQueryKey("DSE", generation), data);
   const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
   const hook = renderHook(() => useDashboardStocksInFocus({ generation, staleTimeMs: 600_000, refetchIntervalMs: 600_000 }), { wrapper });
   expect(hook.result.current.data?.signals[0].entryApplicability?.status).toBe("APPLICABLE");

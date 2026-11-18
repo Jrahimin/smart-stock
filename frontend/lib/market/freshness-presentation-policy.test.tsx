@@ -39,13 +39,16 @@ vi.mock("@/features/watchlist/hooks/use-watchlist-item-update", () => ({ useWatc
 vi.mock("@/features/watchlist/components/watchlist-star-toggle", () => ({ WatchlistStarToggle: () => null }));
 vi.mock("@/features/watchlist/components/watchlist-row-actions", () => ({ WatchlistRowActions: () => null }));
 vi.mock("@/features/auth/context/auth-context", () => ({ useAuth: () => ({ isAuthenticated: false }) }));
-vi.mock("@/hooks/market/use-market-data-freshness", () => ({ useMarketDataFreshness: () => ({ data: { exchange: "DSE", market_status: "OPEN", data_state: "STALE", last_synced_at: "2026-11-10T08:00:00Z" } }) }));
+vi.mock("@/hooks/market/use-market-data-freshness", async (original) => ({
+  ...await original<typeof import("@/hooks/market/use-market-data-freshness")>(),
+  useMarketDataFreshness: () => ({ data: { exchange: "DSE", market_status: "OPEN", data_state: "STALE", last_synced_at: "2026-11-10T08:00:00Z" } }),
+}));
 vi.mock("@/hooks/market/use-market-cache-coordinator", () => ({ useMarketCacheRefresh: () => vi.fn() }));
 vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams(), useRouter: () => ({}), usePathname: () => "/stocks" }));
 vi.mock("@tanstack/react-virtual", () => ({ useVirtualizer: ({ count }: { count: number }) => ({ getVirtualItems: () => Array.from({length:count},(_,index)=>({index,start:index*54})), getTotalSize: ()=>count*54 }) }));
 afterEach(cleanup);
 
-it.each(["en","bn"] as const)("removes freshness-only UI across market pages without changing delivered facts (%s)", locale => {
+it.each(["en","bn"] as const)("keeps market age in header controls and avoids freshness noise in decisions (%s)", locale => {
   HTMLElement.prototype.scrollTo=vi.fn();
   const fixture=order4SurfaceFixture();
   const assessment={...fixture.row.entry_applicability!,status:"UNVERIFIED",reason_code:"QUOTE_UNUSABLE",price_basis:null,source_observed_at:null} as const;
@@ -77,7 +80,11 @@ it.each(["en","bn"] as const)("removes freshness-only UI across market pages wit
   ];
   for(const node of nodes){
     const view=render(<QueryClientProvider client={client}>{node}</QueryClientProvider>);
-    expect(view.container.textContent).not.toMatch(/recorded price|entry unverified|last valid price|last updated|snapshot price|check live price|broker|stale|freshness warning sentinel|নথিভুক্ত দাম|Entry যাচাই হয়নি|পুরোনো দাম|শেষ সংরক্ষিত দাম|আগের কার্যদিবসের দাম/i);
+    const age = view.container.querySelector(".market-freshness-age");
+    if (age) expect(age.getAttribute("datetime")).toBe("2026-11-10T08:00:00Z");
+    const decisions = view.container.cloneNode(true) as HTMLElement;
+    decisions.querySelector(".market-freshness-age")?.remove();
+    expect(decisions.textContent).not.toMatch(/recorded price|entry unverified|last valid price|last updated|snapshot price|check live price|broker|stale|freshness warning sentinel|নথিভুক্ত দাম|Entry যাচাই হয়নি|পুরোনো দাম|শেষ সংরক্ষিত দাম|আগের কার্যদিবসের দাম/i);
     expect(view.container.querySelector(".watchlist-updated-header,.watchlist-updated-cell,.quote-observation-times,.data-freshness-indicator")).toBeNull();
     for(const disclosure of view.container.querySelectorAll("details"))expect(disclosure.textContent?.trim()).toBeTruthy();
     view.unmount();

@@ -129,7 +129,7 @@ class DecisionSnapshotRepository:
         # need only identity/status, not the potentially large universe result.
         statement = statement.options(defer(DecisionGenerationCapture.input_payload, raiseload=True))
         if metadata_only:
-            statement = statement.options(defer(DecisionGenerationCapture.result_payload, raiseload=True))
+            statement = statement.options(defer(DecisionGenerationCapture.result_payload, raiseload=True)).execution_options(populate_existing=True)
         if before_date is not None:
             statement = statement.where(DecisionGenerationCapture.session_date < before_date)
         if generation_id is not None:

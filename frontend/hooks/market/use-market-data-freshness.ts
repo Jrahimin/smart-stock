@@ -74,37 +74,17 @@ function formatLastUpdatedLabel(iso: string | null) {
   return `${formatted}.`;
 }
 
-export function formatRelativeLastUpdated(iso: string | null) {
-  if (!iso) {
-    return null;
-  }
-
-  const diffMs = Date.now() - new Date(iso).getTime();
+export function formatRelativeLastUpdated(iso: string | null, locale = "en", now = Date.now()) {
+  if (!iso) return null;
+  const diffMs = now - Date.parse(iso);
+  if (!Number.isFinite(diffMs) || diffMs < 0) return null;
   const diffMinutes = Math.max(0, Math.floor(diffMs / 60_000));
-
-  if (diffMinutes < 1) {
-    return "just now";
-  }
-  if (diffMinutes === 1) {
-    return "1 minute ago";
-  }
-  if (diffMinutes < 60) {
-    return `${diffMinutes} minutes ago`;
-  }
-
+  if (diffMinutes < 1) return locale === "bn" ? "এইমাত্র" : "just now";
+  const relative = new Intl.RelativeTimeFormat(locale === "bn" ? "bn-BD" : "en-GB");
+  if (diffMinutes < 60) return relative.format(-diffMinutes, "minute");
   const diffHours = Math.floor(diffMinutes / 60);
-  if (diffHours === 1) {
-    return "1 hour ago";
-  }
-  if (diffHours < 24) {
-    return `${diffHours} hours ago`;
-  }
-
-  const diffDays = Math.round(diffHours / 24);
-  if (diffDays === 1) {
-    return "1 day ago";
-  }
-  return `${diffDays} days ago`;
+  if (diffHours < 24) return relative.format(-diffHours, "hour");
+  return relative.format(-Math.floor(diffHours / 24), "day");
 }
 
 export function buildMarketFreshnessViewModel(

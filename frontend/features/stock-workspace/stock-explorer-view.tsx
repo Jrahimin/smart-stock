@@ -51,6 +51,8 @@ type StockExplorerViewProps = {
 export function StockExplorerView({ locale = DEFAULT_LOCALE }: StockExplorerViewProps) {
   const language = getStockExplorerLanguage(locale);
   const searchParams = useSearchParams();
+  const urlSearch = searchParams.get("search") ?? "";
+  const urlSector = searchParams.get("sector")?.trim() || undefined;
   const { universe, isLoading, isError, isWarmingUp, listedStockCount, loadedPriceCount, decisionPublication } = useMarketUniverse({
     stockLimit: 500,
   });
@@ -78,6 +80,7 @@ export function StockExplorerView({ locale = DEFAULT_LOCALE }: StockExplorerView
         searchTextByStockId,
         filters: {
           tableSearch: filters.tableSearch,
+          sector: filters.sector,
           signalFilter: filters.signalFilter,
           volumeFilter: filters.volumeFilter,
           portfolioScope: filters.portfolioScope,
@@ -88,6 +91,7 @@ export function StockExplorerView({ locale = DEFAULT_LOCALE }: StockExplorerView
     [
       decisionByStockId,
       filters.tableSearch,
+      filters.sector,
       filters.portfolioScope,
       filters.signalFilter,
       filters.volumeFilter,
@@ -110,16 +114,14 @@ export function StockExplorerView({ locale = DEFAULT_LOCALE }: StockExplorerView
   }
 
   useEffect(() => {
-    const initialSearch = searchParams.get("search");
-    if (initialSearch) {
-      setTableSearch(initialSearch);
-    }
-  }, [searchParams, setTableSearch]);
+    setFilters(current => current.tableSearch === urlSearch && current.sector === urlSector
+      ? current : { ...current, tableSearch: urlSearch, sector: urlSector });
+  }, [urlSearch, urlSector]);
 
   useEffect(() => {
     setVisibleCount(120);
     tableContainerRef.current?.scrollTo({ top: 0 });
-  }, [filters.tableSearch, filters.portfolioScope, filters.signalFilter, filters.volumeFilter]);
+  }, [filters.tableSearch, filters.sector, filters.portfolioScope, filters.signalFilter, filters.volumeFilter]);
 
   useEffect(() => {
     return () => {
@@ -160,8 +162,7 @@ export function StockExplorerView({ locale = DEFAULT_LOCALE }: StockExplorerView
         header: language.columns.price,
         cell: (info) => (
           <div>
-            {formatNumber(info.getValue())}
-            <br />
+            {(info.getValue() ?? 0) > 0 ? formatNumber(info.getValue()) : "—"}
             <QuotePublicationLabel locale={locale} quote={info.row.original.displayQuote} />
           </div>
         ),
@@ -169,16 +170,18 @@ export function StockExplorerView({ locale = DEFAULT_LOCALE }: StockExplorerView
       columnHelper.accessor("priceChangePercent", {
         id: "change",
         header: language.columns.change,
-        cell: (info) => (
-          <div className="explorer-change-cell">
-            <span className={(info.getValue() ?? 0) >= 0 ? "text-positive" : "text-negative"}>
-              {formatPercent(info.getValue())}
+        cell: (info) => {
+          const change = info.getValue();
+          if ((info.row.original.latestPrice ?? 0) <= 0 || change == null) return "—";
+          return <div className="explorer-change-cell">
+            <span className={change > 0 ? "text-positive" : change < 0 ? "text-negative" : undefined}>
+              {formatPercent(change)}
             </span>
-            <div className="mini-momentum-bar" aria-label="Price momentum">
-              <span style={{ width: `${Math.min(100, Math.abs(info.getValue() ?? 0) * 12)}%` }} />
+            <div className="mini-momentum-bar" aria-hidden="true">
+              <span style={{ width: `${Math.min(100, Math.abs(change) * 12)}%` }} />
             </div>
-          </div>
-        ),
+          </div>;
+        },
       }),
       columnHelper.accessor("turnover", {
         header: language.columns.turnover,
@@ -211,10 +214,11 @@ export function StockExplorerView({ locale = DEFAULT_LOCALE }: StockExplorerView
         header: language.columns.action,
         cell: (info) => {
           const decision = decisionByStockId.get(info.row.original.stock.id)!;
+          const condition = decisionConditionLabel(decision.reasonCode, decision.entryApplicability, locale, decision.eligibilityReasons);
           return (
             <span className="stock-explorer-action-badge" title={decision.reason || undefined}>
-              <SignalBadge density="compact" signal={decision.recommendation} />
-              <small>{decisionConditionLabel(decision.reasonCode, decision.entryApplicability, locale, decision.eligibilityReasons)}</small>
+              <SignalBadge density="compact" signal={decision.recommendation} locale={locale} />
+              {condition ? <small>{condition}</small> : null}
             </span>
           );
         },
@@ -355,6 +359,9 @@ export function StockExplorerView({ locale = DEFAULT_LOCALE }: StockExplorerView
             </div>
           </div>
           <div className="explorer-toolbar-search">
+            {filters.sector ? <button type="button" className="explorer-toolbar-reset"
+              aria-label={locale === "bn" ? `${filters.sector} খাতের ফিল্টার সরান` : `Clear ${filters.sector} sector filter`}
+              onClick={() => setFilters(current => ({ ...current, sector: undefined }))}>{filters.sector} ×</button> : null}
             <ExplorerTableSearch
               ariaLabel={language.search.tableAriaLabel}
               clearAriaLabel={language.search.clearTableSearchAria}
@@ -393,15 +400,21 @@ export function StockExplorerView({ locale = DEFAULT_LOCALE }: StockExplorerView
             <thead>
               {table.getHeaderGroups().map((headerGroup) => (
                 <tr key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => (
-                    <th
+                  {headerGroup.headers.map((header) => {
+                    const sorted = header.column.getIsSorted();
+                    const label = flexRender(header.column.columnDef.header, header.getContext());
+                    const canSort = header.column.getCanSort();
+                    return <th
                       className={getExplorerCellClassName(header.column.id)}
                       key={header.id}
-                      onClick={header.column.getToggleSortingHandler()}
+                      scope="col"
+                      aria-sort={sorted ? sorted === "asc" ? "ascending" : "descending" : undefined}
                     >
-                      {flexRender(header.column.columnDef.header, header.getContext())}
-                    </th>
-                  ))}
+                      {canSort ? <button type="button" className="stock-sort-button" onClick={header.column.getToggleSortingHandler()}>
+                        {label}{sorted ? <span aria-hidden="true">{sorted === "asc" ? "↑" : "↓"}</span> : null}
+                      </button> : label}
+                    </th>;
+                  })}
                 </tr>
               ))}
             </thead>

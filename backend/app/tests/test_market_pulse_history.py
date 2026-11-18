@@ -11,6 +11,7 @@ from app.core.core_config import Settings
 from app.core.enums import ExchangeCode
 from app.modules.market_pulse.market_pulse_history import compute_pulse_opportunity_aggregate
 from app.modules.market_pulse.market_pulse_service import MarketPulseService
+from app.modules.market_pulse.market_pulse_schemas import OpportunityScoreRead
 from app.modules.market_pulse.market_pulse_snapshot_repository import PulseSnapshotIdentity
 
 
@@ -46,7 +47,7 @@ async def test_history_requires_contiguous_current_snapshot_and_calculates_five_
         SimpleNamespace(
             session_date=session_date,
             opportunity_score=score,
-            eligible_population_fingerprint=aggregate.eligible_population_fingerprint,
+            eligible_candidate_count=20, eligible_population_fingerprint=aggregate.eligible_population_fingerprint,
         )
         for session_date, score in zip(session_dates, [68, 65, 64, 62, 60], strict=True)
     ]
@@ -78,6 +79,22 @@ async def test_history_requires_contiguous_current_snapshot_and_calculates_five_
 
 
 @pytest.mark.asyncio
+async def test_previous_snapshot_requires_the_current_finalized_owner():
+    today, prior = date(2026, 7, 21), date(2026, 7, 20)
+    repo = MagicMock(list_for_sessions=AsyncMock(return_value=[
+        SimpleNamespace(session_date=today, universe_payload_revision="today", eligible_candidate_count=20, opportunity_score=68),
+        SimpleNamespace(session_date=prior, universe_payload_revision="old", eligible_candidate_count=20, opportunity_score=65),
+    ]), current_publication_revisions=AsyncMock(return_value={today: "today", prior: "corrected"}))
+    service = MarketPulseService(market_data_service=MagicMock(list_recent_finalized_session_dates=AsyncMock(return_value=[today, prior])),
+        universe_service=MagicMock(), redis=MagicMock(), settings=Settings(), snapshot_repository=repo)
+    result = await service._with_opportunity_history(OpportunityScoreRead(score=68, label="Balanced"),
+        identity=PulseSnapshotIdentity(ExchangeCode.DSE, "pulse", "strategy", "threshold", "schema", "v2"),
+        decision_date=today, payload_revision="today")
+    assert result.history == [68]
+    assert result.previous_session is None
+
+
+@pytest.mark.asyncio
 async def test_history_stops_at_a_missing_finalized_session() -> None:
     session_dates = [date(2026, 7, 21), date(2026, 7, 20), date(2026, 7, 17)]
     current_row = _row(60)
@@ -88,12 +105,12 @@ async def test_history_stops_at_a_missing_finalized_session() -> None:
             SimpleNamespace(
                 session_date=session_dates[0],
                 opportunity_score=60,
-                eligible_population_fingerprint=aggregate.eligible_population_fingerprint,
+                eligible_candidate_count=20, eligible_population_fingerprint=aggregate.eligible_population_fingerprint,
             ),
             SimpleNamespace(
                 session_date=session_dates[2],
                 opportunity_score=55,
-                eligible_population_fingerprint="old",
+                eligible_candidate_count=20, eligible_population_fingerprint="old",
             ),
         ]
     )
@@ -129,7 +146,7 @@ async def test_history_hides_the_current_series_when_current_lineage_changes() -
             SimpleNamespace(
                 session_date=current_date,
                 opportunity_score=60,
-                eligible_population_fingerprint="stale-fingerprint",
+                eligible_candidate_count=20, eligible_population_fingerprint="stale-fingerprint",
             )
         ]
     )

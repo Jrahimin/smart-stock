@@ -79,6 +79,7 @@ export type HeatmapTileModel = {
 };
 
 export type SignalFeedItemModel = {
+  reviewOnly?: boolean;
   topSetup?: import("@/lib/api/backend-api-types").BackendTopSetupDto | null;
   decisionDate?: string | null;
   name?: string;

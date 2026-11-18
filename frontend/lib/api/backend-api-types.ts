@@ -329,12 +329,13 @@ export type BackendShortlistDto = { version: string; entry_rank: number; holder_
 export type BackendDisplayQuoteDto = NonNullable<BackendScoredUniverseRowDto["display_quote"]> & { previous_close?: number | null };
 
 export type BackendTopSetupDto = {
-  version: string; rank: number; readiness: "CONDITIONS_MET" | "AWAITING_CONFIRMATION" | "WAIT_FOR_PRICE" | "CONDITIONAL_SETUP";
+  version: string; rank: number; readiness: "CONDITIONS_MET" | "AWAITING_CONFIRMATION" | "WAIT_FOR_PRICE" | "CONDITIONAL_SETUP" | "MARKET_WATCH";
   action: "POTENTIAL_BUY" | "WAIT"; setup_type: string; condition: string; confirmation_rule?: string | null; confirmation_support?: number | null; batch_fetched_at?: string | null;
   entry_low: number; entry_high: number; trigger_price?: number | null; invalidation: number; target: number;
   opportunity_score: number; risk_label: string; risk_cause?: string | null; supporting_fact: string; supporting_value?: number | null;
   counterargument_code?: string | null; counterargument_value?: number | null; controlling_reason_code?: string | null; holder_guidance: string; price_basis?: string | null;
   price_session_date?: string | null; source_observed_at?: string | null; assessed_at?: string | null; observation_price?: number | null;
+  watch_valid_until?: string | null;
 };
 
 export type BackendScoredUniverseRowDto = {
@@ -894,6 +895,7 @@ export type BackendPulseScoreBreakdownDto = {
 };
 
 export type BackendFocusStockDto = {
+  review_only?: boolean;
   top_setup?: BackendTopSetupDto | null;
   eligibility_reason_codes?: string[] | null;
   non_holder_action?: NonHolderAction | null;

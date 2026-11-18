@@ -10,8 +10,10 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database_session import get_db_session
-from app.core.enums import ExchangeCode
-from app.models import MarketPulseSessionSnapshot
+from app.core.enums import ExchangeCode, MarketDataState
+from app.core.constants.trading_constants import PULSE_SCORE_VERSION
+from app.models import DecisionGenerationCapture, MarketDataGeneration, MarketPulseSessionSnapshot
+from app.modules.market_data.publication_lock import lock_session_publication
 
 
 @dataclass(frozen=True)
@@ -22,6 +24,12 @@ class PulseSnapshotIdentity:
     threshold_version: str
     input_schema_version: str
     decision_taxonomy_version: str
+
+    @classmethod
+    def from_publication(cls, exchange: ExchangeCode, publication) -> PulseSnapshotIdentity:
+        return cls(exchange, PULSE_SCORE_VERSION, publication.strategy_version,
+                   publication.threshold_version, publication.input_schema_version,
+                   publication.decision_taxonomy_version)
 
 
 @dataclass(frozen=True)
@@ -59,14 +67,19 @@ class MarketPulseSnapshotRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
-    async def persist_if_absent(self, values: PulseSnapshotValues) -> bool:
-        statement = (
-            insert(MarketPulseSessionSnapshot)
-            .values(**values.model_values())
-            .on_conflict_do_nothing(constraint="uq_market_pulse_session_snapshot_identity")
-            .returning(MarketPulseSessionSnapshot.id)
-        )
-        created = await self.session.scalar(statement)
+    async def lock_publication(self, exchange: ExchangeCode, session_date: date) -> None:
+        await lock_session_publication(self.session, exchange=exchange, session_date=session_date)
+
+    async def persist_if_absent(self, values: PulseSnapshotValues, *, replace_revision: str | None = None) -> bool:
+        fields = values.model_values()
+        statement = insert(MarketPulseSessionSnapshot).values(**fields)
+        constraint = "uq_market_pulse_session_snapshot_identity"
+        if replace_revision is None:
+            statement = statement.on_conflict_do_nothing(constraint=constraint)
+        else:
+            statement = statement.on_conflict_do_update(constraint=constraint, set_=fields,
+                where=MarketPulseSessionSnapshot.universe_payload_revision == replace_revision)
+        created = await self.session.scalar(statement.returning(MarketPulseSessionSnapshot.id))
         if created is not None:
             await self.session.commit()
             return True
@@ -96,6 +109,23 @@ class MarketPulseSnapshotRepository:
             .order_by(MarketPulseSessionSnapshot.session_date.desc())
         )
         return list((await self.session.scalars(statement)).all())
+
+    async def current_publication_revisions(self, exchange: ExchangeCode, session_dates: list[date]) -> dict[date, str]:
+        """Select each finalized price head before joining its exact nonwithdrawn decision."""
+        heads = select(MarketDataGeneration.trade_date, MarketDataGeneration.sync_id, MarketDataGeneration.accepted_count).where(
+            MarketDataGeneration.exchange == exchange,
+            MarketDataGeneration.trade_date.in_(session_dates),
+            MarketDataGeneration.state == MarketDataState.FINALIZED,
+        ).distinct(MarketDataGeneration.trade_date).order_by(
+            MarketDataGeneration.trade_date, MarketDataGeneration.published_at.desc(), MarketDataGeneration.id.desc(),
+        ).subquery()
+        revision = DecisionGenerationCapture.result_payload["payload_revision"].astext
+        statement = select(heads.c.trade_date, revision).join(DecisionGenerationCapture,
+            (DecisionGenerationCapture.exchange == exchange)
+            & (DecisionGenerationCapture.generation_id == heads.c.sync_id)
+            & (DecisionGenerationCapture.session_date == heads.c.trade_date),
+        ).where(heads.c.accepted_count > 0, DecisionGenerationCapture.invalidated_at.is_(None), revision.is_not(None))
+        return {day: value for day, value in (await self.session.execute(statement)).all()}
 
 
 def get_market_pulse_snapshot_repository(

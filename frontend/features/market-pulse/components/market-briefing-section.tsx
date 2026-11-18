@@ -207,7 +207,6 @@ export function MarketBriefingSection({ briefing, copy }: MarketBriefingSectionP
 
         <article className="pulse-flow-card">
           <p className="pulse-card-kicker">{copy.briefing.moneyFlow}</p>
-          <p className="pulse-breadth-coverage">{briefing.sectorBasis}</p>
           <div className="pulse-flow-group">
             <p className="pulse-flow-heading pulse-flow-heading-in">
               <ArrowUpRight aria-hidden="true" size={14} />

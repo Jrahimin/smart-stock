@@ -28,6 +28,6 @@ it("mixed-version unknown basis never authorizes the positive headline",()=>{
 
 it.each(["en","bn"] as const)("pullback uses its own confirmation, with specific holder guidance (%s)",locale=>{
   const html=renderToStaticMarkup(<TopSetupSummary setup={{...setup,readiness:"WAIT_FOR_PRICE",setup_type:"PULLBACK",confirmation_rule:"COMPLETED_PULLBACK_HOLD",confirmation_support:94,holder_guidance:"HOLD_NO_ADD"}} assessment={assessment} locale={locale}/>);
-  expect(html).toContain("Pullback"); expect(html).not.toContain("completed-session close above"); expect(html).toContain("৳94.00");
+  expect(html).toContain(locale === "bn" ? "পুলব্যাক" : "Pullback"); expect(html).not.toContain("completed-session close above"); expect(html).toContain("৳94.00");
   expect(html).toContain(locale==="en"?"avoid adding at this price":"নতুন করে না কিনে");
 });

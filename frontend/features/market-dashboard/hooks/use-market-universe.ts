@@ -1,8 +1,6 @@
 "use client";
 
-import { PRICE_BASIS_CONTRACT } from "@/lib/market/entry-contract-capability";
-
-import { freshnessGenerationToken } from "@/lib/market/market-generation";
+import { freshnessGenerationToken, marketUniverseQueryKey } from "@/lib/market/market-generation";
 import { useCurrentEntryBoundary } from "@/hooks/market/use-current-entry-boundary";
 import { useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -40,11 +38,12 @@ export function useMarketUniverse(options: UseMarketUniverseOptions = {}) {
   const freshnessQuery = useMarketDataFreshness("DSE");
   const cacheMs = options.staleTimeMs ?? getMarketStaleTimeMs(freshnessQuery.data);
   const refetchInterval = options.refetchIntervalMs ?? getMarketRefetchIntervalMs(freshnessQuery.data);
-  const generation = freshnessGenerationToken(freshnessQuery.data) ?? "unavailable";
+  const generation = freshnessGenerationToken(freshnessQuery.data);
+  const queryKey = marketUniverseQueryKey("DSE", generation);
 
   const universeQuery = useQuery({
-    queryKey: ["market-universe-rows", PRICE_BASIS_CONTRACT, "DSE", stockLimit, generation],
-    queryFn: ({ queryKey }) => listUniverseRows("DSE", freshnessGenerationToken(freshnessQuery.data), queryClient.getQueryData(queryKey) !== undefined),
+    queryKey,
+    queryFn: () => listUniverseRows("DSE", generation, queryClient.getQueryData(queryKey) !== undefined),
     staleTime: cacheMs,
     refetchInterval,
     retry: shouldRetryUniverseCache,
@@ -54,7 +53,7 @@ export function useMarketUniverse(options: UseMarketUniverseOptions = {}) {
     universeQuery.error ?? universeQuery.failureReason,
   );
 
-  const currentData = useCurrentEntryBoundary(universeQuery.data, freshnessQuery.isError ? undefined : freshnessQuery.data, ["market-universe-rows", PRICE_BASIS_CONTRACT, "DSE", stockLimit, generation]);
+  const currentData = useCurrentEntryBoundary(universeQuery.data, freshnessQuery.isError ? undefined : freshnessQuery.data, queryKey);
   const rows = currentData?.rows ?? EMPTY_UNIVERSE_ROWS;
   const stocks = useMemo(() => rows.map((row) => row.stock), [rows]);
 

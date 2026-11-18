@@ -59,7 +59,8 @@ describe("increment2 common-fixture journey", () => {
     expect(dashboard).toContain("setup-reference-columns");
     expect(scanner.indexOf(outside)).toBeLessThan(scanner.indexOf(locale === "bn" ? "খোঁজের কারণ" : "Discovery"));
     expect(focus).toContain("top-setup-condition");
-    expect(pulse.focusStocks[0].latestPrice).toBe("103"); expect(focus).not.toContain(shortTradeDate("2026-11-11", locale));
+    expect(pulse.focusStocks[0].latestPrice).toBe("103");
+    expect(focus).toContain(`${locale === "bn" ? "প্রাপ্ত দর" : "Reported price"} · ${shortTradeDate("2026-11-11", locale)}`);
     expect(pulse.hero.sessionLabel).toContain(locale === "bn" ? "লেনদেন শুরুর আগে" : "Pre-open"); expect(pulse.hero.sessionLabel).toContain(shortTradeDate("2026-11-10", locale));
     expect(pulse.sessionDisablesRefresh).toBe(false);
   });
@@ -119,20 +120,26 @@ describe("increment2 common-fixture journey", () => {
     const client = new QueryClient(); const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
     const signals = render(<SignalCenterView locale={locale} />, { wrapper }).container.innerHTML;
     const scanner = render(<ScannerWorkspaceView locale={locale} />, { wrapper }).container.innerHTML;
-    const dashboard = renderToStaticMarkup(<SmartSignalFeed locale={locale} signals={mapUniverseRowsToSignalFeed([fixture.row])} />);
+    const dashboardView = render(<SmartSignalFeed locale={locale} signals={mapUniverseRowsToSignalFeed([fixture.row])} />);
+    expect(dashboardView.container.textContent).not.toContain("96.54");
+    fireEvent.click(dashboardView.getByRole("button", { name: locale === "bn" ? "TEST setup-এর বিস্তারিত" : "TEST setup details" }));
+    const dashboard = dashboardView.container.innerHTML + dashboardView.getByRole("dialog").innerHTML;
     const model = buildStockDecisionViewModel(fixture.support, locale);
     const detail = renderToStaticMarkup(<TraderDecisionCard decision={model} copy={getStockWorkspaceLanguage(locale).decision} />);
     const pulse = buildMarketPulseViewModel(fixture.pulse, locale), copy = getMarketPulseLanguage(locale);
     const focus = renderToStaticMarkup(<FocusStockCard stock={pulse.focusStocks[0]} copy={copy.focus} scoreCopy={copy.score} />);
     for (const html of [signals, scanner, dashboard, detail, focus]) {
       expect(html.includes("96.54")).toBe(hasLevel);
-      if (hasLevel && !html.includes("top-setup-summary") && !html.includes("setup-reference-row")) expect(html).toContain(locale === "en" ? "Trade Plan: close above 96.54 with volume confirmation" : "Trade Plan: দিনশেষে 96.54-এর ওপরে দর ও পর্যাপ্ত লেনদেনের নিশ্চয়তা প্রয়োজন");
-      if (hasLevel && html.includes("top-setup-summary")) expect(html).toContain(locale === "en" ? "session closes above 96.54" : "96.54-এর ওপরে দিন শেষ");
-      if (hasLevel && html.includes("setup-reference-row")) { expect(html).toContain("Close"); expect(html).toContain("96.54"); expect(html).toContain(locale === "bn" ? "setup-এর বিস্তারিত" : "setup details"); }
+      if (hasLevel) expect(html).toContain(locale === "en" ? "Trade Plan: close above 96.54 with volume confirmation" : "Trade Plan: দিনশেষে 96.54-এর ওপরে দর ও পর্যাপ্ত লেনদেনের নিশ্চয়তা প্রয়োজন");
+      if (html !== scanner) {
+        expect(html).toContain("Potential Buy");
+        if (hasLevel) expect(html.indexOf("Potential Buy")).toBeLessThan(html.indexOf("Trade Plan:"));
+      }
+      if (html.includes("setup-reference-row")) expect(html).toContain(locale === "bn" ? "setup-এর বিস্তারিত" : "setup details");
       expect(html).not.toContain("Inside entry zone");
     }
     if (hasLevel) { expect(detail).toContain("Trigger 96.54"); expect(model.controllingReason).not.toContain("breakout"); }
-    expect(focus).not.toContain("Attention"); expect(focus).toContain("Opportunity"); expect(focus).toContain("70/100");
+    expect(focus).not.toContain("Attention"); expect(focus).toContain(locale === "bn" ? "সম্ভাবনার স্কোর" : "Opportunity"); expect(focus).toContain("70/100");
   });
   it("shows measured breadth populations and does not turn absent sector moves or one-bar mood into observations", () => {
     const facts = order4SurfaceFixture().pulse.coverage!.breadth!;
@@ -248,5 +255,6 @@ it.each(["en", "bn"] as const)("hides only the requested unverified message on t
   const unverified = { ...row, entry_applicability: { status: "UNVERIFIED" as const, reason_code: "QUOTE_UNUSABLE" as const },
     decision: { ...row.decision!, entry_applicability: { status: "UNVERIFIED" as const, reason_code: "QUOTE_UNUSABLE" as const } } };
   const html = renderToStaticMarkup(<SmartSignalFeed locale={locale} signals={mapUniverseRowsToSignalFeed([unverified])} />);
-  expect(html).not.toContain(locale === "bn" ? "Entry-এর আগে broker-এর দাম মিলিয়ে নিন" : "Check live price before entry");
+  expect(html).toContain("Potential Buy");
+  expect(html).not.toMatch(/broker|check live price|conditions met/i);
 });

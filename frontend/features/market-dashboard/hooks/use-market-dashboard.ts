@@ -89,7 +89,7 @@ export function useMarketDashboard(options?: {
     initialDataUpdatedAt: canUseInitialData ? initialCore?.fetchedAt : undefined,
   });
   const signalsQuery = useDashboardStocksInFocus({
-    generation: freshnessGenerationToken(freshness) ?? "pending",
+    generation: freshnessGenerationToken(freshness),
     staleTimeMs,
     refetchIntervalMs,
     enabled: generation !== null && overviewReady,

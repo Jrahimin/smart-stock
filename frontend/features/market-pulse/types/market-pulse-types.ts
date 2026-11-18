@@ -17,6 +17,7 @@ export type PulseScoreBreakdownModel = {
 };
 
 export type FocusStockModel = {
+  reviewOnly?: boolean;
   topSetup?: import("@/lib/api/backend-api-types").BackendTopSetupDto | null;
   displayQuote?: import("@/lib/api/backend-api-types").BackendScoredUniverseRowDto["display_quote"];
   measuredFacts?: import("@/lib/api/stock-decision-support-types").MeasuredDecisionFactsDto | null;

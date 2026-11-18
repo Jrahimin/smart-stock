@@ -32,7 +32,7 @@ it.each((["en","bn"] as const).flatMap(locale=>alertTypes.map(type=>({locale,typ
   expect(html).not.toMatch(/current price check|before entry|Entry-এর আগে বর্তমান দাম|2:15 PM|pulse-alert-footline|pulse-alert-why|pulse-alert-time/i);
   expect(model.alerts[0].timeLabel).toBe("2:15 PM");
   expect(model.alerts[0].metricLabel).toBe("2.5×");
-  if(type==="momentum-reversal")expect(html).toContain(locale==="en"?"Trend confirmation is pending":"Trend confirmation-এর অপেক্ষা");
+  if(type==="momentum-reversal")expect(html).toContain(locale==="en"?"Trend confirmation is pending":"ঊর্ধ্বমুখী ধারা এখনও নিশ্চিত হয়নি");
   expect(JSON.stringify(pulse)).toBe(before);
 });
 

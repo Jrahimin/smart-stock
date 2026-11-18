@@ -4,7 +4,7 @@ import type { AppLocale } from "@/lib/locale/app-locale";
 import { getTraderJourneyLanguage } from "./trader-journey-language";
 
 /** A published watch condition is context, never permission to enter. */
-export function publishedSetupCondition(facts: MeasuredDecisionFactsDto | null | undefined, assessment: EntryApplicabilityDto | null | undefined, locale: AppLocale, reasonCode?: string | null): string | null {
+export function publishedSetupCondition(facts: Pick<MeasuredDecisionFactsDto, "entry_timing" | "trigger_price" | "confirmation_rule"> | null | undefined, assessment: EntryApplicabilityDto | null | undefined, locale: AppLocale, reasonCode?: string | null): string | null {
   if (assessment && ["INVALIDATED", "EXPIRED"].includes(assessment.status)) return null;
   if (facts?.entry_timing === "PULLBACK") {
     if (assessment?.status === "NOT_APPLICABLE") return locale === "bn"

@@ -39,6 +39,7 @@ class PulseScoreBreakdownRead(BaseModel):
 
 
 class FocusStockRead(BaseModel):
+    review_only: bool = False
     top_setup: "TopSetupRead | None" = None
     eligibility_reason_codes: list[str] | None = Field(default=None, exclude_if=lambda value: value is None)
     non_holder_action: str | None = None

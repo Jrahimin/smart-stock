@@ -9,6 +9,7 @@ import { PublishedSetupCondition } from "@/components/market/published-setup-con
 import { controllingReasonLabel, selectedDecisionExplanation } from "@/lib/market/decision-presentation";
 import { EntryApplicabilityLabel } from "@/components/market/entry-applicability-label";
 import Link from "next/link";
+import { ArrowUpRight } from "lucide-react";
 import { shortTradeDate, commonTradeDate } from "@/lib/formatters/trader-formatters";
 import { useAuth } from "@/features/auth/context/auth-context";
 import { useMemo, useState } from "react";
@@ -177,27 +178,34 @@ export function ScannerWorkspaceView({ locale = DEFAULT_LOCALE }: ScannerWorkspa
                       const policy = decisionConditionLabel(decision.reasonCode, decision.entryApplicability, locale, decision.eligibilityReasons);
 
                       return (
-                        <article className="scanner-result-card" key={stock.stock.id}>
+                        <article className="market-result-card scanner-result-card" key={stock.stock.id} data-action={decision.recommendation ?? undefined}>
                           <div className="scanner-card-topline">
-                            <strong>{stock.stock.symbol}</strong>
+                            <Link className="market-result-link" href={buildStockDetailPath(stock.stock.exchange, stock.stock.symbol)} prefetch={false}>
+                              {stock.stock.symbol}<ArrowUpRight size={13} aria-hidden="true" />
+                            </Link>
                             <div className="scanner-card-actions">
-                              <WatchlistStarToggle locale={locale} stockId={stock.stock.id} stopPropagation />
+                              <WatchlistStarToggle locale={locale} stockId={stock.stock.id} className="market-result-watchlist" stopPropagation />
                               <SignalBadge locale={locale} signal={decision.recommendation} />
                             </div>
                           </div>
-                          <span className="scanner-company-name">{stock.stock.name}</span>
-                          <span>
-                            {formatNumber(stock.latestPrice)} / {formatPercent(stock.priceChangePercent)}
-                          </span>
-                          {!sharedDate || stock.displayQuote?.as_of_trade_date !== sharedDate || stock.displayQuote?.observation_session_date !== sharedDate || stock.displayQuote?.observation_status !== "FINALIZED" ? <QuotePublicationLabel locale={locale} quote={stock.displayQuote} /> : null}
-                          <small>{locale === "bn" ? "নতুন ক্রেতার জন্য" : "For new buyers"}{!sharedDate ? ` · ${shortTradeDate(stock.decisionDate, locale)}` : ""}</small>
-                          {policy && (!decision.entryApplicability || decision.entryApplicability.status === "NOT_APPLICABLE") ? <p className="scanner-entry-condition">{policy}</p> : null}
-                          <EntryApplicabilityLabel assessment={decision.entryApplicability} locale={locale} policyReason={policy} />
-                          <PublishedSetupCondition facts={stock.measuredFacts} assessment={decision.entryApplicability} locale={locale} reasonCode={decision.reasonCode} />
-                          <MeasuredDecisionFacts facts={stock.measuredFacts} locale={locale} ratings />
-                          {selected.limitation && selected.limitation !== policy ? <p className="scanner-entry-condition">{selected.limitation}</p> : null}
-                          <small>{scannerMatchReason(stock.scannerMatch.reason_code, locale)}</small>
-                          <Link href={buildStockDetailPath(stock.stock.exchange, stock.stock.symbol)}>{locale === "bn" ? "বিস্তারিত দেখুন" : "View details"} →</Link>
+                          <div className="scanner-result-summary">
+                            <span className="scanner-company-name">{stock.stock.name}</span>
+                            <span className="scanner-result-quote"><b>{formatNumber(stock.latestPrice)}</b>{" "}
+                              <b className={(stock.priceChangePercent ?? 0) > 0 ? "text-positive" : (stock.priceChangePercent ?? 0) < 0 ? "text-negative" : undefined}>
+                                {formatPercent(stock.priceChangePercent)}
+                              </b>
+                              {!sharedDate || stock.displayQuote?.as_of_trade_date !== sharedDate || stock.displayQuote?.observation_session_date !== sharedDate || stock.displayQuote?.observation_status !== "FINALIZED" ? <QuotePublicationLabel locale={locale} quote={stock.displayQuote} /> : null}
+                            </span>
+                          </div>
+                          <div className="market-result-guidance">
+                            <small>{locale === "bn" ? "নতুন ক্রেতার জন্য" : "For new buyers"}{!sharedDate ? ` · ${shortTradeDate(stock.decisionDate, locale)}` : ""}</small>
+                            {policy && (!decision.entryApplicability || decision.entryApplicability.status === "NOT_APPLICABLE") ? <p className="scanner-entry-condition">{policy}</p> : null}
+                            <EntryApplicabilityLabel assessment={decision.entryApplicability} locale={locale} policyReason={policy} announce={false} />
+                            <PublishedSetupCondition facts={stock.measuredFacts} assessment={decision.entryApplicability} locale={locale} reasonCode={decision.reasonCode} />
+                          </div>
+                          <div className="market-result-evidence"><MeasuredDecisionFacts facts={stock.measuredFacts} locale={locale} ratings /></div>
+                          {selected.limitation && selected.limitation !== policy ? <small className="market-result-limitation">{selected.limitation}</small> : null}
+                          <small className="scanner-result-match">{scannerMatchReason(stock.scannerMatch.reason_code, locale)}</small>
                         </article>
                       );
                     })

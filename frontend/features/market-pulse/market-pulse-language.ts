@@ -10,6 +10,7 @@ export type PulseBriefingChipKey =
   | "session"
   | "active-alerts"
   | "sector-focus"
+  | "sector-leader"
   | "in-focus";
 
 export type PulseScoreBandLabel =
@@ -109,6 +110,7 @@ export type MarketPulseLanguage = {
     ) => string | null;
   };
   summary: {
+    nextSession: (tone: string) => string;
     title: string;
     tradingEnvironment: string;
     overall: string;
@@ -180,7 +182,7 @@ const marketPulseLanguage = {
       briefingPersonalizationWarning:
         "Personalized briefing is unavailable. Showing the latest shared briefing content.",
       backendError:
-        "Backend data is unavailable. Showing the latest resilient Market Pulse state.",
+        "The market briefing is unavailable. The stock shortlist and alerts are shown below when available.",
       loadingBriefing: "Loading market briefing",
       loadingBriefingAria: "Loading market briefing",
       emptyWaitingSnapshot:
@@ -214,7 +216,7 @@ const marketPulseLanguage = {
       outflowing: "Lagging",
       opportunityScore: "Current Attention Score",
       lastFiveSessions: "Last five comparable sessions",
-      historyPending: "The trend for this score appears after a few more comparable sessions.",
+      historyPending: "The trend will appear once comparable sessions are available.",
       yesterday: (value) => `Yesterday: ${value}`,
       fiveDayAvg: (value) => `5-Day Avg: ${value}`,
       trend: (label) => `Trend: ${label}`,
@@ -244,7 +246,9 @@ const marketPulseLanguage = {
         SECTOR_UNAVAILABLE: "Sector leadership unavailable",
         BREADTH_UNAVAILABLE: "Market breadth unavailable",
       })[code],
-      storyMetricLabel: (label) => label,
+      storyMetricLabel: (label) => ({
+        Advancing: "Up", Declining: "Down", Unchanged: "Flat", "Adv/Decl Ratio": "Up/down",
+      } as Record<string, string>)[label] ?? label,
       stateDimensionLabel: (_key, label) => label,
       stateDimensionValue: (value) => value,
       overallStateLabel: (label) => label,
@@ -257,8 +261,8 @@ const marketPulseLanguage = {
             : "Few stocks stand out",
     },
     leadership: {
-      title: "Market Leadership",
-      subtitle: "Leaders in the analyzed session.",
+      title: "Session leaders",
+      subtitle: "Sector, price and volume standouts",
       freshSignals: "Fresh Signals (Buy)",
       newToday: (count, date) => `New for ${date ?? "the decision session"}: ${count}`,
       upgradedToday: (count, date) => `Upgraded for ${date ?? "the decision session"}: ${count}`,
@@ -267,7 +271,10 @@ const marketPulseLanguage = {
       cardSubtitle: (_, rawSubtitle) => rawSubtitle,
     },
     summary: {
-      title: "Market State Summary",
+      title: "What to watch next",
+      nextSession: (tone) => tone === "negative" ? "Watch whether more stocks start to recover next session."
+        : tone === "positive" ? "Watch whether the gains carry into the next session."
+        : "Watch whether more stocks start moving in the same direction.",
       tradingEnvironment: "Trading Environment",
       overall: "Overall",
       readFullAnalysis: "Read full analysis →",
@@ -291,7 +298,7 @@ const marketPulseLanguage = {
     },
     focus: {
       eyebrow: "Stocks In Focus",
-      titleDefault: "Top opportunities worth attention",
+      titleDefault: "Top setups to watch",
       titleMonitorFallback:
         "Stocks approaching attention threshold",
       viewAll: "View all stocks →",
@@ -319,7 +326,8 @@ const marketPulseLanguage = {
     chips: {
       session: "Market",
       "active-alerts": "Active Alerts",
-      "sector-focus": "Sector In Focus",
+      "sector-focus": "Sector alert",
+      "sector-leader": "Sector leader",
       "in-focus": "In Focus",
     },
     score: {
@@ -360,7 +368,7 @@ const marketPulseLanguage = {
       briefingPersonalizationWarning:
         "আপনার ব্যক্তিগত briefing পাওয়া যাচ্ছে না। আপাতত সর্বশেষ বাজারের সারাংশ দেখানো হচ্ছে।",
       backendError:
-        "নতুন data আনা যাচ্ছে না। আপাতত সর্বশেষ পাওয়া Market Pulse দেখানো হচ্ছে।",
+        "বাজারের সারাংশ এখন পাওয়া যাচ্ছে না। শেয়ারের তালিকা ও সতর্কতা পাওয়া গেলে নিচে দেখা যাবে।",
       loadingBriefing: "Market briefing লোড হচ্ছে",
       loadingBriefingAria:
         "Market briefing লোড হচ্ছে",
@@ -392,13 +400,13 @@ const marketPulseLanguage = {
       breadthSnapshotAria:
         "বাজারের ভেতরের চিত্র",
       marketState: "বাজারের অবস্থা",
-      overallState: "সামগ্রিক অবস্থা:",
-      moneyFlow: "Sector Price Change",
+      overallState: "সব মিলিয়ে",
+      moneyFlow: "খাতভিত্তিক দামের পরিবর্তন",
       inflowing: "দামে এগিয়ে",
       outflowing: "দামে পিছিয়ে",
-      opportunityScore: "Current Attention Score",
+      opportunityScore: "বাজারের নজরদারি স্কোর",
       lastFiveSessions: "সর্বশেষ পাঁচটি তুলনামূলক সেশন",
-      historyPending: "এই scoreটি এখন হিসাব করা হয়েছে। একই ধরনের সেশনের snapshot জমা হলে তুলনামূলক ইতিহাস দেখা যাবে।",
+      historyPending: "তুলনাযোগ্য সেশনের তথ্য জমলে স্কোরের পরিবর্তন দেখা যাবে।",
       yesterday: (value) => `গতকাল: ${value}`,
       fiveDayAvg: (value) => `5 দিনের গড়: ${value}`,
       trend: (label) => `Trend: ${label}`,
@@ -419,10 +427,10 @@ const marketPulseLanguage = {
             : "পর্যালোচিত শেয়ারগুলোর কোনো খাত ইতিবাচক নয়।",
       ],
       storyHeadline: (code, count) => ({
-        STRENGTH_SECTORS: count ? `দামের শক্তি ছড়াচ্ছে\n${count}টি খাতে` : "পর্যালোচিত শেয়ারের দাম বেড়েছে",
-        STRENGTH_STOCKS: "পর্যালোচিত শেয়ারের দাম বেড়েছে",
-        WEAKNESS_SECTORS: count ? `দামের দুর্বলতা ছড়াচ্ছে\n${count}টি খাতে` : "পর্যালোচিত শেয়ারের দাম কমেছে",
-        WEAKNESS_STOCKS: "পর্যালোচিত শেয়ারের দাম কমেছে",
+        STRENGTH_SECTORS: count ? `${count.toLocaleString("bn-BD")}টি খাতে দর বেড়েছে` : "বেশি শেয়ারের দর বেড়েছে",
+        STRENGTH_STOCKS: "বেশি শেয়ারের দর বেড়েছে",
+        WEAKNESS_SECTORS: count ? `${count.toLocaleString("bn-BD")}টি খাতে দর কমেছে` : "বেশি শেয়ারের দর কমেছে",
+        WEAKNESS_STOCKS: "বেশি শেয়ারের দর কমেছে",
         MIXED_SECTORS: "মিশ্র বাজার, কিছু খাতে দামের অগ্রগতি",
         NO_POSITIVE_SECTOR: "কোনো খাতে ইতিবাচক দামের অগ্রগতি নেই",
         SECTOR_UNAVAILABLE: "খাতের অগ্রগতির তথ্য পাওয়া যায়নি",
@@ -430,11 +438,11 @@ const marketPulseLanguage = {
       })[code],
       storyMetricLabel: (label) => {
         const metrics: Record<string, string> = {
-          Advancing: "উঠছে",
-          Declining: "নামছে",
-          Unchanged: "অপরিবর্তিত",
-          "Adv/Decl Ratio": "Adv/Decl Ratio",
-          Turnover: "Turnover",
+          Advancing: "বেড়েছে",
+          Declining: "কমেছে",
+          Unchanged: "একই",
+          "Adv/Decl Ratio": "বাড়া/কমা",
+          Turnover: "লেনদেনের মূল্য",
         };
         return metrics[label] ?? label;
       },
@@ -449,16 +457,16 @@ const marketPulseLanguage = {
       },
       stateDimensionValue: (value) => {
         const values: Record<string, string> = {
-          Bearish: "Bearish",
-          Bullish: "Bullish",
-          Neutral: "Neutral",
-          Weak: "Weak",
-          Strong: "Strong",
-          Moderate: "Moderate",
+          Bearish: "নিম্নমুখী",
+          Bullish: "ঊর্ধ্বমুখী",
+          Neutral: "নিরপেক্ষ",
+          Weak: "কম",
+          Strong: "বেশি",
+          Moderate: "মাঝারি",
           Positive: "Positive",
           Negative: "Negative",
-          Narrow: "Narrow",
-          Broad: "Broad",
+          Narrow: "সীমিত",
+          Broad: "বিস্তৃত",
           "No positive leader": "ইতিবাচক অগ্রগতি নেই",
           Unavailable: "তথ্য নেই",
           "Defensive Rotation": "Defensive Rotation",
@@ -498,8 +506,8 @@ const marketPulseLanguage = {
     },
 
     leadership: {
-      title: "বিশ্লেষণের সেশনে এগিয়ে",
-      subtitle: "বাজারের নেতৃত্বে থাকা শেয়ার ও সেক্টর।",
+      title: "সেশনে যারা এগিয়ে",
+      subtitle: "দাম ও লেনদেনে এগিয়ে থাকা শেয়ার ও খাত",
       freshSignals: "কেনার নতুন সেটআপ",
       newToday: (count, date) => `${date ?? "সিদ্ধান্তের সেশন"}-এর জন্য নতুন: ${count}`,
       upgradedToday: (count, date) => `${date ?? "সিদ্ধান্তের সেশন"}-এর জন্য উন্নীত: ${count}`,
@@ -528,8 +536,11 @@ const marketPulseLanguage = {
     },
 
     summary: {
-      title: "এই সেশনের বাজারের সারাংশ",
-      tradingEnvironment: "tradingয়ের পরিবেশ",
+      title: "পরের সেশনে কী দেখবেন",
+      nextSession: (tone) => tone === "negative" ? "পরের সেশনে আরও শেয়ারের দর ঘুরে দাঁড়ায় কি না দেখুন।"
+        : tone === "positive" ? "দাম বাড়ার ধারা পরের সেশনেও টিকে থাকে কি না দেখুন।"
+        : "আরও বেশি শেয়ারের দর একই দিকে যেতে শুরু করে কি না দেখুন।",
+      tradingEnvironment: "লেনদেনের পরিবেশ",
       overall: "সামগ্রিকভাবে",
       readFullAnalysis: "বিস্তারিত দেখুন →",
       narrative: (
@@ -829,7 +840,8 @@ const marketPulseLanguage = {
     chips: {
       session: "বাজার",
       "active-alerts": "সক্রিয় সতর্কতা",
-      "sector-focus": "ফোকাস সেক্টর",
+      "sector-focus": "খাতের সতর্কতা",
+      "sector-leader": "দামে এগিয়ে থাকা খাত",
       "in-focus": "নজরে",
     },
 

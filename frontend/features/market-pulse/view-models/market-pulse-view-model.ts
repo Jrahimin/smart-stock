@@ -56,6 +56,7 @@ function mapFocusStock(stock: BackendFocusStockDto): FocusStockModel {
   const legacyTransition = ["Signal Upgrade", "New BUY Setup"].includes(stock.focus_label) && !verifiedTransition;
   return {
     topSetup: stock.top_setup,
+    reviewOnly: stock.review_only,
     entryApplicability: stock.entry_applicability,
     measuredFacts: stock.measured_facts,
     displayQuote: stock.display_quote,
@@ -139,7 +140,7 @@ function mapAlert(alert: BackendMarketPulseDto["alerts"][number]): MarketAlertMo
   };
 }
 
-function buildBriefingChips(dto: BackendMarketPulseDto): PulseBriefingChipModel[] {
+function buildBriefingChips(dto: BackendMarketPulseDto, focusCount: number): PulseBriefingChipModel[] {
   const chips: PulseBriefingChipModel[] = [];
 
   if (dto.hero.session_label) {
@@ -164,24 +165,24 @@ function buildBriefingChips(dto: BackendMarketPulseDto): PulseBriefingChipModel[
   if (sectorAlert?.symbol) {
     chips.push({
       id: "sector-focus",
-      label: "Sector In Focus",
+      label: "Sector alert",
       value: sectorAlert.symbol,
       tone: "info",
     });
   } else if (dto.briefing?.money_flow.inflows[0]) {
     chips.push({
-      id: "sector-focus",
-      label: "Sector In Focus",
+      id: "sector-leader",
+      label: "Sector leader",
       value: dto.briefing.money_flow.inflows[0].sector,
       tone: "info",
     });
   }
 
-  if (dto.hero.focus_count > 0) {
+  if (focusCount > 0) {
     chips.push({
       id: "in-focus",
       label: "In Focus",
-      value: String(dto.hero.focus_count),
+      value: String(focusCount),
       tone: "primary",
     });
   }
@@ -331,7 +332,7 @@ function sectorLeadershipContext(briefing: MarketBriefingModel | null, locale: A
   const line = !sector
     ? known ? locale === "bn" ? "কোনো খাতে ইতিবাচক দামের অগ্রগতি নেই।" : "No positive sector leader is present in this session."
       : locale === "bn" ? "খাতের অগ্রগতির তথ্য পাওয়া যায়নি।" : "Sector leadership data is unavailable."
-    : locale === "bn" ? value === "Broad" ? `বিভিন্ন খাতে দামের অগ্রগতি ছড়িয়ে আছে, এগিয়ে ${sectorName(sector, locale)}।` : `${sectorName(sector, locale)} খাতে দামের অগ্রগতি সীমিত।`
+    : locale === "bn" ? value === "Broad" ? `বেশ কয়েকটি খাতে দর বেড়েছে। এগিয়ে ${sectorName(sector, locale)}।` : `দর বাড়ার হিসাবে সবার আগে ${sectorName(sector, locale)}।`
       : value === "Broad" ? `Sector leadership is broad, led by ${sector}.` : `Sector leadership is concentrated in ${sector}.`;
   return { sector, value, line };
 }
@@ -362,7 +363,7 @@ export function applyMarketPulseLocalization(model: MarketPulseModel, locale: Ap
       story: { ...briefing.story, headline: getMarketPulseLanguage(locale).briefing.storyHeadline(headline.code, headline.count), explanation: [...briefing.story.explanation.split("\n").slice(0,1), leadership.line].join("\n") },
       state: { ...briefing.state, dimensions: briefing.state.dimensions.map(item => item.key === "leadership" ? { ...item, value: leadership.value, tone: leadership.sector ? item.tone : "neutral" } : item) },
       leadership: { ...briefing.leadership, cards: briefing.leadership.cards.filter(card => card.kind !== "sector" || Boolean(leadership.sector)), narrative: leadership.line },
-      summary: { ...briefing.summary, text: [...briefing.summary.text.split("\n").slice(0,1), leadership.line].join("\n"),
+      summary: { ...briefing.summary,
         highlights: briefing.summary.highlights.map(item => item.label === "Leadership" ? { ...item, value: leadership.sector ? leadership.value : leadership.value === "No positive leader" ? (locale === "bn" ? "ইতিবাচক অগ্রগতি নেই" : "No positive leader") : (locale === "bn" ? "তথ্য নেই" : "Unavailable"), tone: leadership.sector ? item.tone : "neutral" } : item),
         tradingEnvironment: briefing.summary.tradingEnvironment ? { ...briefing.summary.tradingEnvironment, signals: briefing.summary.tradingEnvironment.signals.map(item => leadershipSignals.has(item.text) ? { ...item, text: leadership.line, tone: leadership.sector ? item.tone : "neutral" } : item) } : null,
       },
@@ -584,7 +585,11 @@ export function buildMarketPulseViewModel(dto: BackendMarketPulseDto, locale: Ap
   const decisionDate = dto.coverage?.decision_session_date ?? dto.coverage?.session_trade_date;
   const quoteDate = dto.coverage?.quote_session_date ?? [...dto.focus_stocks, ...dto.monitor_candidates]
     .map(stock => stock.display_quote?.observation_session_date ?? stock.display_quote?.as_of_trade_date).filter((value): value is string => Boolean(value)).sort().at(-1);
-  const focusStocks = dto.focus_stocks.filter(stock => stock.top_setup).map(mapFocusStock);
+  const setups = dto.focus_stocks.filter(stock => stock.top_setup).slice(0, 5);
+  const watch = dto.monitor_candidates.filter(stock => stock.review_only &&
+    stock.entry_applicability?.status === "UNVERIFIED" &&
+    ["PATH_INCOMPLETE", "COVERAGE_UNKNOWN", "SESSION_SETTLING"].includes(stock.entry_applicability.reason_code));
+  const focusStocks = [...setups, ...watch.slice(0, 5 - setups.length)].map((stock, index) => mapFocusStock({ ...stock, rank: index + 1 }));
   const monitorCandidates = dto.monitor_candidates.map(mapFocusStock);
 
   const model: MarketPulseModel = {
@@ -598,8 +603,8 @@ export function buildMarketPulseViewModel(dto: BackendMarketPulseDto, locale: Ap
       sessionLabel: dto.decision_status === "UPDATING"
         ? `${locale === "bn" ? "আপডেট হচ্ছে; চূড়ান্ত সিদ্ধান্ত" : "Updating; finalized decisions"} ${dto.coverage?.session_trade_date ?? ""}`
         : dto.hero.session_label,
-      focusCount: dto.hero.focus_count,
-      recentFocusCount: dto.hero.recent_focus_count,
+      focusCount: focusStocks.length,
+      recentFocusCount: Math.min(dto.hero.recent_focus_count, focusStocks.length),
     },
     sinceLastVisit: {
       visible: dto.since_last_visit.visible,
@@ -608,7 +613,7 @@ export function buildMarketPulseViewModel(dto: BackendMarketPulseDto, locale: Ap
       newAlertsCount: dto.since_last_visit.new_alerts_count,
       summaryLabel: dto.since_last_visit.summary_label,
     },
-    briefingChips: buildBriefingChips(dto),
+    briefingChips: buildBriefingChips(dto, focusStocks.length),
     briefing: dto.briefing ? mapBriefing(dto.briefing) : null,
     focusStocks,
     monitorCandidates,
@@ -645,11 +650,12 @@ export function buildMarketPulseViewModel(dto: BackendMarketPulseDto, locale: Ap
         label: (copy.dimensions as Record<string, string>)[dimension.key] ?? dimension.label,
       })) },
       story: { ...localized.briefing.story, explanation: facts && facts.known_count > 0
-        ? `${copy.breadth(facts.advancing, facts.declining, facts.unchanged)}\n${sectorLeadershipContext(localized.briefing, locale).line}`
+        ? `${copy.breadth(facts.advancing, facts.declining, facts.unchanged)}\n${localized.briefing.leadership.narrative}`
         : localized.briefing.story.explanation },
       breadth: facts, breadthNote: breadthCoverageLabel(facts, locale), breadthDefinition: breadthDefinition(facts, locale),
       sectorBasis: `${copy.sectorBasis} · ${shortTradeDate(facts?.as_of_date ?? decisionDate, locale)}${localized.briefing.state.excludedSectorCount ? ` · ${getTraderJourneyLanguage(locale).excludedSectors(localized.briefing.state.excludedSectorCount)}` : ""}`,
       opportunityScore: { ...localized.briefing.opportunityScore, label: getMarketPulseLanguage(locale).briefing.opportunityLabel(localized.briefing.opportunityScore.score) },
+      summary: { ...localized.briefing.summary, text: getMarketPulseLanguage(locale).summary.nextSession(localized.briefing.story.tone) },
       leadership: { ...localized.briefing.leadership, decisionDate, freshBuySignals: changed.map((stock) => stock.symbol), freshNewCount: changed.length - upgraded.length, freshUpgradedCount: upgraded.length,
         cards: localized.briefing.leadership.cards.map((card) => ({ ...card,
           name: card.kind === "sector" ? sectorName(card.name, locale) : card.name,

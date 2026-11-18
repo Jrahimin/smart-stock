@@ -92,7 +92,8 @@ it.each([["en", null], ["bn", null], ["en", "0"], ["bn", "0"]] as const)("render
     expect(hero.querySelector(".sw-index > b")).toBeNull();
     expect(card).toContain(locale === "en" ? "Index change is unavailable" : "সূচকের পরিবর্তন জানা নেই");
   } else {
-    expect(hero.querySelector(".sw-index > b")?.textContent).toContain("0%"); expect(card).toContain("DSEX 0.00%");
+    expect(hero.querySelector(".sw-index > b")?.textContent).toContain(locale === "en" ? "Nearly flat" : "প্রায় অপরিবর্তিত");
+    expect(card).not.toContain("DSEX -0.00%");
   }
 });
 

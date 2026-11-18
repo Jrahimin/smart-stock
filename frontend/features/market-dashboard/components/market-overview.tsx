@@ -48,40 +48,54 @@ export function MarketOverview({ model, copy, locale, freshness, loading, leader
   const volume = pulse.volumeContext;
   const count = new Intl.NumberFormat("en-BD");
   const sessionSummary = breadth.total > 0 ? locale === "bn"
-    ? `এই কার্যদিবসে ${count.format(breadth.advancing)}টি শেয়ার বেড়েছে, ${count.format(breadth.declining)}টি কমেছে।`
-    : `In this session, ${count.format(breadth.advancing)} stocks rose and ${count.format(breadth.declining)} fell.` : null;
+    ? `${count.format(breadth.advancing)}টি শেয়ার বেড়েছে, ${count.format(breadth.declining)}টি কমেছে।`
+    : `${count.format(breadth.advancing)} stocks rose and ${count.format(breadth.declining)} fell.` : null;
   const indexDateDiffers = pulse.indexTradeDate && pulse.indexTradeDate !== pulse.latestTradeDate;
   const activityDateDiffers = pulse.activityTradeDate && pulse.activityTradeDate !== pulse.latestTradeDate;
   const context = [sessionSummary,breadthContrast(model,locale)].filter(Boolean).join(" ");
   const pulseDescription = locale === "bn" ? "খাতের অগ্রগতি ও বাজারের চিত্র দেখুন।" : "Sector leaders and session context.";
   const breadthParts = [[copy.up, breadth.advancing, "positive"], [copy.flat, breadth.unchanged, "neutral"], [copy.down, breadth.declining, "negative"]] as const;
-  const detailStats = [
-    ...(pulse.indexDayStats ? [
-      [copy.dayOpen, pulse.indexDayStats.open], [copy.dayHigh, pulse.indexDayStats.high], [copy.dayLow, pulse.indexDayStats.low],
-    ] : []),
-    ...([pulse.indexPerformance.oneMonth, pulse.indexPerformance.sixMonth, pulse.indexPerformance.oneYear]
-      .map((value, index) => [copy.returns[index], value])),
-  ];
+  const dayStats = pulse.indexDayStats ? [
+    [copy.dayOpen, pulse.indexDayStats.open], [copy.dayHigh, pulse.indexDayStats.high], [copy.dayLow, pulse.indexDayStats.low],
+  ] : [];
+  const returns = [pulse.indexPerformance.oneMonth, pulse.indexPerformance.sixMonth, pulse.indexPerformance.oneYear];
+  const hasReturns = returns.some(value => value !== "N/A");
 
   return <section className={`sw-hero ${hero.hero}`} aria-label={copy.overview} aria-busy={loading}>
     <div className="sw-hero-main" data-guide="market-pulse" data-guide-ready={String(!loading)}>
       <div className="sw-index-stack"><div className="sw-index">
         <span>{pulse.indexName}</span>
         <strong data-updated={valueUpdated} className={pulse.indexAvailable ? "sw-index-value" : "sw-index-value sw-index-missing"}>{loading ? "…" : pulse.indexAvailable ? pulse.indexValue : copy.indexMissing}</strong>
-        {pulse.indexAvailable && pulse.indexChangePercent !== null ? <b className={`sw-${pulse.indexTone}`}>{pulse.indexChangeLabel}</b> : null}
+        {pulse.indexAvailable && pulse.indexChangePercent !== null ? (
+          <b className={`sw-${Math.abs(pulse.indexChangePercent) < 0.005 ? "neutral" : pulse.indexTone}`}>
+            {Math.abs(pulse.indexChangePercent) < 0.005 ? (locale === "bn" ? "প্রায় অপরিবর্তিত" : "Nearly flat") : pulse.indexChangeLabel}
+          </b>
+        ) : null}
       </div>
       {indexDateDiffers ? <small className="sw-index-date">{locale === "bn" ? "সূচক" : "Index"} · {shortTradeDate(pulse.indexTradeDate, locale)}</small> : null}
-      <div className="sw-index-details"><DashboardInfoPanel label={copy.indexDetails} locale={locale}>
-        <div className="sw-detail-body">
-          <p>{locale === "bn" ? "DSEX-এর সেশনের মান ও সময়ভিত্তিক পরিবর্তন দেখুন।" : "Explore the DSEX session range and returns over time."}</p>
-          {pulse.indexAvailable ? <dl className="sw-detail-stats">
-            {detailStats.filter(([, value]) => value !== "N/A").map(([label, value]) => <Metric key={label} label={label}><strong>{value}</strong></Metric>)}
-            {detailStats.some(([, value]) => value === "N/A") ? <p className="sw-returns-unavailable">{locale === "bn" ? "কিছু সময়কালের রিটার্নের তথ্য নেই।" : "Some period returns are unavailable."}</p> : null}
-            {pulse.indexRange ? <Metric label={copy.range}>
+      <div className="sw-index-details"><DashboardInfoPanel label={copy.indexDetails} title={locale === "bn" ? "DSEX এক নজরে" : "DSEX at a glance"} locale={locale}>
+        <div className="sw-index-detail-content">
+          {pulse.indexAvailable ? <>
+            {dayStats.length > 0 && <dl className="sw-index-detail-grid">
+              {dayStats.map(([label, value]) => <Metric key={label} label={label}><strong>{value === "N/A" ? "—" : value}</strong></Metric>)}
+            </dl>}
+            {hasReturns && <section aria-label={locale === "bn" ? "সূচকের পরিবর্তন" : "Index returns"}>
+              <h4>{locale === "bn" ? "সূচকের পরিবর্তন" : "Index returns"}</h4>
+              <dl className="sw-index-detail-grid">
+                {returns.map((value, index) => <Metric key={copy.returns[index]} label={copy.returns[index]}>
+                  <strong className={value.startsWith("-") ? "sw-negative" : value.startsWith("+") ? "sw-positive" : "sw-neutral"}>
+                    {value === "N/A" ? <span title={locale === "bn" ? "তথ্য নেই" : "Unavailable"}>—</span> : value}
+                  </strong>
+                </Metric>)}
+              </dl>
+            </section>}
+            {pulse.indexRange && <dl><Metric label={copy.range}>
               <strong>{pulse.indexRange.lowLabel} – {pulse.indexRange.highLabel}</strong>
               <div className="sw-range" aria-hidden="true"><i style={{ left: `${pulse.indexRange.positionPercent}%` }} /></div>
-            </Metric> : null}
-          </dl> : <p>{loading ? copy.loading : copy.indexMissing}</p>}
+            </Metric></dl>}
+            {!dayStats.length && !hasReturns && !pulse.indexRange &&
+              <p>{locale === "bn" ? "বিস্তারিত সূচক তথ্য নেই।" : "Index range and returns are unavailable."}</p>}
+          </> : <p>{loading ? copy.loading : copy.indexMissing}</p>}
         </div>
       </DashboardInfoPanel></div>
       </div>

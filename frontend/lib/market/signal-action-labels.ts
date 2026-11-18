@@ -31,7 +31,7 @@ const signalActionLabels: Record<AppLocale, SignalActionLabelCopy> = {
       REVIEW: "REVIEW", REDUCE: "REDUCE",
     },
     compact: {
-      POTENTIAL_BUY: "POTENTIAL BUY",
+      POTENTIAL_BUY: "P. BUY",
     },
   },
 };

@@ -151,13 +151,13 @@ describe("market pulse language", () => {
     expect(localized.focusStocks[0]?.actionSummary).toBe("দামের চেয়ে Volume দ্রুত বাড়ছে");
     expect(localized.alerts[0]?.eventExplanation).toContain("Volume recent baseline-এর 10.0x");
     expect(localized.briefing?.summary.text).toContain("বাজার এখন");
-    expect(localized.briefing?.story.headline).toBe("পর্যালোচিত শেয়ারের দাম কমেছে");
+    expect(localized.briefing?.story.headline).toBe("বেশি শেয়ারের দর কমেছে");
   });
 
   it("localizes typed story facts without inferring sector counts", () => {
     const language = getMarketPulseLanguage("bn");
-    expect(language.briefing.storyHeadline("STRENGTH_SECTORS", 4)).toBe("দামের শক্তি ছড়াচ্ছে\n4টি খাতে");
-    expect(language.briefing.storyHeadline("STRENGTH_STOCKS", null)).toBe("পর্যালোচিত শেয়ারের দাম বেড়েছে");
+    expect(language.briefing.storyHeadline("STRENGTH_SECTORS", 4)).toBe("৪টি খাতে দর বেড়েছে");
+    expect(language.briefing.storyHeadline("STRENGTH_STOCKS", null)).toBe("বেশি শেয়ারের দর বেড়েছে");
     expect(language.briefing.storyHeadline("SECTOR_UNAVAILABLE", null)).toBe("খাতের অগ্রগতির তথ্য পাওয়া যায়নি");
   });
 

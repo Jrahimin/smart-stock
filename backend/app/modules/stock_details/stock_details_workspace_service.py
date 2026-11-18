@@ -108,6 +108,15 @@ class StockDetailsWorkspaceService:
             canonical_snapshot, exchange=exchange, stock_ids={stock_read.id},
         )
         current_row = canonical_snapshot.row_for_symbol(symbol)
+        previous = current_row.previous_finalized_decision if current_row else None
+        comparison = current_row.public_comparison if current_row else None
+        current = current_row.decision.canonical if current_row and current_row.decision else None
+        previous_trigger = current_row.previous_trigger_price if (
+            previous and current and comparison and comparison.status != "UNCOMPARABLE"
+            and previous.entry_timing == current.entry_timing
+            and not canonical_snapshot.withdrawn and not canonical_snapshot.updating
+            and current_row.eligibility and current_row.eligibility.corporate_action_status == "NONE"
+        ) else None
         quote = current_row.display_quote if current_row and current_row.display_quote else DisplayQuoteRead(current_price=None)
         quote_generation = canonical_snapshot.quote_generation
         quote_id = quote_generation.sync_id if quote_generation else None
@@ -152,6 +161,8 @@ class StockDetailsWorkspaceService:
                 update={
                     "decision_status": status,
                     "display_metrics": display_metrics,
+                    "previous_trigger_price": previous_trigger,
+                    "previous_trigger_date": previous.as_of_date if previous_trigger is not None else None,
                     "decision_support": cached_workspace.decision_support.model_copy(
                         update={"decision_status": status, "entry_applicability": applicability,
                             "measured_facts": current_row.measured_facts if current_row else None,
@@ -253,6 +264,8 @@ class StockDetailsWorkspaceService:
             valuation_context=valuation_context,
             dividend_intelligence=dividend_intelligence,
             display_metrics=display_metrics,
+            previous_trigger_price=previous_trigger,
+            previous_trigger_date=previous.as_of_date if previous_trigger is not None else None,
             market_sync_id=generation.sync_id,
             decision_generation_id=generation.sync_id,
             quote_generation_id=quote_id,

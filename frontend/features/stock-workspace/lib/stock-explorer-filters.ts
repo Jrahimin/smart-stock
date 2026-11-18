@@ -1,10 +1,12 @@
 import type { StockIntelligenceModel } from "@/lib/market/market-intelligence-types";
 import { getVolumeBehaviorId, resolveTraderDecision, type ResolvedTraderDecision } from "@/lib/market/trader-decision";
+import { sectorName } from "@/features/market-dashboard/terminal-copy";
 
 export type ExplorerPortfolioScope = "ALL" | "WATCHLIST" | "HOLDINGS";
 
 export type ExplorerTableFilters = {
   tableSearch: string;
+  sector?: string;
   signalFilter: string;
   volumeFilter: string;
   portfolioScope: ExplorerPortfolioScope;
@@ -33,6 +35,7 @@ export function filterExplorerUniverseRows(args: {
 }): StockIntelligenceModel[] {
   const { universe, decisionByStockId, searchTextByStockId, filters, watchedStockIds, holdingStockIds } = args;
   const query = filters.tableSearch.trim().toLowerCase();
+  const selectedSector = filters.sector ? sectorName(filters.sector, "en").toLowerCase() : "";
 
   return universe.filter((stock) => {
     const decision = decisionByStockId.get(stock.stock.id);
@@ -42,6 +45,7 @@ export function filterExplorerUniverseRows(args: {
 
     const searchText = searchTextByStockId.get(stock.stock.id) ?? buildExplorerSearchText(stock);
     const matchesSearch = matchesExplorerTableSearch(searchText, query);
+    const matchesSector = !selectedSector || sectorName(stock.stock.sector ?? "", "en").toLowerCase() === selectedSector;
     const matchesSignal = filters.signalFilter === "ALL" || decision.recommendation === filters.signalFilter;
     const matchesVolume = filters.volumeFilter === "ALL" || getVolumeBehaviorId(stock) === filters.volumeFilter;
     const stockId = stock.stock.id;
@@ -50,13 +54,14 @@ export function filterExplorerUniverseRows(args: {
       (filters.portfolioScope === "WATCHLIST" && watchedStockIds.has(stockId)) ||
       (filters.portfolioScope === "HOLDINGS" && holdingStockIds.has(stockId));
 
-    return matchesSearch && matchesSignal && matchesVolume && matchesPortfolioScope;
+    return matchesSearch && matchesSector && matchesSignal && matchesVolume && matchesPortfolioScope;
   });
 }
 
 export function hasActiveExplorerTableFilters(filters: ExplorerTableFilters): boolean {
   return (
     Boolean(filters.tableSearch.trim()) ||
+    Boolean(filters.sector) ||
     filters.signalFilter !== "ALL" ||
     filters.volumeFilter !== "ALL" ||
     filters.portfolioScope !== "ALL"

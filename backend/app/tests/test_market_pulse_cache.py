@@ -142,6 +142,8 @@ def _snapshot(
     return SimpleNamespace(
         quote_generation=None,
         updating=False,
+        withdrawn=False,
+        payload=SimpleNamespace(decision_status="CURRENT", payload_revision=None),
         generation=SimpleNamespace(
             sync_id=sync_id,
             trade_date=DECISION_DATE,
